@@ -53,11 +53,13 @@
           <h1 class="top-page-title">{{ pageTitle }}</h1>
           <div class="breadcrumb-row">
             <span>{{ pageSubtitle }}</span>
-            <span class="tenant-scope-label" *ngIf="tenantScopeLabel">
-              <span class="tenant-divider">·</span>
-              <span class="material-icons tenant-scope-icon">corporate_fare</span>
-              {{ tenantScopeLabel }}
-            </span>
+            <ng-container *ngIf="tenantScopeLabel">
+              <span class="tenant-divider" aria-hidden="true">·</span>
+              <span class="tenant-scope-label">
+                <span class="material-icons tenant-scope-icon">corporate_fare</span>
+                {{ tenantScopeLabel }}
+              </span>
+            </ng-container>
           </div>
         </div>
       </div>
