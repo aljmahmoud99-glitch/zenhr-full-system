@@ -421,18 +421,27 @@
 .org-breadcrumb-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 180px;
 }
 
 .org-node-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
+  color: var(--z-text-primary);
+  line-height: 1.4;
 }
 
 .org-breadcrumb-text {
-  font-size: 10px;
-  color: var(--z-text-secondary);
-  opacity: 0.75;
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--z-text-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
 .text-muted {
