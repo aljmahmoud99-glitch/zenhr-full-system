@@ -1,0 +1,362 @@
+The current implementation is still too disconnected.
+
+We now have screens for:
+- Platform Admin companies
+- Org structure
+- Roles
+- User roles
+- Manager dashboard
+- Employee dashboard
+
+But the org structure is NOT reflected across the system properly.
+
+We need a real connected multi-tenant testable system, not static/mock screens.
+
+════════════════════════════
+MAIN GOAL
+════════════════════════════
+
+Make company creation, org structure, users, roles, dashboards, and data visibility connected end-to-end.
+
+System Admin should be able to create a company properly.
+HR Admin should manage only that company.
+Managers and employees should see data based on their real branch/department/team.
+
+════════════════════════════
+1. PLATFORM ADMIN — COMPANY CREATION
+════════════════════════════
+
+The System Admin companies screen must allow adding a full company/tenant.
+
+Add/Edit Company form must include:
+
+Company basic info:
+- Company Arabic name
+- Company English name
+- Company code
+- Commercial registration number
+- Tax number
+- Email
+- Phone
+- Website
+- Country
+- City
+- Address
+- Status active/inactive
+
+Subscription info:
+- Plan name
+- Subscription start date
+- Subscription end date
+- Max users
+- Max employees
+- Trial or paid
+
+Initial structure setup:
+- Number of branches
+- Branch names Arabic/English
+- Branch code
+- Branch location/address
+- Branch manager if available
+
+When company is created:
+- Create company record
+- Create root org_node for the company
+- Create branch org_nodes under company
+- Create default departments under branches if selected
+- Create default roles for that company:
+  hradmin, hr, manager, payrolladmin, employee
+- Create default permissions for that company
+- Create initial HR Admin user for that company if provided
+
+Important:
+Company creation must not be just UI.
+It must create real backend/database records connected to org_nodes.
+
+════════════════════════════
+2. ORGANIZATIONAL STRUCTURE MUST BE REAL
+════════════════════════════
+
+Org Structure screen must show actual hierarchy:
+
+Company
+  Branch
+    Department
+      Section
+        Unit
+
+Not a flat list.
+
+Each node must show:
+- name_ar
+- name_en
+- code
+- node type
+- parent
+- manager
+- employee count
+- active status
+
+Actions:
+- Add child node
+- Edit node
+- Soft delete node
+- Block delete if node has employees or children
+
+When employee count appears, it must be calculated from employees linked to that org_node and descendants.
+
+════════════════════════════
+3. USERS SCREEN MUST BE REAL
+════════════════════════════
+
+Create/complete Users management.
+
+System Admin:
+- Can see platform admins and company admins
+- Can create HR Admin user for a company
+- Can assign user to company
+
+HR Admin:
+- Can see users only inside their company
+- Can create users for employees
+- Can assign roles
+- Can assign org_node
+- Cannot see other companies
+
+User fields:
+- username
+- email
+- role
+- company
+- linked employee
+- org_node
+- status
+- last login if available
+
+Important:
+Users must be tied to company_id and role_id.
+Do not rely only on static role strings.
+
+════════════════════════════
+4. CREATE REAL TEST DATA
+════════════════════════════
+
+Create realistic seed data to test the structure.
+
+At least:
+- 2 companies
+- Each company has:
+  - 2 branches
+  - departments under each branch
+  - managers assigned to departments
+  - employees distributed across branches/departments
+  - payroll admin
+  - HR admin
+  - normal HR user
+  - employees
+
+Example:
+Company A:
+- Amman Branch
+  - HR Department
+  - Finance Department
+  - Operations Department
+- Irbid Branch
+  - Sales Department
+  - Customer Service Department
+
+Company B:
+- Main Branch
+- Remote Branch
+
+Create users:
+- systemadmin
+- companyA_hradmin
+- companyA_manager_amm_hr
+- companyA_payroll
+- companyA_employee
+- companyB_hradmin
+- companyB_manager
+- companyB_employee
+
+This test data is required so we can verify scoping.
+
+════════════════════════════
+5. REFLECT ORG STRUCTURE ACROSS ALL SCREENS
+════════════════════════════
+
+The org structure must affect:
+
+Dashboard:
+- System Admin sees all companies
+- HR Admin sees only company data
+- Manager sees only team data
+- Payroll sees payroll by branch/department
+- Employee sees own profile/org info
+
+Employees screen:
+- HR Admin can filter by branch/department/org node
+- Manager sees only team employees
+- Employee does not see all employees
+
+Documents screen:
+- HR Admin sees company documents
+- Manager sees team documents if permitted
+- Employee sees own documents only
+
+Payroll screen:
+- Payroll Admin sees payroll by allowed branches/departments
+- HR Admin sees company payroll if permission exists
+- Employee sees own payslip only
+
+Reports screen:
+- Reports must have org filters:
+  company, branch, department, employee
+- Export/print should respect permissions and data scope
+
+Job Descriptions:
+- Job descriptions should connect to org node / department / career path
+- Not isolated static UI
+
+Attendance / Leave / Overtime:
+- Must respect org scope
+- Manager sees team
+- Employee sees own
+- HR Admin sees company
+
+════════════════════════════
+6. DASHBOARDS MUST SHOW REAL STRUCTURE INFO
+════════════════════════════
+
+System Admin dashboard:
+- total companies
+- active companies
+- total users
+- total employees
+- companies table with:
+  branches count
+  employees count
+  users count
+  subscription status
+
+HR Admin dashboard:
+- company name
+- branches count
+- departments count
+- employees per branch
+- managers per branch
+- pending HR actions
+
+Manager dashboard:
+- manager branch
+- manager department
+- team size
+- direct employees
+- pending approvals
+
+Payroll Admin dashboard:
+- branch payroll totals
+- department payroll totals
+- incentives
+- deductions
+- pending payroll runs
+
+Employee dashboard:
+- employee company
+- branch
+- department
+- direct manager
+- leave balance
+- attendance today
+- payslip status
+
+════════════════════════════
+7. BACKEND DATA SCOPING
+════════════════════════════
+
+Every API must respect:
+
+System Admin:
+- global access where appropriate
+
+HR Admin:
+- company_id only
+
+Manager:
+- company_id + org_node descendants/team
+
+Payroll Admin:
+- company_id + payroll permissions + org scope
+
+Employee:
+- own employee_id only
+
+Do NOT trust frontend filtering only.
+Backend must enforce this.
+
+════════════════════════════
+8. FRONTEND RULES
+════════════════════════════
+
+Do not show random static cards.
+
+Every card/table/filter must come from API data.
+
+Add shared org selector component:
+- company selector for system admin
+- org node selector for HR Admin / payroll
+- manager auto-scoped view
+- employee no selector, own data only
+
+Use permissions:
+- canDo('screen:action')
+- no hardcoded role checks except safe fallback
+
+════════════════════════════
+9. TESTING REQUIRED
+════════════════════════════
+
+After implementation, test these logins:
+
+1. systemadmin:
+- sees all companies
+- can create company
+- can see company stats
+
+2. companyA_hradmin:
+- sees only Company A
+- sees Company A branches/departments/employees
+- cannot see Company B
+
+3. companyA_manager:
+- sees only assigned team
+- does not see all company employees
+
+4. companyA_payroll:
+- sees payroll data only
+- can filter by allowed branch/department
+
+5. companyA_employee:
+- sees only own data
+- sees own branch, department, direct manager
+
+════════════════════════════
+10. IMPORTANT CONSTRAINTS
+════════════════════════════
+
+- Do not delete working screens.
+- Do not create fake disconnected UI.
+- Do not duplicate dashboards unnecessarily.
+- Do not remove legacy fields yet.
+- Preserve existing login.
+- Preserve existing role strings for backward compatibility.
+- Add missing backend APIs if needed.
+- Keep the app running after every change.
+- Summarize changed files and tests done.
+
+Start with:
+1. Audit current implementation
+2. Identify disconnected/mock parts
+3. Connect company creation to org_nodes/users/roles
+4. Add realistic seed data
+5. Reflect org structure into dashboards and major screens

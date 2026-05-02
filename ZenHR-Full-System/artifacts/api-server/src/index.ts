@@ -108,37 +108,141 @@ app.patch("/api/auth/change-password", auth, async (req, res) => {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 app.get("/api/dashboard/summary", auth, async (req, res) => {
   try {
-    const user = (req as AuthReq).user;
+    const authReq = req as AuthReq;
+    const user = authReq.user;
     const cId = user.companyId;
-    const [empCount] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, cId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
-    const [deptCount] = await db.select({ count: sql<number>`count(*)::int` }).from(departmentsTable)
-      .where(and(eq(departmentsTable.companyId, cId), eq(departmentsTable.isDeleted, false)));
-    const [pendingLeave] = await db.select({ count: sql<number>`count(*)::int` }).from(leaveRequestsTable)
-      .where(eq(leaveRequestsTable.status, "pending"));
+    const today = new Date().toISOString().split("T")[0]!;
+    const in30 = new Date(); in30.setDate(in30.getDate() + 30);
+    const in30Str = in30.toISOString().split("T")[0]!;
+
+    // Scope employees by role (own / department subtree / company).
+    // Manager → only their org_node subtree; HR admin → whole company; employee → just self.
+    const scope = await getEmployeeScopeConditions(authReq);
+    const empConds = [...scope, eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")];
+
+    const scopedEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...empConds));
+    const scopedIds = scopedEmps.map(e => e.id);
+    const totalEmployees = scopedIds.length;
+
+    // Helpers — when scope is empty, every "in scope" filter must short-circuit to false
+    const inLeave = scopedIds.length ? inArray(leaveRequestsTable.employeeId, scopedIds) : sql`false`;
+    const inOT    = scopedIds.length ? inArray(overtimeRequestsTable.employeeId, scopedIds) : sql`false`;
+    const inAtt   = scopedIds.length ? inArray(attendanceRecordsTable.employeeId, scopedIds) : sql`false`;
+
+    const [pendingLeave] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(leaveRequestsTable)
+      .where(and(eq(leaveRequestsTable.status, "pending"), eq(leaveRequestsTable.isDeleted, false), inLeave));
+
+    const [pendingOT] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(overtimeRequestsTable)
+      .where(and(eq(overtimeRequestsTable.status, "pending"), eq(overtimeRequestsTable.isDeleted, false), inOT));
+
+    const [presentToday] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(attendanceRecordsTable)
+      .where(and(eq(attendanceRecordsTable.date, today), inAtt, isNotNull(attendanceRecordsTable.clockIn)));
+
+    const [onLeaveToday] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(leaveRequestsTable)
+      .where(and(
+        eq(leaveRequestsTable.status, "approved"),
+        eq(leaveRequestsTable.isDeleted, false),
+        inLeave,
+        lte(leaveRequestsTable.startDate, today),
+        gte(leaveRequestsTable.endDate, today),
+      ));
+
+    const presentCount = presentToday?.count ?? 0;
+    const onLeaveCount = onLeaveToday?.count ?? 0;
+    const absentToday = Math.max(0, totalEmployees - presentCount - onLeaveCount);
+
+    // Compliance — scoped employees only
+    const [sscNotEnrolled] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(and(...empConds, eq(employeesTable.isSSCExempt, false), isNull(employeesTable.sscEnrollmentDate)));
+
+    const [wpExpiringSoon] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(and(...empConds, isNotNull(employeesTable.workPermitExpiry), lte(employeesTable.workPermitExpiry, in30Str)));
+
+    // Use residency expiry as a proxy for "health" expiring soon (no health column in schema)
+    const [healthExpiringSoon] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(and(...empConds, isNotNull(employeesTable.residencyExpiry), lte(employeesTable.residencyExpiry, in30Str)));
+
+    let assetsAssigned = 0;
+    if (scopedIds.length) {
+      const [a] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(assetsTable)
+        .where(and(eq(assetsTable.companyId, cId), inArray(assetsTable.assignedToEmployeeId, scopedIds)));
+      assetsAssigned = a?.count ?? 0;
+    }
+
     res.json({
-      totalEmployees: empCount?.count ?? 0,
-      activeEmployees: empCount?.count ?? 0,
-      totalDepartments: deptCount?.count ?? 0,
-      pendingLeaveRequests: pendingLeave?.count ?? 0,
-      monthlyPayroll: 0,
-      newHiresThisMonth: 0,
+      success: true,
+      data: {
+        totalEmployees,
+        presentToday: presentCount,
+        onLeaveToday: onLeaveCount,
+        absentToday,
+        pendingLeaves: pendingLeave?.count ?? 0,
+        pendingOvertimes: pendingOT?.count ?? 0,
+        pendingAdvances: 0,
+        pendingPreEmployment: 0,
+        pendingDisciplinary: 0,
+        activeResignations: 0,
+        pendingClearances: 0,
+        sscNotEnrolled: sscNotEnrolled?.count ?? 0,
+        wpExpiringSoon: wpExpiringSoon?.count ?? 0,
+        healthExpiringSoon: healthExpiringSoon?.count ?? 0,
+        assetsAssigned,
+      },
     });
   } catch (e) {
-    console.error(e);
+    console.error("[/api/dashboard/summary]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/dashboard/recent-activity", auth, async (req, res) => {
   try {
-    const user = (req as AuthReq).user;
+    const authReq = req as AuthReq;
+    const user = authReq.user;
     const limit = parseInt(String(req.query["limit"] ?? "10"));
+    // Manager/employee data scope: filter to activity referencing the visible employees
+    // by name. (activity_logs has no employee_id FK, so we narrow via employee_name.)
+    const scope = await getEmployeeScopeConditions(authReq);
+    let scopedNames: string[] | null = null;
+    if (user.role === "manager" || user.role === "employee") {
+      const empConds = [...scope, eq(employeesTable.isDeleted, false)];
+      const emps = await db.select({
+        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+      }).from(employeesTable).where(and(...empConds));
+      scopedNames = emps.flatMap(e => [
+        `${e.firstNameEn} ${e.lastNameEn}`,
+        `${e.firstNameAr} ${e.lastNameAr}`,
+      ]);
+    }
     const logs = await db.select().from(activityLogsTable)
       .where(eq(activityLogsTable.companyId, user.companyId))
-      .orderBy(desc(activityLogsTable.createdAt)).limit(limit);
-    res.json(logs.map(l => ({ id: l.id, type: l.type, description: l.description, employeeName: l.employeeName, createdAt: l.createdAt })));
+      .orderBy(desc(activityLogsTable.createdAt)).limit(limit * 3);
+    const filtered = scopedNames
+      ? logs.filter(l => !l.employeeName || scopedNames!.includes(l.employeeName))
+      : logs;
+    res.json({
+      success: true,
+      data: filtered.slice(0, limit).map(l => ({
+        id: l.id,
+        actionType: l.type,
+        entityType: l.type,
+        descriptionAr: l.description,
+        descriptionEn: l.description,
+        employeeName: l.employeeName,
+        createdAt: l.createdAt,
+      })),
+    });
   } catch (e) {
+    console.error("[/api/dashboard/recent-activity]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -149,20 +253,34 @@ app.get("/api/dashboard/leave-stats", auth, async (_req, res) => {
 
 app.get("/api/dashboard/headcount-by-department", auth, async (req, res) => {
   try {
-    const user = (req as AuthReq).user;
+    const authReq = req as AuthReq;
+    const user = authReq.user;
+    const scope = await getEmployeeScopeConditions(authReq);
+    const conditions = [
+      ...scope,
+      eq(employeesTable.isDeleted, false),
+      eq(employeesTable.employmentStatus, "active"),
+      isNotNull(employeesTable.departmentId),
+    ];
     const rows = await db.select({
       departmentId: employeesTable.departmentId,
       count: sql<number>`count(*)::int`,
-    }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+    }).from(employeesTable).where(and(...conditions))
       .groupBy(employeesTable.departmentId);
-    const depts = await db.select().from(departmentsTable).where(eq(departmentsTable.companyId, user.companyId));
+    const depts = await db.select().from(departmentsTable)
+      .where(and(eq(departmentsTable.companyId, user.companyId), eq(departmentsTable.isDeleted, false)));
     const result = rows.map(r => {
       const dept = depts.find(d => d.id === r.departmentId);
-      return { departmentId: r.departmentId, departmentNameAr: dept?.nameAr ?? "Unknown", departmentNameEn: dept?.nameEn ?? "Unknown", count: r.count };
-    });
-    res.json(result);
+      return {
+        departmentId: r.departmentId,
+        nameAr: dept?.nameAr ?? "غير محدد",
+        nameEn: dept?.nameEn ?? "Unknown",
+        count: r.count,
+      };
+    }).sort((a, b) => b.count - a.count);
+    res.json({ success: true, data: result });
   } catch (e) {
+    console.error("[/api/dashboard/headcount-by-department]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1447,16 +1565,75 @@ app.post("/api/form-submissions", auth, async (req, res) => {
 });
 
 // ─── Users management ─────────────────────────────────────────────────────────
+// Helper — load a user the caller is allowed to touch (same company, or any if superadmin)
+async function loadScopedUser(callerCompanyId: number, callerRole: string, targetId: number) {
+  const [target] = await db.select().from(usersTable)
+    .where(and(eq(usersTable.id, targetId), eq(usersTable.isDeleted, false)));
+  if (!target) return { error: "User not found" as const };
+  if (callerRole !== "superadmin" && target.companyId !== callerCompanyId) {
+    return { error: "Forbidden — different company" as const };
+  }
+  return { target };
+}
+
 app.get("/api/users", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    const conditions = [eq(usersTable.isDeleted, false)];
+    // Superadmin sees ALL users across the platform; everyone else only their company.
+    if (user.role !== "superadmin") {
+      conditions.push(eq(usersTable.companyId, user.companyId));
+    } else if (req.query["companyId"]) {
+      conditions.push(eq(usersTable.companyId, parseInt(String(req.query["companyId"]))));
+    }
     const users = await db.select({
       id: usersTable.id, username: usersTable.username, email: usersTable.email,
-      role: usersTable.role, isActive: usersTable.isActive, companyId: usersTable.companyId,
-      employeeId: usersTable.employeeId, lastLoginAt: usersTable.lastLoginAt,
-    }).from(usersTable).where(and(eq(usersTable.companyId, user.companyId), eq(usersTable.isDeleted, false)));
+      role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive,
+      companyId: usersTable.companyId, employeeId: usersTable.employeeId,
+      lastLoginAt: usersTable.lastLoginAt, mustChangePassword: usersTable.mustChangePassword,
+    }).from(usersTable).where(and(...conditions)).orderBy(asc(usersTable.companyId), asc(usersTable.id));
     res.json({ success: true, data: users });
   } catch (e) {
+    console.error("[GET /api/users]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// Employees in the caller's company that DON'T already have a user account
+// (used by Users screen "link to employee" dropdown).
+app.get("/api/users/employee-options", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const targetCompanyId = (user.role === "superadmin" && req.query["companyId"])
+      ? parseInt(String(req.query["companyId"]))
+      : user.companyId;
+
+    const linked = await db.select({ employeeId: usersTable.employeeId })
+      .from(usersTable)
+      .where(and(
+        eq(usersTable.companyId, targetCompanyId),
+        eq(usersTable.isDeleted, false),
+        isNotNull(usersTable.employeeId),
+      ));
+    const linkedIds = linked.map(r => r.employeeId!).filter(Boolean);
+
+    let baseConds = [
+      eq(employeesTable.companyId, targetCompanyId),
+      eq(employeesTable.isDeleted, false),
+      eq(employeesTable.employmentStatus, "active"),
+    ];
+    const emps = await db.select({
+      id: employeesTable.id,
+      employeeCode: employeesTable.employeeCode,
+      firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+      firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+      workEmail: employeesTable.workEmail,
+    }).from(employeesTable).where(and(...baseConds))
+      .orderBy(asc(employeesTable.firstNameEn));
+    const filtered = emps.filter(e => !linkedIds.includes(e.id));
+    res.json({ success: true, data: filtered });
+  } catch (e) {
+    console.error("[/api/users/employee-options]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1464,34 +1641,180 @@ app.get("/api/users", auth, async (req, res) => {
 app.post("/api/users", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { username, email, password, role, employeeId } = req.body as { username: string; email: string; password: string; role: string; employeeId?: number };
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
+    const { username, email, password, role, employeeId, companyId } = req.body as {
+      username: string; email: string; password: string; role: string;
+      employeeId?: number; companyId?: number;
+    };
+    if (!username || !email || !password || !role) {
+      res.status(400).json({ success: false, message: "username, email, password, role required" }); return;
+    }
+    // Block escalation: only superadmin can grant superadmin
+    if (role === "superadmin" && user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Cannot assign superadmin role" }); return;
+    }
+    // Scope: hradmin always to own company; superadmin can target any company via body
+    const targetCompanyId = (user.role === "superadmin" && companyId) ? companyId : user.companyId;
+
+    // Cross-tenant guard: validate employeeId belongs to the target company
+    if (employeeId !== undefined && employeeId !== null) {
+      const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
+        .from(employeesTable).where(eq(employeesTable.id, Number(employeeId))).limit(1);
+      if (!emp || emp.companyId !== targetCompanyId) {
+        res.status(400).json({ success: false, message: "Employee does not belong to the target company" }); return;
+      }
+    }
+
+    // Resolve roleId from rolesTable for that company
+    const [r] = await db.select({ id: rolesTable.id }).from(rolesTable)
+      .where(and(eq(rolesTable.companyId, targetCompanyId), eq(rolesTable.name, role))).limit(1);
+
     const [newUser] = await db.insert(usersTable).values({
-      username, email, role, employeeId: employeeId ?? null,
-      passwordHash: hashPassword(password), companyId: user.companyId,
+      username, email, role,
+      roleId: r?.id ?? null,
+      employeeId: employeeId ?? null,
+      passwordHash: hashPassword(password),
+      companyId: targetCompanyId,
+      mustChangePassword: true,
     }).returning();
-    res.status(201).json({ success: true, data: { id: newUser.id, username: newUser.username, email: newUser.email, role: newUser.role } });
-  } catch (e) {
+    res.status(201).json({
+      success: true,
+      data: { id: newUser!.id, username: newUser!.username, email: newUser!.email, role: newUser!.role },
+      tempPassword: password,
+    });
+  } catch (e: any) {
+    console.error("[POST /api/users]", e);
+    if (String(e?.message || "").includes("duplicate") || e?.code === "23505") {
+      res.status(409).json({ success: false, message: "Username or email already exists" }); return;
+    }
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.patch("/api/users/:id", auth, async (req, res) => {
   try {
-    const { password, ...rest } = req.body as { password?: string; [key: string]: any };
-    const updates: any = { ...rest };
-    if (password) updates.passwordHash = hashPassword(password);
-    const [u] = await db.update(usersTable).set(updates).where(eq(usersTable.id, parseInt(req.params["id"]!))).returning();
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
+    const targetId = parseInt(req.params["id"]!);
+    const loaded = await loadScopedUser(user.companyId, user.role, targetId);
+    if ("error" in loaded) {
+      res.status(loaded.error === "User not found" ? 404 : 403)
+        .json({ success: false, message: loaded.error }); return;
+    }
+
+    // Allowlist mutable fields — anything else is silently ignored
+    const ALLOWED = ["username","email","isActive","employeeId","mustChangePassword"] as const;
+    const updates: any = {};
+    for (const k of ALLOWED) if (k in req.body) updates[k] = (req.body as any)[k];
+
+    const { password, role, companyId, employeeId } = req.body as any;
+    if (password) { updates.passwordHash = hashPassword(password); updates.mustChangePassword = false; }
+
+    if (role) {
+      if (role === "superadmin" && user.role !== "superadmin") {
+        res.status(403).json({ success: false, message: "Cannot assign superadmin role" }); return;
+      }
+      updates.role = role;
+      const [r] = await db.select({ id: rolesTable.id }).from(rolesTable)
+        .where(and(eq(rolesTable.companyId, loaded.target.companyId), eq(rolesTable.name, role))).limit(1);
+      updates.roleId = r?.id ?? null;
+    }
+
+    // companyId can only be moved by superadmin
+    let effectiveCompanyId = loaded.target.companyId;
+    if (companyId && user.role === "superadmin") {
+      updates.companyId = companyId;
+      effectiveCompanyId = companyId;
+    }
+
+    // Cross-tenant guard: if linking to an employee, that employee MUST belong to
+    // the user's (effective) company. Without this check, an HR admin could bind
+    // their own user to another tenant's employee and read their data via /me/* routes.
+    if (employeeId !== undefined && employeeId !== null) {
+      const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
+        .from(employeesTable).where(eq(employeesTable.id, Number(employeeId))).limit(1);
+      if (!emp || emp.companyId !== effectiveCompanyId) {
+        res.status(400).json({ success: false, message: "Employee does not belong to the user's company" }); return;
+      }
+    }
+
+    const [u] = await db.update(usersTable).set(updates).where(eq(usersTable.id, targetId)).returning();
     res.json({ success: true, data: u });
   } catch (e) {
+    console.error("[PATCH /api/users/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/users/:id/toggle-active", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
+    const targetId = parseInt(req.params["id"]!);
+    const loaded = await loadScopedUser(user.companyId, user.role, targetId);
+    if ("error" in loaded) {
+      res.status(loaded.error === "User not found" ? 404 : 403)
+        .json({ success: false, message: loaded.error }); return;
+    }
+    const [u] = await db.update(usersTable)
+      .set({ isActive: !loaded.target.isActive })
+      .where(eq(usersTable.id, targetId)).returning();
+    res.json({ success: true, data: { id: u!.id, isActive: u!.isActive } });
+  } catch (e) {
+    console.error("[PATCH /api/users/:id/toggle-active]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/users/:id/reset-password", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
+    const targetId = parseInt(req.params["id"]!);
+    const loaded = await loadScopedUser(user.companyId, user.role, targetId);
+    if ("error" in loaded) {
+      res.status(loaded.error === "User not found" ? 404 : 403)
+        .json({ success: false, message: loaded.error }); return;
+    }
+    // 12-char alphanumeric temp password
+    const temp = Array.from({ length: 12 }, () =>
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 62)],
+    ).join("");
+    await db.update(usersTable).set({
+      passwordHash: hashPassword(temp),
+      mustChangePassword: true,
+    }).where(eq(usersTable.id, targetId));
+    res.json({ success: true, tempPassword: temp });
+  } catch (e) {
+    console.error("[PATCH /api/users/:id/reset-password]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.delete("/api/users/:id", auth, async (req, res) => {
   try {
-    await db.update(usersTable).set({ isDeleted: true, isActive: false }).where(eq(usersTable.id, parseInt(req.params["id"]!)));
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
+    const targetId = parseInt(req.params["id"]!);
+    const loaded = await loadScopedUser(user.companyId, user.role, targetId);
+    if ("error" in loaded) {
+      res.status(loaded.error === "User not found" ? 404 : 403)
+        .json({ success: false, message: loaded.error }); return;
+    }
+    await db.update(usersTable).set({ isDeleted: true, isActive: false }).where(eq(usersTable.id, targetId));
     res.status(204).send();
   } catch (e) {
+    console.error("[DELETE /api/users/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1524,9 +1847,16 @@ app.get("/api/companies/:id", auth, async (req, res) => {
 
 app.patch("/api/companies/:id", auth, async (req, res) => {
   try {
-    const [company] = await db.update(companiesTable).set(req.body).where(eq(companiesTable.id, parseInt(req.params["id"]!))).returning();
+    const user = (req as AuthReq).user;
+    const targetId = parseInt(req.params["id"]!);
+    // Non-superadmin can only edit their own company
+    if (user.role !== "superadmin" && targetId !== user.companyId) {
+      res.status(403).json({ success: false, message: "Forbidden — different company" }); return;
+    }
+    const [company] = await db.update(companiesTable).set(req.body).where(eq(companiesTable.id, targetId)).returning();
     res.json({ success: true, data: company });
   } catch (e) {
+    console.error("[PATCH /api/companies/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1550,18 +1880,35 @@ app.get("/api/leave/balances", auth, async (req, res) => {
 // ─── Dashboard extra endpoints ────────────────────────────────────────────────
 app.get("/api/dashboard/upcoming-probations", auth, async (req, res) => {
   try {
-    const user = (req as AuthReq).user;
+    const authReq = req as AuthReq;
+    const user = authReq.user;
     const now = new Date();
     const in60 = new Date(); in60.setDate(in60.getDate() + 60);
-    const emps = await db.select().from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    // Apply role-based scope so manager only sees their subtree's probations
+    const scope = await getEmployeeScopeConditions(authReq);
+    const empConds = [...scope, eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")];
+    const emps = await db.select().from(employeesTable).where(and(...empConds));
+    const depts = await db.select().from(departmentsTable).where(eq(departmentsTable.companyId, user.companyId));
     const result = emps.filter(e => {
       if (!e.probationEndDate) return false;
       const d = new Date(e.probationEndDate);
       return d >= now && d <= in60;
-    }).map(e => ({ employeeId: e.id, name: `${e.firstNameEn} ${e.lastNameEn}`, probationEndDate: e.probationEndDate, daysLeft: Math.ceil((new Date(e.probationEndDate!).getTime() - now.getTime()) / 86400000) }));
+    }).map(e => {
+      const dept = depts.find(d => d.id === e.departmentId);
+      return {
+        id: e.id,
+        employeeCode: e.employeeCode,
+        nameAr: `${e.firstNameAr} ${e.lastNameAr}`,
+        nameEn: `${e.firstNameEn} ${e.lastNameEn}`,
+        deptAr: dept?.nameAr,
+        deptEn: dept?.nameEn,
+        probationEndDate: e.probationEndDate,
+        daysRemaining: Math.ceil((new Date(e.probationEndDate!).getTime() - now.getTime()) / 86400000),
+      };
+    }).sort((a, b) => a.daysRemaining - b.daysRemaining);
     res.json({ success: true, data: result });
   } catch (e) {
+    console.error("[/api/dashboard/upcoming-probations]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1674,6 +2021,216 @@ app.get("/api/admin/companies", auth, async (req, res) => {
     res.json({ success: true, data: enriched });
   } catch (e) {
     console.error("[/api/admin/companies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── POST /api/admin/companies — create a full tenant in one call ────────────
+// Body shape:
+// {
+//   nameAr, nameEn, code, country?, city?, phone?, email?, website?,
+//   commercialRegNo?, taxNumber?,
+//   planName?, subscriptionStart?, subscriptionEnd?, maxUsers?, maxEmployees?, isTrial?,
+//   branches?: [{ nameEn, nameAr, code?, departments?: [{ nameEn, nameAr, code? }] }],
+//   initialAdmin?: { username, email, password, firstNameEn?, firstNameAr?, lastNameEn?, lastNameAr? }
+// }
+app.post("/api/admin/companies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+    }
+    const b = req.body as any;
+    if (!b?.nameEn || !b?.nameAr) {
+      res.status(400).json({ success: false, message: "nameAr and nameEn are required" }); return;
+    }
+
+    // Catalogue of permission rules used to grant role_permissions for default roles
+    const SCREENS = [
+      "employees","leave","overtime","attendance","payroll","advances","compliance",
+      "documents","assets","disciplinary","resignations","clearance","reports","forms",
+      "users","settings","pre-employment","job-descriptions",
+    ];
+    const ACTIONS = ["view","create","update","delete","approve","export"];
+    const ROLE_GRANTS: Record<string, { screens: string[]; actions: string[]; scope: string }[]> = {
+      hradmin: [{ screens: SCREENS, actions: ACTIONS, scope: "company" }],
+      payrolladmin: [
+        { screens: ["payroll","advances","reports","forms"], actions: ACTIONS, scope: "company" },
+        { screens: ["employees","documents","assets","attendance"], actions: ["view","export"], scope: "company" },
+      ],
+      manager: [
+        { screens: ["employees"], actions: ["view"], scope: "department" },
+        { screens: ["leave","overtime","attendance"], actions: ["view","approve"], scope: "department" },
+        { screens: ["disciplinary"], actions: ["view","create","update"], scope: "department" },
+        { screens: ["documents","assets","forms"], actions: ["view"], scope: "department" },
+      ],
+      employee: [
+        { screens: ["leave","overtime","advances","attendance"], actions: ["view","create"], scope: "own" },
+        { screens: ["documents","assets","payroll","forms"], actions: ["view"], scope: "own" },
+      ],
+    };
+    const ROLE_AR: Record<string, string> = {
+      superadmin: "مدير النظام", hradmin: "مدير الموارد البشرية",
+      payrolladmin: "مدير الرواتب", manager: "مدير القسم",
+      employee: "موظف", recruiter: "موظف تعيين",
+    };
+
+    const result = await db.transaction(async (tx) => {
+      // 1. Insert company
+      const [company] = await tx.insert(companiesTable).values({
+        nameAr: b.nameAr, nameEn: b.nameEn,
+        code: b.code ?? null, country: b.country ?? "Jordan",
+        city: b.city ?? null, phone: b.phone ?? null,
+        email: b.email ?? null, website: b.website ?? null,
+        commercialRegNo: b.commercialRegNo ?? null, taxNumber: b.taxNumber ?? null,
+        currency: b.currency ?? "JOD",
+        industryType: b.industryType ?? "other",
+        planName: b.planName ?? "trial",
+        subscriptionStart: b.subscriptionStart ?? null,
+        subscriptionEnd: b.subscriptionEnd ?? null,
+        maxUsers: b.maxUsers ?? 10,
+        maxEmployees: b.maxEmployees ?? 50,
+        isTrial: b.isTrial ?? true,
+        isActive: true,
+      }).returning();
+      const companyId = company!.id;
+
+      // 2. Root org_node
+      const [root] = await tx.insert(orgNodesTable).values({
+        companyId, parentId: null, nodeType: "company",
+        nameAr: company!.nameAr, nameEn: company!.nameEn, code: company!.code ?? null,
+        sortOrder: 0,
+      }).returning({ id: orgNodesTable.id });
+
+      // 3. Branches + their departments
+      const branches = Array.isArray(b.branches) ? b.branches : [];
+      for (const [bi, br] of branches.entries()) {
+        const [branchNode] = await tx.insert(orgNodesTable).values({
+          companyId, parentId: root!.id, nodeType: "branch",
+          nameAr: br.nameAr ?? br.nameEn, nameEn: br.nameEn, code: br.code ?? null,
+          sortOrder: bi + 1,
+        }).returning({ id: orgNodesTable.id });
+        const depts = Array.isArray(br.departments) ? br.departments : [];
+        for (const [di, d] of depts.entries()) {
+          // departments table (used by employee.departmentId)
+          const [deptRow] = await tx.insert(departmentsTable).values({
+            companyId, nameAr: d.nameAr ?? d.nameEn, nameEn: d.nameEn,
+            code: d.code ?? null,
+          }).returning({ id: departmentsTable.id });
+          // org_nodes mirror for hierarchy
+          await tx.insert(orgNodesTable).values({
+            companyId, parentId: branchNode!.id, nodeType: "department",
+            nameAr: d.nameAr ?? d.nameEn, nameEn: d.nameEn, code: d.code ?? null,
+            sortOrder: di + 1,
+          });
+          void deptRow;
+        }
+      }
+
+      // 4. Default roles for the company
+      const roleNames = ["superadmin","hradmin","payrolladmin","manager","employee","recruiter"];
+      const roleIds: Record<string, number> = {};
+      for (const rn of roleNames) {
+        const [r] = await tx.insert(rolesTable).values({
+          companyId, name: rn, nameAr: ROLE_AR[rn] ?? rn,
+          isSystemRole: true, isActive: true,
+        }).returning({ id: rolesTable.id });
+        roleIds[rn] = r!.id;
+      }
+
+      // 5. role_permissions (look up global permissions table)
+      const allPerms = await tx.select({
+        id: permissionsTable.id, screen: permissionsTable.screen, action: permissionsTable.action,
+      }).from(permissionsTable);
+      const permMap: Record<string, number> = {};
+      for (const p of allPerms) permMap[`${p.screen}:${p.action}`] = p.id;
+
+      for (const [roleName, grants] of Object.entries(ROLE_GRANTS)) {
+        const roleId = roleIds[roleName]; if (!roleId) continue;
+        for (const g of grants) {
+          for (const screen of g.screens) {
+            for (const action of g.actions) {
+              const permId = permMap[`${screen}:${action}`];
+              if (!permId) continue;
+              await tx.insert(rolePermissionsTable).values({
+                roleId, permissionId: permId, dataScope: g.scope,
+              });
+            }
+          }
+        }
+      }
+
+      // 6. Initial HR admin user (and matching employee record if names provided)
+      let initialUser: any = null;
+      if (b.initialAdmin?.username && b.initialAdmin?.password && b.initialAdmin?.email) {
+        const ia = b.initialAdmin;
+        let employeeId: number | null = null;
+        if (ia.firstNameEn && ia.lastNameEn) {
+          const [emp] = await tx.insert(employeesTable).values({
+            companyId,
+            employeeCode: `${(company!.code ?? "C") + "-EMP-0001"}`,
+            firstNameAr: ia.firstNameAr ?? ia.firstNameEn,
+            lastNameAr:  ia.lastNameAr  ?? ia.lastNameEn,
+            firstNameEn: ia.firstNameEn,
+            lastNameEn:  ia.lastNameEn,
+            gender: ia.gender ?? "male",
+            dateOfBirth: ia.dateOfBirth ?? "1990-01-01",
+            hireDate: ia.hireDate ?? new Date().toISOString().substring(0, 10),
+            basicSalary: ia.basicSalary ?? "0.000",
+            employmentStatus: "active",
+            workEmail: ia.email,
+          }).returning({ id: employeesTable.id });
+          employeeId = emp!.id;
+        }
+        const [u] = await tx.insert(usersTable).values({
+          companyId, employeeId,
+          username: ia.username, email: ia.email,
+          passwordHash: hashPassword(ia.password),
+          role: "hradmin", roleId: roleIds["hradmin"]!,
+          isActive: true, mustChangePassword: true,
+        }).returning({ id: usersTable.id, username: usersTable.username });
+        initialUser = u;
+      }
+
+      return { company, rootOrgNodeId: root!.id, initialUser };
+    });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (e: any) {
+    console.error("[POST /api/admin/companies]", e);
+    if (e?.code === "23505") {
+      res.status(409).json({ success: false, message: "Duplicate value (code, username, or email already exists)" }); return;
+    }
+    res.status(500).json({ success: false, message: e?.message || "Internal server error" });
+  }
+});
+
+// ─── PATCH /api/admin/companies/:id — superadmin edit + suspend/activate ─────
+app.patch("/api/admin/companies/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const allowed = [
+      "nameAr","nameEn","code","country","city","phone","email","website",
+      "commercialRegNo","taxNumber","sscNumber","laborMinistryNo","industryType","currency",
+      "planName","subscriptionStart","subscriptionEnd","maxUsers","maxEmployees","isTrial","isActive",
+    ];
+    const updates: any = {};
+    for (const k of allowed) if (k in req.body) updates[k] = (req.body as any)[k];
+    if (!Object.keys(updates).length) {
+      res.status(400).json({ success: false, message: "No allowed fields to update" }); return;
+    }
+    const [company] = await db.update(companiesTable).set(updates).where(eq(companiesTable.id, id)).returning();
+    if (!company) { res.status(404).json({ success: false, message: "Company not found" }); return; }
+    res.json({ success: true, data: company });
+  } catch (e: any) {
+    console.error("[PATCH /api/admin/companies/:id]", e);
+    if (e?.code === "23505") {
+      res.status(409).json({ success: false, message: "Duplicate code" }); return;
+    }
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

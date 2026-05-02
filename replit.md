@@ -48,7 +48,7 @@ Preferred communication style: Simple, everyday language.
 - **Location:** `ZenHR-Full-System/artifacts/api-server/`
 - **Entry point:** `src/index.ts`
 - **Auth:** JWT (60min access + 7-day refresh); passwords hashed with SHA-256 + salt (see `src/auth.ts`). `authMiddleware` validates Bearer tokens and attaches `req.user`
-- **Multi-tenancy:** Every query filters by `companyId` extracted from the JWT claim — no hardcoded company IDs
+- **Multi-tenancy:** Every query filters by `companyId` extracted from the JWT claim — no hardcoded company IDs. The helper `loadScopedUser(companyId, role, targetId)` enforces same-company access on user mutations; `getEmployeeScopeConditions(req)` returns Drizzle conditions that limit a query to either the whole company (hradmin/superadmin), a manager's org-node subtree (manager), or a single employee (employee). All `/api/users/*` and `/api/dashboard/*` endpoints route through these helpers. Cross-tenant `employeeId` binding is rejected on POST/PATCH `/api/users` (returns 400). `PATCH /api/users/:id` is gated to admin roles only, with an explicit allowlist of mutable fields.
 - **API shape:** All responses follow `{ success: boolean, data: any, message?: string }`
 - **Base path:** `/api/*`
 - **Package manager:** pnpm (workspace)
