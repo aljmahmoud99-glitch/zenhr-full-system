@@ -1,0 +1,64 @@
+modules = ["nodejs-20", "web"]
+[agent]
+expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
+
+[nix]
+channel = "stable-25_05"
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 4200
+externalPort = 80
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "ZenJO API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "ZenJO API"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/ZenHR-Full-System/artifacts/api-server && npm run start"
+waitForPort = 3001
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/ZenHR-Full-System/frontend && node_modules/.bin/ng serve --configuration=development"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd /home/runner/workspace/ZenHR-Full-System/artifacts/api-server && node_modules/.bin/tsx src/index.ts & cd /home/runner/workspace/ZenHR-Full-System/frontend && node_modules/.bin/ng serve --configuration=production --port=5000 --host=0.0.0.0"]
+build = ["bash", "-c", "cd /home/runner/workspace/ZenHR-Full-System/frontend && node_modules/.bin/ng build --configuration=production && cd /home/runner/workspace/ZenHR-Full-System && pnpm --filter db push"]
