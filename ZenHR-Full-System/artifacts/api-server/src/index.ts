@@ -1586,27 +1586,103 @@ app.post("/api/auth/refresh", async (req, res) => {
   }
 });
 
-// ─── Admin endpoints ──────────────────────────────────────────────────────────
+// ─── Admin endpoints (superadmin only — platform level, NOT scoped by company) ─
+// Multi-tenancy rule: superadmin operates ABOVE companies; HR admin scopes are
+// enforced elsewhere by companyId. These endpoints intentionally bypass company
+// filtering, so they MUST require role === 'superadmin'.
 app.get("/api/admin/stats", auth, async (req, res) => {
   try {
-    const [empCount] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable).where(eq(employeesTable.isDeleted, false));
-    const [companyCount] = await db.select({ count: sql<number>`count(*)::int` }).from(companiesTable).where(eq(companiesTable.isActive, true));
-    res.json({ success: true, data: { totalCompanies: companyCount?.count ?? 0, totalEmployees: empCount?.count ?? 0, activeUsers: 6 } });
+    const user = (req as AuthReq).user;
+    if (user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+    }
+
+    // NOTE: subscription/plan columns (plan_type, plan_expiry_date, max_employees)
+    // are not yet in the companies schema, so trial/expired counts return 0 for now.
+    const [totalCompaniesRow] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(companiesTable).where(eq(companiesTable.isDeleted, false));
+    const [activeCompaniesRow] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(companiesTable)
+      .where(and(eq(companiesTable.isActive, true), eq(companiesTable.isDeleted, false)));
+    // totalUsers = all non-deleted users across the platform (matches UI label
+    // "إجمالي المستخدمين"). Per-company `userCount` below uses active-only since
+    // that's the operationally meaningful number to a platform admin.
+    const [totalUsersRow] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(usersTable).where(eq(usersTable.isDeleted, false));
+    const [totalEmployeesRow] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable).where(eq(employeesTable.isDeleted, false));
+
+    res.json({
+      success: true,
+      data: {
+        totalCompanies: totalCompaniesRow?.count ?? 0,
+        activeCompanies: activeCompaniesRow?.count ?? 0,
+        trialCompanies: 0,
+        expiredCompanies: 0,
+        pendingRegistrations: 0,
+        totalUsers: totalUsersRow?.count ?? 0,
+        totalEmployees: totalEmployeesRow?.count ?? 0,
+      },
+    });
   } catch (e) {
+    console.error("[/api/admin/stats]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/admin/companies", auth, async (_req, res) => {
+// Returns ALL companies (active + suspended) with per-company counts:
+// employeeCount, userCount, branchCount.
+app.get("/api/admin/companies", auth, async (req, res) => {
   try {
-    const companies = await db.select().from(companiesTable).where(eq(companiesTable.isActive, true));
-    res.json({ success: true, data: companies });
+    const user = (req as AuthReq).user;
+    if (user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+    }
+
+    const companies = await db.select().from(companiesTable)
+      .where(eq(companiesTable.isDeleted, false))
+      .orderBy(asc(companiesTable.id));
+
+    // Aggregate counts in one go to avoid N+1
+    const empCounts = await db
+      .select({ companyId: employeesTable.companyId, count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(eq(employeesTable.isDeleted, false))
+      .groupBy(employeesTable.companyId);
+    const userCounts = await db
+      .select({ companyId: usersTable.companyId, count: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(and(eq(usersTable.isDeleted, false), eq(usersTable.isActive, true)))
+      .groupBy(usersTable.companyId);
+    const branchCounts = await db
+      .select({ companyId: orgNodesTable.companyId, count: sql<number>`count(*)::int` })
+      .from(orgNodesTable)
+      .where(and(eq(orgNodesTable.isDeleted, false), eq(orgNodesTable.nodeType, "branch")))
+      .groupBy(orgNodesTable.companyId);
+
+    const empMap = new Map(empCounts.map(r => [r.companyId, r.count]));
+    const userMap = new Map(userCounts.map(r => [r.companyId, r.count]));
+    const branchMap = new Map(branchCounts.map(r => [r.companyId, r.count]));
+
+    const enriched = companies.map(c => ({
+      ...c,
+      employeeCount: empMap.get(c.id) ?? 0,
+      userCount: userMap.get(c.id) ?? 0,
+      branchCount: branchMap.get(c.id) ?? 0,
+    }));
+
+    res.json({ success: true, data: enriched });
   } catch (e) {
+    console.error("[/api/admin/companies]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.post("/api/admin/impersonate/end", auth, async (_req, res) => {
+app.post("/api/admin/impersonate/end", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (user.role !== "superadmin") {
+    res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+  }
   res.json({ success: true, message: "Impersonation ended" });
 });
 

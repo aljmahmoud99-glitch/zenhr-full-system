@@ -13,12 +13,14 @@ export interface Company {
   phone?: string; website?: string; industryType?: string;
   isActive: boolean; planType: string; maxEmployees: number;
   planExpiryDate?: string; createdAt?: string;
+  employeeCount?: number; userCount?: number; branchCount?: number;
 }
 
 export interface PlatformStats {
   totalCompanies: number; activeCompanies: number;
   trialCompanies: number; expiredCompanies: number;
   pendingRegistrations: number; totalUsers: number;
+  totalEmployees?: number;
 }
 
 export interface CompanyRegistration {

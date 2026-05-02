@@ -1,0 +1,247 @@
+We are building a multi-tenant HR system (SaaS) that supports multiple companies.
+
+This is NOT a single-company system.
+
+═══════════════════════════════════
+CORE CONCEPT — MULTI TENANCY
+═══════════════════════════════════
+
+There are TWO completely different admin types:
+
+1) System Admin (Platform Level)
+2) HR Admin (Company Level)
+
+These MUST NOT be mixed.
+
+───────────────────────────────────
+System Admin (Platform Admin)
+───────────────────────────────────
+- Works at platform level (NOT tied to one company)
+- Can see ALL companies in the system
+- Can manage companies (tenants)
+
+Must have a separate section:
+"Platform Administration"
+
+Includes:
+- Companies list
+- Company details:
+  - Company name
+  - Number of branches
+  - Number of employees
+  - Active users
+  - Subscription/plan (if exists)
+  - Status (active/inactive)
+  - Created date
+- High-level statistics:
+  - Total companies
+  - Total employees across system
+  - Total users
+- Platform-level settings
+
+IMPORTANT:
+- System Admin MUST NOT use HR screens
+- Must NOT be limited to company_id
+
+───────────────────────────────────
+HR Admin (Company Admin)
+───────────────────────────────────
+- Belongs to ONE company only
+- Can manage ONLY their company
+
+Must have section:
+"Company Administration"
+
+Includes:
+- Organizational Structure
+- Roles & Permissions
+- Assign Roles to Users
+- Company Users
+
+HR Admin can:
+- Create branches, departments, units
+- Manage employees
+- Manage roles & permissions INSIDE company
+
+IMPORTANT:
+- MUST be restricted by company_id everywhere
+- MUST NOT see other companies
+
+═══════════════════════════════════
+ORGANIZATIONAL STRUCTURE (ALREADY IMPLEMENTED)
+═══════════════════════════════════
+
+We have:
+org_nodes table (tree structure)
+
+Hierarchy:
+Company → Branch → Department → Section → Unit
+
+Each employee is linked to:
+- company_id
+- org_node_id
+- (legacy department_id remains)
+
+This structure MUST now drive the entire system.
+
+═══════════════════════════════════
+ROLE-BASED DATA VISIBILITY
+═══════════════════════════════════
+
+Different users see different data:
+
+1) HR Admin:
+- Sees FULL company data
+- Can filter by branch/department
+- Sees:
+  employees, payroll, attendance, reports
+
+2) Manager:
+- Sees ONLY their team (based on org_node)
+- Sees:
+  team employees
+  team attendance
+  team leave requests
+  team summaries
+
+3) Payroll Admin:
+- Sees payroll data ONLY
+- Can filter by:
+  branch / department
+- Sees:
+  salaries, incentives, deductions
+
+4) Employee:
+- Sees ONLY personal data
+- Sees:
+  own profile
+  own branch/department
+  direct manager
+  own attendance, leave, payslips
+
+═══════════════════════════════════
+DASHBOARD REQUIREMENTS (VERY IMPORTANT)
+═══════════════════════════════════
+
+We DO NOT create separate dashboards per role.
+
+We create ONE dashboard shell with dynamic widgets.
+
+Widgets appear based on:
+- role
+- permissions
+- data scope
+
+───────────────────────────────────
+System Admin Dashboard
+───────────────────────────────────
+Shows:
+- total companies
+- total employees (global)
+- total users
+- companies list with stats
+
+───────────────────────────────────
+HR Admin Dashboard
+───────────────────────────────────
+Shows:
+- company name
+- branches
+- departments
+- employee count per branch
+- manager distribution
+- summaries (attendance, payroll, etc.)
+
+───────────────────────────────────
+Manager Dashboard
+───────────────────────────────────
+Shows:
+- their branch/department
+- team size
+- team stats (attendance, leave)
+
+───────────────────────────────────
+Payroll Dashboard
+───────────────────────────────────
+Shows:
+- payroll summaries by branch
+- totals (salary, deductions, incentives)
+
+───────────────────────────────────
+Employee Dashboard
+───────────────────────────────────
+Shows:
+- personal info
+- branch/department
+- direct manager
+- personal activity
+
+═══════════════════════════════════
+PERMISSIONS SYSTEM (ALREADY BUILT)
+═══════════════════════════════════
+
+We already implemented:
+- roles
+- permissions
+- role_permissions
+- dataScope
+
+Now enforce:
+
+- Frontend must use:
+  canDo('screen:action')
+
+- Backend must use:
+  permission checks in every endpoint
+
+- No more:
+  role === 'hradmin'
+
+═══════════════════════════════════
+CRITICAL RULES
+═══════════════════════════════════
+
+1) DO NOT BREAK EXISTING SYSTEM
+2) DO NOT REMOVE OLD COLUMNS (department_id, role string)
+3) ADD logic, do NOT replace blindly
+4) KEEP backward compatibility
+5) DO NOT duplicate screens
+6) USE permissions instead of hardcoded roles
+7) ALL data must respect:
+   - company_id
+   - data scope
+   - org_node filtering
+
+═══════════════════════════════════
+WHAT TO IMPLEMENT NOW (FOCUS)
+═══════════════════════════════════
+
+1) Separate System Admin vs HR Admin navigation
+2) Create Platform Administration section (System Admin only)
+3) Update dashboards to be role-aware
+4) Add org-based filtering to summaries
+5) Ensure every API respects:
+   - company_id
+   - role scope
+6) Ensure frontend hides/shows UI using permissions
+
+═══════════════════════════════════
+FINAL GOAL
+═══════════════════════════════════
+
+We want a clean, scalable SaaS HR system where:
+
+- System Admin manages companies
+- HR Admin manages one company
+- Managers see their teams
+- Payroll sees payroll data only
+- Employees see only themselves
+
+ALL powered by:
+- org structure
+- dynamic permissions
+- data scoping
+
+═══════════════════════════════════
+
+Start by analyzing current implementation, then implement step by step safely.

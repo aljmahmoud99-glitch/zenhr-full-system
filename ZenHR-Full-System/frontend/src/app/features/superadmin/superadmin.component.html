@@ -50,6 +50,9 @@
           <thead>
             <tr>
               <th>الشركة</th>
+              <th>الفروع</th>
+              <th>الموظفون</th>
+              <th>المستخدمون</th>
               <th>الخطة</th>
               <th>انتهاء الاشتراك</th>
               <th>الحالة</th>
@@ -65,6 +68,12 @@
                   <small class="text-muted">{{ c.email }}</small>
                 </div>
               </td>
+              <td><strong>{{ c.branchCount ?? 0 }}</strong></td>
+              <td>
+                <strong>{{ c.employeeCount ?? 0 }}</strong>
+                <small class="text-muted" *ngIf="c.maxEmployees"> / {{ c.maxEmployees }}</small>
+              </td>
+              <td><strong>{{ c.userCount ?? 0 }}</strong></td>
               <td>
                 <span class="badge" [class]="planBadgeClass(c.planType)">{{ planLabel(c.planType) }}</span>
               </td>

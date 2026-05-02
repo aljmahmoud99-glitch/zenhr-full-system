@@ -188,6 +188,27 @@ Angular dev server proxies `/api/*` to `http://localhost:3001` via `frontend/pro
 - If refresh fails (no refresh token, or refresh token also expired), session is cleared and user is redirected to login
 - Concurrent refresh calls are de-duplicated via a shared promise
 
+### Phase 2 — Multi-Tenancy Hardening (COMPLETE)
+
+**Multi-tenancy model:**
+- **System Admin** (`role = 'superadmin'`) — operates at the **platform** level (above companies). Lands on `/admin/companies` after login. Sees all companies and aggregate stats. NOT scoped by `companyId`.
+- **HR Admin** (`role = 'hradmin'`) — operates at the **company** level. Lands on `/app/dashboard`. Scoped to their `companyId` everywhere.
+- The two are kept strictly separate by route guards (`SCREEN_ACCESS` enforces it on the frontend) and role checks on the backend.
+
+**Backend security fixes (`artifacts/api-server/src/index.ts`):**
+- `GET /api/admin/stats` — **now requires `role === 'superadmin'`** (was: any authenticated user). Returns real platform-wide aggregates: `totalCompanies`, `activeCompanies`, `totalUsers`, `totalEmployees`. (`trialCompanies`, `expiredCompanies`, `pendingRegistrations` return `0` until subscription columns are added to the `companies` schema.)
+- `GET /api/admin/companies` — **now requires `role === 'superadmin'`** and returns each company **enriched with per-company counts**: `employeeCount`, `userCount`, `branchCount` (counted from `org_nodes` where `node_type = 'branch'`). Single aggregate query — no N+1.
+- All HR/Company endpoints already enforce `companyId` scoping via JWT and the `permission-service.ts` data-scope helpers.
+
+**Frontend updates:**
+- `Company` model gains optional `employeeCount`, `userCount`, `branchCount` fields.
+- Superadmin companies table now shows **Branches**, **Employees**, **Users** columns next to plan/status/actions, so the platform admin gets per-tenant operational visibility at a glance.
+
+**Dashboard (already in place — verified):**
+- `DashboardComponent` is a single shell with role-aware widgets (`switch (this.role)` in `topCards`/`heroActions`/data loaders), all guarded by `this.access.isAny('hradmin', 'manager', ...)`.
+- Login routes superadmin to `/admin/companies` (Platform Administration), all others to `/app/dashboard` (their role-specific view).
+- The `roleGuard` enforces `SCREEN_ACCESS`, so superadmin cannot land on `/app/*` HR screens and HR Admin cannot land on `/admin/*` platform screens.
+
 ### Phase 1 Fix — Admin Screens (COMPLETE)
 
 **New routes added (`app.routes.ts`):**
