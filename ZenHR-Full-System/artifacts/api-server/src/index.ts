@@ -450,7 +450,16 @@ app.get("/api/employees", auth, async (req, res) => {
       : rows;
 
     const maps = await loadOrgEnrichmentMaps(user.companyId);
-    const enriched = filtered.map(e => enrichEmployee(e, maps));
+
+    // Build manager lookup for the result set
+    const managerIds = [...new Set(filtered.map(e => e.directManagerId).filter(Boolean))] as number[];
+    let managerMap: Record<number, any> = {};
+    if (managerIds.length > 0) {
+      const managers = await db.select().from(employeesTable).where(inArray(employeesTable.id, managerIds));
+      managers.forEach(m => { managerMap[m.id] = m; });
+    }
+
+    const enriched = filtered.map(e => enrichEmployee(e, maps, managerMap));
 
     res.json({ data: enriched, total: total?.count ?? 0, page: pageNum, pageSize: size });
   } catch (e) {
