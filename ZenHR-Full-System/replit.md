@@ -34,7 +34,7 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - `GET /api/healthz` — Health check
 - `POST /api/auth/login` — Login (returns JWT)
 - `GET /api/auth/context` — Tenant/org context for current user (company + branch/dept names)
-- `GET/POST /api/employees` — Employee management (enriched: branch, breadcrumb, manager name; supports `?branchId=` filter)
+- `GET/POST /api/employees` — Employee management (enriched: branch, breadcrumb, manager name; supports `?branchId=`, `?jobDescriptionId=` filters)
 - `GET/POST /api/departments` — Departments
 - `GET/POST /api/job-titles` — Job titles
 - `GET/POST /api/leave/requests` — Leave requests
@@ -46,6 +46,10 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - `GET/POST /api/assets` — Assets
 - `GET /api/lookups/*` — Reference data (nationalities, cities, banks, etc.)
 - `GET /api/dashboard/*` — Dashboard stats
+- `GET/POST /api/job-descriptions` — Job descriptions CRUD (search, filter by grade/dept/status, pagination)
+- `GET/PUT/DELETE /api/job-descriptions/:id` — Single job description (409 guard if referenced by career path or employee)
+- `GET/POST /api/career-paths` — Career paths CRUD (company-scoped)
+- `DELETE /api/career-paths/:id` — Delete career path
 
 ## Key Files
 - `ZenHR-Full-System/artifacts/api-server/src/index.ts` — Main Express API server
@@ -94,6 +98,11 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - EOSB: resignation <3yr = 0, ≥3yr = basic×years/12. Termination = basic×years
 - Income tax: 5 brackets per Jordanian law
 
+## Phase 2 — Job Descriptions & Career Paths (Completed)
+- **DB**: New `job_descriptions` table (titleAr, titleEn, grade, department, orgNodeId, minSalary, maxSalary, responsibilities, requirements, skills, qualifications as JSON text, isActive). New `career_paths` table (fromJobDescriptionId, toJobDescriptionId, minMonthsRequired, notes). `employees.job_description_id` nullable FK added.
+- **Backend**: 8 new endpoints — full CRUD for job descriptions (with search, grade/dept/status filter, pagination, 409 conflict guard), full CRUD for career paths (company-scoped). `/api/employees` supports `?jobDescriptionId=X` filter.
+- **Frontend** (`job-descriptions.component`): Two-tab layout — Job Descriptions table + Career Paths card grid. Skeleton loading, error/retry state, illustrated empty state. Add/Edit modal with bilingual title fields, grade, department, salary range, and 4 JSON textarea sections (responsibilities, requirements, skills, qualifications) with inline per-field validation. Side drawer shows all details + employees assigned + career paths to/from. Career path modal with from/to job selects and months input. All errors via toast — no `alert()`. Full RTL support.
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
@@ -103,3 +112,5 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - assets, asset_categories
 - nationalities, cities, banks
 - activity_logs, system_configurations, overtime_requests
+- **job_descriptions** (Phase 2)
+- **career_paths** (Phase 2)
