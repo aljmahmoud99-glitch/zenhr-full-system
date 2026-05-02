@@ -179,6 +179,35 @@ Angular dev server proxies `/api/*` to `http://localhost:3001` via `frontend/pro
 - Google Fonts: Noto Kufi Arabic (Arabic, weights 400/500/600/700) + DM Sans (English) + Material Symbols Rounded (icons)
 - Loaded via `@import` in `styles.scss`
 
+### Phase 1 Fix — Auth Token Auto-Refresh (COMPLETE)
+
+**Problem fixed:** JWT tokens expire after 60 minutes. The old interceptor would leave users stuck with expired tokens (silent 401 on `/api/config` and `/api/permissions`). The fix:
+- `auth.interceptor.ts` now pre-checks token expiry before each request
+- If expired, uses `fetch()` directly (no circular dependency) to call `/api/auth/refresh`
+- The refreshed token is stored and the original request proceeds
+- If refresh fails (no refresh token, or refresh token also expired), session is cleared and user is redirected to login
+- Concurrent refresh calls are de-duplicated via a shared promise
+
+### Phase 1 Fix — Admin Screens (COMPLETE)
+
+**New routes added (`app.routes.ts`):**
+- `/app/org-structure` → `OrgStructureComponent` [hradmin only]
+- `/app/roles` → `RolesComponent` [hradmin only]
+- `/app/user-roles` → `UserRolesComponent` [hradmin only]
+
+**SCREEN_ACCESS updated** — all three paths added for `hradmin`.
+
+**HRADMIN_NAV updated** — "User Role Assignment" (`/app/user-roles`) added to the Administration group (was missing, now present alongside Org Structure and Roles & Permissions).
+
+**New feature components (`frontend/src/app/features/`):**
+- `org-structure/org-structure.component.ts` — shows org tree, supports add/edit/delete nodes
+- `roles/roles.component.ts` — lists all roles with their permissions (collapsible per role)
+- `user-roles/user-roles.component.ts` — shows users table, allows changing and applying roles
+
+**New backend endpoints (`artifacts/api-server/src/index.ts`):**
+- `GET /api/roles` — returns all roles for company + their permission grants [hradmin/superadmin]
+- `GET /api/user-roles` — returns all company users + available roles for the assignment screen [hradmin/superadmin]
+
 ### Phase 1 — Org Structure & Dynamic Permissions (COMPLETE)
 
 **New DB tables (schema in `lib/db/src/schema/`):**

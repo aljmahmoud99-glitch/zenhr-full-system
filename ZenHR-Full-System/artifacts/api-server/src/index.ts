@@ -1877,6 +1877,71 @@ app.delete("/api/career-paths/:id", auth, async (req, res) => {
   res.status(204).send();
 });
 
+// ─── Roles ────────────────────────────────────────────────────────────────────
+
+// GET /api/roles — all roles for company with their permissions
+app.get("/api/roles", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const roles = await db.select().from(rolesTable)
+      .where(eq(rolesTable.companyId, user.companyId))
+      .orderBy(asc(rolesTable.name));
+
+    const rps = await db
+      .select({
+        id: rolePermissionsTable.id,
+        roleId: rolePermissionsTable.roleId,
+        permissionId: rolePermissionsTable.permissionId,
+        dataScope: rolePermissionsTable.dataScope,
+        screen: permissionsTable.screen,
+        action: permissionsTable.action,
+      })
+      .from(rolePermissionsTable)
+      .innerJoin(permissionsTable, eq(rolePermissionsTable.permissionId, permissionsTable.id))
+      .where(inArray(rolePermissionsTable.roleId, roles.map(r => r.id)));
+
+    res.json({ success: true, data: { roles, rolePermissions: rps } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/user-roles — users with their roles for assignment screen
+app.get("/api/user-roles", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const users = await db.select().from(usersTable)
+      .where(and(eq(usersTable.companyId, user.companyId), eq(usersTable.isDeleted, false)))
+      .orderBy(asc(usersTable.username));
+
+    const roles = await db.select().from(rolesTable)
+      .where(eq(rolesTable.companyId, user.companyId))
+      .orderBy(asc(rolesTable.name));
+
+    const userRows = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      role: u.role,
+      isActive: u.isActive,
+      employeeId: u.employeeId,
+      lastLoginAt: u.lastLoginAt,
+    }));
+
+    res.json({ success: true, data: { users: userRows, roles } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // ─── Job descriptions ─────────────────────────────────────────────────────────
 app.get("/api/job-descriptions", auth, async (_req, res) => {
   res.json({ success: true, data: [] });

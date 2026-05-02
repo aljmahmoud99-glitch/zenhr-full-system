@@ -176,6 +176,21 @@ export const routes: Routes = [
         path: 'forms/:formId',
         ...pageAccess('/app/forms'),
         loadComponent: () => import('./features/forms/form-viewer/form-viewer.component').then(m => m.FormViewerComponent)
+      },
+      {
+        path: 'org-structure',
+        ...pageAccess('/app/org-structure'),
+        loadComponent: () => import('./features/org-structure/org-structure.component').then(m => m.OrgStructureComponent)
+      },
+      {
+        path: 'roles',
+        ...pageAccess('/app/roles'),
+        loadComponent: () => import('./features/roles/roles.component').then(m => m.RolesComponent)
+      },
+      {
+        path: 'user-roles',
+        ...pageAccess('/app/user-roles'),
+        loadComponent: () => import('./features/user-roles/user-roles.component').then(m => m.UserRolesComponent)
       }
     ]
   },

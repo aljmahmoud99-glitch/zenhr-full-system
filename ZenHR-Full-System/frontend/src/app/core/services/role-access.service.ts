@@ -48,7 +48,10 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/forms': ['hradmin', 'payrolladmin', 'manager', 'employee'],
   '/app/reports': ['hradmin', 'payrolladmin'],
   '/app/users': ['hradmin'],
-  '/app/settings': ['hradmin']
+  '/app/settings': ['hradmin'],
+  '/app/org-structure': ['hradmin'],
+  '/app/roles': ['hradmin'],
+  '/app/user-roles': ['hradmin']
 };
 
 export interface NavItem {
@@ -131,7 +134,8 @@ const HRADMIN_NAV: NavGroup[] = [
       { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' },
       { labelAr: 'التقارير', labelEn: 'Reports', icon: 'bar_chart', path: '/app/reports' },
       { labelAr: 'الهيكل التنظيمي', labelEn: 'Org Structure', icon: 'account_tree', path: '/app/org-structure' },
-      { labelAr: 'الصلاحيات والأدوار', labelEn: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/app/roles' },
+      { labelAr: 'الأدوار والصلاحيات', labelEn: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/app/roles' },
+      { labelAr: 'تعيين الأدوار', labelEn: 'User Role Assignment', icon: 'assignment_ind', path: '/app/user-roles' },
       { labelAr: 'المستخدمون', labelEn: 'Users', icon: 'manage_accounts', path: '/app/users' },
       { labelAr: 'الإعدادات', labelEn: 'Settings', icon: 'settings', path: '/app/settings' }
     ]
