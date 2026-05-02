@@ -9,6 +9,7 @@ import { I18nService } from '../core/services/i18n.service';
 import { NavGroup, NavItem, RoleAccessService } from '../core/services/role-access.service';
 import { ApiResponse, DashboardSummary, User } from '../core/models';
 import { AppSettingsService } from '../core/services/app-settings.service';
+import { TenantContextService } from '../core/services/tenant-context.service';
 import { ToastContainerComponent } from '../shared/components/toast-container/toast-container.component';
 
 type LayoutNotification = {
@@ -47,6 +48,7 @@ export class LayoutComponent implements OnInit {
     public auth: AuthService,
     public access: RoleAccessService,
     public i18n: I18nService,
+    public tenant: TenantContextService,
     private router: Router,
     private http: HttpClient,
     private settings: AppSettingsService
@@ -57,6 +59,10 @@ export class LayoutComponent implements OnInit {
     this.navGroups = this.access.getNavGroups();
     this.syncPageMeta();
     this.loadNotifications();
+    const role = this.user()?.role ?? '';
+    if (role !== 'superadmin') {
+      this.tenant.load();
+    }
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(() => {
       this.syncPageMeta();
       this.notificationsOpen.set(false);
@@ -173,6 +179,27 @@ export class LayoutComponent implements OnInit {
 
   get pageSubtitle() {
     return this.roleName || this.sidebarBadgeLabel;
+  }
+
+  get tenantScopeLabel(): string {
+    const role = this.user()?.role ?? '';
+    const lang = this.i18n.currentLang;
+    if (role === 'superadmin') {
+      return lang === 'ar' ? 'مدير المنصة' : 'Platform Admin';
+    }
+    const ctx = this.tenant.context();
+    if (!ctx) return '';
+    const parts: string[] = [];
+    if (lang === 'ar') {
+      if (ctx.companyNameAr) parts.push(ctx.companyNameAr);
+      if ((role === 'manager' || role === 'employee') && ctx.branchNameAr) parts.push(ctx.branchNameAr);
+      if ((role === 'manager' || role === 'employee') && ctx.deptNameAr) parts.push(ctx.deptNameAr);
+    } else {
+      if (ctx.companyNameEn) parts.push(ctx.companyNameEn);
+      if ((role === 'manager' || role === 'employee') && ctx.branchNameEn) parts.push(ctx.branchNameEn);
+      if ((role === 'manager' || role === 'employee') && ctx.deptNameEn) parts.push(ctx.deptNameEn);
+    }
+    return parts.join(' › ');
   }
 
   get todayDayLabel() {

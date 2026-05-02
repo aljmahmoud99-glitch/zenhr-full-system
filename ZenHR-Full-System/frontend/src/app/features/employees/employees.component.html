@@ -72,6 +72,14 @@
       </label>
 
       <label class="filter-field">
+        <span class="field-label">{{ t('الفرع', 'Branch') }}</span>
+        <select class="z-input" [(ngModel)]="filterBranch" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الفروع', 'All Branches') }}</option>
+          <option *ngFor="let b of branchNodes" [value]="b.id">{{ lang === 'ar' ? b.nameAr : b.nameEn }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
         <span class="field-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
         <select class="z-input" [(ngModel)]="filterOrgNode" (ngModelChange)="applyFilters()">
           <option value="">{{ t('كل الوحدات', 'All Org Units') }}</option>
@@ -93,6 +101,7 @@
 
     <div class="filter-chips" *ngIf="hasActiveFilters">
       <span class="chip" *ngIf="searchQ">{{ t('بحث:', 'Search:') }} {{ searchQ }}</span>
+      <span class="chip" *ngIf="filterBranch">{{ t('فرع:', 'Branch:') }} {{ branchNameForFilter() }}</span>
       <span class="chip" *ngIf="filterOrgNode">{{ t('وحدة:', 'Org:') }} {{ orgNodeName(+filterOrgNode) }}</span>
       <span class="chip" *ngIf="filterStatus">{{ t('حالة:', 'Status:') }} {{ empStatus(filterStatus) }}</span>
     </div>
@@ -123,6 +132,7 @@
           <tr>
             <th>{{ t('الرمز', 'Code') }}</th>
             <th>{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('الفرع', 'Branch') }}</th>
             <th>{{ t('الوحدة التنظيمية', 'Org Unit') }}</th>
             <th>{{ t('المسمى الوظيفي', 'Job Title') }}</th>
             <th>{{ t('الهوية / الجواز', 'ID / Passport') }}</th>
@@ -168,7 +178,16 @@
               </ng-container>
             </td>
 
-            <td>{{ (lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) || '—' }}</td>
+            <td>
+              <span class="branch-badge" *ngIf="emp.branchId">{{ empBranchLabel(emp) }}</span>
+              <span *ngIf="!emp.branchId" class="text-muted">—</span>
+            </td>
+            <td>
+              <div class="org-breadcrumb-cell">
+                <span class="org-node-name">{{ (lang === 'ar' ? emp.orgNodeNameAr : emp.orgNodeNameEn) || '—' }}</span>
+                <small class="org-breadcrumb-text" *ngIf="emp.orgBreadcrumb">{{ emp.orgBreadcrumb }}</small>
+              </div>
+            </td>
             <td>{{ (lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) || '—' }}</td>
 
             <td>

@@ -89,6 +89,66 @@ app.get("/api/auth/me", auth, async (req, res) => {
   }
 });
 
+// GET /api/auth/context — tenant scope for the current user (company name + employee org context)
+app.get("/api/auth/context", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, user.companyId));
+    let branchId: number | null = null;
+    let branchNameAr: string | null = null;
+    let branchNameEn: string | null = null;
+    let deptId: number | null = null;
+    let deptNameAr: string | null = null;
+    let deptNameEn: string | null = null;
+    let orgNodeId: number | null = null;
+    let orgNodeNameAr: string | null = null;
+    let orgNodeNameEn: string | null = null;
+    let orgNodeType: string | null = null;
+
+    if (user.employeeId) {
+      const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, user.employeeId));
+      if (emp) {
+        deptId = emp.departmentId ?? null;
+        orgNodeId = emp.orgNodeId ?? null;
+
+        if (emp.departmentId) {
+          const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId));
+          if (dept) { deptNameAr = dept.nameAr; deptNameEn = dept.nameEn; }
+        }
+
+        if (emp.orgNodeId) {
+          const allNodes = await db.select().from(orgNodesTable)
+            .where(and(eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)));
+          const nodeMap: Record<number, any> = {};
+          allNodes.forEach(n => { nodeMap[n.id] = n; });
+          const node = nodeMap[emp.orgNodeId];
+          if (node) {
+            orgNodeNameAr = node.nameAr;
+            orgNodeNameEn = node.nameEn;
+            orgNodeType = node.nodeType;
+          }
+          const branch = findAncestorBranch(emp.orgNodeId, nodeMap);
+          if (branch) { branchId = branch.id; branchNameAr = branch.nameAr; branchNameEn = branch.nameEn; }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        companyId: user.companyId,
+        companyNameAr: company?.nameAr ?? '',
+        companyNameEn: company?.nameEn ?? '',
+        branchId, branchNameAr, branchNameEn,
+        deptId, deptNameAr, deptNameEn,
+        orgNodeId, orgNodeNameAr, orgNodeNameEn, orgNodeType,
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.patch("/api/auth/change-password", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -289,11 +349,79 @@ app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
   res.json([]);
 });
 
+// ─── Employee enrichment helper ───────────────────────────────────────────────
+async function loadOrgEnrichmentMaps(companyId: number) {
+  const [allDepts, allJobs, allOrgNodes] = await Promise.all([
+    db.select().from(departmentsTable).where(and(eq(departmentsTable.companyId, companyId), eq(departmentsTable.isDeleted, false))),
+    db.select().from(jobTitlesTable).where(and(eq(jobTitlesTable.companyId, companyId), eq(jobTitlesTable.isDeleted, false))),
+    db.select().from(orgNodesTable).where(and(eq(orgNodesTable.companyId, companyId), eq(orgNodesTable.isDeleted, false))),
+  ]);
+  const deptMap: Record<number, typeof allDepts[0]> = {};
+  const jtMap: Record<number, typeof allJobs[0]> = {};
+  const nodeMap: Record<number, typeof allOrgNodes[0]> = {};
+  allDepts.forEach(d => { deptMap[d.id] = d; });
+  allJobs.forEach(j => { jtMap[j.id] = j; });
+  allOrgNodes.forEach(n => { nodeMap[n.id] = n; });
+  return { deptMap, jtMap, nodeMap, allOrgNodes };
+}
+
+function findAncestorBranch(orgNodeId: number | null | undefined, nodeMap: Record<number, any>): any | null {
+  if (!orgNodeId) return null;
+  let current = nodeMap[orgNodeId];
+  while (current) {
+    if (current.nodeType === 'branch') return current;
+    if (!current.parentId) break;
+    current = nodeMap[current.parentId];
+  }
+  return null;
+}
+
+function buildOrgBreadcrumb(orgNodeId: number | null | undefined, nodeMap: Record<number, any>): string {
+  if (!orgNodeId) return '';
+  const path: string[] = [];
+  let current = nodeMap[orgNodeId];
+  while (current) {
+    path.unshift(current.nameEn);
+    if (!current.parentId) break;
+    current = nodeMap[current.parentId];
+  }
+  return path.join(' › ');
+}
+
+function enrichEmployee(emp: any, maps: { deptMap: Record<number, any>; jtMap: Record<number, any>; nodeMap: Record<number, any> }, managerMap?: Record<number, any>) {
+  const dept = emp.departmentId ? maps.deptMap[emp.departmentId] : null;
+  const jt = emp.jobTitleId ? maps.jtMap[emp.jobTitleId] : null;
+  const node = emp.orgNodeId ? maps.nodeMap[emp.orgNodeId] : null;
+  const branch = findAncestorBranch(emp.orgNodeId, maps.nodeMap);
+  const orgBreadcrumb = buildOrgBreadcrumb(emp.orgNodeId, maps.nodeMap);
+  const manager = emp.directManagerId && managerMap ? managerMap[emp.directManagerId] : null;
+
+  const mid = (v?: string | null) => (v ? ` ${v}` : '');
+  return {
+    ...emp,
+    fullNameAr: `${emp.firstNameAr}${mid(emp.middleNameAr)} ${emp.lastNameAr}`.trim(),
+    fullNameEn: `${emp.firstNameEn}${mid(emp.middleNameEn)} ${emp.lastNameEn}`.trim(),
+    departmentNameAr: dept?.nameAr ?? null,
+    departmentNameEn: dept?.nameEn ?? null,
+    jobTitleAr: jt?.titleAr ?? null,
+    jobTitleEn: jt?.titleEn ?? null,
+    orgNodeNameAr: node?.nameAr ?? null,
+    orgNodeNameEn: node?.nameEn ?? null,
+    orgNodeType: node?.nodeType ?? null,
+    branchId: branch?.id ?? null,
+    branchNameAr: branch?.nameAr ?? null,
+    branchNameEn: branch?.nameEn ?? null,
+    orgBreadcrumb,
+    directManagerName: manager ? `${manager.firstNameEn}${mid(manager.middleNameEn)} ${manager.lastNameEn}`.trim() : null,
+    directManagerNameAr: manager ? `${manager.firstNameAr}${mid(manager.middleNameAr)} ${manager.lastNameAr}`.trim() : null,
+  };
+}
+
 // ─── Employees ────────────────────────────────────────────────────────────────
 app.get("/api/employees", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { search, departmentId, orgNodeId, status, page = "1", pageSize = "20" } = req.query as Record<string, string>;
+    const { search, departmentId, orgNodeId, branchId, status, page = "1", pageSize = "20" } = req.query as Record<string, string>;
     const pageNum = parseInt(page);
     const size = parseInt(pageSize);
     const offset = (pageNum - 1) * size;
@@ -305,8 +433,11 @@ app.get("/api/employees", auth, async (req, res) => {
     if (status) conditions.push(eq(employeesTable.employmentStatus, status));
     if (departmentId) conditions.push(eq(employeesTable.departmentId, parseInt(departmentId)));
     if (orgNodeId) {
-      // Include all descendants of the selected org node
       const nodeIds = await getDescendantNodeIds(parseInt(orgNodeId));
+      if (nodeIds.length > 0) conditions.push(inArray(employeesTable.orgNodeId, nodeIds));
+    }
+    if (branchId) {
+      const nodeIds = await getDescendantNodeIds(parseInt(branchId));
       if (nodeIds.length > 0) conditions.push(inArray(employeesTable.orgNodeId, nodeIds));
     }
 
@@ -318,7 +449,10 @@ app.get("/api/employees", auth, async (req, res) => {
       ? rows.filter(e => e.firstNameEn.toLowerCase().includes(search.toLowerCase()) || e.lastNameEn.toLowerCase().includes(search.toLowerCase()) || e.employeeCode.toLowerCase().includes(search.toLowerCase()))
       : rows;
 
-    res.json({ data: filtered, total: total?.count ?? 0, page: pageNum, pageSize: size });
+    const maps = await loadOrgEnrichmentMaps(user.companyId);
+    const enriched = filtered.map(e => enrichEmployee(e, maps));
+
+    res.json({ data: enriched, total: total?.count ?? 0, page: pageNum, pageSize: size });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -340,9 +474,16 @@ app.post("/api/employees", auth, async (req, res) => {
 
 app.get("/api/employees/:id", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const [emp] = await db.select().from(employeesTable).where(and(eq(employeesTable.id, parseInt(req.params["id"]!)), eq(employeesTable.isDeleted, false)));
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
-    res.json(emp);
+    const maps = await loadOrgEnrichmentMaps(user.companyId);
+    let managerMap: Record<number, any> = {};
+    if (emp.directManagerId) {
+      const [mgr] = await db.select().from(employeesTable).where(eq(employeesTable.id, emp.directManagerId));
+      if (mgr) managerMap[mgr.id] = mgr;
+    }
+    res.json(enrichEmployee(emp, maps, managerMap));
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }

@@ -90,7 +90,7 @@ export class EmployeeProfileComponent implements OnInit {
     public auth: AuthService,
     private api: ApiService,
     private toast: ToastService,
-    private settings: AppSettingsService,
+    public settings: AppSettingsService,
     private access: RoleAccessService,
     private orgNodesService: OrgNodesService
   ) {}

@@ -219,9 +219,11 @@
           </div>
           <div class="info-grid">
             <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رمز الموظف' : 'Employee Code' }}</span><span class="info-val"><code>{{ employee()!.employeeCode }}</code></span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</span><span class="info-val">{{ lang==='ar' ? employee()!.departmentNameAr : employee()!.departmentNameEn }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الشركة' : 'Company' }}</span><span class="info-val">{{ settings.value(lang==='ar' ? 'company_name_ar' : 'company_name_en') || '-' }}</span></div>
+            <div class="info-row" *ngIf="employee()!.branchNameEn || employee()!.branchNameAr"><span class="info-label">{{ lang==='ar' ? 'الفرع' : 'Branch' }}</span><span class="info-val">{{ lang==='ar' ? (employee()!.branchNameAr || employee()!.branchNameEn) : (employee()!.branchNameEn || employee()!.branchNameAr) }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'القسم' : 'Department' }}</span><span class="info-val">{{ lang==='ar' ? (employee()!.departmentNameAr || '-') : (employee()!.departmentNameEn || '-') }}</span></div>
             <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</span><span class="info-val">{{ lang==='ar' ? employee()!.jobTitleAr : employee()!.jobTitleEn }}</span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المدير المباشر' : 'Manager' }}</span><span class="info-val">{{ employee()!.directManagerId || '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المدير المباشر' : 'Manager' }}</span><span class="info-val">{{ (lang==='ar' ? employee()!.directManagerNameAr : employee()!.directManagerName) || (employee()!.directManagerId ? ('#' + employee()!.directManagerId) : '-') }}</span></div>
             <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع التوظيف' : 'Employment Type' }}</span><span class="info-val">{{ empTypeLabel(employee()!.employmentType) }}</span></div>
             <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ التعيين' : 'Hire Date' }}</span><span class="info-val">{{ employee()!.hireDate ? (employee()!.hireDate | date:'dd/MM/yyyy') : '-' }}</span></div>
             <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الحالة الوظيفية' : 'Status' }}</span>

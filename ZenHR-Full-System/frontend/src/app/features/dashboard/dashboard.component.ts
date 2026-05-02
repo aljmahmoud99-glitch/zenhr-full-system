@@ -5,6 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
 import { AppSettingsService } from '../../core/services/app-settings.service';
+import { TenantContextService } from '../../core/services/tenant-context.service';
 import { ApiResponse, DashboardSummary, LeaveBalance, LeaveRequest, OvertimeRequest, PayrollRun, Payslip } from '../../core/models';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
@@ -128,6 +129,7 @@ export class DashboardComponent implements OnInit {
   constructor(
     public auth: AuthService,
     public access: RoleAccessService,
+    public tenant: TenantContextService,
     private api: ApiService,
     private settings: AppSettingsService
   ) {}
@@ -275,6 +277,9 @@ export class DashboardComponent implements OnInit {
   });
 
   ngOnInit() {
+    if (this.role !== 'superadmin') {
+      this.tenant.load();
+    }
     if (this.role === 'employee') {
       this.loading.set(false);
       this.loadEmployeeComplianceSummary();

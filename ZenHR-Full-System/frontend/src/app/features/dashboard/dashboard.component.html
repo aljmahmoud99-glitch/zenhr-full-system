@@ -34,6 +34,18 @@
     </div>
   </ng-container>
 
+  <ng-container *ngIf="role === 'manager' && tenant.context()">
+    <div class="scope-banner" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'">
+      <span class="material-icons scope-banner-icon">corporate_fare</span>
+      <span class="scope-banner-label">{{ lang === 'ar' ? 'نطاق عملك:' : 'Your scope:' }}</span>
+      <ng-container *ngFor="let part of (lang === 'ar' ? tenant.scopePartsAr() : tenant.scopeParts()); let i = index">
+        <span *ngIf="i > 0" class="scope-sep">›</span>
+        <span class="scope-part">{{ part }}</span>
+      </ng-container>
+      <span class="scope-banner-note">{{ lang === 'ar' ? '— البيانات أدناه مقيدة بنطاقك التنظيمي' : '— data below is scoped to your org context' }}</span>
+    </div>
+  </ng-container>
+
   <ng-container *ngIf="!loading()">
     <ng-container *ngIf="role !== 'employee'; else employeeDashboardView">
     <div class="dashboard-card-grid">

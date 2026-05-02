@@ -33,7 +33,8 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 ## API Endpoints (all under /api prefix, proxied by Angular dev server)
 - `GET /api/healthz` — Health check
 - `POST /api/auth/login` — Login (returns JWT)
-- `GET/POST /api/employees` — Employee management
+- `GET /api/auth/context` — Tenant/org context for current user (company + branch/dept names)
+- `GET/POST /api/employees` — Employee management (enriched: branch, breadcrumb, manager name; supports `?branchId=` filter)
 - `GET/POST /api/departments` — Departments
 - `GET/POST /api/job-titles` — Job titles
 - `GET/POST /api/leave/requests` — Leave requests
@@ -52,9 +53,17 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - `ZenHR-Full-System/frontend/src/app/app.routes.ts` — Angular routes
 - `ZenHR-Full-System/frontend/src/app/core/services/auth.service.ts` — Auth service
 - `ZenHR-Full-System/frontend/src/app/core/services/role-access.service.ts` — RBAC
+- `ZenHR-Full-System/frontend/src/app/core/services/tenant-context.service.ts` — Tenant/org context service (Phase UI-1)
 - `ZenHR-Full-System/lib/db/src/schema/` — Drizzle ORM schema definitions
 - `ZenHR-Full-System/lib/db/src/seed.ts` — Demo data seeder
 - `ZenHR-Full-System/frontend/proxy.conf.json` — Proxies /api → localhost:3001
+
+## Phase UI-1 — Tenant/Org Context Visibility (Completed)
+- **Layout header**: Shows company name (and branch/dept for manager/employee) as a green pill badge next to the role label in every page header
+- **Employees screen**: Branch filter dropdown added; Branch column shows branch badge; Org Unit column now shows node name + full breadcrumb; filtering uses descendant traversal (branch filter matches all sub-units)
+- **Employee profile / Employment tab**: Shows Company, Branch (if assigned), Department, and Manager Name (resolved from ID) instead of raw IDs
+- **Manager dashboard**: Scope banner below the hero shows Company › Branch › Department with a note that data is scoped to the manager's org context
+- **Backend enrichment**: `GET /api/employees` and `GET /api/employees/:id` return virtual fields: `branchId/NameAr/NameEn`, `orgBreadcrumb`, `directManagerName/Ar`; `GET /api/auth/context` returns full company + org context for the current user
 
 ## JWT Config
 - Key: `ZenJO-HRMS-2024-Secure-Secret-Key-Minimum32Characters!`

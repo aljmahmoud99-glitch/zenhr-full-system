@@ -32,6 +32,7 @@ export class EmployeesComponent implements OnInit {
   error = signal('');
   searchQ = '';
   filterOrgNode = '';
+  filterBranch = '';
   filterStatus = '';
 
   showFormModal = signal(false);
@@ -95,7 +96,25 @@ export class EmployeesComponent implements OnInit {
   }
 
   get hasActiveFilters() {
-    return !!(this.searchQ || this.filterOrgNode || this.filterStatus);
+    return !!(this.searchQ || this.filterOrgNode || this.filterBranch || this.filterStatus);
+  }
+
+  getDescendantIds(nodeId: number): Set<number> {
+    const result = new Set<number>();
+    const nodes = this.orgNodes();
+    const queue = [nodeId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      result.add(current);
+      nodes.filter(n => n.parentId === current).forEach(n => queue.push(n.id));
+    }
+    return result;
+  }
+
+  get branchNodes(): { id: number; nameAr: string; nameEn: string }[] {
+    return this.orgNodes()
+      .filter(n => n.nodeType === 'branch')
+      .map(n => ({ id: n.id, nameAr: n.nameAr, nameEn: n.nameEn }));
   }
 
   ngOnInit() {
@@ -129,11 +148,16 @@ export class EmployeesComponent implements OnInit {
   applyFilters() {
     const term = this.searchQ.trim().toLowerCase();
     const orgNode = this.filterOrgNode;
+    const branchId = this.filterBranch;
     const status = this.filterStatus;
+
+    const orgNodeDescendants = orgNode ? this.getDescendantIds(+orgNode) : null;
+    const branchDescendants = branchId ? this.getDescendantIds(+branchId) : null;
 
     this.filteredEmployees.set(
       this.employees().filter(emp => {
-        const matchesOrgNode = !orgNode || String(emp.orgNodeId ?? '') === orgNode;
+        const matchesOrgNode = !orgNode || (emp.orgNodeId != null && (orgNodeDescendants?.has(emp.orgNodeId) ?? false));
+        const matchesBranch = !branchId || (emp.orgNodeId != null && (branchDescendants?.has(emp.orgNodeId) ?? false));
         const matchesStatus = !status || emp.employmentStatus === status;
         const haystack = [
           emp.fullNameAr,
@@ -143,7 +167,7 @@ export class EmployeesComponent implements OnInit {
           emp.personalPhone
         ].join(' ').toLowerCase();
         const matchesSearch = !term || haystack.includes(term);
-        return matchesOrgNode && matchesStatus && matchesSearch;
+        return matchesOrgNode && matchesBranch && matchesStatus && matchesSearch;
       })
     );
   }
@@ -151,8 +175,25 @@ export class EmployeesComponent implements OnInit {
   clearFilters() {
     this.searchQ = '';
     this.filterOrgNode = '';
+    this.filterBranch = '';
     this.filterStatus = '';
     this.applyFilters();
+  }
+
+  empBranchLabel(emp: Employee): string {
+    if (this.lang === 'ar') return emp.branchNameAr || '—';
+    return emp.branchNameEn || '—';
+  }
+
+  empBreadcrumb(emp: Employee): string {
+    return emp.orgBreadcrumb || (this.lang === 'ar' ? emp.orgNodeNameAr : emp.orgNodeNameEn) || '—';
+  }
+
+  branchNameForFilter(): string {
+    if (!this.filterBranch) return '';
+    const b = this.branchNodes.find(n => n.id === +this.filterBranch);
+    if (!b) return this.filterBranch;
+    return this.lang === 'ar' ? b.nameAr : b.nameEn;
   }
 
   loadComplianceBadges() {

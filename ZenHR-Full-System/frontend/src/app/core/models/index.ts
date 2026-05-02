@@ -39,8 +39,10 @@ export interface Employee {
   workEmail?: string; personalPhone?: string; addressAr?: string; governorate?: string;
   departmentId?: number; departmentNameAr?: string; departmentNameEn?: string;
   orgNodeId?: number; orgNodeNameAr?: string; orgNodeNameEn?: string; orgNodeType?: string;
+  branchId?: number; branchNameAr?: string; branchNameEn?: string;
+  orgBreadcrumb?: string;
   jobTitleId?: number; jobTitleAr?: string; jobTitleEn?: string;
-  directManagerId?: number;
+  directManagerId?: number; directManagerName?: string; directManagerNameAr?: string;
   employmentType: string; hireDate?: string; probationEndDate?: string;
   employmentStatus: string;
   basicSalary: number; housingAllowance: number; transportAllowance: number;
