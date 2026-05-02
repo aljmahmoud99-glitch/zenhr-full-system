@@ -1,0 +1,90 @@
+Phase 2 UI polish ONLY — Job Descriptions screen.
+
+Do not change backend logic.
+Do not change database.
+Do not touch other modules.
+
+Fix and improve the Job Descriptions page UI.
+
+Current issues:
+- Page layout looks empty and unpolished.
+- Add Job modal looks broken/old style.
+- Sidebar/menu icon for job descriptions does not match the rest.
+- Action icons in the table are tiny/inconsistent.
+- Form fields are not visually aligned.
+- Modal spacing, scroll, buttons, and RTL layout need cleanup.
+
+Tasks:
+
+1. Redesign Job Descriptions page layout
+- Make it look consistent with the rest of ZenJO screens.
+- Use clean cards, proper spacing, rounded corners, soft shadows.
+- Page header should show:
+  - المسميات الوظيفية
+  - عدد المسميات
+  - button: + إضافة مسمى
+- Toolbar should be clean:
+  - search
+  - org unit filter
+  - grade filter
+  - status filter
+
+2. Fix icons
+- Replace the job descriptions sidebar icon with an icon consistent with the system style.
+- Replace table action icons with clean consistent icons:
+  - View
+  - Edit
+  - Delete
+- Icons should have same size, color system, hover states.
+
+3. Improve Add/Edit modal
+- Make it a clean centered modal, not awkward/overflowing.
+- Proper width, spacing, and RTL alignment.
+- Inputs should be aligned and readable.
+- Dropdowns should look consistent.
+- Buttons should be sticky/footer aligned:
+  - حفظ primary
+  - إلغاء secondary
+- Modal should not look broken on smaller screens.
+
+4. Improve form sections
+- Keep fields:
+  - Arabic title
+  - English title
+  - org unit
+  - grade
+  - min salary
+  - max salary
+  - responsibilities
+  - requirements
+  - skills
+  - qualifications
+  - active toggle
+- Use expandable sections or clean grouped cards.
+- Textareas should look professional.
+
+5. Improve table
+- Better row spacing.
+- Clear empty state.
+- Status badge styled properly.
+- Salary range formatted cleanly.
+- Actions aligned and consistent.
+
+6. RTL
+- Arabic layout must be right-aligned.
+- Modal and dropdowns must work correctly in RTL.
+- No broken horizontal scrolling.
+
+7. Do not introduce new console errors.
+
+After finishing:
+- Run the app.
+- Open /app/job-descriptions.
+- Test add/edit modal.
+- Confirm layout looks clean.
+- Confirm no Console errors.
+
+Return:
+- files changed
+- what UI fixes were made
+- any remaining visual issues

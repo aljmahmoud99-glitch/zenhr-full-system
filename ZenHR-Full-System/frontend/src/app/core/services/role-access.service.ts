@@ -91,7 +91,7 @@ const HRADMIN_NAV: NavGroup[] = [
     labelAr: 'إدارة الموظفين',
     labelEn: 'Employee Management',
     items: [
-      { labelAr: 'المسميات الوظيفية', labelEn: 'Job Descriptions', icon: '📋', path: '/app/job-descriptions', roles: ['hradmin'] },
+      { labelAr: 'المسميات الوظيفية', labelEn: 'Job Descriptions', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
       { labelAr: 'الموظفون', labelEn: 'Employees', icon: 'groups', path: '/app/employees' },
       { labelAr: 'ما قبل التوظيف', labelEn: 'Pre-Employment', icon: 'person_add', path: '/app/pre-employment' },
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },

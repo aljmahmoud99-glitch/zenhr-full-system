@@ -1,14 +1,15 @@
 <!-- ─── Page Header ─────────────────────────────────────────────────────────── -->
 <div class="page-header">
   <div>
-    <h1>{{ lang.t('المسميات الوظيفية', 'Job Descriptions') }}</h1>
-    <p class="text-muted">
-      {{ lang.t('عدد المسميات:', 'Total jobs:') }}
+    <h1 class="page-title">{{ lang.t('المسميات الوظيفية', 'Job Descriptions') }}</h1>
+    <p class="page-subtitle">
+      {{ lang.t('إجمالي المسميات:', 'Total:') }}
       <strong>{{ jobs.length }}</strong>
     </p>
   </div>
   <button class="btn btn-primary" (click)="openAdd()" *ngIf="canCreate">
-    + {{ lang.t('إضافة مسمى', 'Add Job') }}
+    <span class="material-icons" style="font-size:18px">add</span>
+    {{ lang.t('إضافة مسمى', 'Add Job') }}
   </button>
 </div>
 
@@ -30,7 +31,7 @@
 <ng-container *ngIf="activeTab==='jobs'">
 
   <!-- Toolbar -->
-  <div class="table-toolbar">
+  <div class="filter-bar">
     <input class="form-input toolbar-search"
            [placeholder]="lang.t('بحث بالاسم أو الدرجة...', 'Search by name or grade...')"
            [(ngModel)]="searchTerm" (input)="applyFilter()">
@@ -54,7 +55,8 @@
     </select>
 
     <button class="btn btn-secondary btn-sm" (click)="clearFilters()" *ngIf="hasFilters">
-      {{ lang.t('مسح الفلاتر', 'Clear Filters') }}
+      <span class="material-icons" style="font-size:15px">filter_alt_off</span>
+      {{ lang.t('مسح', 'Clear') }}
     </button>
   </div>
 
@@ -64,9 +66,9 @@
   </div>
 
   <!-- Error state -->
-  <div *ngIf="!jobsLoading && jobsError" class="error-state">
-    <div class="error-icon">⚠️</div>
-    <p>{{ lang.t('تعذر تحميل المسميات الوظيفية', 'Failed to load job descriptions') }}</p>
+  <div *ngIf="!jobsLoading && jobsError" class="empty-state">
+    <span class="material-icons empty-icon" style="color:var(--z-danger)">error_outline</span>
+    <p class="z-heading">{{ lang.t('تعذر تحميل المسميات الوظيفية', 'Failed to load job descriptions') }}</p>
     <button class="btn btn-secondary btn-sm" (click)="loadJobs()">
       {{ lang.t('إعادة المحاولة', 'Retry') }}
     </button>
@@ -89,30 +91,35 @@
         <tr *ngFor="let job of filteredJobs" (click)="openView(job)" class="row-clickable">
           <td>
             <div class="job-title-primary">{{ lang.isAr ? job.titleAr : job.titleEn }}</div>
-            <div class="text-muted fs-12">{{ lang.isAr ? job.titleEn : job.titleAr }}</div>
+            <div class="text-muted" style="font-size:12px">{{ lang.isAr ? job.titleEn : job.titleAr }}</div>
           </td>
           <td class="text-muted">{{ getNodeName(job.orgNodeId) }}</td>
           <td>
-            <span class="badge badge-neutral" *ngIf="job.grade">{{ job.grade }}</span>
+            <span class="badge badge-info" *ngIf="job.grade">{{ job.grade }}</span>
             <span class="text-muted" *ngIf="!job.grade">—</span>
           </td>
-          <td class="mono">
+          <td style="font-variant-numeric:tabular-nums; font-size:13px">
             <span *ngIf="job.minSalary || job.maxSalary">
               {{ +job.minSalary! | number:'1.0-0' }} – {{ +job.maxSalary! | number:'1.0-0' }}
             </span>
             <span *ngIf="!job.minSalary && !job.maxSalary" class="text-muted">—</span>
           </td>
           <td>
-            <span class="badge" [ngClass]="job.isActive ? 'badge-success' : 'badge-neutral'">
-              <span class="b-dot"></span>
+            <span class="badge" [ngClass]="job.isActive ? 'badge-success' : 'badge-warning'">
               {{ job.isActive ? lang.t('نشط', 'Active') : lang.t('موقوف', 'Inactive') }}
             </span>
           </td>
           <td (click)="$event.stopPropagation()">
-            <div class="act-c">
-              <button class="btn-icon" (click)="openView(job)" [title]="lang.t('عرض', 'View')">👁️</button>
-              <button class="btn-icon" (click)="openEdit(job)" [title]="lang.t('تعديل', 'Edit')" *ngIf="canCreate">✏️</button>
-              <button class="btn-icon danger" (click)="delete(job)" [title]="lang.t('حذف', 'Delete')" *ngIf="canCreate">🗑</button>
+            <div class="action-row">
+              <button class="icon-btn primary" (click)="openView(job)" [title]="lang.t('عرض', 'View')">
+                <span class="material-icons">visibility</span>
+              </button>
+              <button class="icon-btn" (click)="openEdit(job)" [title]="lang.t('تعديل', 'Edit')" *ngIf="canCreate">
+                <span class="material-icons">edit</span>
+              </button>
+              <button class="icon-btn danger" (click)="delete(job)" [title]="lang.t('حذف', 'Delete')" *ngIf="canCreate">
+                <span class="material-icons">delete</span>
+              </button>
             </div>
           </td>
         </tr>
@@ -121,13 +128,13 @@
         <tr *ngIf="filteredJobs.length === 0">
           <td colspan="6">
             <div class="empty-state">
-              <div class="empty-icon">📋</div>
-              <div class="empty-title">
+              <span class="material-icons empty-icon">work_history</span>
+              <div class="z-heading">
                 {{ hasFilters
                   ? lang.t('لا توجد نتائج للبحث', 'No results match your filters')
                   : lang.t('لا توجد مسميات وظيفية', 'No job descriptions yet') }}
               </div>
-              <div class="empty-sub text-muted fs-12" *ngIf="!hasFilters && canCreate">
+              <div class="text-muted" *ngIf="!hasFilters && canCreate" style="font-size:13px">
                 {{ lang.t('ابدأ بإضافة أول مسمى وظيفي', 'Start by adding your first job description') }}
               </div>
               <button class="btn btn-secondary btn-sm" (click)="clearFilters()" *ngIf="hasFilters">
@@ -148,11 +155,12 @@
 <ng-container *ngIf="activeTab==='paths'">
 
   <div class="paths-toolbar">
-    <span class="text-muted fs-13">
+    <span class="text-muted" style="font-size:13px">
       {{ lang.t('تحديد مسارات الترقي بين المسميات الوظيفية', 'Define progression paths between job roles') }}
     </span>
     <button class="btn btn-primary" (click)="openAddPath()" *ngIf="canCreate">
-      + {{ lang.t('إضافة مسار', 'Add Path') }}
+      <span class="material-icons" style="font-size:18px">add</span>
+      {{ lang.t('إضافة مسار', 'Add Path') }}
     </button>
   </div>
 
@@ -162,9 +170,9 @@
   </div>
 
   <!-- Error -->
-  <div *ngIf="!pathsLoading && pathsError" class="error-state">
-    <div class="error-icon">⚠️</div>
-    <p>{{ lang.t('تعذر تحميل مسارات المسيرة', 'Failed to load career paths') }}</p>
+  <div *ngIf="!pathsLoading && pathsError" class="empty-state">
+    <span class="material-icons empty-icon" style="color:var(--z-danger)">error_outline</span>
+    <p class="z-heading">{{ lang.t('تعذر تحميل مسارات المسيرة', 'Failed to load career paths') }}</p>
     <button class="btn btn-secondary btn-sm" (click)="loadPaths()">
       {{ lang.t('إعادة المحاولة', 'Retry') }}
     </button>
@@ -182,7 +190,7 @@
 
           <div class="path-arrow-block">
             <div class="path-months">{{ p.minMonthsRequired }} {{ lang.t('شهراً', 'months') }}</div>
-            <div class="path-arrow">→</div>
+            <span class="material-icons path-arrow-icon">arrow_forward</span>
           </div>
 
           <div class="path-job path-job-to">
@@ -191,18 +199,20 @@
           </div>
         </div>
         <div class="path-card-footer" *ngIf="p.notes">
-          <span class="text-muted fs-12">{{ p.notes }}</span>
+          <span class="text-muted" style="font-size:12px">{{ p.notes }}</span>
         </div>
         <button class="path-delete-btn" (click)="deletePath(p.id)" *ngIf="canCreate"
-                [title]="lang.t('حذف', 'Delete')">✕</button>
+                [title]="lang.t('حذف', 'Delete')">
+          <span class="material-icons" style="font-size:16px">close</span>
+        </button>
       </div>
     </div>
 
     <!-- Empty paths -->
-    <div *ngIf="paths.length === 0" class="empty-state" style="margin-top:48px">
-      <div class="empty-icon">🔗</div>
-      <div class="empty-title">{{ lang.t('لا توجد مسارات محددة', 'No career paths defined') }}</div>
-      <div class="empty-sub text-muted fs-12">
+    <div *ngIf="paths.length === 0" class="empty-state">
+      <span class="material-icons empty-icon">hub</span>
+      <div class="z-heading">{{ lang.t('لا توجد مسارات محددة', 'No career paths defined') }}</div>
+      <div class="text-muted" style="font-size:13px">
         {{ lang.t('أضف مسارات لتحديد خطط الترقي بين المسميات', 'Add paths to define promotion progressions between jobs') }}
       </div>
     </div>
@@ -215,13 +225,24 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
   <div class="modal-box" (click)="$event.stopPropagation()">
+
     <div class="modal-header">
-      <h3>{{ editingJob ? lang.t('تعديل المسمى الوظيفي', 'Edit Job Description') : lang.t('مسمى وظيفي جديد', 'New Job Description') }}</h3>
-      <button class="btn-icon" (click)="closeModal()">✕</button>
+      <div>
+        <h3 class="z-heading" style="margin:0">
+          {{ editingJob ? lang.t('تعديل المسمى الوظيفي', 'Edit Job Description') : lang.t('مسمى وظيفي جديد', 'New Job Description') }}
+        </h3>
+        <p class="text-muted" style="font-size:12.5px; margin:4px 0 0">
+          {{ lang.t('أدخل تفاصيل المسمى الوظيفي', 'Enter job description details') }}
+        </p>
+      </div>
+      <button class="icon-btn" (click)="closeModal()" type="button">
+        <span class="material-icons">close</span>
+      </button>
     </div>
+
     <div class="modal-body">
 
-      <div class="form-grid-2">
+      <div class="form-grid">
         <!-- Arabic title -->
         <div class="form-group" [class.has-error]="formErrors['titleAr']">
           <label class="form-label required">{{ lang.t('الاسم بالعربية', 'Name (Arabic)') }}</label>
@@ -273,44 +294,49 @@
         </div>
       </div>
 
-      <!-- Responsibilities -->
-      <div class="form-group">
-        <label class="form-label">{{ lang.t('المسؤوليات', 'Responsibilities') }}</label>
-        <p class="form-hint">{{ lang.t('سطر لكل بند', 'One item per line') }}</p>
-        <textarea class="form-textarea" rows="3" [(ngModel)]="responsibilitiesText"
-                  [placeholder]="lang.t('إدارة الفريق...\nتطوير البرمجيات...', 'Manage the team...\nDevelop software...')"></textarea>
-      </div>
+      <!-- Section textareas -->
+      <div class="textarea-sections">
 
-      <!-- Requirements -->
-      <div class="form-group">
-        <label class="form-label">{{ lang.t('المتطلبات', 'Requirements') }}</label>
-        <textarea class="form-textarea" rows="3" [(ngModel)]="requirementsText"
-                  [placeholder]="lang.t('3+ سنوات خبرة...', '3+ years experience...')"></textarea>
-      </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('المسؤوليات', 'Responsibilities') }}</label>
+          <p class="form-hint">{{ lang.t('سطر لكل بند', 'One item per line') }}</p>
+          <textarea class="form-textarea" rows="3" [(ngModel)]="responsibilitiesText"
+                    [placeholder]="lang.t('إدارة الفريق...\nتطوير البرمجيات...', 'Manage the team...\nDevelop software...')"></textarea>
+        </div>
 
-      <!-- Skills -->
-      <div class="form-group">
-        <label class="form-label">{{ lang.t('المهارات', 'Skills') }}</label>
-        <textarea class="form-textarea" rows="2" [(ngModel)]="skillsText"
-                  [placeholder]="lang.t('TypeScript\nAngular', 'TypeScript\nAngular')"></textarea>
-      </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('المتطلبات', 'Requirements') }}</label>
+          <textarea class="form-textarea" rows="3" [(ngModel)]="requirementsText"
+                    [placeholder]="lang.t('3+ سنوات خبرة...', '3+ years experience...')"></textarea>
+        </div>
 
-      <!-- Qualifications -->
-      <div class="form-group">
-        <label class="form-label">{{ lang.t('المؤهلات', 'Qualifications') }}</label>
-        <textarea class="form-textarea" rows="2" [(ngModel)]="qualificationsText"
-                  [placeholder]="lang.t('بكالوريوس حاسوب', 'Bachelor in Computer Science')"></textarea>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('المهارات', 'Skills') }}</label>
+          <textarea class="form-textarea" rows="2" [(ngModel)]="skillsText"
+                    [placeholder]="lang.t('TypeScript\nAngular', 'TypeScript\nAngular')"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('المؤهلات', 'Qualifications') }}</label>
+          <textarea class="form-textarea" rows="2" [(ngModel)]="qualificationsText"
+                    [placeholder]="lang.t('بكالوريوس حاسوب', 'Bachelor in Computer Science')"></textarea>
+        </div>
+
       </div>
 
       <!-- Active toggle -->
-      <div class="form-group">
-        <label class="toggle-label">
-          <input type="checkbox" [(ngModel)]="form.isActive" class="toggle-checkbox">
-          <span class="toggle-text">{{ lang.t('نشط', 'Active') }}</span>
+      <div class="form-group" style="margin-top:4px">
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="form.isActive" class="toggle-input">
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="toggle-label-text">{{ form.isActive ? lang.t('نشط', 'Active') : lang.t('موقوف', 'Inactive') }}</span>
         </label>
       </div>
 
     </div>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" (click)="closeModal()">{{ lang.t('إلغاء', 'Cancel') }}</button>
       <button class="btn btn-primary" (click)="save()" [disabled]="saving">
@@ -327,8 +353,10 @@
 <div *ngIf="showPathModal" class="modal-overlay" (click)="showPathModal=false">
   <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3>{{ lang.t('مسار مسيرة جديد', 'New Career Path') }}</h3>
-      <button class="btn-icon" (click)="showPathModal=false">✕</button>
+      <h3 class="z-heading" style="margin:0">{{ lang.t('مسار مسيرة جديد', 'New Career Path') }}</h3>
+      <button class="icon-btn" (click)="showPathModal=false" type="button">
+        <span class="material-icons">close</span>
+      </button>
     </div>
     <div class="modal-body">
 
@@ -342,7 +370,7 @@
       </div>
 
       <div class="path-modal-arrow">
-        <span class="path-arrow">→</span>
+        <span class="material-icons" style="font-size:28px; color:var(--z-emerald)">arrow_downward</span>
       </div>
 
       <div class="form-group" [class.has-error]="pathFormErrors['toJobId']">
@@ -382,31 +410,40 @@
   <div class="drawer-panel" (click)="$event.stopPropagation()">
 
     <div class="drawer-header">
-      <div>
-        <h3>{{ lang.isAr ? viewingJob?.titleAr : viewingJob?.titleEn }}</h3>
-        <p class="text-muted fs-12">{{ lang.isAr ? viewingJob?.titleEn : viewingJob?.titleAr }}</p>
+      <div style="min-width:0">
+        <h3 class="z-heading" style="margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+          {{ lang.isAr ? viewingJob?.titleAr : viewingJob?.titleEn }}
+        </h3>
+        <p class="text-muted" style="font-size:12px; margin:4px 0 0">
+          {{ lang.isAr ? viewingJob?.titleEn : viewingJob?.titleAr }}
+        </p>
       </div>
-      <button class="btn-icon" (click)="closeDrawer()">✕</button>
+      <button class="icon-btn" (click)="closeDrawer()" type="button" style="flex-shrink:0">
+        <span class="material-icons">close</span>
+      </button>
     </div>
 
     <div class="drawer-body">
 
       <!-- Meta badges -->
       <div class="drawer-meta">
-        <span class="badge badge-neutral" *ngIf="viewingJob?.grade">{{ viewingJob?.grade }}</span>
-        <span class="badge badge-neutral" *ngIf="!viewingJob?.grade">{{ lang.t('بدون درجة', 'No grade') }}</span>
-
-        <span class="text-muted fs-12" *ngIf="viewingJob?.minSalary || viewingJob?.maxSalary">
-          {{ lang.t('الراتب:', 'Salary:') }}
-          <span class="mono">{{ +viewingJob!.minSalary! | number:'1.0-0' }} – {{ +viewingJob!.maxSalary! | number:'1.0-0' }} JOD</span>
+        <span class="badge badge-info" *ngIf="viewingJob?.grade">{{ viewingJob?.grade }}</span>
+        <span class="badge" style="background:var(--z-surface-strong); color:var(--z-text-secondary)" *ngIf="!viewingJob?.grade">
+          {{ lang.t('بدون درجة', 'No grade') }}
         </span>
 
-        <span class="badge" [ngClass]="viewingJob?.isActive ? 'badge-success' : 'badge-neutral'">
-          <span class="b-dot"></span>
+        <span class="badge" [ngClass]="viewingJob?.isActive ? 'badge-success' : 'badge-warning'">
           {{ viewingJob?.isActive ? lang.t('نشط', 'Active') : lang.t('موقوف', 'Inactive') }}
         </span>
 
-        <span class="text-muted fs-12" *ngIf="viewingJob?.orgNodeId">
+        <span class="badge" style="background:var(--z-surface-strong); color:var(--z-text-secondary); font-variant-numeric:tabular-nums"
+              *ngIf="viewingJob?.minSalary || viewingJob?.maxSalary">
+          {{ +viewingJob!.minSalary! | number:'1.0-0' }} – {{ +viewingJob!.maxSalary! | number:'1.0-0' }} JOD
+        </span>
+
+        <span class="badge" style="background:var(--z-surface-strong); color:var(--z-text-secondary)"
+              *ngIf="viewingJob?.orgNodeId">
+          <span class="material-icons" style="font-size:13px">account_tree</span>
           {{ getNodeName(viewingJob!.orgNodeId) }}
         </span>
       </div>
@@ -427,10 +464,10 @@
       </div>
       <div class="drawer-paths-list" *ngIf="drawerPathsFrom.length > 0">
         <div class="drawer-path-row" *ngFor="let p of drawerPathsFrom">
-          <span class="path-arrow-small">→</span>
+          <span class="material-icons" style="font-size:16px; color:var(--z-emerald); flex-shrink:0">arrow_forward</span>
           <span class="drawer-path-label">{{ getJobLabel(p.toJobDescriptionId) }}</span>
-          <span class="badge badge-neutral fs-11" *ngIf="getJobGrade(p.toJobDescriptionId)">{{ getJobGrade(p.toJobDescriptionId) }}</span>
-          <span class="text-muted fs-11">{{ p.minMonthsRequired }} {{ lang.t('ش', 'mo') }}</span>
+          <span class="badge badge-info" style="font-size:10px" *ngIf="getJobGrade(p.toJobDescriptionId)">{{ getJobGrade(p.toJobDescriptionId) }}</span>
+          <span class="text-muted" style="font-size:11px; white-space:nowrap">{{ p.minMonthsRequired }} {{ lang.t('ش', 'mo') }}</span>
         </div>
       </div>
 
@@ -440,9 +477,9 @@
       </div>
       <div class="drawer-paths-list" *ngIf="drawerPathsTo.length > 0">
         <div class="drawer-path-row" *ngFor="let p of drawerPathsTo">
-          <span class="badge badge-neutral fs-11" *ngIf="getJobGrade(p.fromJobDescriptionId)">{{ getJobGrade(p.fromJobDescriptionId) }}</span>
+          <span class="badge badge-info" style="font-size:10px" *ngIf="getJobGrade(p.fromJobDescriptionId)">{{ getJobGrade(p.fromJobDescriptionId) }}</span>
           <span class="drawer-path-label">{{ getJobLabel(p.fromJobDescriptionId) }}</span>
-          <span class="path-arrow-small">→</span>
+          <span class="material-icons" style="font-size:16px; color:var(--z-emerald); flex-shrink:0">arrow_forward</span>
         </div>
       </div>
 
@@ -451,16 +488,16 @@
         {{ lang.t('الموظفون في هذا المسمى', 'Employees in This Role') }}
       </div>
       <div *ngIf="drawerEmployeesLoading" class="drawer-loading">
-        <span class="btn-spinner"></span>
+        <span class="spinner" style="width:28px;height:28px"></span>
       </div>
-      <div *ngIf="!drawerEmployeesLoading && drawerEmployees.length === 0" class="text-muted fs-12" style="margin-top:8px">
+      <div *ngIf="!drawerEmployeesLoading && drawerEmployees.length === 0" class="text-muted" style="font-size:12px; margin-top:8px">
         {{ lang.t('لا يوجد موظفون مرتبطون بهذا المسمى', 'No employees assigned to this role') }}
       </div>
       <div class="drawer-emp-list" *ngIf="!drawerEmployeesLoading && drawerEmployees.length > 0">
         <div class="drawer-emp-row" *ngFor="let emp of drawerEmployees">
           <span class="emp-avatar">{{ (lang.isAr ? emp.firstNameAr : emp.firstNameEn)?.[0] | uppercase }}</span>
           <span class="drawer-path-label">{{ getEmployeeFullName(emp) }}</span>
-          <span class="text-muted fs-11 mono">{{ emp.employeeCode }}</span>
+          <span class="text-muted" style="font-size:11px; font-variant-numeric:tabular-nums">{{ emp.employeeCode }}</span>
         </div>
       </div>
 
@@ -469,6 +506,7 @@
     <div class="drawer-footer">
       <button class="btn btn-secondary" (click)="closeDrawer()">{{ lang.t('إغلاق', 'Close') }}</button>
       <button class="btn btn-primary" (click)="openEdit(viewingJob!); closeDrawer()" *ngIf="canCreate">
+        <span class="material-icons" style="font-size:17px">edit</span>
         {{ lang.t('تعديل', 'Edit') }}
       </button>
     </div>
