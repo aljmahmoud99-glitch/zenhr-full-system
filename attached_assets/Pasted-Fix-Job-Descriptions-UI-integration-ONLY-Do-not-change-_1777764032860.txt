@@ -1,0 +1,62 @@
+Fix Job Descriptions UI + integration ONLY.
+
+Do not change unrelated modules.
+Do not redesign the whole system.
+Do not change database unless required for existing job_titles integration.
+
+Current issues:
+1. Filters layout looks bad — fields are stretched vertically/full-width and the page feels empty.
+2. Job descriptions created here must dynamically appear in the Employees screen job title dropdown.
+3. Employees screen must not use static/hardcoded job titles anymore.
+
+Tasks:
+
+1. Fix filters layout on /app/job-descriptions
+- Make filters appear in a clean toolbar/card, not stacked as huge horizontal fields.
+- Layout should be compact and professional:
+  - search input
+  - org unit filter
+  - grade filter
+  - status filter
+- Use responsive grid:
+  - desktop: filters in one clean row if space allows
+  - tablet/mobile: wrap nicely into 2 columns / 1 column
+- Keep RTL alignment correct.
+- Add proper spacing, labels, and consistent input heights.
+- The page must not look empty or broken when there are no records.
+
+2. Improve empty state
+- If no job descriptions exist, show a clean empty card:
+  - icon
+  - Arabic + English message
+  - button: إضافة مسمى
+- Do not leave blank table area.
+
+3. Make job titles dynamic in Employees screen
+- Find where the Employees add/edit form loads job titles.
+- Remove any static/hardcoded job title list.
+- Load job titles from the same backend source used by Job Descriptions:
+  GET /api/job-descriptions
+  or existing job_titles endpoint if that is the true source.
+- Since Phase 2 uses job_titles as job descriptions, both screens must share the same data.
+- When HR creates a new job description/title from /app/job-descriptions, it must appear in the Employees form job title dropdown without hardcoding.
+
+4. Ensure correct mapping
+- Employees should still save job_title_id as before.
+- Do NOT add employee.job_description_id.
+- Dropdown label should show Arabic title in Arabic mode and English title in English mode.
+- Only active job titles should appear in the Employees dropdown.
+
+5. Verification
+- Create a new job description/title from /app/job-descriptions.
+- Go to Employees → Add/Edit employee.
+- Confirm the new title appears in the job title dropdown.
+- Select it and save employee.
+- Confirm employee table/profile shows the selected title.
+- Confirm no Console errors.
+
+Return:
+- files changed
+- how filters layout was fixed
+- how employee job title dropdown became dynamic
+- verification result

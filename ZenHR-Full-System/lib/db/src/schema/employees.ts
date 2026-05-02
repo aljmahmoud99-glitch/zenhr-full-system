@@ -3,7 +3,6 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
 import { departmentsTable } from "./departments";
-import { jobTitlesTable } from "./job-titles";
 
 export const employeesTable = pgTable("employees", {
   id: serial("id").primaryKey(),
@@ -42,7 +41,7 @@ export const employeesTable = pgTable("employees", {
   // Employment
   departmentId: integer("department_id").references(() => departmentsTable.id),
   orgNodeId: integer("org_node_id"), // Phase 1: nullable FK to org_nodes, alongside departmentId
-  jobTitleId: integer("job_title_id").references(() => jobTitlesTable.id),
+  jobTitleId: integer("job_title_id"),
   jobDescriptionId: integer("job_description_id"), // Phase 2: nullable FK to job_descriptions; UI assignment is out of scope for this phase
   directManagerId: integer("direct_manager_id"),
   employmentType: varchar("employment_type", { length: 20 }).default("fulltime").notNull(),

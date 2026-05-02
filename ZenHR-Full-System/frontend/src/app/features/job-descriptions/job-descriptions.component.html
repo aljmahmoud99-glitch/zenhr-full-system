@@ -31,34 +31,55 @@
 <ng-container *ngIf="activeTab==='jobs'">
 
   <!-- Toolbar -->
-  <div class="filter-bar">
-    <input class="form-input toolbar-search"
-           [placeholder]="lang.t('بحث بالاسم أو الدرجة...', 'Search by name or grade...')"
-           [(ngModel)]="searchTerm" (input)="applyFilter()">
+  <section class="filter-section">
+    <div class="filter-grid">
 
-    <select class="form-select toolbar-filter" [(ngModel)]="filterOrgNode" (change)="applyFilter()">
-      <option value="">{{ lang.t('كل الوحدات', 'All Org Units') }}</option>
-      <option *ngFor="let n of usedOrgNodes" [value]="n.id">
-        {{ lang.isAr ? n.nameAr : n.nameEn }}
-      </option>
-    </select>
+      <label class="filter-field filter-search">
+        <span class="field-label">{{ lang.t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input class="form-input"
+                 [placeholder]="lang.t('اسم المسمى أو الدرجة...', 'Name or grade...')"
+                 [(ngModel)]="searchTerm" (input)="applyFilter()">
+        </div>
+      </label>
 
-    <select class="form-select toolbar-filter" [(ngModel)]="filterGrade" (change)="applyFilter()">
-      <option value="">{{ lang.t('كل الدرجات', 'All Grades') }}</option>
-      <option *ngFor="let g of usedGrades" [value]="g">{{ g }}</option>
-    </select>
+      <label class="filter-field">
+        <span class="field-label">{{ lang.t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <select class="form-select" [(ngModel)]="filterOrgNode" (change)="applyFilter()">
+          <option value="">{{ lang.t('كل الوحدات', 'All Org Units') }}</option>
+          <option *ngFor="let n of usedOrgNodes" [value]="n.id">
+            {{ lang.isAr ? n.nameAr : n.nameEn }}
+          </option>
+        </select>
+      </label>
 
-    <select class="form-select toolbar-filter" [(ngModel)]="filterStatus" (change)="applyFilter()">
-      <option value="">{{ lang.t('كل الحالات', 'All Statuses') }}</option>
-      <option value="active">{{ lang.t('نشط', 'Active') }}</option>
-      <option value="inactive">{{ lang.t('موقوف', 'Inactive') }}</option>
-    </select>
+      <label class="filter-field">
+        <span class="field-label">{{ lang.t('الدرجة', 'Grade') }}</span>
+        <select class="form-select" [(ngModel)]="filterGrade" (change)="applyFilter()">
+          <option value="">{{ lang.t('كل الدرجات', 'All Grades') }}</option>
+          <option *ngFor="let g of usedGrades" [value]="g">{{ g }}</option>
+        </select>
+      </label>
 
-    <button class="btn btn-secondary btn-sm" (click)="clearFilters()" *ngIf="hasFilters">
-      <span class="material-icons" style="font-size:15px">filter_alt_off</span>
-      {{ lang.t('مسح', 'Clear') }}
-    </button>
-  </div>
+      <label class="filter-field">
+        <span class="field-label">{{ lang.t('الحالة', 'Status') }}</span>
+        <select class="form-select" [(ngModel)]="filterStatus" (change)="applyFilter()">
+          <option value="">{{ lang.t('كل الحالات', 'All Statuses') }}</option>
+          <option value="active">{{ lang.t('نشط', 'Active') }}</option>
+          <option value="inactive">{{ lang.t('موقوف', 'Inactive') }}</option>
+        </select>
+      </label>
+
+    </div>
+
+    <div class="filter-actions" *ngIf="hasFilters">
+      <button class="btn btn-secondary btn-sm" (click)="clearFilters()">
+        <span class="material-icons" style="font-size:15px">filter_alt_off</span>
+        {{ lang.t('مسح الفلاتر', 'Clear Filters') }}
+      </button>
+    </div>
+  </section>
 
   <!-- Loading skeleton -->
   <div *ngIf="jobsLoading">

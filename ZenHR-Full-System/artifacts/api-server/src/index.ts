@@ -354,7 +354,7 @@ app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
 async function loadOrgEnrichmentMaps(companyId: number) {
   const [allDepts, allJobs, allOrgNodes] = await Promise.all([
     db.select().from(departmentsTable).where(and(eq(departmentsTable.companyId, companyId), eq(departmentsTable.isDeleted, false))),
-    db.select().from(jobTitlesTable).where(and(eq(jobTitlesTable.companyId, companyId), eq(jobTitlesTable.isDeleted, false))),
+    db.select({ id: jobDescriptionsTable.id, titleAr: jobDescriptionsTable.titleAr, titleEn: jobDescriptionsTable.titleEn }).from(jobDescriptionsTable).where(and(eq(jobDescriptionsTable.companyId, companyId), eq(jobDescriptionsTable.isActive, true))),
     db.select().from(orgNodesTable).where(and(eq(orgNodesTable.companyId, companyId), eq(orgNodesTable.isDeleted, false))),
   ]);
   const deptMap: Record<number, typeof allDepts[0]> = {};
@@ -749,10 +749,17 @@ app.delete("/api/departments/:id", auth, async (req, res) => {
 app.get("/api/job-titles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const titles = await db.select().from(jobTitlesTable)
-      .where(and(eq(jobTitlesTable.companyId, user.companyId), eq(jobTitlesTable.isDeleted, false)))
-      .orderBy(asc(jobTitlesTable.titleEn));
-    res.json({ success: true, data: titles });
+    const rows = await db.select({
+      id: jobDescriptionsTable.id,
+      companyId: jobDescriptionsTable.companyId,
+      titleAr: jobDescriptionsTable.titleAr,
+      titleEn: jobDescriptionsTable.titleEn,
+      grade: jobDescriptionsTable.grade,
+      isActive: jobDescriptionsTable.isActive,
+    }).from(jobDescriptionsTable)
+      .where(and(eq(jobDescriptionsTable.companyId, user.companyId), eq(jobDescriptionsTable.isActive, true)))
+      .orderBy(asc(jobDescriptionsTable.titleEn));
+    res.json({ success: true, data: rows });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
