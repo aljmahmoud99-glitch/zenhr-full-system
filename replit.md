@@ -176,8 +176,19 @@ Angular dev server proxies `/api/*` to `http://localhost:3001` via `frontend/pro
 
 ### Fonts & External CDN
 
-- Google Fonts: Cairo (Arabic) + Inter (English)
-- Google Material Icons (loaded from CDN in `index.html`)
+- Google Fonts: Noto Kufi Arabic (Arabic, weights 400/500/600/700) + DM Sans (English) + Material Symbols Rounded (icons)
+- Loaded via `@import` in `styles.scss`
+
+### Arabic / RTL Support
+
+The app is fully bilingual AR/EN with RTL layout:
+- `I18nService` manages current language via Angular signals; persists to `localStorage`
+- `applyDocumentLanguage()` sets `html[dir]`, `html[lang]`, `body.rtl`/`body.ltr`
+- CSS uses `[dir='rtl']` overrides for letter-spacing, text-transform, and negative translateX
+- Font selection: `[lang='ar'] *` → Noto Kufi Arabic; `[lang='en'] *` → DM Sans
+- Translation files: `frontend/src/assets/i18n/ar.json` and `en.json`
+- `t(ar, en)` helper in component templates uses Arabic string as first arg, English as second
+- Mojibake recovery: files corrupted by cp1256 re-encoding were fixed with the pair-map algorithm (each garbled cp1256 char pair → original UTF-8 byte → correct Arabic char)
 
 ### Demo Accounts (seeded)
 

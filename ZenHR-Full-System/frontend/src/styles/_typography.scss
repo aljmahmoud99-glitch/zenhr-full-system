@@ -49,3 +49,12 @@
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
+
+[dir='rtl'] .z-label {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[dir='rtl'] .z-display {
+  letter-spacing: 0;
+}

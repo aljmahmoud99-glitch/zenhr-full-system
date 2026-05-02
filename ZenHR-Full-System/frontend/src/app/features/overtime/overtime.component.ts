@@ -228,7 +228,7 @@ export class OvertimeComponent implements OnInit {
       next: response => this.dashboard.set(response.data || null),
       error: error => {
         this.dashboard.set(null);
-        this.dashboardError.set(getErrorMessage(error, this.lang === 'ar' ? 'طھط¹ط°ط± طھط­ظ…ظٹظ„ ظ„ظˆط­ط© ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ.' : 'Failed to load overtime dashboard.'));
+        this.dashboardError.set(getErrorMessage(error, this.lang === 'ar' ? 'تعذر تحميل لوحة العمل الإضافي.' : 'Failed to load overtime dashboard.'));
       }
     });
   }
@@ -243,7 +243,7 @@ export class OvertimeComponent implements OnInit {
       },
       error: error => {
         this.logRows.set([]);
-        this.logError.set(getErrorMessage(error, this.lang === 'ar' ? 'طھط¹ط°ط± طھط­ظ…ظٹظ„ ط³ط¬ظ„ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ.' : 'Failed to load overtime log.'));
+        this.logError.set(getErrorMessage(error, this.lang === 'ar' ? 'تعذر تحميل سجل العمل الإضافي.' : 'Failed to load overtime log.'));
         this.logLoading.set(false);
       }
     });
@@ -259,7 +259,7 @@ export class OvertimeComponent implements OnInit {
       },
       error: error => {
         this.requests.set([]);
-        this.requestsError.set(getErrorMessage(error, this.lang === 'ar' ? 'طھط¹ط°ط± طھط­ظ…ظٹظ„ ط·ظ„ط¨ط§طھ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ.' : 'Failed to load overtime requests.'));
+        this.requestsError.set(getErrorMessage(error, this.lang === 'ar' ? 'تعذر تحميل طلبات العمل الإضافي.' : 'Failed to load overtime requests.'));
         this.requestsLoading.set(false);
       }
     });
@@ -279,7 +279,7 @@ export class OvertimeComponent implements OnInit {
       },
       error: error => {
         this.reportRows.set([]);
-        this.reportsError.set(getErrorMessage(error, this.lang === 'ar' ? 'طھط¹ط°ط± طھط­ظ…ظٹظ„ طھظ‚ط§ط±ظٹط± ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ.' : 'Failed to load overtime reports.'));
+        this.reportsError.set(getErrorMessage(error, this.lang === 'ar' ? 'تعذر تحميل تقارير العمل الإضافي.' : 'Failed to load overtime reports.'));
         this.reportsLoading.set(false);
       }
     });
@@ -295,7 +295,7 @@ export class OvertimeComponent implements OnInit {
       },
       error: error => {
         this.rules.set(null);
-        this.rulesError.set(getErrorMessage(error, this.lang === 'ar' ? 'طھط¹ط°ط± طھط­ظ…ظٹظ„ ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ.' : 'Failed to load overtime rules.'));
+        this.rulesError.set(getErrorMessage(error, this.lang === 'ar' ? 'تعذر تحميل قواعد العمل الإضافي.' : 'Failed to load overtime rules.'));
         this.rulesLoading.set(false);
       }
     });
@@ -415,13 +415,13 @@ export class OvertimeComponent implements OnInit {
       this.api.put<any>(`/api/overtime/requests/${action.id}/approve`, { notes: null }).subscribe({
         next: () => {
           this.closeConfirmDialog();
-          this.toast.success(this.lang === 'ar' ? 'طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ط·ظ„ط¨.' : 'Request approved.');
+          this.toast.success(this.lang === 'ar' ? 'تمت الموافقة على الطلب.' : 'Request approved.');
           this.loadRequests();
           this.loadDashboard();
           this.setRequestActionLoading(action.id, false);
         },
         error: err => {
-          this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± ط§ط¹طھظ…ط§ط¯ ط§ظ„ط·ظ„ط¨.' : 'Failed to approve request.'));
+          this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'تعذر اعتماد الطلب.' : 'Failed to approve request.'));
           this.setRequestActionLoading(action.id, false);
         }
       });
@@ -432,13 +432,13 @@ export class OvertimeComponent implements OnInit {
     this.api.put<any>(`/api/overtime/records/${action.id}/approve`, { notes: null }).subscribe({
       next: () => {
         this.closeConfirmDialog();
-        this.toast.success(this.lang === 'ar' ? 'طھظ… ط§ط¹طھظ…ط§ط¯ ط§ظ„ط³ط¬ظ„.' : 'Record approved.');
+        this.toast.success(this.lang === 'ar' ? 'تم اعتماد السجل.' : 'Record approved.');
         this.loadLog();
         this.loadDashboard();
         this.setRecordActionLoading(action.id, false);
       },
       error: err => {
-        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± ط§ط¹طھظ…ط§ط¯ ط§ظ„ط³ط¬ظ„.' : 'Failed to approve record.'));
+        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'تعذر اعتماد السجل.' : 'Failed to approve record.'));
         this.setRecordActionLoading(action.id, false);
       }
     });
@@ -453,7 +453,7 @@ export class OvertimeComponent implements OnInit {
     const action = this.rejectAction();
     if (!action) return;
     if (!reason.trim()) {
-      this.rejectError.set(this.lang === 'ar' ? 'ط³ط¨ط¨ ط§ظ„ط±ظپط¶ ظ…ط·ظ„ظˆط¨.' : 'Rejection reason is required.');
+      this.rejectError.set(this.lang === 'ar' ? 'سبب الرفض مطلوب.' : 'Rejection reason is required.');
       return;
     }
 
@@ -463,13 +463,13 @@ export class OvertimeComponent implements OnInit {
       this.api.put<any>(`/api/overtime/requests/${action.id}/reject`, payload).subscribe({
         next: () => {
           this.closeRejectDialog();
-          this.toast.info(this.lang === 'ar' ? 'طھظ… ط±ظپط¶ ط§ظ„ط·ظ„ط¨.' : 'Request rejected.');
+          this.toast.info(this.lang === 'ar' ? 'تم رفض الطلب.' : 'Request rejected.');
           this.loadRequests();
           this.loadDashboard();
           this.setRequestActionLoading(action.id, false);
         },
         error: err => {
-          this.rejectError.set(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± ط±ظپط¶ ط§ظ„ط·ظ„ط¨.' : 'Failed to reject request.'));
+          this.rejectError.set(getErrorMessage(err, this.lang === 'ar' ? 'تعذر رفض الطلب.' : 'Failed to reject request.'));
           this.toast.error(this.rejectError());
           this.setRequestActionLoading(action.id, false);
         }
@@ -481,13 +481,13 @@ export class OvertimeComponent implements OnInit {
     this.api.put<any>(`/api/overtime/records/${action.id}/reject`, payload).subscribe({
       next: () => {
         this.closeRejectDialog();
-        this.toast.info(this.lang === 'ar' ? 'طھظ… ط±ظپط¶ ط§ظ„ط³ط¬ظ„.' : 'Record rejected.');
+        this.toast.info(this.lang === 'ar' ? 'تم رفض السجل.' : 'Record rejected.');
         this.loadLog();
         this.loadDashboard();
         this.setRecordActionLoading(action.id, false);
       },
       error: err => {
-        this.rejectError.set(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± ط±ظپط¶ ط§ظ„ط³ط¬ظ„.' : 'Failed to reject record.'));
+        this.rejectError.set(getErrorMessage(err, this.lang === 'ar' ? 'تعذر رفض السجل.' : 'Failed to reject record.'));
         this.toast.error(this.rejectError());
         this.setRecordActionLoading(action.id, false);
       }
@@ -505,14 +505,14 @@ export class OvertimeComponent implements OnInit {
       to: this.logFilters.to || null
     }).subscribe({
       next: response => {
-        const message = response.message || (this.lang === 'ar' ? 'ط§ظƒطھظ…ظ„ ط§ظ„ط§ط­طھط³ط§ط¨ ط¨ظ†ط¬ط§ط­.' : 'Calculation completed.');
+        const message = response.message || (this.lang === 'ar' ? 'اكتمل الاحتساب بنجاح.' : 'Calculation completed.');
         this.feedback.set(message);
         this.toast.success(message);
         this.loadLog();
         this.loadDashboard();
       },
       error: err => {
-        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± طھظ†ظپظٹط° ط§ظ„ط§ط­طھط³ط§ط¨.' : 'Failed to run calculation.'));
+        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'تعذر تنفيذ الاحتساب.' : 'Failed to run calculation.'));
       }
     });
   }
@@ -523,7 +523,7 @@ export class OvertimeComponent implements OnInit {
     this.savingRules.set(true);
     this.api.put<any>('/api/overtime/rules', current).subscribe({
       next: response => {
-        const message = response.message || (this.lang === 'ar' ? 'طھظ… ط­ظپط¸ ط§ظ„ظ‚ظˆط§ط¹ط¯.' : 'Rules saved.');
+        const message = response.message || (this.lang === 'ar' ? 'تم حفظ القواعد.' : 'Rules saved.');
         this.savingRules.set(false);
         this.feedback.set(message);
         this.toast.success(message);
@@ -531,7 +531,7 @@ export class OvertimeComponent implements OnInit {
       },
       error: err => {
         this.savingRules.set(false);
-        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'طھط¹ط°ط± ط­ظپط¸ ط§ظ„ظ‚ظˆط§ط¹ط¯.' : 'Failed to save rules.'));
+        this.toast.error(getErrorMessage(err, this.lang === 'ar' ? 'تعذر حفظ القواعد.' : 'Failed to save rules.'));
       }
     });
   }
@@ -561,24 +561,24 @@ export class OvertimeComponent implements OnInit {
 
   statusLabel(status: string) {
     const labels: Record<string, string> = {
-      pending: this.lang === 'ar' ? 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ظˆط§ظپظ‚ط©' : 'Pending',
-      manager_approved: this.lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ط¯ظٹط±' : 'Manager approved',
-      approved: this.lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ ط¹ظ„ظٹظ‡' : 'Approved',
-      rejected: this.lang === 'ar' ? 'ظ…ط±ظپظˆط¶' : 'Rejected'
+      pending: this.lang === 'ar' ? 'بانتظار الموافقة' : 'Pending',
+      manager_approved: this.lang === 'ar' ? 'موافقة المدير' : 'Manager approved',
+      approved: this.lang === 'ar' ? 'موافق عليه' : 'Approved',
+      rejected: this.lang === 'ar' ? 'مرفوض' : 'Rejected'
     };
     return labels[status] || status;
   }
 
   compensationLabel(type?: string) {
-    if (type === 'time_off') return this.lang === 'ar' ? 'ط¥ط¬ط§ط²ط© ط¨ط¯ظٹظ„ط©' : 'Time off';
-    return this.lang === 'ar' ? 'ط¨ط¯ظ„ ظ…ط§ظ„ظٹ' : 'Payment';
+    if (type === 'time_off') return this.lang === 'ar' ? 'إجازة بديلة' : 'Time off';
+    return this.lang === 'ar' ? 'بدل مالي' : 'Payment';
   }
 
   dayTypeLabel(type?: string) {
     const labels: Record<string, string> = {
-      weekday: this.lang === 'ar' ? 'ظٹظˆظ… ط¹ظ…ظ„' : 'Weekday',
-      weekend: this.lang === 'ar' ? 'ط¹ط·ظ„ط© ط£ط³ط¨ظˆط¹ظٹط©' : 'Weekend',
-      holiday: this.lang === 'ar' ? 'ط¹ط·ظ„ط© ط±ط³ظ…ظٹط©' : 'Holiday'
+      weekday: this.lang === 'ar' ? 'يوم عمل' : 'Weekday',
+      weekend: this.lang === 'ar' ? 'عطلة أسبوعية' : 'Weekend',
+      holiday: this.lang === 'ar' ? 'عطلة رسمية' : 'Holiday'
     };
     return labels[type || 'weekday'] || type || '--';
   }

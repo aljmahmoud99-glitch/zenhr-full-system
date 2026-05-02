@@ -30,7 +30,6 @@
       display: inline-block; margin-top: 2px;
       font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px;
       background: rgba(255,255,255,0.1); color: var(--z-mint);
-      text-transform: uppercase; letter-spacing: 0.5px;
     }
   }
   
@@ -38,8 +37,8 @@
   
   .nav-group-label {
     padding: 12px 20px 4px;
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.8px; color: rgba(255,255,255,0.35);
+    font-size: 10px; font-weight: 700;
+    color: rgba(255,255,255,0.35);
   }
   
   .nav-item {
@@ -60,7 +59,7 @@
     
     &:hover {
       background: rgba(255,255,255,0.06);
-      color: white; transform: translateX(-2px);
+      color: white;
       .nav-icon { color: rgba(255,255,255,0.8); }
     }
     &.active {
