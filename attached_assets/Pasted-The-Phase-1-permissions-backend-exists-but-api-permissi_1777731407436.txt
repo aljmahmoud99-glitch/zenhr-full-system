@@ -1,0 +1,36 @@
+The Phase 1 permissions backend exists, but /api/permissions/my returns 401 Unauthorized from the frontend.
+
+Fix the authentication/permissions integration properly.
+
+Problem observed:
+- Calling /api/permissions/my directly returns:
+  { success:false, message:"Unauthorized" }
+- Frontend fetch with localStorage.getItem('token') also returns 401.
+- Likely causes:
+  1. Frontend stores JWT under a different key than "token"
+  2. PermissionService/RoleAccessService is not using the same auth header logic as the rest of the app
+  3. Backend permission route is not reading the same JWT format/claim as existing authenticated endpoints
+  4. Current logged-in user may not be mapped to role_id/hradmin correctly
+
+Tasks:
+1. Inspect existing AuthService, auth interceptor, login response, and localStorage keys.
+2. Identify the real JWT storage key and how other API calls attach Authorization headers.
+3. Update /api/permissions/my frontend call to use the same auth mechanism/interceptor as the rest of the app.
+4. Do NOT hardcode localStorage.getItem('token') unless that is the real existing key.
+5. On backend, ensure /api/permissions/my uses the same auth middleware/JWT parsing as existing protected endpoints.
+6. Ensure current user lookup works from JWT and maps correctly to users.role_id.
+7. Ensure hradmin user receives full permissions for all screens/actions.
+8. Ensure RoleAccessService loads permissions after login and on app refresh if user is already logged in.
+9. Add safe fallback: if permission loading fails, log the error clearly, but do not break the app.
+10. Verify:
+   - /api/permissions/my returns permission map for logged-in user
+   - sidebar permission filtering works
+   - Org Structure and Roles & Permissions appear for hradmin
+   - no existing screens disappear incorrectly
+
+Important:
+- Do not disable authentication permanently.
+- Do not rewrite login/session system.
+- Do not break existing API calls.
+- Make minimal safe changes.
+- Summarize exact files changed and why.

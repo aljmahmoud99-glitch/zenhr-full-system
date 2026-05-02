@@ -130,6 +130,8 @@ const HRADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' },
       { labelAr: 'التقارير', labelEn: 'Reports', icon: 'bar_chart', path: '/app/reports' },
+      { labelAr: 'الهيكل التنظيمي', labelEn: 'Org Structure', icon: 'account_tree', path: '/app/org-structure' },
+      { labelAr: 'الصلاحيات والأدوار', labelEn: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/app/roles' },
       { labelAr: 'المستخدمون', labelEn: 'Users', icon: 'manage_accounts', path: '/app/users' },
       { labelAr: 'الإعدادات', labelEn: 'Settings', icon: 'settings', path: '/app/settings' }
     ]
@@ -289,31 +291,59 @@ export class RoleAccessService {
   private readonly _permissionMap = new BehaviorSubject<PermissionMap | null>(null);
   readonly permissionMap$ = this._permissionMap.asObservable();
 
+  private _fetching = false;
+
   constructor(private auth: AuthService, private http: HttpClient) {
-    // Whenever the logged-in user changes, refresh the permission map
+    // Belt-and-suspenders: if a user is already in memory at service creation
+    // (page-refresh scenario), load immediately — don't wait for the effect.
+    if (this.auth.currentUser()) {
+      this._loadPermissions();
+    }
+
+    // Also react to signal changes: login, logout, impersonation switch.
     effect(() => {
       const user = this.auth.currentUser();
       if (user) {
         this._loadPermissions();
       } else {
+        this._fetching = false;
         this._permissionMap.next(null);
       }
     });
   }
 
   private _loadPermissions() {
+    // Guard: don't fire multiple concurrent fetches
+    if (this._fetching) return;
+    this._fetching = true;
+
+    const token = localStorage.getItem('zenjo_token');
+    if (!token) {
+      // No token yet — wait for the effect to trigger after login
+      this._fetching = false;
+      return;
+    }
+
     this.http
       .get<{ success: boolean; data: PermissionMap }>('/api/permissions/my')
-      .pipe(catchError(() => of(null)))
+      .pipe(
+        catchError(err => {
+          console.error('[RoleAccessService] Failed to load permissions:', err?.status, err?.message);
+          return of(null);
+        })
+      )
       .subscribe(res => {
+        this._fetching = false;
         if (res?.success && res.data) {
           this._permissionMap.next(res.data);
         }
+        // On failure: _permissionMap stays null → canDoSync() falls back to _legacyCheck()
       });
   }
 
-  /** Force-refresh permissions (call after login if needed) */
+  /** Force-refresh permissions — call explicitly after login or role change */
   refreshPermissions() {
+    this._fetching = false; // reset guard so the fetch actually runs
     this._loadPermissions();
   }
 

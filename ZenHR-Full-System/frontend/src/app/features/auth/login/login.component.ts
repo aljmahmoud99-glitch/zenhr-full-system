@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { RoleAccessService } from '../../../core/services/role-access.service';
 
 @Component({
   selector: 'app-login',
@@ -26,7 +27,12 @@ export class LoginComponent {
     { user: 'employee', pass: 'Employee@1234', roleAr: 'موظف', roleEn: 'Employee' }
   ];
 
-  constructor(private auth: AuthService, private router: Router, private route: ActivatedRoute) {
+  constructor(
+    private auth: AuthService,
+    private router: Router,
+    private route: ActivatedRoute,
+    private roleAccess: RoleAccessService,
+  ) {
     this.lang.set(auth.lang);
   }
 
@@ -49,6 +55,9 @@ export class LoginComponent {
     this.loading.set(true); this.error.set('');
     this.auth.login(this.username, this.password).subscribe({
       next: () => {
+        // Explicitly refresh permissions after login — belt-and-suspenders
+        // alongside the effect() in RoleAccessService.
+        this.roleAccess.refreshPermissions();
         const returnUrl = this.route.snapshot.queryParams['returnUrl'] || this.auth.defaultHomeUrl();
         this.router.navigateByUrl(returnUrl);
       },
