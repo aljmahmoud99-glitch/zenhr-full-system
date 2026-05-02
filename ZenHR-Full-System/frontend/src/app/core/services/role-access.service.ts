@@ -1,6 +1,16 @@
-import { Injectable } from '@angular/core';
+/*
+ * Phase 1 — RoleAccessService (updated)
+ *
+ * Changes:
+ * - Fetches /api/permissions/my after login and caches the result locally
+ * - canDoSync(screen, action) reads from cached map (no HTTP call) — used by canDo directive
+ * - canDo(screen, action) still returns Observable for backward compat, now uses cached map
+ * - permissionMap$ BehaviorSubject exposes the map for the directive to react to
+ * - All legacy SCREEN_ACCESS / ACTION_ACCESS / NAV_MAP maps remain for backward compat
+ */
+import { Injectable, effect } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, catchError, map, of, shareReplay } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, shareReplay } from 'rxjs';
 import { AuthService } from './auth.service';
 
 export const SCREEN_ACCESS: Record<string, string[]> = {
@@ -268,11 +278,44 @@ export const ACTION_ACCESS: Record<string, string[]> = {
   'compliance:edit': ['hradmin']
 };
 
+export interface PermissionMap {
+  screens: Record<string, Record<string, boolean>>;
+  dataScope: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RoleAccessService {
-  private permissionCache = new Map<string, Observable<boolean>>();
+  // Phase 1: dynamic permission map from /api/permissions/my
+  private readonly _permissionMap = new BehaviorSubject<PermissionMap | null>(null);
+  readonly permissionMap$ = this._permissionMap.asObservable();
 
-  constructor(private auth: AuthService, private http: HttpClient) {}
+  constructor(private auth: AuthService, private http: HttpClient) {
+    // Whenever the logged-in user changes, refresh the permission map
+    effect(() => {
+      const user = this.auth.currentUser();
+      if (user) {
+        this._loadPermissions();
+      } else {
+        this._permissionMap.next(null);
+      }
+    });
+  }
+
+  private _loadPermissions() {
+    this.http
+      .get<{ success: boolean; data: PermissionMap }>('/api/permissions/my')
+      .pipe(catchError(() => of(null)))
+      .subscribe(res => {
+        if (res?.success && res.data) {
+          this._permissionMap.next(res.data);
+        }
+      });
+  }
+
+  /** Force-refresh permissions (call after login if needed) */
+  refreshPermissions() {
+    this._loadPermissions();
+  }
 
   get role(): string {
     return this.auth.currentUser()?.role ?? '';
@@ -290,22 +333,49 @@ export class RoleAccessService {
     return (ACTION_ACCESS[action] ?? []).includes(this.role);
   }
 
-  canDo(screen: string, action: string): Observable<boolean> {
-    const key = `${screen}:${action}`;
-    const cached = this.permissionCache.get(key);
-    if (cached) return cached;
+  /**
+   * Synchronous permission check using the cached permission map.
+   * Falls back to legacy ACTION_ACCESS if map not loaded yet.
+   * Used by the canDo directive.
+   */
+  canDoSync(screen: string, action: string): boolean {
+    const cached = this._permissionMap.getValue();
+    if (cached && Object.keys(cached.screens).length > 0) {
+      return !!cached.screens[screen]?.[action];
+    }
+    // Fallback: use legacy role-based check
+    return this._legacyCheck(this.role, screen, action);
+  }
 
+  /**
+   * Observable permission check — uses cached map, falls back to HTTP check.
+   * Backward compatible with existing code.
+   */
+  canDo(screen: string, action: string): Observable<boolean> {
+    const cached = this._permissionMap.getValue();
+    if (cached && Object.keys(cached.screens).length > 0) {
+      return of(!!cached.screens[screen]?.[action]);
+    }
+
+    // Fall back to HTTP check (legacy behavior)
     const params = new HttpParams().set('screen', screen).set('action', action);
-    const request = this.http
+    return this.http
       .get<{ success: boolean; data: { allowed: boolean } }>('/api/permissions/check', { params })
       .pipe(
         map(res => !!res.data?.allowed),
-        catchError(() => of(this.canDoAction(key))),
+        catchError(() => of(this._legacyCheck(this.role, screen, action))),
         shareReplay(1)
       );
+  }
 
-    this.permissionCache.set(key, request);
-    return request;
+  /** Current data scope from permission map */
+  dataScope(): string {
+    return this._permissionMap.getValue()?.dataScope ?? 'own';
+  }
+
+  /** Get the raw permission map (for debugging / admin UI) */
+  getPermissionMap(): PermissionMap | null {
+    return this._permissionMap.getValue();
   }
 
   is(role: string): boolean {
@@ -351,5 +421,36 @@ export class RoleAccessService {
     };
 
     return (widgetMap[widget] ?? []).includes(this.role);
+  }
+
+  private _legacyCheck(role: string, screen: string, action: string): boolean {
+    if (role === 'hradmin') return true;
+    if (role === 'superadmin') return screen === 'users' || screen === 'settings';
+
+    const payrollScreens = ['payroll', 'advances', 'reports', 'forms', 'employees', 'documents', 'attendance', 'assets'];
+    if (role === 'payrolladmin') {
+      if (!payrollScreens.includes(screen)) return false;
+      if (['employees', 'documents', 'attendance', 'assets'].includes(screen)) return action === 'view' || action === 'export';
+      return true;
+    }
+
+    const managerScreens = ['employees', 'leave', 'overtime', 'attendance', 'disciplinary', 'documents', 'assets', 'forms'];
+    if (role === 'manager') {
+      if (!managerScreens.includes(screen)) return false;
+      if (['employees', 'documents', 'assets', 'forms'].includes(screen)) return action === 'view';
+      if (screen === 'leave' || screen === 'overtime') return action === 'view' || action === 'approve';
+      if (screen === 'attendance') return action === 'view';
+      if (screen === 'disciplinary') return action === 'view' || action === 'create' || action === 'update';
+      return false;
+    }
+
+    const ownScreens = ['leave', 'overtime', 'advances', 'attendance', 'documents', 'assets', 'payroll', 'forms'];
+    if (role === 'employee') {
+      if (!ownScreens.includes(screen)) return false;
+      if (['documents', 'assets', 'payroll', 'forms'].includes(screen)) return action === 'view';
+      return action === 'view' || action === 'create';
+    }
+
+    return false;
   }
 }

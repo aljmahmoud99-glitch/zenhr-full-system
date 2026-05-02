@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   email: varchar("email", { length: 150 }).notNull().unique(),
   role: varchar("role", { length: 30 }).notNull().default("employee"),
+  roleId: integer("role_id"), // Phase 1: nullable FK to roles table, role string kept for backward compat
   isActive: boolean("is_active").default(true).notNull(),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   mustChangePassword: boolean("must_change_password").default(false),

@@ -10,8 +10,16 @@ import {
   nationalitiesTable, citiesTable, banksTable, leaveTypesTable,
   companiesTable, activityLogsTable, systemConfigurationsTable,
   overtimeRequestsTable,
+  orgNodesTable, rolesTable, permissionsTable, rolePermissionsTable,
 } from "@workspace/db/schema";
-import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne } from "drizzle-orm";
+import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
+import {
+  getPermissionMap,
+  hasPermission,
+  getDataScope,
+  getDescendantNodeIds,
+  getEmployeeScopeConditions,
+} from "./permission-service.js";
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -167,17 +175,25 @@ app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
 app.get("/api/employees", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { search, departmentId, status, page = "1", pageSize = "20" } = req.query as Record<string, string>;
+    const { search, departmentId, orgNodeId, status, page = "1", pageSize = "20" } = req.query as Record<string, string>;
     const pageNum = parseInt(page);
     const size = parseInt(pageSize);
     const offset = (pageNum - 1) * size;
 
-    const conditions = [eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)];
+    // Phase 1: apply data scope (own / department / org_node / company)
+    const scopeConditions = await getEmployeeScopeConditions(req as AuthReq);
+    const conditions = [...scopeConditions, eq(employeesTable.isDeleted, false)];
+
     if (status) conditions.push(eq(employeesTable.employmentStatus, status));
     if (departmentId) conditions.push(eq(employeesTable.departmentId, parseInt(departmentId)));
+    if (orgNodeId) {
+      // Include all descendants of the selected org node
+      const nodeIds = await getDescendantNodeIds(parseInt(orgNodeId));
+      if (nodeIds.length > 0) conditions.push(inArray(employeesTable.orgNodeId, nodeIds));
+    }
 
-    let query = db.select().from(employeesTable).where(and(...conditions));
-    const rows = await query.orderBy(asc(employeesTable.employeeCode)).limit(size).offset(offset);
+    const rows = await db.select().from(employeesTable).where(and(...conditions))
+      .orderBy(asc(employeesTable.employeeCode)).limit(size).offset(offset);
     const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable).where(and(...conditions));
 
     const filtered = search
@@ -255,6 +271,154 @@ app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
     const balances = await db.select().from(leaveBalancesTable)
       .where(eq(leaveBalancesTable.employeeId, parseInt(req.params["id"]!)));
     res.json(balances);
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Org Nodes ────────────────────────────────────────────────────────────────
+
+// GET /api/org-nodes — flat list for current company
+app.get("/api/org-nodes", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const nodes = await db.select().from(orgNodesTable)
+      .where(and(eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)))
+      .orderBy(asc(orgNodesTable.sortOrder), asc(orgNodesTable.nameEn));
+    res.json({ success: true, data: nodes });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/org-nodes/flat — alias for flat list
+app.get("/api/org-nodes/flat", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const nodes = await db.select().from(orgNodesTable)
+      .where(and(eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)))
+      .orderBy(asc(orgNodesTable.sortOrder), asc(orgNodesTable.nameEn));
+    res.json({ success: true, data: nodes });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/org-nodes/tree — nested tree structure (built in-memory from flat list)
+app.get("/api/org-nodes/tree", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const nodes = await db.select().from(orgNodesTable)
+      .where(and(eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)))
+      .orderBy(asc(orgNodesTable.sortOrder), asc(orgNodesTable.nameEn));
+
+    // Build tree in-memory
+    type TreeNode = typeof nodes[number] & { children: TreeNode[] };
+    const map = new Map<number, TreeNode>();
+    for (const n of nodes) map.set(n.id, { ...n, children: [] });
+    const roots: TreeNode[] = [];
+    for (const n of map.values()) {
+      if (n.parentId && map.has(n.parentId)) {
+        map.get(n.parentId)!.children.push(n);
+      } else {
+        roots.push(n);
+      }
+    }
+    res.json({ success: true, data: roots });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/org-nodes/:id/descendants — all descendant node IDs
+app.get("/api/org-nodes/:id/descendants", auth, async (req, res) => {
+  try {
+    const nodeIds = await getDescendantNodeIds(parseInt(req.params["id"]!));
+    res.json({ success: true, data: nodeIds });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/org-nodes — create node [hradmin only]
+app.post("/api/org-nodes", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const [node] = await db.insert(orgNodesTable).values({ ...req.body, companyId: user.companyId }).returning();
+    res.status(201).json({ success: true, data: node });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/org-nodes/:id — update node [hradmin only]
+app.put("/api/org-nodes/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const [node] = await db.update(orgNodesTable).set(req.body).where(
+      and(eq(orgNodesTable.id, parseInt(req.params["id"]!)), eq(orgNodesTable.companyId, user.companyId))
+    ).returning();
+    if (!node) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: node });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// DELETE /api/org-nodes/:id — soft delete [hradmin only] — BLOCK if has employees or children
+app.delete("/api/org-nodes/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const nodeId = parseInt(req.params["id"]!);
+    // Block if has active children
+    const [childCount] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(orgNodesTable).where(and(eq(orgNodesTable.parentId, nodeId), eq(orgNodesTable.isDeleted, false)));
+    if ((childCount?.count ?? 0) > 0) {
+      res.status(400).json({ success: false, message: "Cannot delete: this node has child units. Remove them first." }); return;
+    }
+    // Block if has assigned employees
+    const [empCount] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable).where(and(eq(employeesTable.orgNodeId, nodeId), eq(employeesTable.isDeleted, false)));
+    if ((empCount?.count ?? 0) > 0) {
+      res.status(400).json({ success: false, message: "Cannot delete: employees are assigned to this unit. Reassign them first." }); return;
+    }
+    await db.update(orgNodesTable).set({ isDeleted: true }).where(eq(orgNodesTable.id, nodeId));
+    res.status(204).send();
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Permissions ──────────────────────────────────────────────────────────────
+
+// GET /api/permissions/my — full permission map for current user
+app.get("/api/permissions/my", auth, async (req, res) => {
+  try {
+    const map = await getPermissionMap(req as AuthReq);
+    res.json({ success: true, data: { screens: map.screens, dataScope: map.dataScope } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/permissions/check?screen=&action= — single permission check
+app.get("/api/permissions/check", auth, async (req, res) => {
+  try {
+    const { screen, action } = req.query as { screen: string; action: string };
+    if (!screen || !action) {
+      res.status(400).json({ success: false, message: "screen and action are required" }); return;
+    }
+    const allowed = await hasPermission(req as AuthReq, screen, action);
+    res.json({ success: true, data: { allowed } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }

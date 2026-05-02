@@ -1,0 +1,162 @@
+PHASE 1 — SYSTEM FOUNDATION: Organizational Structure & Dynamic Permissions
+
+═══════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════
+Establish a rock-solid foundation for the entire system.
+The org structure and permission system underpin EVERY other feature.
+This phase must be done first and done correctly.
+A broken foundation means every feature built on top will fail.
+
+═══════════════════════════════════
+STEP 1 — ANALYZE WHAT EXISTS
+═══════════════════════════════════
+Before writing a single line of code, you MUST read and understand:
+
+1. The current database schema:
+   - Is there a departments table? What columns does it have?
+   - Is there a companies table? Does it support parent-child (multi-level hierarchy)?
+   - Is there a roles table, or are roles hardcoded as strings?
+   - Is there a permissions table, or is access controlled by role string checks?
+
+2. The current backend:
+   - How is the current user's role extracted from JWT? What claim name?
+   - Where is authorization enforced — middleware, decorators, or inline?
+   - Are there any org-filtering patterns already in place?
+
+3. The current frontend:
+   - How are routes protected? Auth guard? Role check?
+   - Where is the role stored after login (localStorage key name)?
+   - Is there a permission service or are role checks scattered across components?
+
+Document your findings as comments at the top of the files you will modify.
+Do NOT write any new code until this analysis is complete.
+
+═══════════════════════════════════
+STEP 2 — DATABASE: Organizational Structure
+═══════════════════════════════════
+Design and implement a multi-level org tree: Company → Branch → Department → Section → Unit
+
+Requirements:
+  - Single table: org_nodes (self-referencing via parent_id)
+  - Columns: id, company_id, parent_id (nullable FK to self), node_type (enum: company|branch|department|section|unit), name_ar, name_en, code, manager_employee_id (nullable FK), is_active, sort_order, created_at, updated_at
+  - The existing departments table must be preserved and migrated: do NOT drop it.
+    Instead, seed existing departments as org_nodes of type 'department' and add org_node_id (nullable) to the employees table as a new column alongside the existing department_id.
+    This ensures zero data loss.
+  - Add a recursive helper query (CTE or in-memory) to get all descendant IDs of a given node — this will be used for data scoping.
+  - Add indexes on: company_id, parent_id, (company_id + node_type).
+
+Migration safety rules:
+  - Run existing data migration AFTER schema migration — not combined.
+  - Verify employee count before and after: counts must match.
+  - If anything fails, rollback schema migration — do NOT leave database in partial state.
+
+═══════════════════════════════════
+STEP 3 — DATABASE: Roles & Permissions
+═══════════════════════════════════
+Replace hardcoded role strings with a dynamic permission system.
+
+Schema:
+  roles table: id, company_id, name, name_ar, is_system_role (bool), is_active
+  permissions table: id, screen (string), action (enum: view|create|update|delete|approve|export), description
+  role_permissions table: id, role_id (FK), permission_id (FK), data_scope (enum: own|department|org_node|branch|company), custom_node_ids (nullable string)
+
+Seed system roles for every existing company:
+  - hradmin → all permissions, scope: company
+  - payrolladmin → payroll + reports permissions, scope: company
+  - manager → leave approve + attendance view + overtime approve, scope: department
+  - employee → own data only (leave, attendance, overtime, advances, documents, payslips), scope: own
+
+Seed all permissions: for each screen in [employees, leave, overtime, attendance, payroll, advances, compliance, documents, assets, disciplinary, resignations, clearance, reports, forms, users, settings, pre-employment, job-descriptions] × each action [view, create, update, delete, approve, export].
+
+Add role_id (FK, nullable) to the users table alongside the existing role string column.
+Backfill role_id by matching the existing role string to seeded role names.
+Keep the role string column — do NOT drop it — for backward compatibility.
+
+═══════════════════════════════════
+STEP 4 — BACKEND: Permission Service
+═══════════════════════════════════
+Create a centralized permission service (single file, not scattered logic):
+
+  PermissionService must expose:
+    hasPermission(userId, screen, action) → boolean
+    getDataScope(userId, screen) → 'own' | 'department' | 'org_node' | 'company'
+    applyEmployeeScope(query, userId) → filtered query
+    getDescendantNodeIds(orgNodeId) → number[] (all child node IDs recursively)
+
+  applyEmployeeScope implementation:
+    own → WHERE employee_id = currentUserEmployeeId
+    department → WHERE department_id = currentUserDeptId
+    org_node → WHERE org_node_id IN (getDescendantNodeIds(currentUserOrgNodeId))
+    company → no additional filter (already scoped by company_id)
+
+  Cache per-request: compute once, store in request context object.
+  Do NOT hit the database for permissions on every single query.
+
+Apply this service to EVERY controller that returns employee-related data.
+No exceptions. Every list endpoint must call applyEmployeeScope.
+
+═══════════════════════════════════
+STEP 5 — BACKEND: API Endpoints
+═══════════════════════════════════
+Expose these endpoints (create if missing, fix if broken):
+
+  GET  /api/org-nodes          → flat list for current company
+  GET  /api/org-nodes/tree     → nested tree structure (built in-memory from flat list)
+  GET  /api/org-nodes/:id/descendants → all descendant node IDs (for scoping)
+  POST /api/org-nodes          → create node [hradmin only]
+  PUT  /api/org-nodes/:id      → update node [hradmin only]
+  DELETE /api/org-nodes/:id    → soft delete [hradmin only] — BLOCK if has employees or children
+
+  GET  /api/permissions/my     → full permission map for current user (used by frontend on login)
+  GET  /api/permissions/check?screen=&action= → single check (used for conditional UI)
+
+Response shape for /api/permissions/my:
+  { screens: { [screen]: { view:bool, create:bool, update:bool, delete:bool, approve:bool, export:bool } }, dataScope: string }
+
+═══════════════════════════════════
+STEP 6 — FRONTEND: Permission System
+═══════════════════════════════════
+Create a PermissionService in Angular:
+  - On login: call GET /api/permissions/my → store result in service (BehaviorSubject)
+  - canDo(screen, action): boolean → reads from stored permissions, NO HTTP call
+  - dataScope(): string → reads from stored permissions
+  - Clear permissions on logout
+
+Create a canDo directive:
+  *canDo="'employees:create'" → structurally removes element if user cannot do this action
+  This replaces all scattered *ngIf="role === 'hradmin'" checks.
+
+Update sidebar navigation:
+  - Show/hide nav items based on canDo('screen', 'view')
+  - Remove all hardcoded role === 'X' checks from templates
+
+Add org unit filter to every list screen that currently has a department filter:
+  - Replace department dropdown with org unit dropdown (loaded from /api/org-nodes)
+  - Pass selected org node id to backend query
+
+═══════════════════════════════════
+CONSTRAINTS — NON-NEGOTIABLE
+═══════════════════════════════════
+- The application must remain fully operational throughout this phase.
+- No route must return 404 or 500 at any point.
+- The existing login and session management must not be touched.
+- The existing department_id column on employees stays — do not remove.
+- Role string check in JWT stays — new role_id is additive, not replacement yet.
+- All new tables: prefix with no changes to existing table names.
+- Every API must validate Authorization header — no unauthenticated access.
+
+═══════════════════════════════════
+EXPECTED OUTCOME
+═══════════════════════════════════
+After this phase:
+  ✓ org_nodes table exists with seeded data mirroring existing departments
+  ✓ roles and permissions tables exist with seeded defaults
+  ✓ /api/org-nodes returns correct tree
+  ✓ /api/permissions/my returns correct permission map per role
+  ✓ All employee list endpoints scope data correctly per role
+  ✓ Frontend sidebar shows items based on permissions (not hardcoded role)
+  ✓ Employee can only see own data — confirmed by manual test
+  ✓ Manager sees only team — confirmed by manual test
+  ✓ HR sees all company employees — confirmed by manual test
+  ✓ Zero data loss — employee count before = employee count after

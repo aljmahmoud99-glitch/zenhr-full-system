@@ -179,6 +179,40 @@ Angular dev server proxies `/api/*` to `http://localhost:3001` via `frontend/pro
 - Google Fonts: Noto Kufi Arabic (Arabic, weights 400/500/600/700) + DM Sans (English) + Material Symbols Rounded (icons)
 - Loaded via `@import` in `styles.scss`
 
+### Phase 1 — Org Structure & Dynamic Permissions (COMPLETE)
+
+**New DB tables (schema in `lib/db/src/schema/`):**
+- `org_nodes` — self-referencing tree: Company → Branch → Department → Section → Unit. Seeded from existing 6 departments. Indexes on `company_id`, `parent_id`, `(company_id, node_type)`.
+- `roles` — company-scoped role records (6 system roles seeded per company: superadmin, hradmin, payrolladmin, manager, employee, recruiter).
+- `permissions` — global 108 entries: 18 screens × 6 actions (view/create/update/delete/approve/export).
+- `role_permissions` — maps roleId → permissionId with a `data_scope` (own/department/org_node/branch/company).
+- Added `employees.org_node_id` (nullable, alongside existing `department_id` — NOT dropped).
+- Added `users.role_id` (nullable FK to roles, alongside existing `role` varchar — NOT dropped).
+- Seed script: `lib/db/src/seed-phase1.ts` — safe to re-run; verifies employee count before/after.
+
+**New backend (`artifacts/api-server/src/`):**
+- `permission-service.ts` — `getPermissionMap(req)`, `hasPermission()`, `getDataScope()`, `getDescendantNodeIds()`, `getEmployeeScopeConditions()`. Cached per-request via `WeakMap`.
+- `GET /api/org-nodes` — flat list for current company
+- `GET /api/org-nodes/flat` — alias
+- `GET /api/org-nodes/tree` — nested tree (built in-memory)
+- `GET /api/org-nodes/:id/descendants` — recursive descendant IDs (CTE)
+- `POST /api/org-nodes` — create [hradmin only]
+- `PUT /api/org-nodes/:id` — update [hradmin only]
+- `DELETE /api/org-nodes/:id` — soft delete, blocked if has employees or children
+- `GET /api/permissions/my` — full permission map `{ screens: {...}, dataScope: string }`
+- `GET /api/permissions/check?screen=&action=` — single boolean check
+- `GET /api/employees` — now applies data scoping: employee→own, manager→department, hradmin→company
+
+**New frontend (`frontend/src/app/core/`):**
+- `directives/can-do.directive.ts` — `*canDo="'employees:create'"` structural directive. Removes element if user lacks permission. No HTTP call — reads from cached BehaviorSubject.
+- `services/role-access.service.ts` — updated: fetches `/api/permissions/my` on login (via Angular `effect()` on `currentUser` signal), stores in `_permissionMap` BehaviorSubject, exposes `canDoSync()` for directive, `canDo()` now uses cache first.
+
+**Data scope verification (confirmed by manual API test):**
+- `employee` → sees only own record (total=1) ✓
+- `manager` → sees only department (total=2) ✓
+- `hradmin` → sees all company employees ✓
+- Employee count before seeding = after seeding = 6 ✓ (zero data loss)
+
 ### Arabic / RTL Support
 
 The app is fully bilingual AR/EN with RTL layout:
