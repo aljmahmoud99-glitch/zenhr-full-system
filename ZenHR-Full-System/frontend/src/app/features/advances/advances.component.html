@@ -1,0 +1,337 @@
+<section class="z-page advances-page" [attr.dir]="isArabic ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div>
+      <h1 class="z-title">{{ screenTitle }}</h1>
+      <p class="z-body">{{ screenSubtitle }}</p>
+    </div>
+    <div class="page-header-actions">
+      <button class="z-btn-secondary" type="button" *ngIf="isAdminView" (click)="printAdvance(filteredAdvances()[0] || null)">
+        <span class="material-icons">print</span>
+        {{ t('print') }}
+      </button>
+      <button class="z-btn-primary" type="button" *ngIf="canSubmitAdvance" (click)="openRequestForm()">
+        <span class="material-icons">add_card</span>
+        {{ t('requestNew') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-success advances-toast" *ngIf="notification()">
+    <span class="material-icons">check_circle</span>
+    <span>{{ notification() }}</span>
+  </div>
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+
+  <ng-container *ngIf="!loading(); else loadingState">
+    <section class="summary-grid">
+      <article class="z-card summary-card">
+        <div class="summary-icon"><span class="material-icons">request_quote</span></div>
+        <div class="summary-label">{{ t('totalRequests') }}</div>
+        <div class="summary-value">{{ isAdminView ? adminSummary.totalRequests : employeeSummary().totalRequests }}</div>
+      </article>
+      <article class="z-card summary-card">
+        <div class="summary-icon"><span class="material-icons">hourglass_top</span></div>
+        <div class="summary-label">{{ t('pendingRequests') }}</div>
+        <div class="summary-value">{{ isAdminView ? adminSummary.pendingRequests : employeeSummary().pendingRequests }}</div>
+      </article>
+      <article class="z-card summary-card">
+        <div class="summary-icon"><span class="material-icons">payments</span></div>
+        <div class="summary-label">{{ t('totalApproved') }}</div>
+        <div class="summary-value">{{ money(isAdminView ? adminSummary.approvedAmount : employeeSummary().approvedAmount) }}</div>
+      </article>
+      <article class="z-card summary-card" *ngIf="isAdminView">
+        <div class="summary-icon"><span class="material-icons">badge</span></div>
+        <div class="summary-label">{{ t('employeesCovered') }}</div>
+        <div class="summary-value">{{ adminSummary.activeEmployees }}</div>
+      </article>
+    </section>
+
+    <section class="z-card" *ngIf="!isEmployee">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ t('filtersTitle') }}</h2>
+          <p class="z-small">{{ isAdminView ? t('filtersSubtitleHr') : t('filtersSubtitleEmployee') }}</p>
+        </div>
+        <button class="z-btn-secondary" type="button" *ngIf="hasActiveFilters" (click)="resetFilters()">
+          {{ t('reset') }}
+        </button>
+      </div>
+
+      <div class="filters-grid">
+        <label class="field" *ngIf="isAdminView">
+          <span class="z-label">{{ t('employeeName') }}</span>
+          <input class="z-input" [(ngModel)]="searchTerm" (ngModelChange)="applyFilters()" [placeholder]="t('searchPlaceholder')" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('status') }}</span>
+          <select class="z-input" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
+            <option value="">{{ t('allStatuses') }}</option>
+            <option value="pending">{{ t('pending') }}</option>
+            <option value="approved">{{ t('approved') }}</option>
+            <option value="rejected">{{ t('rejected') }}</option>
+            <option value="deducted">{{ t('deducted') }}</option>
+            <option value="partially_deducted">{{ t('partiallyDeducted') }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('repaymentMethod') }}</span>
+          <select class="z-input" [(ngModel)]="repaymentMethodFilter" (ngModelChange)="applyFilters()">
+            <option value="">{{ t('allMethods') }}</option>
+            <option value="monthly">{{ t('repaymentMonthly') }}</option>
+            <option value="one_time">{{ t('repaymentOneTime') }}</option>
+          </select>
+        </label>
+        <label class="field" *ngIf="isAdminView">
+          <span class="z-label">{{ t('department') }}</span>
+          <select class="z-input" [(ngModel)]="orgUnitFilter" (ngModelChange)="applyFilters()">
+            <option value="">{{ t('allDepartments') }}</option>
+            <option *ngFor="let dept of departments()" [value]="dept">{{ dept }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('dateFrom') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="dateFrom" (ngModelChange)="applyFilters()" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('dateTo') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="dateTo" (ngModelChange)="applyFilters()" />
+        </label>
+      </div>
+    </section>
+
+    <section class="z-table-container">
+      <div class="table-toolbar">
+        <div>
+          <h2 class="z-heading">{{ isAdminView ? t('tableTitle') : t('employeeRequestsTitle') }}</h2>
+          <p class="z-small">{{ filteredAdvances().length }} {{ isArabic ? 'سجل معروض' : 'records shown' }}</p>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="filteredAdvances().length === 0">
+        <div class="empty-icon"><span class="material-icons">account_balance_wallet</span></div>
+        <div class="empty-title">{{ isAdminView ? t('emptyHr') : t('emptyEmployee') }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="filteredAdvances().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th *ngIf="isAdminView">{{ t('employeeName') }}</th>
+              <th *ngIf="isAdminView">{{ t('department') }}</th>
+              <th>{{ t('amount') }}</th>
+              <th>{{ t('approvedAmount') }}</th>
+              <th>{{ t('requestDate') }}</th>
+              <th>{{ t('repaymentMethod') }}</th>
+              <th>{{ t('status') }}</th>
+              <th>{{ t('actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filteredAdvances()">
+              <td *ngIf="isAdminView">
+                <strong>{{ employeeName(item) }}</strong>
+                <div class="table-subline">{{ item.employeeCode || t('noValue') }}</div>
+              </td>
+              <td *ngIf="isAdminView">{{ fallback(departmentLabel(item)) }}</td>
+              <td>{{ money(item.requestedAmount) }}</td>
+              <td>{{ item.approvedAmount ? money(item.approvedAmount) : t('noValue') }}</td>
+              <td>{{ item.requestDate ? (item.requestDate | date:'dd/MM/yyyy') : t('noValue') }}</td>
+              <td>{{ repaymentMethodLabel(item.repaymentMethod) }}</td>
+              <td><span [class]="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td>
+              <td>
+                <div class="row-actions">
+                  <button class="z-btn-secondary" type="button" (click)="selectAdvance(item)">
+                    {{ t('view') }}
+                  </button>
+                  <button class="z-btn-primary" type="button" *ngIf="canManageAdvances && item.status === 'pending'" [disabled]="actionLoadingId() === item.id" (click)="selectAdvance(item, false); approveSelected()">
+                    {{ actionLoadingId() === item.id ? '...' : t('approve') }}
+                  </button>
+                  <button class="z-btn-danger" type="button" *ngIf="canManageAdvances && item.status === 'pending'" [disabled]="actionLoadingId() === item.id" (click)="selectAdvance(item, false); rejectSelected()">
+                    {{ actionLoadingId() === item.id ? '...' : t('reject') }}
+                  </button>
+                  <button class="z-btn-secondary" type="button" (click)="printAdvance(item)">
+                    {{ t('print') }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+  <ng-template #loadingState>
+    <app-skeleton-kpi-cards [count]="4" />
+    <app-skeleton-card />
+    <app-skeleton-table [rows]="6" [cols]="8" />
+  </ng-template>
+
+  <div class="modal-overlay" *ngIf="detailModalOpen()" (click)="closeDetails()">
+    <section class="modal-panel detail-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head" *ngIf="selectedAdvance() as detail">
+        <div>
+          <h2 class="z-heading">{{ t('detailsTitle') }}</h2>
+          <p class="z-small">{{ employeeName(detail) }} · {{ detail.employeeCode }}</p>
+        </div>
+        <div class="modal-head-actions">
+          <span [class]="statusClass(detail.status)">{{ statusLabel(detail.status) }}</span>
+          <button class="z-btn-secondary" type="button" (click)="closeDetails()">{{ t('close') }}</button>
+        </div>
+      </div>
+
+      <div class="modal-body" *ngIf="selectedAdvance() as detail">
+        <div class="detail-grid">
+          <article class="z-card detail-card" *ngIf="isAdminView">
+            <div class="z-card-header"><h3 class="z-heading">{{ t('employeeData') }}</h3></div>
+            <div class="detail-list">
+              <div class="detail-row"><span>{{ t('employeeName') }}</span><strong>{{ employeeName(detail) }}</strong></div>
+              <div class="detail-row"><span>{{ t('employeeCode') }}</span><strong>{{ detail.employeeCode || t('noValue') }}</strong></div>
+              <div class="detail-row"><span>{{ t('department') }}</span><strong>{{ fallback(departmentLabel(detail)) }}</strong></div>
+            </div>
+            <button class="z-btn-secondary profile-button" type="button" *ngIf="isAdminView" (click)="openEmployeeProfile(detail)">
+              <span class="material-icons">person</span>
+              {{ t('profile') }}
+            </button>
+          </article>
+
+          <article class="z-card detail-card">
+            <div class="z-card-header"><h3 class="z-heading">{{ t('advanceData') }}</h3></div>
+            <div class="detail-list">
+              <div class="detail-row"><span>{{ t('amount') }}</span><strong>{{ money(detail.requestedAmount) }}</strong></div>
+              <div class="detail-row"><span>{{ t('approvedAmount') }}</span><strong>{{ detail.approvedAmount ? money(detail.approvedAmount) : t('noValue') }}</strong></div>
+              <div class="detail-row"><span>{{ t('requestDate') }}</span><strong>{{ detail.requestDate ? (detail.requestDate | date:'dd/MM/yyyy') : t('noValue') }}</strong></div>
+              <div class="detail-row"><span>{{ t('repaymentMethod') }}</span><strong>{{ repaymentMethodLabel(detail.repaymentMethod) }}</strong></div>
+              <div class="detail-row"><span>{{ t('repaymentPlan') }}</span><strong>{{ fallback(detail.repaymentPlan) }}</strong></div>
+              <div class="detail-row"><span>{{ t('remainingBalance') }}</span><strong>{{ money(detail.remainingBalance) }}</strong></div>
+              <div class="detail-row detail-row-block"><span>{{ t('reason') }}</span><strong>{{ fallback(detail.reason) }}</strong></div>
+              <div class="detail-row detail-row-block" *ngIf="detail.requestNotes"><span>{{ t('requestNotes') }}</span><strong>{{ detail.requestNotes }}</strong></div>
+            </div>
+          </article>
+
+          <article class="z-card detail-card">
+            <div class="z-card-header"><h3 class="z-heading">{{ t('approvalData') }}</h3></div>
+            <div class="detail-list">
+              <div class="alert alert-info" *ngIf="isAdminView && !canManageAdvances && detail.status === 'pending'">
+                <strong>{{ t('viewOnlyTitle') }}</strong>
+                <div class="z-small">{{ t('viewOnlyBody') }}</div>
+              </div>
+              <div class="detail-row"><span>{{ t('status') }}</span><strong>{{ statusLabel(detail.status) }}</strong></div>
+              <div class="detail-row"><span>{{ t('approvedBy') }}</span><strong>{{ t('noValue') }}</strong></div>
+              <div class="detail-row"><span>{{ t('approvalDate') }}</span><strong>{{ t('noValue') }}</strong></div>
+              <div class="detail-row detail-row-block"><span>{{ t('decisionNotes') }}</span><strong>{{ fallback(detail.decisionNotes) }}</strong></div>
+              <div class="detail-row detail-row-block" *ngIf="detail.rejectionReason"><span>{{ t('rejectionReason') }}</span><strong>{{ detail.rejectionReason }}</strong></div>
+            </div>
+          </article>
+
+          <article class="z-card detail-card">
+            <div class="z-card-header"><h3 class="z-heading">{{ t('payrollImpact') }}</h3></div>
+            <div class="payroll-impact">
+              <span class="material-icons">payments</span>
+              <div>
+                <strong>{{ payrollImpactLabel(detail) }}</strong>
+                <p class="z-small" *ngIf="detail.repaymentPlan">{{ detail.repaymentPlan }}</p>
+                <p class="z-small" *ngIf="!detail.repaymentPlan && hasPayrollIntegration(detail)">{{ t('requestHint') }}</p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="decision-grid" *ngIf="canManageAdvances && detail.status === 'pending'">
+          <label class="field">
+            <span class="z-label">{{ t('approvedAmount') }}</span>
+            <input class="z-input" type="number" min="0" step="0.001" [(ngModel)]="detailApprovedAmount" />
+          </label>
+          <label class="field">
+            <span class="z-label">{{ t('repaymentPlan') }}</span>
+            <textarea class="z-input" rows="3" [(ngModel)]="detailRepaymentPlan" [placeholder]="t('installPlanHint')"></textarea>
+          </label>
+          <label class="field field-full">
+            <span class="z-label">{{ t('decisionNotes') }}</span>
+            <textarea class="z-input" rows="3" [(ngModel)]="detailDecisionNotes" [placeholder]="t('notes')"></textarea>
+          </label>
+        </div>
+
+      </div>
+
+      <div class="modal-actions" *ngIf="selectedAdvance() as detail">
+        <button class="z-btn-secondary" type="button" (click)="printAdvance(detail)">{{ t('print') }}</button>
+        <button class="z-btn-danger" type="button" *ngIf="canManageAdvances && detail.status === 'pending'" [disabled]="actionLoadingId() === detail.id" (click)="rejectSelected()">{{ actionLoadingId() === detail.id ? '...' : t('reject') }}</button>
+        <button class="z-btn-primary" type="button" *ngIf="canManageAdvances && detail.status === 'pending'" [disabled]="actionLoadingId() === detail.id" (click)="approveSelected()">{{ actionLoadingId() === detail.id ? '...' : t('approve') }}</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="requestModalOpen()" (click)="closeRequestForm()">
+    <section class="modal-panel request-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('requestFormTitle') }}</h2>
+          <p class="z-small">{{ t('requestFormSubtitle') }}</p>
+        </div>
+        <button class="z-btn-secondary" type="button" (click)="closeRequestForm()">{{ t('close') }}</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+        <label class="field">
+          <span class="z-label">{{ t('amount') }}</span>
+          <input class="z-input" type="number" min="0" step="0.001" [(ngModel)]="requestForm.requestedAmount" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('repaymentMethod') }}</span>
+          <select class="z-input" [(ngModel)]="requestForm.repaymentMethod">
+            <option value="monthly">{{ t('repaymentMonthly') }}</option>
+            <option value="one_time">{{ t('repaymentOneTime') }}</option>
+          </select>
+        </label>
+        <label class="field field-full">
+          <span class="z-label">{{ t('reason') }}</span>
+          <textarea class="z-input" rows="3" [(ngModel)]="requestForm.reason"></textarea>
+        </label>
+        <label class="field field-full">
+          <span class="z-label">{{ t('notes') }} ({{ t('optional') }})</span>
+          <textarea class="z-input" rows="3" [(ngModel)]="requestForm.notes"></textarea>
+        </label>
+        </div>
+
+        <div class="z-card request-hint-card">
+          <span class="material-icons">info</span>
+          <p>{{ t('requestHint') }}</p>
+        </div>
+
+        <div class="alert alert-danger" *ngIf="formError()">{{ formError() }}</div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeRequestForm()" [disabled]="submittingRequest()">{{ t('cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="submitRequest()" [disabled]="submittingRequest()">{{ submittingRequest() ? '...' : t('submit') }}</button>
+      </div>
+    </section>
+  </div>
+</section>
+
+<app-confirm-dialog
+  [open]="confirmApproveOpen()"
+  [title]="t('approve')"
+  [message]="isArabic ? 'هل تريد اعتماد هذه السلفة؟' : 'Do you want to approve this advance?'"
+  [confirmLabel]="t('approve')"
+  [cancelLabel]="t('cancel')"
+  [loading]="selectedAdvance() !== null && actionLoadingId() === selectedAdvance()!.id"
+  (confirm)="submitApproveSelected()"
+  (cancel)="confirmApproveOpen.set(false)"
+/>
+
+<app-reject-reason-dialog
+  [open]="rejectDialogOpen()"
+  [title]="t('reject')"
+  [message]="isArabic ? 'يرجى إدخال سبب الرفض.' : 'Please enter a rejection reason.'"
+  [placeholder]="t('notes')"
+  [cancelLabel]="t('cancel')"
+  [confirmLabel]="t('reject')"
+  [loading]="selectedAdvance() !== null && actionLoadingId() === selectedAdvance()!.id"
+  [error]="rejectDialogError()"
+  [initialValue]="detailDecisionNotes"
+  (confirm)="submitRejectSelected($event)"
+  (cancel)="closeRejectDialog()"
+/>

@@ -1,0 +1,138 @@
+<div class="register-page">
+  <div class="register-card">
+    <div class="register-brand">
+      <span class="brand-icon">🏢</span>
+      <h1 class="brand-name">ZenJO</h1>
+      <p class="brand-tagline">نظام إدارة الموارد البشرية للشركات الأردنية</p>
+    </div>
+
+    <!-- ─── Success ──────────────────────────────── -->
+    <div class="success-state" *ngIf="submitted()">
+      <div class="success-icon">✅</div>
+      <h2>تم إرسال طلبك بنجاح!</h2>
+      <p>سيقوم فريقنا بمراجعة طلبك والتواصل معك على البريد الإلكتروني <strong>{{ form.contactEmail }}</strong> خلال 1-2 أيام عمل.</p>
+      <a routerLink="/login" class="btn btn-primary">العودة لتسجيل الدخول</a>
+    </div>
+
+    <!-- ─── Form ─────────────────────────────────── -->
+    <div class="form-wrap" *ngIf="!submitted()">
+      <!-- Step indicator -->
+      <div class="steps">
+        <div class="step" [class.active]="step() >= 1" [class.done]="step() > 1">
+          <span class="step-num">{{ step() > 1 ? '✓' : '1' }}</span>
+          <span class="step-label">معلومات الشركة</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step" [class.active]="step() >= 2" [class.done]="step() > 2">
+          <span class="step-num">{{ step() > 2 ? '✓' : '2' }}</span>
+          <span class="step-label">اختيار الخطة</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step" [class.active]="step() >= 3">
+          <span class="step-num">3</span>
+          <span class="step-label">مراجعة وإرسال</span>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+      <!-- Step 1: Company info -->
+      <div class="form-step" *ngIf="step() === 1">
+        <h2 class="step-title">معلومات الشركة</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>اسم الشركة بالعربية <span class="required">*</span></label>
+            <input type="text" [(ngModel)]="form.companyNameAr" class="form-control" placeholder="مثال: شركة النجاح" />
+          </div>
+          <div class="form-group">
+            <label>اسم الشركة بالإنجليزية</label>
+            <input type="text" [(ngModel)]="form.companyNameEn" class="form-control" placeholder="e.g. Success Company" />
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني للتواصل <span class="required">*</span></label>
+            <input type="email" [(ngModel)]="form.contactEmail" class="form-control" placeholder="info@company.jo" />
+          </div>
+          <div class="form-group">
+            <label>رقم الهاتف</label>
+            <input type="tel" [(ngModel)]="form.contactPhone" class="form-control" placeholder="+962 7 9000 0000" />
+          </div>
+          <div class="form-group">
+            <label>رقم السجل التجاري</label>
+            <input type="text" [(ngModel)]="form.commercialRegNo" class="form-control" placeholder="مثال: 12345" />
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-primary" (click)="nextStep()">التالي <span class="material-icons">arrow_forward_ios</span></button>
+          <a routerLink="/login" class="btn btn-ghost">لديك حساب؟ تسجيل دخول</a>
+        </div>
+      </div>
+
+      <!-- Step 2: Plan selection -->
+      <div class="form-step" *ngIf="step() === 2">
+        <h2 class="step-title">اختر خطة الاشتراك</h2>
+        <div class="plan-grid">
+          <div class="plan-card" *ngFor="let p of planOptions"
+               [class.selected]="form.planType === p.value"
+               (click)="form.planType = p.value">
+            <div class="plan-header">
+              <strong class="plan-name">{{ p.label }}</strong>
+              <span class="plan-price">{{ p.price }}</span>
+            </div>
+            <p class="plan-desc">{{ p.desc }}</p>
+            <div class="plan-check" *ngIf="form.planType === p.value">
+              <span class="material-icons">check_circle</span>
+            </div>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-primary" (click)="nextStep()">التالي <span class="material-icons">arrow_forward_ios</span></button>
+          <button class="btn btn-ghost" (click)="prevStep()"><span class="material-icons">arrow_back_ios</span> السابق</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Review + submit -->
+      <div class="form-step" *ngIf="step() === 3">
+        <h2 class="step-title">مراجعة الطلب</h2>
+        <div class="review-table">
+          <div class="review-row">
+            <span class="review-key">اسم الشركة</span>
+            <span class="review-val">{{ form.companyNameAr }}</span>
+          </div>
+          <div class="review-row" *ngIf="form.companyNameEn">
+            <span class="review-key">Name (EN)</span>
+            <span class="review-val">{{ form.companyNameEn }}</span>
+          </div>
+          <div class="review-row">
+            <span class="review-key">البريد الإلكتروني</span>
+            <span class="review-val">{{ form.contactEmail }}</span>
+          </div>
+          <div class="review-row" *ngIf="form.contactPhone">
+            <span class="review-key">الهاتف</span>
+            <span class="review-val">{{ form.contactPhone }}</span>
+          </div>
+          <div class="review-row" *ngIf="form.commercialRegNo">
+            <span class="review-key">السجل التجاري</span>
+            <span class="review-val">{{ form.commercialRegNo }}</span>
+          </div>
+          <div class="review-row">
+            <span class="review-key">الخطة المختارة</span>
+            <span class="review-val plan-highlight">{{ selectedPlanLabel() }}</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>ملاحظات إضافية (اختياري)</label>
+          <textarea [(ngModel)]="form.notes" class="form-control" rows="3" placeholder="أي معلومات إضافية تود مشاركتها..."></textarea>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-primary" (click)="submit()" [disabled]="loading()">
+            <span *ngIf="!loading()">إرسال الطلب <span class="material-icons">send</span></span>
+            <span *ngIf="loading()">جارٍ الإرسال...</span>
+          </button>
+          <button class="btn btn-ghost" (click)="prevStep()"><span class="material-icons">arrow_back_ios</span> السابق</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

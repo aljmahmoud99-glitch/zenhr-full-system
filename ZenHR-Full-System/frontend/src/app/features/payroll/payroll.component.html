@@ -1,0 +1,416 @@
+<section class="z-page payroll-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div>
+      <h1 class="z-title">{{ label('الرواتب', 'Payroll') }}</h1>
+      <p class="z-body">{{ label('مسيرات الرواتب وكشوف الرواتب المرتبطة بها', 'Payroll runs and the payslips generated from them') }}</p>
+    </div>
+    <button class="z-btn-primary" *ngIf="isAdmin" (click)="openCreate()">
+      <span class="material-icons">add</span>
+      <span>{{ label('إنشاء مسير جديد', 'Create payroll run') }}</span>
+    </button>
+  </header>
+
+  <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+  <ng-container *ngIf="loading()">
+    <app-skeleton-kpi-cards [count]="4" />
+    <app-skeleton-card />
+    <app-skeleton-card />
+  </ng-container>
+
+  <ng-container *ngIf="!loading()">
+    <section class="payroll-summary-grid">
+      <article class="dashboard-stat-card z-kpi-card" *ngFor="let card of (isAdmin ? adminSummaryCards() : employeeSummaryCards())" [class.tone-emerald]="card.tone === 'emerald'" [class.tone-neutral]="card.tone === 'neutral'" [class.tone-amber]="card.tone === 'amber'">
+        <div class="stat-copy">
+          <span class="stat-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+          <strong class="stat-value payroll-number">{{ card.value }}</strong>
+          <span class="stat-meta">{{ lang === 'ar' ? card.metaAr : card.metaEn }}</span>
+        </div>
+        <div class="stat-icon-shell">
+          <span class="material-icons">{{ card.icon }}</span>
+        </div>
+      </article>
+    </section>
+
+    <div class="z-card" *ngIf="isAdmin">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ label('بحث وتصفية المسيرات', 'Search & filter runs') }}</h2>
+          <p class="z-small">{{ label('فلترة حسب الشهر والسنة والحالة ومنشئ المسير.', 'Filter by month, year, status, and creator.') }}</p>
+        </div>
+        <button class="z-btn-secondary" *ngIf="hasRunFilters()" (click)="resetRunFilters()">{{ label('مسح الفلاتر', 'Reset filters') }}</button>
+      </div>
+
+      <div class="filters-grid">
+        <label class="field">
+          <span class="z-label">{{ label('بحث', 'Search') }}</span>
+          <input class="z-input" [(ngModel)]="runSearch" (ngModelChange)="applyRunFilters()" [placeholder]="label('اسم المنشئ أو المعتمد', 'Created by or approved by')" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('الحالة', 'Status') }}</span>
+          <select class="z-input" [(ngModel)]="runStatusFilter" (ngModelChange)="applyRunFilters()">
+            <option value="">{{ label('كل الحالات', 'All statuses') }}</option>
+            <option value="draft">{{ statusLabel('draft') }}</option>
+            <option value="approved">{{ statusLabel('approved') }}</option>
+            <option value="paid">{{ statusLabel('paid') }}</option>
+            <option value="unpaid">{{ statusLabel('unpaid') }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('الشهر', 'Month') }}</span>
+          <select class="z-input" [(ngModel)]="runMonthFilter" (ngModelChange)="applyRunFilters()">
+            <option value="">{{ label('كل الشهور', 'All months') }}</option>
+            <option *ngFor="let month of months" [value]="month">{{ monthName(month) }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('السنة', 'Year') }}</span>
+          <select class="z-input" [(ngModel)]="runYearFilter" (ngModelChange)="applyRunFilters()">
+            <option value="">{{ label('كل السنوات', 'All years') }}</option>
+            <option *ngFor="let year of years" [value]="year">{{ year }}</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="z-card" *ngIf="isAdmin">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ label('مسيرات الرواتب', 'Payroll runs') }}</h2>
+          <p class="z-small">{{ label('عرض كل مسير مع الإجماليات، الاعتماد، وكشوف الرواتب التابعة له.', 'Review each payroll run with totals, approvals, and linked payslips.') }}</p>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="filteredPayrollRuns().length === 0">
+        <div class="empty-icon"><span class="material-icons">receipt_long</span></div>
+        <div class="empty-title">{{ label('لا توجد مسيرات مطابقة.', 'No payroll runs match the current filters.') }}</div>
+      </div>
+
+      <div class="run-card-list" *ngIf="filteredPayrollRuns().length > 0">
+        <article class="run-card" *ngFor="let run of filteredPayrollRuns()">
+          <div class="run-card-top">
+            <div>
+              <div class="run-month">{{ monthName(run.runMonth) }} {{ run.runYear }}</div>
+              <div class="run-meta">{{ run.employeeCount }} {{ label('موظف', 'employees') }}</div>
+            </div>
+            <span [class]="statusClass(run.status)">{{ statusLabel(run.status) }}</span>
+          </div>
+
+          <div class="run-card-grid">
+            <div class="run-metric"><span>{{ label('الإجمالي', 'Gross') }}</span><strong class="payroll-number">{{ money(run.totalGross) }}</strong></div>
+            <div class="run-metric"><span>{{ label('الاستقطاعات', 'Deductions') }}</span><strong class="payroll-number">{{ money(run.totalDeductions) }}</strong></div>
+            <div class="run-metric"><span>{{ label('الصافي', 'Net') }}</span><strong class="payroll-number">{{ money(run.totalNet) }}</strong></div>
+            <div class="run-metric"><span>{{ label('أنشئ بواسطة', 'Created by') }}</span><strong>{{ run.createdByName || '—' }}</strong></div>
+            <div class="run-metric"><span>{{ label('تاريخ الإنشاء', 'Created at') }}</span><strong>{{ run.createdAt ? (run.createdAt | date:'dd/MM/yyyy') : '—' }}</strong></div>
+            <div class="run-metric"><span>{{ label('تاريخ الاعتماد', 'Approved at') }}</span><strong>{{ run.approvedAt ? (run.approvedAt | date:'dd/MM/yyyy') : '—' }}</strong></div>
+          </div>
+
+          <div class="run-secondary-grid">
+            <div class="run-metric"><span>SSC</span><strong class="payroll-number">{{ money(run.totalSscEmployee) }}</strong></div>
+            <div class="run-metric"><span>{{ label('الضريبة', 'Tax') }}</span><strong class="payroll-number">{{ money(run.totalIncomeTax) }}</strong></div>
+            <div class="run-metric"><span>{{ label('اعتمد بواسطة', 'Approved by') }}</span><strong>{{ run.approvedByName || '—' }}</strong></div>
+          </div>
+
+          <div class="run-actions">
+            <button class="z-btn-secondary btn-sm" (click)="viewSlips(run.id)">
+              <span class="material-icons">visibility</span>
+              <span>{{ label('عرض الكشوف', 'View payslips') }}</span>
+            </button>
+            <button class="z-btn-secondary btn-sm" (click)="printRun(run)">
+              <span class="material-icons">print</span>
+              <span>{{ label('طباعة الملخص', 'Print summary') }}</span>
+            </button>
+            <button class="z-btn-primary btn-sm" *ngIf="run.status === 'draft' && isPayrollAdmin" (click)="approve(run.id)" [disabled]="approvingRunId() === run.id">
+              <span class="material-icons">check_circle</span>
+              <span>{{ approvingRunId() === run.id ? '...' : label('اعتماد المسير', 'Approve run') }}</span>
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div class="z-card" *ngIf="isEmployee">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ label('كشوف راتبي', 'My payslips') }}</h2>
+          <p class="z-small">{{ label('تظهر فقط الكشوف المعتمدة، مع صافي الراتب والإضافات والاستقطاعات.', 'Only approved payroll is visible here, with net salary, additions, and deductions.') }}</p>
+        </div>
+      </div>
+
+      <div class="filters-grid inline-filters employee-filters">
+        <label class="field">
+          <span class="z-label">{{ label('بحث', 'Search') }}</span>
+          <input class="z-input" [(ngModel)]="myPayslipSearch" [placeholder]="label('الشهر/السنة أو الحالة', 'Month/year or status')" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('من تاريخ', 'From date') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="myFromDate" (change)="applyMyPayslipFilters()" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('إلى تاريخ', 'To date') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="myToDate" (change)="applyMyPayslipFilters()" />
+        </label>
+        <label class="field">
+          <span class="z-label">{{ label('الحالة', 'Status') }}</span>
+          <select class="z-input" [(ngModel)]="myStatusFilter" (ngModelChange)="applyMyPayslipFilters()">
+            <option value="">{{ label('كل الحالات', 'All statuses') }}</option>
+            <option value="paid">{{ statusLabel('paid') }}</option>
+            <option value="pending">{{ statusLabel('pending') }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="payslip-filter-actions">
+        <button class="z-btn-secondary" *ngIf="hasMyPayslipFilters()" (click)="resetMyPayslipFilters()">{{ label('مسح الفلاتر', 'Reset filters') }}</button>
+      </div>
+
+      <div class="empty-state" *ngIf="filteredMySlips().length === 0">
+        <div class="empty-icon"><span class="material-icons">receipt_long</span></div>
+        <div class="empty-title">{{ label('لا توجد كشوف رواتب معتمدة بعد', 'No approved payslips yet') }}</div>
+      </div>
+
+      <div class="payslip-card-list" *ngIf="filteredMySlips().length > 0">
+        <article class="payslip-card" *ngFor="let slip of filteredMySlips()">
+          <div class="payslip-head">
+            <div>
+              <div class="payslip-period">{{ monthName(slip.periodMonth) }} {{ slip.periodYear }}</div>
+              <div class="payslip-status"><span [class]="statusClass(slip.paymentStatus || slip.payrollRunStatus)">{{ statusLabel(slip.paymentStatus || slip.payrollRunStatus) }}</span></div>
+            </div>
+            <div class="payslip-net">
+              <span>{{ label('صافي الراتب', 'Net salary') }}</span>
+              <strong class="payroll-number">{{ money(slip.netSalary) }}</strong>
+            </div>
+          </div>
+
+          <div class="payslip-breakdown">
+            <div><span>{{ label('الإجمالي', 'Gross') }}</span><strong class="payroll-number">{{ money(slip.grossSalary) }}</strong></div>
+            <div><span>{{ label('الاستقطاعات', 'Deductions') }}</span><strong class="payroll-number">{{ money(slip.totalDeductions) }}</strong></div>
+            <div><span>{{ label('الإضافي', 'Overtime') }}</span><strong class="payroll-number">{{ money(slip.overtimeAmount) }}</strong></div>
+          </div>
+
+          <div class="run-actions">
+            <button class="z-btn-secondary btn-sm" (click)="openSlipDetail(slip.id)">
+              <span class="material-icons">description</span>
+              <span>{{ label('عرض التفاصيل', 'View details') }}</span>
+            </button>
+            <button class="z-btn-secondary btn-sm" (click)="printSlip(slip)">
+              <span class="material-icons">print</span>
+              <span>{{ label('طباعة', 'Print') }}</span>
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </ng-container>
+
+  <div class="modal-overlay" *ngIf="showCreateModal()" (click)="closeCreate()">
+    <div class="modal-card z-card create-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ label('إنشاء مسير رواتب', 'Create payroll run') }}</h2>
+          <div class="modal-subtitle">{{ label('سيتم استخدام لقطات الرواتب الحالية وبيانات العمل الإضافي والسلف المعتمدة.', 'The run will use salary snapshots, approved overtime, and approved advances.') }}</div>
+        </div>
+        <button class="icon-btn" (click)="closeCreate()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="z-label">{{ label('الشهر', 'Month') }}</label>
+            <select class="z-input" [(ngModel)]="runForm.month">
+              <option *ngFor="let month of months" [value]="month">{{ monthName(month) }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ label('السنة', 'Year') }}</label>
+            <select class="z-input" [(ngModel)]="runForm.year">
+              <option *ngFor="let year of years" [value]="year">{{ year }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="run-preview-note">{{ label('إذا كان هناك مسير موجود لنفس الشهر والسنة فلن يتم إنشاء مسير جديد.', 'If a run already exists for the same month and year, a duplicate will be blocked.') }}</div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="z-btn-secondary" (click)="closeCreate()">{{ label('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" (click)="createRun()" [disabled]="saving()">
+          {{ saving() ? label('جارٍ الإنشاء...', 'Creating...') : label('إنشاء المسير', 'Create run') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showSlipsModal()" (click)="closeSlips()">
+    <div class="modal-card z-card slips-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ label('كشوف الرواتب', 'Payslips') }}</h2>
+          <div class="modal-subtitle" *ngIf="selectedRun()">{{ monthName(selectedRun()!.runMonth) }} {{ selectedRun()!.runYear }}</div>
+        </div>
+        <button class="icon-btn" (click)="closeSlips()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="slips-summary" *ngIf="selectedRun()">
+          <div><span>{{ label('الإجمالي', 'Gross') }}</span><strong class="payroll-number">{{ money(selectedRun()!.totalGross) }}</strong></div>
+          <div><span>{{ label('الاستقطاعات', 'Deductions') }}</span><strong class="payroll-number">{{ money(selectedRun()!.totalDeductions) }}</strong></div>
+          <div><span>{{ label('الصافي', 'Net') }}</span><strong class="payroll-number">{{ money(selectedRun()!.totalNet) }}</strong></div>
+        </div>
+
+        <div class="filters-grid inline-filters">
+          <label class="field">
+            <span class="z-label">{{ label('بحث', 'Search') }}</span>
+            <input class="z-input" [(ngModel)]="payslipSearch" (ngModelChange)="applyPayslipFilters()" [placeholder]="label('اسم الموظف أو الرقم الوظيفي', 'Employee name or code')" />
+          </label>
+          <label class="field">
+            <span class="z-label">{{ label('الوحدة', 'Org Unit') }}</span>
+            <select class="z-input" [(ngModel)]="payslipDepartmentFilter" (ngModelChange)="applyPayslipFilters()">
+              <option value="">{{ label('كل الوحدات', 'All org units') }}</option>
+              <option *ngFor="let dept of payslipDepartments()" [value]="dept">{{ dept }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="z-label">{{ label('الحالة', 'Status') }}</span>
+            <select class="z-input" [(ngModel)]="payslipStatusFilter" (ngModelChange)="applyPayslipFilters()">
+              <option value="">{{ label('كل الحالات', 'All statuses') }}</option>
+              <option value="approved">{{ statusLabel('approved') }}</option>
+              <option value="paid">{{ statusLabel('paid') }}</option>
+              <option value="unpaid">{{ statusLabel('unpaid') }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="payslip-filter-actions">
+          <button class="z-btn-secondary" *ngIf="hasPayslipFilters()" (click)="resetPayslipFilters()">{{ label('مسح الفلاتر', 'Reset filters') }}</button>
+        </div>
+
+        <div class="empty-state" *ngIf="!loadingPayslips() && filteredPayslips().length === 0">
+          <div class="empty-icon"><span class="material-icons">description</span></div>
+          <div class="empty-title">{{ label('لا توجد كشوف مطابقة للفلاتر الحالية.', 'No payslips match the current filters.') }}</div>
+        </div>
+
+        <div class="z-table-container table-wrapper" *ngIf="!loadingPayslips() && filteredPayslips().length > 0">
+          <table class="z-table">
+            <thead>
+              <tr>
+                <th>{{ label('الموظف', 'Employee') }}</th>
+                <th>{{ label('الوحدة', 'Org Unit') }}</th>
+                <th>{{ label('الأساسي', 'Basic salary') }}</th>
+                <th>{{ label('الإضافات', 'Allowances') }}</th>
+                <th>{{ label('الإضافي', 'Overtime') }}</th>
+                <th>{{ label('الاستقطاعات', 'Deductions') }}</th>
+                <th>{{ label('السلفة', 'Advance') }}</th>
+                <th>SSC</th>
+                <th>{{ label('الضريبة', 'Tax') }}</th>
+                <th>{{ label('الصافي', 'Net') }}</th>
+                <th>{{ label('الحالة', 'Status') }}</th>
+                <th>{{ label('الإجراءات', 'Actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let slip of filteredPayslips()">
+                <td>
+                  <div class="slip-employee-name">{{ lang === 'ar' ? slip.fullNameAr : slip.fullNameEn }}</div>
+                  <div class="slip-employee-code">{{ slip.employeeCode }}</div>
+                </td>
+                <td>{{ orgUnitLabel(slip) || '—' }}</td>
+                <td class="payroll-number">{{ money(slip.basicSalary) }}</td>
+                <td class="payroll-number">{{ money((slip.housingAllowance || 0) + (slip.transportAllowance || 0) + (slip.mobileAllowance || 0) + (slip.mealAllowance || 0) + (slip.otherAllowances || 0)) }}</td>
+                <td class="payroll-number">{{ money(slip.overtimeAmount) }}</td>
+                <td class="payroll-number">{{ money(slip.totalDeductions) }}</td>
+                <td class="payroll-number">{{ money(slip.advanceDeduction) }}</td>
+                <td class="payroll-number">{{ money(slip.sscDeduction) }}</td>
+                <td class="payroll-number">{{ money(slip.incomeTaxDeduction) }}</td>
+                <td class="net-cell payroll-number">{{ money(slip.netSalary) }}</td>
+                <td><span [class]="statusClass(slip.paymentStatus || slip.payrollRunStatus)">{{ statusLabel(slip.paymentStatus || slip.payrollRunStatus) }}</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="z-btn-secondary btn-sm" (click)="openSlipDetail(slip.id)">{{ label('عرض', 'View') }}</button>
+                    <button class="z-btn-secondary btn-sm" (click)="printSlip(slip)">{{ label('طباعة', 'Print') }}</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showSlipDetailModal()" (click)="closeSlipDetail()">
+    <div class="modal-card z-card slip-detail-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ label('كشف الراتب التفصيلي', 'Detailed payslip') }}</h2>
+          <div class="modal-subtitle" *ngIf="selectedSlip()">{{ monthName(selectedSlip()!.periodMonth) }} {{ selectedSlip()!.periodYear }}</div>
+        </div>
+        <div class="detail-header-actions">
+          <button class="z-btn-secondary btn-sm" type="button" (click)="printSlip()">
+            <span class="material-icons">print</span>
+            <span>{{ label('طباعة', 'Print') }}</span>
+          </button>
+          <button class="icon-btn" (click)="closeSlipDetail()"><span class="material-icons">close</span></button>
+        </div>
+      </div>
+
+      <div class="modal-body" *ngIf="selectedSlip() as slip">
+        <div class="slip-hero">
+          <div>
+            <div class="print-company">ZenJO HRMS</div>
+            <h3 class="z-heading">{{ lang === 'ar' ? slip.fullNameAr : slip.fullNameEn }}</h3>
+            <div class="modal-subtitle">{{ slip.employeeCode }} · {{ orgUnitLabel(slip) || '—' }}</div>
+          </div>
+          <div class="net-highlight">
+            <span>{{ label('صافي الراتب', 'Net salary') }}</span>
+            <strong class="payroll-number">{{ money(slip.netSalary) }}</strong>
+          </div>
+        </div>
+
+        <div class="slips-summary">
+          <div><span>{{ label('الإجمالي', 'Gross') }}</span><strong class="payroll-number">{{ money(slip.grossSalary) }}</strong></div>
+          <div><span>{{ label('الاستقطاعات', 'Deductions') }}</span><strong class="payroll-number">{{ money(slip.totalDeductions) }}</strong></div>
+          <div><span>{{ label('الحالة', 'Status') }}</span><strong>{{ statusLabel(slip.paymentStatus || slip.payrollRunStatus) }}</strong></div>
+        </div>
+
+        <div class="slip-detail-grid">
+          <div class="detail-card">
+            <h3>{{ label('الاستحقاقات', 'Earnings') }}</h3>
+            <div class="detail-row" *ngFor="let item of slipEarnings(slip)">
+              <span>{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+              <strong class="payroll-number">{{ money(item.value) }}</strong>
+            </div>
+            <div class="detail-total">
+              <span>{{ label('الإجمالي', 'Gross total') }}</span>
+              <strong class="payroll-number">{{ money(slip.grossSalary) }}</strong>
+            </div>
+          </div>
+
+          <div class="detail-card">
+            <h3>{{ label('الاستقطاعات', 'Deductions') }}</h3>
+            <div class="detail-row" *ngFor="let item of slipDeductions(slip)">
+              <span>{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+              <strong class="payroll-number">{{ money(item.value) }}</strong>
+            </div>
+            <div class="detail-total danger">
+              <span>{{ label('الصافي', 'Net total') }}</span>
+              <strong class="payroll-number">{{ money(slip.netSalary) }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <app-confirm-dialog
+    [open]="confirmApproveRunId() !== null"
+    [title]="label('اعتماد مسير الرواتب', 'Approve payroll run')"
+    [message]="label('هل تريد اعتماد هذا المسير الآن؟ بعد الاعتماد يصبح غير قابل للتعديل.', 'Do you want to approve this payroll run now? Once approved, it becomes immutable.')"
+    [confirmLabel]="label('اعتماد', 'Approve')"
+    [cancelLabel]="label('إلغاء', 'Cancel')"
+    [loading]="confirmApproveRunId() !== null && approvingRunId() === confirmApproveRunId()"
+    [tone]="'primary'"
+    (confirm)="submitApprove()"
+    (cancel)="closeApproveDialog()"
+  />
+</section>

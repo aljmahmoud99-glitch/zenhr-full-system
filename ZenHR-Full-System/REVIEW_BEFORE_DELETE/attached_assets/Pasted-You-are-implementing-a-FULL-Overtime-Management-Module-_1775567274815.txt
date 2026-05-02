@@ -1,0 +1,299 @@
+You are implementing a FULL Overtime Management Module in ZenJO HRMS.
+
+This is a critical operational and financial module.
+It must integrate tightly with shifts, attendance, and payroll.
+
+Do NOT build a simple overtime form.
+Build a complete overtime tracking, approval, and calculation system.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create an Overtime system where HR can:
+
+* monitor overtime activity
+* track overtime records (automatic and manual)
+* enforce overtime policies
+* manage approvals
+* calculate overtime payments
+* integrate with payroll
+* generate reports
+
+═══════════════════════════════════════════════════════
+
+1. MAIN ROUTES
+   ═══════════════════════════════════════════════════════
+
+/app/overtime
+/app/overtime/dashboard
+/app/overtime/log
+/app/overtime/requests
+/app/overtime/reports
+/app/overtime/settings
+
+═══════════════════════════════════════════════════════
+2) DASHBOARD (DAILY / WEEKLY)
+═══════════════════════════════════════════════════════
+
+Build an overtime dashboard showing:
+
+* Number of employees with OT
+* Total overtime hours
+* Top departments with OT
+* Pending approval requests
+
+Optional:
+
+* overtime cost estimate
+* overtime trends (weekly)
+
+═══════════════════════════════════════════════════════
+3) OVERTIME RECORDING METHODS
+═══════════════════════════════════════════════════════
+
+Support two main methods:
+
+A) AUTOMATIC (FROM ATTENDANCE)
+
+* system calculates overtime after shift end
+* based on shift rules
+* respects break time
+* excludes invalid records
+
+B) MANUAL / REQUEST-BASED
+
+Employee submits request:
+
+* Date
+* Start time
+* End time
+* Reason
+* optional attachment
+
+Store request separately before approval.
+
+═══════════════════════════════════════════════════════
+4) APPROVAL WORKFLOW
+═══════════════════════════════════════════════════════
+
+Standard flow:
+
+Employee → Manager → HR
+
+Each step can:
+
+* approve
+* reject
+* request changes
+
+System must:
+
+* track approval history
+* track approvers and timestamps
+* prevent unapproved OT from being paid
+
+═══════════════════════════════════════════════════════
+5) OVERTIME RULES ENGINE
+═══════════════════════════════════════════════════════
+
+Create configurable rules:
+
+* OT starts after X working hours (example: after 8 hours/day)
+* maximum overtime hours per day/week
+* overtime rate rules:
+
+  * 125% for first hours
+  * 150% after threshold
+* optional different rates for:
+
+  * weekends
+  * holidays
+
+Rules must:
+
+* be configurable per company
+* optionally be linked to shift type
+
+═══════════════════════════════════════════════════════
+6) SHIFT & ATTENDANCE INTEGRATION
+═══════════════════════════════════════════════════════
+
+System must:
+
+* read shift start and end time
+* detect actual worked hours from attendance
+* calculate overtime automatically when:
+  worked hours > shift hours
+
+Important:
+
+* use shift rules as source of truth
+* do NOT duplicate logic
+
+═══════════════════════════════════════════════════════
+7) OVERTIME LOG
+═══════════════════════════════════════════════════════
+
+Display table:
+
+* Employee Name
+* Date
+* Shift
+* Actual Worked Hours
+* Overtime Hours
+* Approval Status
+* Source (Auto / Request)
+* Department
+
+Features:
+
+* filters (date, employee, department, status)
+* search
+* export
+
+═══════════════════════════════════════════════════════
+8) REPORTS
+═══════════════════════════════════════════════════════
+
+Generate reports:
+
+* overtime per employee
+* overtime per department
+* monthly overtime report
+* overtime vs scheduled shifts comparison
+* overtime cost report
+
+Reports must support:
+
+* filters
+* export
+* date range selection
+
+═══════════════════════════════════════════════════════
+9) PAYROLL INTEGRATION
+═══════════════════════════════════════════════════════
+
+System must:
+
+* calculate overtime payment automatically
+* send approved overtime to payroll
+* include overtime in payslip
+
+Important:
+
+* ONLY approved overtime is payable
+* rejected OT must not affect payroll
+
+═══════════════════════════════════════════════════════
+10) ALERTS & NOTIFICATIONS
+═══════════════════════════════════════════════════════
+
+System must generate alerts:
+
+* employee exceeded allowed overtime
+* pending approval requests
+* overtime without manager approval
+* unusual overtime patterns
+
+Notify:
+
+* managers
+* HR
+
+═══════════════════════════════════════════════════════
+11) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+overtime_records:
+
+* Id
+* CompanyId
+* EmployeeId
+* Date
+* ShiftId
+* WorkedHours
+* OvertimeHours
+* Source (auto / request)
+* Status (pending / approved / rejected)
+* CreatedAt
+
+overtime_requests:
+
+* Id
+* CompanyId
+* EmployeeId
+* Date
+* StartTime
+* EndTime
+* Reason
+* Status
+* ManagerApproval
+* HrApproval
+
+overtime_rules:
+
+* Id
+* CompanyId
+* DailyThresholdHours
+* WeeklyMaxHours
+* RateTier1
+* RateTier2
+* Tier2Threshold
+
+═══════════════════════════════════════════════════════
+12) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full access
+
+HR Staff:
+
+* manage and review overtime
+
+Manager:
+
+* approve team overtime
+
+Employee:
+
+* submit overtime requests
+* view own overtime
+
+Payroll Admin:
+
+* read-only access for payroll processing
+
+SuperAdmin:
+
+* not part of operational workflow
+
+═══════════════════════════════════════════════════════
+13) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* clean dashboard cards
+* clear overtime indicators
+* highlight pending approvals
+* strong filtering in tables
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The overtime module must behave like a real enterprise system.
+
+NOT just extra hours calculation.
+
+It must:
+
+* enforce policy
+* integrate with attendance and shifts
+* support approval workflow
+* calculate payments
+* feed payroll correctly
+
+Build it as a financial + operational module.

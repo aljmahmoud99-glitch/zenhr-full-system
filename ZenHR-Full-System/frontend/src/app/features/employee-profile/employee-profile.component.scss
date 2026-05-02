@@ -1,0 +1,106 @@
+.profile-error {
+  margin: 24px;
+}
+
+.profile-avatar-icon {
+  font-size: 40px;
+  color: var(--z-emerald);
+}
+
+.profile-meta-secondary {
+  color: var(--z-text-muted);
+  font-size: 13px;
+}
+
+.compliance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.compliance-badge-icon {
+  font-size: 13px;
+}
+
+.compliance-badge-count {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.info-val-accent {
+  font-weight: 700;
+  color: var(--z-emerald);
+}
+
+.inline-icon-sm {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.probation-text-strong {
+  font-weight: 600;
+}
+
+.probation-overdue {
+  font-weight: 600;
+  color: var(--z-danger);
+}
+
+.eval-action-icon {
+  font-size: 14px;
+}
+
+.compliance-status-banner {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(47, 157, 105, 0.18);
+  background: rgba(240, 253, 244, 0.9);
+}
+
+.compliance-status-icon {
+  font-size: 2.4rem;
+  color: var(--z-emerald);
+}
+
+.compliance-status-copy {
+  flex: 1;
+}
+
+.compliance-status-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--z-emerald-dark);
+}
+
+.compliance-status-items {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compliance-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .75rem;
+}
+
+.bank-section--narrow {
+  max-width: 600px;
+}
+
+.compliance-grid .profile-section-card {
+  min-height: 100%;
+}
+
+.eval-comments-group {
+  margin-top: 16px;
+}

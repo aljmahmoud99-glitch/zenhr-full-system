@@ -1,0 +1,479 @@
+<section class="z-page disciplinary-page" [attr.dir]="lang==='ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('الالتزام والسياسات', 'Conduct & Policy') }}</span>
+      <h1 class="z-title">{{ t('القضايا التأديبية', 'Disciplinary Cases') }}</h1>
+      <p class="z-body">{{ t('سجّل المخالفات وادِر التحقيق والقرار النهائي ضمن مساحة متابعة واحدة.', 'Track violations, investigations, and final actions from one organized workspace.') }}</p>
+    </div>
+
+    <div class="header-actions" *ngIf="activeView === 'list'">
+      <button class="z-btn-secondary" type="button" (click)="openSettings()">
+        <span class="material-icons">settings</span>
+        {{ t('أنواع المخالفات', 'Violation Types') }}
+      </button>
+      <button class="z-btn-primary" type="button" (click)="openCreate()">
+        <span class="material-icons">add</span>
+        {{ t('قضية جديدة', 'New Case') }}
+      </button>
+    </div>
+
+    <div class="header-actions" *ngIf="activeView !== 'list'">
+      <button class="z-btn-secondary" type="button" (click)="backToList()">
+        <span class="material-icons">arrow_back</span>
+        {{ t('العودة للقائمة', 'Back to List') }}
+      </button>
+    </div>
+  </header>
+
+  <ng-container *ngIf="activeView === 'list'">
+    <app-skeleton-kpi-cards *ngIf="loading()" [count]="4" />
+
+    <section class="stats-grid" *ngIf="!loading()">
+      <article class="z-card z-kpi-card">
+        <div class="metric-label">{{ t('إجمالي القضايا', 'Total Cases') }}</div>
+        <div class="metric-value">{{ stats().total || 0 }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-amber">
+        <div class="metric-label">{{ t('قضايا مفتوحة', 'Open Cases') }}</div>
+        <div class="metric-value">{{ stats().open || 0 }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-emerald">
+        <div class="metric-label">{{ t('تحت التحقيق', 'Investigating') }}</div>
+        <div class="metric-value">{{ stats().investigating || 0 }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-danger">
+        <div class="metric-label">{{ t('متأخرة', 'Overdue') }}</div>
+        <div class="metric-value">{{ stats().overdue || 0 }}</div>
+      </article>
+    </section>
+
+    <section class="z-card filters-card">
+      <div class="filters-head">
+        <div>
+          <h2 class="z-heading">{{ t('البحث والتصفية', 'Search & Filters') }}</h2>
+          <p class="z-small">{{ t('ابحث باسم الموظف أو قم بالتصفية حسب الحالة والنوع والتاريخ.', 'Search by employee and filter by status, violation type, and date.') }}</p>
+        </div>
+        <button class="z-btn-ghost" type="button" *ngIf="hasActiveFilters" (click)="resetFilters()">
+          {{ t('مسح الفلاتر', 'Clear Filters') }}
+        </button>
+      </div>
+
+      <div class="filter-grid">
+        <label class="field search-field">
+          <span class="field-label">{{ t('بحث', 'Search') }}</span>
+          <div class="search-shell">
+            <span class="material-icons">search</span>
+            <input class="z-input" type="text" [(ngModel)]="filterSearch" (ngModelChange)="applyFilters()" [placeholder]="t('اسم الموظف أو الوصف', 'Employee name or description')" />
+          </div>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+          <select class="z-input" [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
+            <option value="">{{ t('كل الحالات', 'All Statuses') }}</option>
+            <option value="draft">{{ t('مسودة', 'Draft') }}</option>
+            <option value="open">{{ t('مفتوحة', 'Open') }}</option>
+            <option value="investigating">{{ t('تحت التحقيق', 'Investigating') }}</option>
+            <option value="decided">{{ t('تم البت', 'Decided') }}</option>
+            <option value="closed">{{ t('مغلقة', 'Closed') }}</option>
+            <option value="cancelled">{{ t('ملغاة', 'Cancelled') }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('نوع المخالفة', 'Violation Type') }}</span>
+          <select class="z-input" [(ngModel)]="filterViolation" (ngModelChange)="applyFilters()">
+            <option value="">{{ t('كل الأنواع', 'All Types') }}</option>
+            <option *ngFor="let violation of violations()" [value]="violation.id">{{ violation.nameAr }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('تاريخ المخالفة', 'Violation Date') }}</span>
+          <input
+            class="z-input"
+            [type]="filterDateInputType"
+            [(ngModel)]="filterDate"
+            (focus)="activateDateInput('filter')"
+            (blur)="normalizeDateInput('filter')"
+            (ngModelChange)="applyFilters()"
+            [placeholder]="t('اختر التاريخ', 'Select date')" />
+        </label>
+      </div>
+    </section>
+
+    <section class="z-table-container table-shell">
+      <div class="table-toolbar">
+        <div>
+          <h2 class="z-heading">{{ t('القائمة التأديبية', 'Disciplinary Register') }}</h2>
+          <p class="z-small">{{ t(filtered().length + ' قضية معروضة', filtered().length + ' cases shown') }}</p>
+        </div>
+      </div>
+
+      <app-skeleton-table *ngIf="loading()" [rows]="8" [cols]="8" />
+
+      <div class="empty-state" *ngIf="!loading() && filtered().length === 0">
+        <div class="empty-icon"><span class="material-icons">gavel</span></div>
+        <div class="empty-title">{{ t('لا توجد قضايا مطابقة للفلاتر الحالية.', 'No cases match the current filters.') }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loading() && filtered().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{{ t('الموظف', 'Employee') }}</th>
+              <th>{{ t('نوع المخالفة', 'Violation') }}</th>
+              <th>{{ t('تاريخ المخالفة', 'Date') }}</th>
+              <th>{{ t('العقوبة', 'Penalty') }}</th>
+              <th>{{ t('التحقيق', 'Investigation') }}</th>
+              <th>{{ t('الحالة', 'Status') }}</th>
+              <th>{{ t('الموعد النهائي', 'Deadline') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filtered()" (click)="openDetail(item.id)">
+              <td>{{ item.id }}</td>
+              <td class="employee-cell">
+                <div class="employee-meta">
+                  <strong>{{ item.employeeNameAr }}</strong>
+                  <small>{{ item.employeeCode }} · {{ item.departmentAr || '—' }}</small>
+                </div>
+              </td>
+              <td>
+                <div class="violation-meta">
+                  <strong>{{ item.violationNameAr }}</strong>
+                  <small>{{ item.violationCode }}</small>
+                </div>
+              </td>
+              <td>{{ item.violationDate | date:'dd/MM/yyyy' }}</td>
+              <td><span class="z-badge" [class]="penaltyBadge(item.penaltyType)">{{ penaltyLabel(item.penaltyType) }}</span></td>
+              <td>
+                <span class="z-badge" [class.info]="item.hasInvestigation" [class.neutral]="!item.hasInvestigation">
+                  {{ item.hasInvestigation ? t('موثق', 'Documented') : t('غير موثق', 'Not Documented') }}
+                </span>
+              </td>
+              <td><span class="z-badge" [class]="statusBadge(item.status)">{{ statusLabel(item.status) }}</span></td>
+              <td [class.overdue]="isOverdue(item.actionDeadline) && ['open','investigating'].includes(item.status)">{{ item.actionDeadline | date:'dd/MM/yyyy' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+  <ng-container *ngIf="activeView === 'create'">
+    <section class="z-card form-shell">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ t('فتح قضية جديدة', 'Open New Case') }}</h2>
+          <p class="z-small">{{ t('سجّل المخالفة وبياناتها الأساسية ثم احفظ القضية أو افتحها مباشرة.', 'Record the violation details, then save the case as draft or open it directly.') }}</p>
+        </div>
+      </div>
+
+      <div class="alert alert-warning" *ngIf="empHistory().suggested">
+        {{ t('العقوبة المقترحة بناءً على السجل السابق:', 'Suggested penalty based on previous history:') }}
+        <strong>{{ penaltyLabel(empHistory().suggested) }}</strong>
+      </div>
+
+      <div class="alert alert-error" *ngIf="formError">{{ formError }}</div>
+
+      <div class="z-form-grid two-col">
+        <label class="field">
+          <span class="field-label">{{ t('الموظف', 'Employee') }}</span>
+          <select class="z-input" [(ngModel)]="form.employeeId" (ngModelChange)="onEmployeeChange()">
+            <option [ngValue]="0">{{ t('اختر الموظف', 'Select employee') }}</option>
+            <option *ngFor="let employee of employees()" [ngValue]="employee.id">{{ employee.fullNameAr }} ({{ employee.employeeCode }})</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('المبلّغ', 'Reported By') }}</span>
+          <input class="z-input" type="text" [(ngModel)]="form.reportedBy" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('القسم', 'Department') }}</span>
+          <input class="z-input" type="text" [value]="selectedEmployee()?.departmentAr || ''" readonly />
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('المسمى الوظيفي', 'Job Title') }}</span>
+          <input class="z-input" type="text" [value]="selectedEmployee()?.jobTitleAr || ''" readonly />
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('نوع المخالفة', 'Violation Type') }}</span>
+          <select class="z-input" [(ngModel)]="form.violationTypeId">
+            <option [ngValue]="0">{{ t('اختر النوع', 'Select type') }}</option>
+            <option *ngFor="let violation of violations()" [ngValue]="violation.id">{{ violation.nameAr }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('تاريخ المخالفة', 'Violation Date') }}</span>
+          <input
+            class="z-input"
+            [type]="formDateInputType"
+            [(ngModel)]="form.violationDate"
+            (focus)="activateDateInput('form')"
+            (blur)="normalizeDateInput('form')"
+            [placeholder]="t('اختر التاريخ', 'Select date')" />
+        </label>
+
+        <label class="field field-full">
+          <span class="field-label">{{ t('وصف المخالفة', 'Violation Description') }}</span>
+          <textarea class="z-input" rows="5" [(ngModel)]="form.violationDescription" [placeholder]="t('اشرح تفاصيل الواقعة بشكل واضح.', 'Describe the incident clearly.')"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('العقوبة المقترحة', 'Proposed Penalty') }}</span>
+          <select class="z-input" [(ngModel)]="form.penaltyType">
+            <option *ngFor="let level of penaltyLevels" [value]="level.key">{{ lang === 'ar' ? level.ar : level.en }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">{{ t('ملاحظات', 'Notes') }}</span>
+          <input class="z-input" type="text" [(ngModel)]="form.notes" />
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button class="z-btn-secondary" type="button" (click)="submitCase(true)" [disabled]="submitting">
+          {{ t('حفظ كمسودة', 'Save as Draft') }}
+        </button>
+        <button class="z-btn-primary" type="button" (click)="submitCase(false)" [disabled]="submitting">
+          {{ submitting ? t('جارٍ الحفظ...', 'Saving...') : t('فتح القضية', 'Open Case') }}
+        </button>
+      </div>
+    </section>
+  </ng-container>
+
+  <ng-container *ngIf="activeView === 'detail'">
+    <div class="loading-wrap" *ngIf="detailLoading()">
+      <div class="spinner"></div>
+      <div class="z-small">{{ t('جارٍ تحميل تفاصيل القضية...', 'Loading case details...') }}</div>
+    </div>
+
+    <section class="z-card" *ngIf="!detailLoading() && caseDetail() as detail">
+      <div class="detail-hero">
+        <div>
+          <div class="detail-code">#{{ detail.id }} · {{ detail.employee.employeeCode }}</div>
+          <h2 class="z-heading">{{ detail.employee.nameAr }}</h2>
+          <p class="z-small">{{ detail.employee.department || '—' }} · {{ detail.employee.jobTitle || '—' }}</p>
+        </div>
+        <div class="detail-badges">
+          <span class="z-badge" [class]="statusBadge(detail.status)">{{ statusLabel(detail.status) }}</span>
+          <span class="z-badge neutral">{{ detail.violationNameAr }}</span>
+        </div>
+      </div>
+
+      <div class="detail-actions">
+        <button class="z-btn-primary" type="button" *ngIf="detail.status === 'open'" (click)="changeStatus('investigating')" [disabled]="saving">
+          {{ t('بدء التحقيق', 'Start Investigation') }}
+        </button>
+        <button class="z-btn-secondary" type="button" *ngIf="detail.status === 'decided'" (click)="closeCase()" [disabled]="saving">
+          {{ t('إغلاق القضية', 'Close Case') }}
+        </button>
+        <button class="z-btn-secondary" type="button" *ngIf="!detail.employeeAcknowledgment && ['decided','closed'].includes(detail.status)" (click)="acknowledgeCase()" [disabled]="saving">
+          {{ t('توثيق توقيع الموظف', 'Mark Acknowledged') }}
+        </button>
+        <button class="z-btn-danger" type="button" *ngIf="['draft','open'].includes(detail.status)" (click)="cancelCase()" [disabled]="saving">
+          {{ t('إلغاء القضية', 'Cancel Case') }}
+        </button>
+      </div>
+
+      <div class="detail-tabs">
+        <button class="detail-tab" [class.active]="detailTab==='info'" (click)="detailTab='info'">{{ t('البيانات', 'Details') }}</button>
+        <button class="detail-tab" [class.active]="detailTab==='investigation'" (click)="detailTab='investigation'">{{ t('التحقيق', 'Investigation') }}</button>
+        <button class="detail-tab" [class.active]="detailTab==='decision'" (click)="detailTab='decision'">{{ t('القرار', 'Decision') }}</button>
+      </div>
+
+      <div class="detail-panel" *ngIf="detailTab==='info'">
+        <div class="info-grid">
+          <div class="info-box">
+            <div class="info-row"><span>{{ t('نوع المخالفة', 'Violation Type') }}</span><strong>{{ detail.violationNameAr }}</strong></div>
+            <div class="info-row"><span>{{ t('تاريخ المخالفة', 'Violation Date') }}</span><strong>{{ detail.violationDate | date:'dd/MM/yyyy' }}</strong></div>
+            <div class="info-row"><span>{{ t('الموعد النهائي', 'Deadline') }}</span><strong>{{ detail.actionDeadline | date:'dd/MM/yyyy' }}</strong></div>
+            <div class="info-row"><span>{{ t('المبلّغ', 'Reported By') }}</span><strong>{{ detail.reportedBy || '—' }}</strong></div>
+          </div>
+          <div class="info-box">
+            <div class="info-row"><span>{{ t('العقوبة', 'Penalty') }}</span><strong>{{ penaltyLabel(detail.penaltyType) }}</strong></div>
+            <div class="info-row"><span>{{ t('المخالفات السابقة', 'Previous Cases') }}</span><strong>{{ detail.previousViolationsCount }}</strong></div>
+            <div class="info-row"><span>{{ t('تاريخ القرار', 'Decision Date') }}</span><strong>{{ detail.decisionDate ? (detail.decisionDate | date:'dd/MM/yyyy') : '—' }}</strong></div>
+          </div>
+        </div>
+        <div class="description-box">
+          <span class="field-label">{{ t('وصف الواقعة', 'Incident Description') }}</span>
+          <p>{{ detail.violationDescription || '—' }}</p>
+        </div>
+      </div>
+
+      <div class="detail-panel" *ngIf="detailTab==='investigation'">
+        <div class="z-form-grid two-col">
+          <label class="field field-full">
+            <span class="field-label">{{ t('ملاحظات الموارد البشرية', 'HR Notes') }}</span>
+            <textarea class="z-input" rows="4" [(ngModel)]="invForm.hrNotes"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('إفادة الموظف', 'Employee Statement') }}</span>
+            <textarea class="z-input" rows="4" [(ngModel)]="invForm.employeeStatement"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('إفادة المدير', 'Manager Statement') }}</span>
+            <textarea class="z-input" rows="4" [(ngModel)]="invForm.managerStatement"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('تاريخ التحقيق', 'Investigation Date') }}</span>
+            <input class="z-input" type="date" [(ngModel)]="invForm.investigationDate" />
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('النتيجة', 'Outcome') }}</span>
+            <select class="z-input" [(ngModel)]="invForm.outcome">
+              <option value="pending">{{ t('جارية', 'Pending') }}</option>
+              <option value="confirmed">{{ t('مؤكدة', 'Confirmed') }}</option>
+              <option value="dismissed">{{ t('مرفوضة', 'Dismissed') }}</option>
+            </select>
+          </label>
+        </div>
+        <div class="alert" [class.alert-success]="!saveErr" [class.alert-error]="saveErr" *ngIf="saveMsg">{{ saveMsg }}</div>
+        <div class="form-actions">
+          <button class="z-btn-primary" type="button" (click)="saveInvestigation()" [disabled]="saving">
+            {{ saving ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ التحقيق', 'Save Investigation') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="detail-panel" *ngIf="detailTab==='decision'">
+        <div class="z-form-grid two-col">
+          <label class="field">
+            <span class="field-label">{{ t('نوع العقوبة', 'Penalty Type') }}</span>
+            <select class="z-input" [(ngModel)]="decForm.penaltyType">
+              <option *ngFor="let level of penaltyLevels" [value]="level.key">{{ lang === 'ar' ? level.ar : level.en }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('تاريخ القرار', 'Decision Date') }}</span>
+            <input class="z-input" type="date" [(ngModel)]="decForm.decisionDate" />
+          </label>
+          <label class="field" *ngIf="decForm.penaltyType?.includes('deduction')">
+            <span class="field-label">{{ t('مبلغ الخصم', 'Deduction Amount') }}</span>
+            <input class="z-input" type="number" [(ngModel)]="decForm.salaryDeductionAmount" step="0.001" />
+          </label>
+          <label class="field" *ngIf="decForm.penaltyType?.includes('suspension')">
+            <span class="field-label">{{ t('أيام الإيقاف', 'Suspension Days') }}</span>
+            <input class="z-input" type="number" [(ngModel)]="decForm.penaltyDays" min="1" />
+          </label>
+          <label class="field field-full">
+            <span class="field-label">{{ t('ملاحظات القرار', 'Decision Notes') }}</span>
+            <textarea class="z-input" rows="4" [(ngModel)]="decForm.notes"></textarea>
+          </label>
+        </div>
+        <div class="alert" [class.alert-success]="!saveErr" [class.alert-error]="saveErr" *ngIf="saveMsg">{{ saveMsg }}</div>
+        <div class="form-actions">
+          <button class="z-btn-primary" type="button" (click)="saveDecision()" [disabled]="saving || ['closed','cancelled'].includes(detail.status)">
+            {{ t('اعتماد القرار', 'Apply Decision') }}
+          </button>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <ng-container *ngIf="activeView === 'settings'">
+    <section class="z-card settings-shell">
+      <div class="settings-head">
+        <div>
+          <h2 class="z-heading">{{ t('أنواع المخالفات', 'Violation Types') }}</h2>
+          <p class="z-small">{{ t(allViolations().length + ' نوع متاح', allViolations().length + ' types available') }}</p>
+        </div>
+        <button class="z-btn-primary" type="button" (click)="showAddViolation = !showAddViolation">
+          <span class="material-icons">add</span>
+          {{ t('إضافة نوع', 'Add Type') }}
+        </button>
+      </div>
+
+      <section class="z-card add-type-card" *ngIf="showAddViolation">
+        <div class="z-form-grid two-col">
+          <label class="field">
+            <span class="field-label">{{ t('الاسم بالعربية', 'Arabic Name') }}</span>
+            <input class="z-input" type="text" [(ngModel)]="newViolation.nameAr" />
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('الاسم بالإنجليزية', 'English Name') }}</span>
+            <input class="z-input" type="text" [(ngModel)]="newViolation.nameEn" />
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('الكود', 'Code') }}</span>
+            <input class="z-input" type="text" [(ngModel)]="newViolation.code" />
+          </label>
+        </div>
+        <div class="alert alert-error" *ngIf="vtError">{{ vtError }}</div>
+        <div class="form-actions">
+          <button class="z-btn-primary" type="button" (click)="addViolation()" [disabled]="saving">{{ t('حفظ النوع', 'Save Type') }}</button>
+          <button class="z-btn-secondary" type="button" (click)="showAddViolation = false">{{ t('إلغاء', 'Cancel') }}</button>
+        </div>
+      </section>
+
+      <div class="table-scroll">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ t('الكود', 'Code') }}</th>
+              <th>{{ t('العربية', 'Arabic') }}</th>
+              <th>{{ t('الإنجليزية', 'English') }}</th>
+              <th>{{ t('الحالة', 'Status') }}</th>
+              <th>{{ t('الإجراءات', 'Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let violation of allViolations()">
+              <td><code>{{ violation.code }}</code></td>
+              <td>
+                <input *ngIf="editingViolationId === violation.id" class="z-input" type="text" [(ngModel)]="editViolation.nameAr" />
+                <span *ngIf="editingViolationId !== violation.id">{{ violation.nameAr }}</span>
+              </td>
+              <td>
+                <input *ngIf="editingViolationId === violation.id" class="z-input" type="text" [(ngModel)]="editViolation.nameEn" />
+                <span *ngIf="editingViolationId !== violation.id">{{ violation.nameEn || '—' }}</span>
+              </td>
+              <td>
+                <span class="z-badge" [class.success]="violation.isActive" [class.neutral]="!violation.isActive">
+                  {{ violation.isActive ? t('مفعل', 'Active') : t('معطل', 'Inactive') }}
+                </span>
+              </td>
+              <td>
+                <div class="inline-actions">
+                  <button class="icon-btn" type="button" *ngIf="editingViolationId !== violation.id" (click)="startEditViolation(violation)">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="icon-btn primary" type="button" *ngIf="editingViolationId === violation.id" (click)="saveViolation(violation.id)">
+                    <span class="material-icons">check</span>
+                  </button>
+                  <button class="icon-btn" type="button" *ngIf="editingViolationId === violation.id" (click)="editingViolationId = null">
+                    <span class="material-icons">close</span>
+                  </button>
+                  <button class="icon-btn" type="button" (click)="toggleViolation(violation.id)">
+                    <span class="material-icons">{{ violation.isActive ? 'toggle_on' : 'toggle_off' }}</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+  <app-confirm-dialog
+    [open]="confirmDialogOpen()"
+    [title]="confirmDialogTitle"
+    [message]="confirmDialogMessage"
+    [confirmLabel]="confirmDialogLabel"
+    [cancelLabel]="t('تراجع', 'Back')"
+    [loadingLabel]="t('جارٍ التنفيذ...', 'Processing...')"
+    [loading]="saving"
+    [tone]="confirmDialogTone"
+    (cancel)="closeConfirmDialog()"
+    (confirm)="submitConfirmDialog()" />
+</section>

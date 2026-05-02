@@ -1,0 +1,426 @@
+﻿<section class="z-page overtime-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ lang === 'ar' ? 'إدارة العمل الإضافي' : 'Overtime operations' }}</span>
+      <h1 class="z-title">{{ lang === 'ar' ? 'العمل الإضافي' : 'Overtime' }}</h1>
+      <p class="z-body">
+        {{ isEmployee
+          ? (lang === 'ar' ? 'قدّم طلبات العمل الإضافي وتابع سجلك الشخصي.' : 'Submit overtime requests and track your own record.')
+          : (lang === 'ar' ? 'راجع السجلات والاعتمادات والتكلفة وقواعد العمل الإضافي.' : 'Review logs, approvals, costs, and overtime rules.') }}
+      </p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-primary" type="button" *ngIf="isEmployee" (click)="openRequestModal()">
+        <span class="material-icons">add_circle</span>
+        {{ lang === 'ar' ? 'طلب جديد' : 'New request' }}
+      </button>
+      <button class="z-btn-secondary" type="button" *ngIf="isHr" (click)="runAutoCalculation()">
+        <span class="material-icons">auto_fix_high</span>
+        {{ lang === 'ar' ? 'احتساب تلقائي' : 'Auto calculate' }}
+      </button>
+    </div>
+  </header>
+
+  <nav class="view-tabs">
+    <button type="button" class="view-tab" [class.active]="view() === 'dashboard'" (click)="setView('dashboard')">{{ lang === 'ar' ? 'لوحة المتابعة' : 'Dashboard' }}</button>
+    <button type="button" class="view-tab" [class.active]="view() === 'log'" (click)="setView('log')">{{ isEmployee ? (lang === 'ar' ? 'سجلاتي' : 'My records') : (lang === 'ar' ? 'السجل' : 'Log') }}</button>
+    <button type="button" class="view-tab" [class.active]="view() === 'requests'" (click)="setView('requests')">
+      {{ isEmployee ? (lang === 'ar' ? 'طلباتي' : 'My requests') : (lang === 'ar' ? 'الطلبات' : 'Requests') }}
+      <span class="tab-badge" *ngIf="pendingRequests()">{{ pendingRequests() }}</span>
+    </button>
+    <button type="button" class="view-tab" *ngIf="canSeeReports" [class.active]="view() === 'reports'" (click)="setView('reports')">{{ lang === 'ar' ? 'التقارير' : 'Reports' }}</button>
+    <button type="button" class="view-tab" *ngIf="isHr" [class.active]="view() === 'settings'" (click)="setView('settings')">{{ lang === 'ar' ? 'القواعد' : 'Rules' }}</button>
+  </nav>
+
+  <div class="feedback success" *ngIf="feedback()">{{ feedback() }}</div>
+  <div class="feedback error" *ngIf="error()">{{ error() }}</div>
+
+  <ng-container *ngIf="view() === 'dashboard'">
+    <div class="alert-error" *ngIf="dashboardError()">{{ dashboardError() }}</div>
+    <ng-container *ngIf="loading()">
+      <app-skeleton-kpi-cards [count]="4" />
+      <div class="dashboard-grid">
+        <app-skeleton-card />
+        <app-skeleton-card />
+      </div>
+    </ng-container>
+
+    <section *ngIf="!loading()" class="dashboard-grid">
+      <section class="kpis-grid">
+        <article class="z-card kpi-card">
+          <strong>{{ isEmployee ? ((dashboard()?.approvedHours || 0) | number:'1.1-1') : (dashboard()?.employeeCount || 0) }}</strong>
+          <span>{{ isEmployee ? (lang === 'ar' ? 'ساعاتي المعتمدة' : 'My approved hours') : (lang === 'ar' ? 'موظفون لديهم عمل إضافي' : 'Employees with overtime') }}</span>
+        </article>
+        <article class="z-card kpi-card">
+          <strong>{{ (dashboard()?.totalHours || 0) | number:'1.1-1' }}</strong>
+          <span>{{ lang === 'ar' ? 'إجمالي الساعات' : 'Total hours' }}</span>
+        </article>
+        <article class="z-card kpi-card">
+          <strong>{{ (dashboard()?.totalCost || 0) | number:'1.3-3' }}</strong>
+          <span>{{ isEmployee ? (lang === 'ar' ? 'مستحقاتي المعتمدة' : 'My approved amount') : (lang === 'ar' ? 'التكلفة المعتمدة بالدينار' : 'Approved cost JOD') }}</span>
+        </article>
+        <article class="z-card kpi-card warning">
+          <strong>{{ dashboard()?.pendingReqs || 0 }}</strong>
+          <span>{{ lang === 'ar' ? 'طلبات بانتظار الإجراء' : 'Pending requests' }}</span>
+        </article>
+      </section>
+
+      <section class="z-card dashboard-card" *ngIf="!isEmployee">
+        <div class="z-card-header">
+          <div>
+            <h2 class="z-heading">{{ lang === 'ar' ? 'أعلى الموظفين في العمل الإضافي' : 'Top overtime contributors' }}</h2>
+            <p class="z-small">{{ lang === 'ar' ? 'خلال الفترة الحالية' : 'For the current period' }}</p>
+          </div>
+          <div class="period-switch">
+            <button type="button" class="chip-btn" [class.active]="dashPeriod === 'month'" (click)="dashPeriod = 'month'; loadDashboard()">{{ lang === 'ar' ? 'ظ‡ط°ط§ ط§ظ„ط´ظ‡ط±' : 'This month' }}</button>
+            <button type="button" class="chip-btn" [class.active]="dashPeriod === 'week'" (click)="dashPeriod = 'week'; loadDashboard()">{{ lang === 'ar' ? 'ظ‡ط°ط§ ط§ظ„ط£ط³ط¨ظˆط¹' : 'This week' }}</button>
+          </div>
+        </div>
+
+        <div class="entity-list" *ngIf="(dashboard()?.topEmployees || []).length > 0; else noTopEmployees">
+          <article class="entity-card" *ngFor="let employee of dashboard()?.topEmployees || []">
+            <strong>{{ employee.name }}</strong>
+            <span>{{ employee.dept || '--' }}</span>
+            <em>{{ employee.totalHours | number:'1.1-1' }} {{ lang === 'ar' ? 'ساعة' : 'hrs' }}</em>
+          </article>
+        </div>
+        <ng-template #noTopEmployees>
+          <div class="empty-state">
+            <span class="material-icons">groups</span>
+            <strong>{{ lang === 'ar' ? 'ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ظ„ظ„ظ…ظˆط¸ظپظٹظ†' : 'No employee data found' }}</strong>
+          </div>
+        </ng-template>
+      </section>
+
+      <section class="z-card dashboard-card" *ngIf="!isEmployee">
+        <div class="z-card-header">
+          <div>
+            <h2 class="z-heading">{{ lang === 'ar' ? 'أعلى الوحدات' : 'Top org units' }}</h2>
+          </div>
+        </div>
+
+        <div class="entity-list" *ngIf="(dashboard()?.topDepts || []).length > 0; else noTopDepartments">
+          <article class="entity-card" *ngFor="let dept of dashboard()?.topDepts || []">
+            <strong>{{ orgUnitLabel(dept) || '--' }}</strong>
+            <em>{{ dept.totalHours | number:'1.1-1' }} {{ lang === 'ar' ? 'ساعة' : 'hrs' }}</em>
+          </article>
+        </div>
+        <ng-template #noTopDepartments>
+          <div class="empty-state">
+            <span class="material-icons">apartment</span>
+            <strong>{{ lang === 'ar' ? 'لا توجد بيانات للوحدات' : 'No org unit data found' }}</strong>
+          </div>
+        </ng-template>
+      </section>
+    </section>
+  </ng-container>
+
+  <section class="z-card" *ngIf="view() === 'log'">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ isEmployee ? (lang === 'ar' ? 'سجلاتي في العمل الإضافي' : 'My overtime records') : (lang === 'ar' ? 'سجل العمل الإضافي' : 'Overtime log') }}</h2>
+      </div>
+    </div>
+
+    <div class="filter-row" *ngIf="!isEmployee">
+      <input class="z-input" type="date" [(ngModel)]="logFilters.from">
+      <input class="z-input" type="date" [(ngModel)]="logFilters.to">
+      <select class="z-input" [(ngModel)]="logFilters.status">
+        <option value="">{{ lang === 'ar' ? 'كل الحالات' : 'All statuses' }}</option>
+        <option value="pending">{{ lang === 'ar' ? 'بانتظار الموافقة' : 'Pending' }}</option>
+        <option value="manager_approved">{{ lang === 'ar' ? 'موافقة المدير' : 'Manager approved' }}</option>
+        <option value="approved">{{ lang === 'ar' ? 'موافق عليه' : 'Approved' }}</option>
+        <option value="rejected">{{ lang === 'ar' ? 'مرفوض' : 'Rejected' }}</option>
+      </select>
+      <select class="z-input" [(ngModel)]="logFilters.source">
+        <option value="">{{ lang === 'ar' ? 'كل المصادر' : 'All sources' }}</option>
+        <option value="auto">{{ lang === 'ar' ? 'تلقائي' : 'Auto' }}</option>
+        <option value="request">{{ lang === 'ar' ? 'طلب' : 'Request' }}</option>
+        <option value="manual">{{ lang === 'ar' ? 'يدوي' : 'Manual' }}</option>
+      </select>
+      <button class="z-btn-primary" type="button" (click)="loadLog()">{{ lang === 'ar' ? 'تحديث' : 'Refresh' }}</button>
+    </div>
+
+    <div class="summary-strip">
+      <div class="summary-chip">{{ lang === 'ar' ? 'إجمالي الساعات المسجلة حاليًا' : 'Current logged hours' }}: <strong>{{ totalLoggedHours() | number:'1.1-1' }}</strong></div>
+      <div class="summary-chip">{{ lang === 'ar' ? 'ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ط§ط¹ط§طھ ط§ظ„ظ…ط³ط¬ظ„ط© ط­ط§ظ„ظٹط§ظ‹' : 'Current logged hours' }}: <strong>{{ totalLoggedHours() | number:'1.1-1' }}</strong></div>
+    </div>
+
+    <div class="alert-error" *ngIf="logError() && !logLoading()">{{ logError() }}</div>
+    <app-skeleton-table *ngIf="logLoading()" [rows]="8" [cols]="8" />
+
+    <div class="empty-state" *ngIf="!logLoading() && !logError() && logRows().length === 0">
+      <span class="material-icons">schedule</span>
+      <strong>{{ lang === 'ar' ? 'لا توجد سجلات عمل إضافي' : 'No overtime records found' }}</strong>
+    </div>
+
+    <div class="z-table-container table-scroll" *ngIf="!logLoading() && logRows().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th *ngIf="!isEmployee">{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'التاريخ' : 'Date' }}</th>
+            <th>{{ lang === 'ar' ? 'الساعات' : 'Hours' }}</th>
+            <th>{{ lang === 'ar' ? 'نوع اليوم' : 'Day type' }}</th>
+            <th>{{ lang === 'ar' ? 'نوع التعويض' : 'Compensation' }}</th>
+            <th>{{ lang === 'ar' ? 'المصدر' : 'Source' }}</th>
+            <th>{{ lang === 'ar' ? 'المبلغ' : 'Amount' }}</th>
+            <th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th>
+            <th *ngIf="isHrOrManager">{{ lang === 'ar' ? 'الإجراءات' : 'Actions' }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of logRows()">
+            <td *ngIf="!isEmployee">{{ employeeName(row) }}</td>
+            <td>{{ row.date }}</td>
+            <td>{{ row.overtimeHours | number:'1.1-1' }}</td>
+            <td>{{ dayTypeLabel(row.dayType) }}</td>
+            <td>{{ compensationLabel(row.compensationType) }}</td>
+            <td>{{ row.source || '—' }}</td>
+            <td>{{ (row.overtimeAmount || 0) | number:'1.3-3' }}</td>
+            <td><span class="status-pill" [attr.data-status]="row.status">{{ statusLabel(row.status) }}</span></td>
+            <td *ngIf="isHrOrManager">
+              <div class="row-actions" *ngIf="isHrOrManager && (row.status === 'pending' || row.status === 'manager_approved')">
+                <button class="z-btn-primary small-btn" type="button" (click)="approveRecord(row.id)" [disabled]="isRecordActionLoading(row.id)">{{ isRecordActionLoading(row.id) ? '...' : (lang === 'ar' ? 'اعتماد' : 'Approve') }}</button>
+                <button class="z-btn-danger small-btn" type="button" (click)="rejectRecord(row.id)" [disabled]="isRecordActionLoading(row.id)">{{ isRecordActionLoading(row.id) ? '...' : (lang === 'ar' ? 'رفض' : 'Reject') }}</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'requests'">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ isEmployee ? (lang === 'ar' ? 'طلباتي للعمل الإضافي' : 'My overtime requests') : (lang === 'ar' ? 'طلبات العمل الإضافي' : 'Overtime requests') }}</h2>
+      </div>
+    </div>
+
+    <div class="filter-row" *ngIf="!isEmployee">
+      <input class="z-input" [(ngModel)]="requestSearch" [placeholder]="isEmployee ? (lang === 'ar' ? 'بحث بالسبب أو التاريخ' : 'Search by reason or date') : (lang === 'ar' ? 'بحث بالاسم أو السبب أو الوحدة' : 'Search by employee, reason, or org unit')">
+      <select class="z-input" [(ngModel)]="requestFilter">
+        <option value="">{{ lang === 'ar' ? 'ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ' : 'All statuses' }}</option>
+        <option value="pending">{{ lang === 'ar' ? 'بانتظار الموافقة' : 'Pending' }}</option>
+        <option value="manager_approved">{{ lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ط¯ظٹط±' : 'Manager approved' }}</option>
+        <option value="approved">{{ lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ ط¹ظ„ظٹظ‡' : 'Approved' }}</option>
+        <option value="rejected">{{ lang === 'ar' ? 'ظ…ط±ظپظˆط¶' : 'Rejected' }}</option>
+      </select>
+      <button class="z-btn-ghost" type="button" *ngIf="hasRequestFilters" (click)="resetRequestFilters()">{{ lang === 'ar' ? 'ظ…ط³ط­ ط§ظ„ظپظ„ط§طھط±' : 'Reset filters' }}</button>
+    </div>
+
+    <div class="alert-error" *ngIf="requestsError() && !requestsLoading()">{{ requestsError() }}</div>
+
+    <div class="request-skeletons" *ngIf="requestsLoading()">
+      <app-skeleton-card />
+      <app-skeleton-card />
+      <app-skeleton-card />
+    </div>
+
+    <div class="empty-state" *ngIf="!requestsLoading() && !requestsError() && filteredRequestRows().length === 0">
+      <span class="material-icons">hourglass_empty</span>
+      <strong>{{ lang === 'ar' ? 'ظ„ط§ طھظˆط¬ط¯ ط·ظ„ط¨ط§طھ ظ…ط·ط§ط¨ظ‚ط©' : 'No matching requests' }}</strong>
+    </div>
+
+    <div class="request-list" *ngIf="!requestsLoading() && filteredRequestRows().length > 0">
+      <article class="request-card" *ngFor="let request of filteredRequestRows()">
+        <div class="request-top">
+          <strong>{{ isEmployee ? (request.reason || (lang === 'ar' ? 'طلب عمل إضافي' : 'Overtime request')) : (request.fullNameAr || '--') }}</strong>
+          <span class="status-pill" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span>
+        </div>
+        <div class="request-meta">
+          <span>{{ request.date }}</span>
+          <span>{{ request.hours | number:'1.1-1' }} {{ lang === 'ar' ? 'ساعة' : 'hrs' }}</span>
+          <span>{{ compensationLabel(request.compensationType) }}</span>
+          <span>{{ request.reason || '--' }}</span>
+        </div>
+
+        <div class="request-meta">
+          <span>{{ requestApprovalPath(request) }}</span>
+          <span *ngIf="request.rejectionReason">{{ lang === 'ar' ? 'سبب الرفض:' : 'Rejection reason:' }} {{ request.rejectionReason }}</span>
+        </div>
+        <div class="request-actions" *ngIf="isHrOrManager && (request.status === 'pending' || request.status === 'manager_approved')">
+          <button class="z-btn-primary" type="button" (click)="approveRequest(request.id)" [disabled]="isRequestActionLoading(request.id)">{{ isRequestActionLoading(request.id) ? '...' : (lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ط©' : 'Approve') }}</button>
+          <button class="z-btn-danger" type="button" (click)="rejectRequest(request.id)" [disabled]="isRequestActionLoading(request.id)">{{ isRequestActionLoading(request.id) ? '...' : (lang === 'ar' ? 'رفض' : 'Reject') }}</button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'reports' && canSeeReports">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ lang === 'ar' ? 'تقارير العمل الإضافي' : 'Overtime reports' }}</h2>
+      </div>
+    </div>
+
+    <div class="filter-row" *ngIf="!isEmployee">
+      <select class="z-input" [(ngModel)]="reportType">
+        <option value="employee">{{ lang === 'ar' ? 'حسب الموظف' : 'By employee' }}</option>
+        <option value="department">{{ lang === 'ar' ? 'حسب الوحدة' : 'By org unit' }}</option>
+        <option value="cost">{{ lang === 'ar' ? 'حسب التكلفة' : 'By cost' }}</option>
+        <option value="monthly">{{ lang === 'ar' ? 'شهري' : 'Monthly' }}</option>
+        <option value="comparison">{{ lang === 'ar' ? 'ظ…ظ‚ط§ط±ظ†ط©' : 'Comparison' }}</option>
+      </select>
+      <input class="z-input" type="date" [(ngModel)]="reportFilters.from">
+      <input class="z-input" type="date" [(ngModel)]="reportFilters.to">
+      <button class="z-btn-primary" type="button" (click)="loadReports()">{{ lang === 'ar' ? 'عرض' : 'View' }}</button>
+    </div>
+
+    <div class="alert-error" *ngIf="reportsError() && !reportsLoading()">{{ reportsError() }}</div>
+    <div class="loading-wrap" *ngIf="reportsLoading()"><div class="spinner"></div></div>
+
+    <div class="empty-state" *ngIf="!reportsLoading() && !reportsError() && reportRows().length === 0">
+      <span class="material-icons">analytics</span>
+      <strong>{{ lang === 'ar' ? 'ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ طھظ‚ط§ط±ظٹط±' : 'No report data found' }}</strong>
+    </div>
+
+    <div class="report-list" *ngIf="!reportsLoading() && reportRows().length > 0">
+      <article class="report-card" *ngFor="let row of reportRows()">
+        <strong>{{ row.name || orgUnitLabel(row) || ((row.month || '') + '/' + (row.year || '')) }}</strong>
+        <span *ngIf="row.totalHours != null">{{ lang === 'ar' ? 'الساعات' : 'Hours' }}: {{ row.totalHours | number:'1.1-1' }}</span>
+        <span *ngIf="row.totalCost != null">{{ lang === 'ar' ? 'التكلفة' : 'Cost' }}: {{ row.totalCost | number:'1.3-3' }}</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'settings' && isHr">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ lang === 'ar' ? 'ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ' : 'Overtime rules' }}</h2>
+      </div>
+    </div>
+
+    <div class="alert-error" *ngIf="rulesError() && !rulesLoading()">{{ rulesError() }}</div>
+    <div class="loading-wrap" *ngIf="rulesLoading()"><div class="spinner"></div></div>
+
+    <div class="rules-grid" *ngIf="!rulesLoading() && rules()">
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'الحد اليومي' : 'Daily threshold' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.dailyThresholdHours" (ngModelChange)="updateRule('dailyThresholdHours', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'الحد الأعلى اليومي' : 'Max daily OT' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.maxDailyOvertimeHours" (ngModelChange)="updateRule('maxDailyOvertimeHours', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'الحد الأسبوعي' : 'Weekly max' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.weeklyMaxHours" (ngModelChange)="updateRule('weeklyMaxHours', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'ظ…ط¹ط§ظ…ظ„ ط§ظ„ط´ط±ظٹط­ط© ط§ظ„ط£ظˆظ„ظ‰' : 'Tier 1 rate' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.rateTier1" (ngModelChange)="updateRule('rateTier1', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'ظ…ط¹ط§ظ…ظ„ ط§ظ„ط´ط±ظٹط­ط© ط§ظ„ط«ط§ظ†ظٹط©' : 'Tier 2 rate' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.rateTier2" (ngModelChange)="updateRule('rateTier2', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'بداية الشريحة الثانية' : 'Tier 2 threshold' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.tier2ThresholdHours" (ngModelChange)="updateRule('tier2ThresholdHours', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'ظ…ط¹ط§ظ…ظ„ ط§ظ„ط¹ط·ظ„ط© ط§ظ„ط£ط³ط¨ظˆط¹ظٹط©' : 'Weekend rate' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.rateWeekend" (ngModelChange)="updateRule('rateWeekend', $event)">
+      </label>
+      <label class="field">
+        <span class="z-label">{{ lang === 'ar' ? 'ظ…ط¹ط§ظ…ظ„ ط§ظ„ط¹ط·ظ„ط© ط§ظ„ط±ط³ظ…ظٹط©' : 'Holiday rate' }}</span>
+        <input class="z-input" type="number" [ngModel]="rules()!.rateHoliday" (ngModelChange)="updateRule('rateHoliday', $event)">
+      </label>
+
+      <label class="toggle-field">
+        <input type="checkbox" [ngModel]="rules()!.requireManagerApproval" (ngModelChange)="updateRule('requireManagerApproval', $event)">
+        <span>{{ lang === 'ar' ? 'ظٹطھط·ظ„ط¨ ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ط¯ظٹط±' : 'Require manager approval' }}</span>
+      </label>
+      <label class="toggle-field">
+        <input type="checkbox" [ngModel]="rules()!.requireHrApproval" (ngModelChange)="updateRule('requireHrApproval', $event)">
+        <span>{{ lang === 'ar' ? 'ظٹطھط·ظ„ط¨ ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©' : 'Require HR approval' }}</span>
+      </label>
+      <label class="toggle-field">
+        <input type="checkbox" [ngModel]="rules()!.autoCalculateFromAttendance" (ngModelChange)="updateRule('autoCalculateFromAttendance', $event)">
+        <span>{{ lang === 'ar' ? 'احتساب تلقائي من الحضور' : 'Auto-calculate from attendance' }}</span>
+      </label>
+    </div>
+
+    <footer class="section-actions" *ngIf="rules()">
+      <button class="z-btn-primary" type="button" (click)="saveRules()" [disabled]="savingRules()">{{ savingRules() ? '...' : (lang === 'ar' ? 'حفظ القواعد' : 'Save rules') }}</button>
+    </footer>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showRequestModal()" (click)="closeRequestModal()">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div><h2 class="z-heading">{{ lang === 'ar' ? 'طلب عمل إضافي جديد' : 'New overtime request' }}</h2></div>
+      </header>
+
+      <div class="modal-grid">
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'التاريخ' : 'Date' }}</span>
+          <input class="z-input" type="date" [(ngModel)]="requestForm.date">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'الساعات المحتسبة' : 'Calculated hours' }}</span>
+          <input class="z-input" type="number" [ngModel]="calculatedRequestHours" readonly>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'ظ…ظ†' : 'Start time' }}</span>
+          <input class="z-input" type="time" [(ngModel)]="requestForm.startTime">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'إلى' : 'End time' }}</span>
+          <input class="z-input" type="time" [(ngModel)]="requestForm.endTime">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'ظ†ظˆط¹ ط§ظ„ظٹظˆظ…' : 'Day type' }}</span>
+          <select class="z-input" [(ngModel)]="requestForm.overtimeType">
+            <option value="weekday">{{ lang === 'ar' ? 'ظٹظˆظ… ط¹ظ…ظ„' : 'Weekday' }}</option>
+            <option value="weekend">{{ lang === 'ar' ? 'عطلة أسبوعية' : 'Weekend' }}</option>
+            <option value="holiday">{{ lang === 'ar' ? 'عطلة رسمية' : 'Holiday' }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ lang === 'ar' ? 'ظ†ظˆط¹ ط§ظ„طھط¹ظˆظٹط¶' : 'Compensation' }}</span>
+          <select class="z-input" [(ngModel)]="requestForm.compensationType">
+            <option value="pay">{{ lang === 'ar' ? 'بدل مالي' : 'Payment' }}</option>
+            <option value="time_off">{{ lang === 'ar' ? 'إجازة بديلة' : 'Time off' }}</option>
+          </select>
+        </label>
+        <label class="field field-full">
+          <span class="z-label">{{ lang === 'ar' ? 'السبب' : 'Reason' }}</span>
+          <textarea class="z-input text-area" [(ngModel)]="requestForm.reason"></textarea>
+        </label>
+      </div>
+
+      <div class="alert-error" *ngIf="error()">{{ error() }}</div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeRequestModal()">{{ lang === 'ar' ? 'إلغاء' : 'Cancel' }}</button>
+        <button class="z-btn-primary" type="button" [disabled]="loading()" (click)="submitRequest()">{{ loading() ? '...' : (lang === 'ar' ? 'إرسال الطلب' : 'Submit request') }}</button>
+      </footer>
+    </section>
+  </div>
+
+  <app-confirm-dialog
+    [open]="!!confirmAction()"
+    [title]="confirmAction()?.type === 'approve-record' ? (lang === 'ar' ? 'تأكيد اعتماد السجل' : 'Confirm record approval') : (lang === 'ar' ? 'تأكيد الموافقة على الطلب' : 'Confirm request approval')"
+    [message]="lang === 'ar' ? 'سيتم تنفيذ الإجراء بعد التأكيد وتحديث البيانات بعد النجاح.' : 'The action will run after confirmation and the data will refresh on success.'"
+    [confirmLabel]="lang === 'ar' ? 'ظ…ظˆط§ظپظ‚ط©' : 'Approve'"
+    [cancelLabel]="lang === 'ar' ? 'إلغاء' : 'Cancel'"
+    [loading]="!!confirmAction() && (confirmAction()?.type === 'approve-record' ? isRecordActionLoading(confirmAction()!.id) : isRequestActionLoading(confirmAction()!.id))"
+    (confirm)="submitConfirmAction()"
+    (cancel)="closeConfirmDialog()"></app-confirm-dialog>
+
+  <app-reject-reason-dialog
+    [open]="!!rejectAction()"
+    [title]="rejectAction()?.type === 'record' ? (lang === 'ar' ? 'سبب رفض السجل' : 'Record rejection reason') : (lang === 'ar' ? 'سبب رفض الطلب' : 'Request rejection reason')"
+    [placeholder]="lang === 'ar' ? 'اكتب سبب الرفض' : 'Enter rejection reason'"
+    [confirmLabel]="lang === 'ar' ? 'تأكيد الرفض' : 'Confirm reject'"
+    [cancelLabel]="lang === 'ar' ? 'إلغاء' : 'Cancel'"
+    [loading]="!!rejectAction() && (rejectAction()?.type === 'record' ? isRecordActionLoading(rejectAction()!.id) : isRequestActionLoading(rejectAction()!.id))"
+    [error]="rejectError()"
+    (confirm)="submitRejectReason($event)"
+    (cancel)="closeRejectDialog()"></app-reject-reason-dialog>
+</section>
+

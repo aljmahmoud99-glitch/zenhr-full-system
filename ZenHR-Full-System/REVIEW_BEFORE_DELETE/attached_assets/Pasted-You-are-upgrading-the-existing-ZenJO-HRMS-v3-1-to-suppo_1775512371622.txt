@@ -1,0 +1,875 @@
+You are upgrading the existing ZenJO HRMS v3.1 to support Multi-Company (Multi-Tenant) architecture.
+
+Current state (DO NOT REBUILD — ONLY UPGRADE):
+- .NET 9 API running on port 5000
+- Angular 18 SPA running on port 20256
+- MySQL 8.0.42 with 32 tables
+- JWT Auth working (6 roles, all accounts functional)
+- All 19 endpoint groups return HTTP 200
+- CompanyId is currently hardcoded = 1 everywhere
+
+Your job: upgrade to full multi-tenant WITHOUT breaking any existing functionality.
+
+═══════════════════════════════════════════════════════════════
+PART 1 — UNDERSTANDING THE CURRENT PROBLEM
+═══════════════════════════════════════════════════════════════
+
+Current hardcoded problem in EVERY controller:
+  // CURRENT (broken for multi-tenant)
+  var employees = await db.Employees
+      .Where(e => e.CompanyId == 1)  // hardcoded!
+      .ToListAsync();
+
+What we need instead:
+  // TARGET (multi-tenant)
+  var companyId = _tenantService.GetCurrentCompanyId(); // from JWT
+  var employees = await db.Employees
+      .Where(e => e.CompanyId == companyId)
+      .ToListAsync();
+
+═══════════════════════════════════════════════════════════════
+PART 2 — TENANT ARCHITECTURE DECISION
+═══════════════════════════════════════════════════════════════
+
+Use: SHARED DATABASE + SHARED SCHEMA (most practical for this stack)
+- Single MySQL database: zenjo
+- All tables already have CompanyId column
+- Tenant isolation via CompanyId filter on every query
+- JWT token contains CompanyId claim
+
+Why NOT separate databases per tenant:
+- Replit environment — single MySQL socket
+- Simpler migration
+- Companies already exist as a table
+
+TENANT IDENTIFICATION FLOW:
+  User logs in → JWT issued with { userId, companyId, role }
+                                              ↑
+                                    This is the TenantId
+  Every API call → Middleware extracts companyId from JWT
+  Every DB query → filters by that companyId automatically
+
+═══════════════════════════════════════════════════════════════
+PART 3 — DATABASE CHANGES
+═══════════════════════════════════════════════════════════════
+
+--- 3.1 UPGRADE companies TABLE ---
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS
+  PlanType ENUM('trial','starter','professional','enterprise') DEFAULT 'trial',
+  PlanExpiryDate DATE NULL,
+  MaxEmployees INT DEFAULT 50,
+  IsActive TINYINT(1) DEFAULT 1,
+  SubdomainSlug VARCHAR(50) UNIQUE NULL COMMENT 'e.g. acme → acme.zenjo.com (future)',
+  AdminEmail VARCHAR(150) COMMENT 'Company super-admin email',
+  LogoUrl VARCHAR(500),
+  PrimaryColor VARCHAR(7) DEFAULT '#1A56DB' COMMENT 'Brand color for white-label',
+  InvoicePrefix VARCHAR(10) DEFAULT 'INV',
+  TimeZone VARCHAR(50) DEFAULT 'Asia/Amman',
+  DateFormat VARCHAR(20) DEFAULT 'DD/MM/YYYY',
+  OnboardedAt DATETIME NULL,
+  CreatedAt DATETIME DEFAULT NOW(),
+  UpdatedAt DATETIME DEFAULT NOW() ON UPDATE NOW(),
+  IsDeleted TINYINT(1) DEFAULT 0;
+
+--- 3.2 ADD NEW TABLE: CompanySubscriptions ---
+CREATE TABLE IF NOT EXISTS company_subscriptions (
+  Id INT AUTO_INCREMENT PRIMARY KEY,
+  CompanyId INT NOT NULL,
+  PlanType ENUM('trial','starter','professional','enterprise') NOT NULL,
+  StartDate DATE NOT NULL,
+  EndDate DATE NOT NULL,
+  MaxEmployees INT NOT NULL,
+  MonthlyPrice DECIMAL(10,3),
+  Currency VARCHAR(10) DEFAULT 'JOD',
+  PaymentStatus ENUM('paid','pending','failed','cancelled') DEFAULT 'pending',
+  Notes TEXT,
+  CreatedAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (CompanyId) REFERENCES companies(Id)
+);
+
+--- 3.3 ADD NEW TABLE: CompanyRegistrations (onboarding) ---
+CREATE TABLE IF NOT EXISTS company_registrations (
+  Id INT AUTO_INCREMENT PRIMARY KEY,
+  CompanyNameAr VARCHAR(200) NOT NULL,
+  CompanyNameEn VARCHAR(200) NOT NULL,
+  AdminFirstName VARCHAR(100) NOT NULL,
+  AdminLastName VARCHAR(100) NOT NULL,
+  AdminEmail VARCHAR(150) UNIQUE NOT NULL,
+  AdminPhone VARCHAR(20),
+  Industry VARCHAR(100),
+  EmployeeCountRange VARCHAR(20) COMMENT '1-10, 11-50, 51-200, 200+',
+  Status ENUM('pending','approved','rejected','active') DEFAULT 'pending',
+  ActivatedAt DATETIME NULL,
+  CompanyId INT NULL COMMENT 'Set when approved',
+  CreatedAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (CompanyId) REFERENCES companies(Id)
+);
+
+--- 3.4 VERIFY all 32 existing tables have CompanyId ---
+-- The following tables currently have CompanyId (from v3.1):
+-- employees, departments, job_titles, leave_types, leave_policies,
+-- leave_balances, leave_requests, overtime_requests, payroll_runs,
+-- payslips, disciplinary_actions, resignations, clearance_records,
+-- pre_employment_records, salary_advances, assets, documents,
+-- employee_compliance_statuses, public_holidays, system_configurations,
+-- notifications, activity_logs, users
+
+-- Tables that might be missing CompanyId (add if missing):
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS CompanyId INT NULL
+  COMMENT 'NULL = global bank, INT = company-specific bank';
+-- Global lookup tables (nationalities, governorates, cities) stay global (no CompanyId)
+-- company-specific lookups (violation_types, asset_categories, document_types) keep CompanyId
+
+--- 3.5 SEED: 3 demo companies ---
+INSERT IGNORE INTO companies (Id, NameAr, NameEn, PlanType, MaxEmployees, IsActive, AdminEmail) VALUES
+(1, 'شركة الأردن للتقنية', 'Jordan Tech Co.', 'professional', 200, 1, 'hr@jordantech.jo'),
+(2, 'مجموعة النجوم التجارية', 'Al-Nujoom Trading Group', 'starter', 50, 1, 'hr@nujoom.jo'),
+(3, 'مستشفى الشفاء الأردني', 'Al-Shifa Jordan Hospital', 'enterprise', 500, 1, 'hr@alshifa.jo');
+
+-- Users for company 2 (different company demo)
+INSERT IGNORE INTO users (Username, Email, PasswordHash, Role, CompanyId, IsActive)
+VALUES
+('hr2', 'hr2@nujoom.jo', '<bcrypt of Hr@1234>', 'HR', 2, 1),
+('emp2', 'emp2@nujoom.jo', '<bcrypt of Employee@1234>', 'Employee', 2, 1);
+
+-- Departments for company 2
+INSERT IGNORE INTO departments (CompanyId, NameAr, NameEn) VALUES
+(2, 'المبيعات', 'Sales'),
+(2, 'المشتريات', 'Procurement');
+
+-- 5 employees for company 2 (different data than company 1)
+-- (seeder handles this)
+
+═══════════════════════════════════════════════════════════════
+PART 4 — BACKEND CHANGES (.NET 9)
+═══════════════════════════════════════════════════════════════
+
+--- 4.1 CREATE: ITenantService interface ---
+File: Services/ITenantService.cs
+
+public interface ITenantService
+{
+    int GetCompanyId();
+    string GetUserRole();
+    int GetUserId();
+    bool IsSuperAdmin();
+}
+
+--- 4.2 CREATE: TenantService implementation ---
+File: Services/TenantService.cs
+
+public class TenantService : ITenantService
+{
+    private readonly IHttpContextAccessor _http;
+
+    public TenantService(IHttpContextAccessor http)
+    {
+        _http = http;
+    }
+
+    public int GetCompanyId()
+    {
+        var claim = _http.HttpContext?.User?.FindFirst("companyId")?.Value;
+        if (int.TryParse(claim, out var id)) return id;
+        throw new UnauthorizedAccessException("CompanyId claim missing from token");
+    }
+
+    public string GetUserRole()
+        => _http.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+    public int GetUserId()
+    {
+        var claim = _http.HttpContext?.User?.FindFirst("userId")?.Value;
+        if (int.TryParse(claim, out var id)) return id;
+        throw new UnauthorizedAccessException("UserId claim missing from token");
+    }
+
+    public bool IsSuperAdmin()
+        => GetUserRole() == "SuperAdmin";
+}
+
+--- 4.3 UPDATE: JWT token generation in AuthController ---
+When issuing the token, add companyId claim:
+
+var claims = new List<Claim>
+{
+    new Claim("userId",    user.Id.ToString()),
+    new Claim("companyId", user.CompanyId.ToString()),  // ← ADD THIS
+    new Claim(ClaimTypes.Role, user.Role),
+    new Claim(ClaimTypes.Name, user.Username),
+    new Claim(ClaimTypes.Email, user.Email)
+};
+
+--- 4.4 UPDATE: Program.cs — register TenantService ---
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantService, TenantService>();
+
+--- 4.5 UPDATE: ALL 23 CONTROLLERS ---
+Inject ITenantService and replace ALL hardcoded CompanyId = 1:
+
+BEFORE (broken):
+public class EmployeesController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    public EmployeesController(AppDbContext db) { _db = db; }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var employees = await _db.Employees
+            .Where(e => e.CompanyId == 1)  // ← hardcoded BUG
+            .ToListAsync();
+        return Ok(employees);
+    }
+}
+
+AFTER (correct):
+public class EmployeesController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly ITenantService _tenant;
+
+    public EmployeesController(AppDbContext db, ITenantService tenant)
+    {
+        _db = db;
+        _tenant = tenant;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var companyId = _tenant.GetCompanyId(); // ← from JWT
+        var employees = await _db.Employees
+            .Where(e => e.CompanyId == companyId)  // ← tenant-scoped
+            .ToListAsync();
+        return Ok(employees);
+    }
+}
+
+Apply this pattern to ALL controllers:
+  EmployeesController      — GetAll, GetById, Create, Update, Delete, GetDocuments, GetAssets
+  DepartmentsController    — GetAll, Create, Update, Delete
+  JobTitlesController      — GetAll, Create, Update, Delete
+  AttendanceController     — GetAll, ClockIn, ClockOut, GetSummary
+  LeaveController          — GetRequests, GetBalances, Approve, Reject, GetTypes, GetPolicies
+  OvertimeController       — GetAll, Approve, Reject
+  PayrollController        — GetRuns, GetPayslips, ApproveRun, GetPayslip
+  DisciplinaryController   — GetAll, Create, Update
+  ResignationController    — GetAll, Submit, Acknowledge, Complete
+  ClearanceController      — GetAll, Create, UpdateStep
+  ComplianceController     — GetOverview, GetAlerts, UpdateStatus
+  SalaryAdvancesController — GetAll, Create, Approve, Reject
+  AssetsController         — GetAll, Create, Assign, Return
+  DocumentsController      — GetAll, GetExpiring, Create, Delete
+  ReportsController        — Headcount, PayrollSummary, Turnover, Leave
+  DashboardController      — GetDashboard (all 6 role variants)
+  NotificationsController  — GetAll, MarkRead, MarkAllRead
+  UsersController          — GetAll, Create, UpdateRole (scoped to company)
+  ConfigController         — GetConfig, UpdateConfig (per company)
+  PreEmploymentController  — GetAll, Create, Update
+
+SPECIAL CASE — SuperAdmin controller (new):
+SuperAdmin can see ALL companies. Do NOT apply tenant filter:
+
+[Authorize(Roles = "SuperAdmin")]
+public class AdminController : ControllerBase
+{
+    [HttpGet("companies")]
+    public async Task<IActionResult> GetAllCompanies()
+    {
+        // SuperAdmin sees all — NO tenant filter
+        var companies = await _db.Companies
+            .Where(c => !c.IsDeleted)
+            .ToListAsync();
+        return Ok(companies);
+    }
+
+    [HttpGet("companies/{id}/stats")]
+    public async Task<IActionResult> GetCompanyStats(int id)
+    {
+        var stats = new {
+            EmployeeCount = await _db.Employees.CountAsync(e => e.CompanyId == id && !e.IsDeleted),
+            ActiveUsers = await _db.Users.CountAsync(u => u.CompanyId == id && u.IsActive),
+            LastLogin = await _db.Users.Where(u => u.CompanyId == id)
+                            .MaxAsync(u => (DateTime?)u.LastLoginAt)
+        };
+        return Ok(stats);
+    }
+}
+
+--- 4.6 CREATE: Tenant Validation Middleware ---
+File: Middleware/TenantValidationMiddleware.cs
+
+Validates that the companyId in JWT belongs to an active, non-expired company:
+
+public class TenantValidationMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public TenantValidationMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context, AppDbContext db)
+    {
+        // Skip for auth endpoints
+        if (context.Request.Path.StartsWithSegments("/api/auth") ||
+            context.Request.Path.StartsWithSegments("/api/register"))
+        {
+            await _next(context);
+            return;
+        }
+
+        // Skip if not authenticated
+        if (!context.User.Identity?.IsAuthenticated ?? true)
+        {
+            await _next(context);
+            return;
+        }
+
+        // SuperAdmin bypasses tenant validation
+        if (context.User.IsInRole("SuperAdmin"))
+        {
+            await _next(context);
+            return;
+        }
+
+        // Extract companyId from JWT
+        var companyIdClaim = context.User.FindFirst("companyId")?.Value;
+        if (!int.TryParse(companyIdClaim, out var companyId))
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsJsonAsync(new { error = "Invalid tenant" });
+            return;
+        }
+
+        // Validate company is active
+        var company = await db.Companies
+            .FirstOrDefaultAsync(c => c.Id == companyId && c.IsActive && !c.IsDeleted);
+
+        if (company == null)
+        {
+            context.Response.StatusCode = 403;
+            await context.Response.WriteAsJsonAsync(new {
+                error = "الشركة غير نشطة أو غير موجودة",
+                code = "TENANT_INACTIVE"
+            });
+            return;
+        }
+
+        // Check subscription expiry
+        if (company.PlanExpiryDate.HasValue && company.PlanExpiryDate < DateOnly.FromDateTime(DateTime.Today))
+        {
+            context.Response.StatusCode = 402;
+            await context.Response.WriteAsJsonAsync(new {
+                error = "انتهت صلاحية اشتراك شركتك. يرجى التواصل مع الإدارة.",
+                code = "SUBSCRIPTION_EXPIRED"
+            });
+            return;
+        }
+
+        await _next(context);
+    }
+}
+
+Register in Program.cs:
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<TenantValidationMiddleware>(); // AFTER auth
+
+--- 4.7 ADD: Company Registration endpoint (public) ---
+POST /api/register/company
+
+[AllowAnonymous]
+[HttpPost("/api/register/company")]
+public async Task<IActionResult> RegisterCompany([FromBody] CompanyRegistrationDto dto)
+{
+    // 1. Check email not already used
+    if (await db.Users.AnyAsync(u => u.Email == dto.AdminEmail))
+        return Conflict(new { error = "البريد الإلكتروني مستخدم مسبقاً" });
+
+    // 2. Create company
+    var company = new Company {
+        NameAr = dto.CompanyNameAr,
+        NameEn = dto.CompanyNameEn,
+        PlanType = "trial",
+        MaxEmployees = 10,
+        PlanExpiryDate = DateOnly.FromDateTime(DateTime.Today.AddDays(30)),
+        AdminEmail = dto.AdminEmail,
+        IsActive = true
+    };
+    db.Companies.Add(company);
+    await db.SaveChangesAsync();
+
+    // 3. Create HR Admin user for this company
+    var user = new User {
+        CompanyId = company.Id,
+        Username = dto.AdminEmail.Split('@')[0],
+        Email = dto.AdminEmail,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.TempPassword),
+        Role = "HR",
+        IsActive = true,
+        MustChangePassword = true
+    };
+    db.Users.Add(user);
+
+    // 4. Seed default data for new company
+    await SeedDefaultCompanyData(company.Id);
+
+    await db.SaveChangesAsync();
+
+    return Ok(new {
+        message = "تم إنشاء حسابك بنجاح. يمكنك الآن تسجيل الدخول.",
+        companyId = company.Id,
+        username = user.Username
+    });
+}
+
+private async Task SeedDefaultCompanyData(int companyId)
+{
+    // Default leave types (Jordan law)
+    var leaveTypes = new[] {
+        new LeaveType { CompanyId = companyId, NameAr = "سنوية", NameEn = "Annual", DaysPerYear = 14, IsPaid = true },
+        new LeaveType { CompanyId = companyId, NameAr = "مرضية", NameEn = "Sick", DaysPerYear = 14, IsPaid = true, RequiresMedical = true },
+        new LeaveType { CompanyId = companyId, NameAr = "أمومة", NameEn = "Maternity", DaysPerYear = 70, IsPaid = true, Gender = "Female" },
+        new LeaveType { CompanyId = companyId, NameAr = "طارئة", NameEn = "Emergency", DaysPerYear = 3, IsPaid = true },
+    };
+    db.LeaveTypes.AddRange(leaveTypes);
+
+    // Default department
+    db.Departments.Add(new Department { CompanyId = companyId, NameAr = "الإدارة العامة", NameEn = "General Management" });
+
+    // Default system config
+    var configs = new[] {
+        new SystemConfiguration { CompanyId = companyId, Key = "SSC_EMPLOYEE_RATE", Value = "0.075" },
+        new SystemConfiguration { CompanyId = companyId, Key = "SSC_EMPLOYER_RATE", Value = "0.1425" },
+        new SystemConfiguration { CompanyId = companyId, Key = "DISCIPLINARY_WINDOW_DAYS", Value = "14" },
+    };
+    db.SystemConfigurations.AddRange(configs);
+
+    await Task.CompletedTask;
+}
+
+═══════════════════════════════════════════════════════════════
+PART 5 — ANGULAR FRONTEND CHANGES
+═══════════════════════════════════════════════════════════════
+
+--- 5.1 UPDATE: AuthService — store companyId from JWT ---
+File: core/services/auth.service.ts
+
+After successful login, decode JWT and store companyId:
+
+interface JwtPayload {
+  userId: number;
+  companyId: number;   // ← add this
+  role: string;
+  name: string;
+  email: string;
+  exp: number;
+}
+
+export class AuthService {
+  private currentUser$ = new BehaviorSubject<JwtPayload | null>(null);
+
+  login(credentials: {username: string, password: string}): Observable<any> {
+    return this.http.post<{accessToken: string, refreshToken: string}>(
+      '/api/auth/login', credentials
+    ).pipe(
+      tap(response => {
+        localStorage.setItem('accessToken', response.accessToken);
+        localStorage.setItem('refreshToken', response.refreshToken);
+
+        // Decode JWT to get user info including companyId
+        const payload = this.decodeToken(response.accessToken);
+        this.currentUser$.next(payload);
+      })
+    );
+  }
+
+  private decodeToken(token: string): JwtPayload {
+    const base64 = token.split('.')[1];
+    const decoded = JSON.parse(atob(base64));
+    return {
+      userId:    decoded['userId'],
+      companyId: decoded['companyId'],  // ← extract
+      role:      decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'],
+      name:      decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'],
+      email:     decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'],
+      exp:       decoded['exp']
+    };
+  }
+
+  get companyId(): number {
+    return this.currentUser$.value?.companyId ?? 0;
+  }
+
+  get currentCompany$(): Observable<JwtPayload | null> {
+    return this.currentUser$.asObservable();
+  }
+}
+
+--- 5.2 UPDATE: API Interceptor — companyId is in JWT (auto-sent) ---
+No change needed to interceptor. The JWT Bearer token already contains
+companyId. Backend reads it from there. No need to send X-Company-Id header.
+
+--- 5.3 UPDATE: Role Access Service — add SuperAdmin company selector ---
+File: core/services/role-access.service.ts
+
+SuperAdmin sees a company switcher in the top bar.
+When SuperAdmin selects a company, it stores selectedCompanyId
+and passes it as query param for admin-level calls.
+
+--- 5.4 ADD: Company Registration page (/register) ---
+File: features/auth/register/
+
+Public page (no auth required):
+Layout: Same split-screen as login but with multi-step form:
+
+Step 1: بيانات الشركة
+  - اسم الشركة بالعربي*
+  - اسم الشركة بالإنجليزي*
+  - القطاع (industry dropdown)
+  - عدد الموظفين (1-10 / 11-50 / 51-200 / 200+)
+
+Step 2: بيانات المسؤول
+  - الاسم الأول*
+  - اسم العائلة*
+  - البريد الإلكتروني* (will be login username)
+  - رقم الهاتف*
+  - كلمة المرور المؤقتة* (auto-generate button)
+
+Step 3: تأكيد
+  Review summary
+  Terms acceptance checkbox: "أوافق على شروط الاستخدام وسياسة الخصوصية"
+  [إنشاء الحساب] button
+
+Success state:
+  ✅ تم إنشاء حساب شركتك بنجاح!
+  تجربة مجانية: 30 يوماً | حتى 10 موظفين
+  [تسجيل الدخول الآن]
+
+Add to app.routes.ts:
+{ path: 'register', component: RegisterComponent, canActivate: [guestGuard] }
+
+Add link on login page: "شركة جديدة؟ سجّل مجاناً →"
+
+--- 5.5 ADD: SuperAdmin Dashboard — Company Management ---
+File: features/dashboard/super-admin/
+
+This is the ONLY view SuperAdmin sees (no HR/payroll operations):
+
+Page: /dashboard (when role = SuperAdmin)
+
+Header: "لوحة إدارة المنصة — ZenJO"
+
+TOP STATS (4 cards):
+  - إجمالي الشركات: XX
+  - شركات نشطة: XX
+  - إجمالي الموظفين عبر المنصة: XXX
+  - اشتراكات تنتهي هذا الشهر: X
+
+COMPANIES TABLE (main content):
+Columns:
+  الشركة | القطاع | الموظفون | الباقة | انتهاء الاشتراك | آخر دخول | الحالة | إجراءات
+
+Row actions:
+  [تسجيل الدخول بصلاحياتهم] — impersonate (see below)
+  [تعديل الباقة]
+  [تمديد الاشتراك]
+  [تعطيل]
+  [عرض الإحصاءات]
+
+COMPANY DETAIL DRAWER (right slide-in):
+  Company name + logo
+  Tabs:
+    الإحصاءات: employees, active users, last 30 days activity
+    الاشتراك: plan, expiry, payment history
+    المستخدمون: list of users in this company
+    الإجراءات: extend, upgrade, suspend
+
+--- 5.6 ADD: Company Impersonation (SuperAdmin only) ---
+SuperAdmin can "enter" any company to troubleshoot/support:
+
+Backend endpoint:
+POST /api/admin/impersonate/{companyId}
+[Authorize(Roles = "SuperAdmin")]
+→ Returns a temporary token with companyId = targetCompanyId, role = "HR"
+→ Token has short expiry: 2 hours
+→ Has extra claim: "impersonatedBy": superAdminId
+
+Frontend:
+When impersonating:
+  - Orange banner at top: "أنت تتصفح بصلاحيات [Company Name] — [إنهاء الانتقال]"
+  - All API calls use impersonation token
+  - Click "إنهاء الانتقال" → return to SuperAdmin dashboard
+
+--- 5.7 ADD: Subscription Expired Screen ---
+When API returns 402 (subscription expired):
+  Full-page overlay (cannot dismiss):
+  
+  ⚠️ انتهت صلاحية اشتراككم
+  
+  "انتهت صلاحية اشتراك شركة [Name] بتاريخ [Date].
+   للاستمرار في استخدام ZenJO، يرجى تجديد الاشتراك."
+  
+  [تواصل معنا على WhatsApp] [إرسال بريد إلكتروني]
+  
+  Show this in: ErrorInterceptor when status === 402
+
+--- 5.8 ADD: Plan Limits Enforcement ---
+When HR tries to add employee beyond MaxEmployees:
+
+Frontend check before form submit:
+  if (currentEmployeeCount >= company.maxEmployees) {
+    show dialog:
+    "لقد وصلتم إلى الحد الأقصى لعدد الموظفين في باقتكم (50 موظف).
+     لإضافة المزيد، يرجى الترقية إلى الباقة الاحترافية."
+    [ترقية الباقة] [إغلاق]
+  }
+
+Backend validation (in EmployeesController.Create):
+  var company = await db.Companies.FindAsync(companyId);
+  var currentCount = await db.Employees.CountAsync(e => e.CompanyId == companyId && !e.IsDeleted);
+  if (currentCount >= company.MaxEmployees)
+      return StatusCode(403, new { error = "تجاوزتم الحد الأقصى للموظفين في باقتكم", code = "PLAN_LIMIT_EXCEEDED" });
+
+═══════════════════════════════════════════════════════════════
+PART 6 — PLAN TIERS DEFINITION
+═══════════════════════════════════════════════════════════════
+
+Implement these 4 plans. Store in SystemConfigurations or hardcode in backend:
+
+PLAN: TRIAL (تجريبي)
+  Duration: 30 days from registration
+  MaxEmployees: 10
+  Modules: Core HR + Leave + Attendance + Basic Payroll
+  Price: Free
+  Support: Community only
+
+PLAN: STARTER (مبتدئ)
+  Duration: Annual subscription
+  MaxEmployees: 50
+  Modules: Trial modules + Overtime + Documents + Assets
+  Price: 99 JOD/month
+  Support: Email, 2 business days
+
+PLAN: PROFESSIONAL (احترافي)
+  Duration: Annual subscription
+  MaxEmployees: 200
+  Modules: Starter + Performance + Recruitment (ZenATS) + Reports + Compliance + Disciplinary + Clearance
+  Price: 199 JOD/month
+  Support: Priority email + phone, 1 business day
+
+PLAN: ENTERPRISE (مؤسسي)
+  Duration: Annual or custom
+  MaxEmployees: Unlimited
+  Modules: All modules + Custom reports + API access + Dedicated support
+  Price: Custom (contact us)
+  Support: Dedicated account manager
+
+Table: plan_feature_gates
+  PlanType | FeatureKey | IsAllowed
+  trial    | recruitment | 0
+  trial    | performance | 0
+  trial    | reports_advanced | 0
+  starter  | recruitment | 0
+  starter  | performance | 0
+  professional | recruitment | 1
+  professional | performance | 1
+  enterprise | all | 1
+
+Feature gate check in frontend:
+  if (!planFeatureService.isAllowed('recruitment')) {
+    // Show "ترقية مطلوبة" overlay instead of the module
+  }
+
+═══════════════════════════════════════════════════════════════
+PART 7 — MULTI-COMPANY SPECIFIC UI ADDITIONS
+═══════════════════════════════════════════════════════════════
+
+--- 7.1 Company Logo in Header ---
+Each company has their own logo (stored in LogoUrl column).
+Show company logo in the sidebar header (replace "ZenJO" text with company logo/name).
+Fallback: company initials in colored circle if no logo.
+
+--- 7.2 Company Name in Page Title ---
+<title>{{ companyName }} — ZenJO HRMS</title>
+
+--- 7.3 Company Profile Page (/settings/company) ---
+UPGRADED from current settings to include:
+  - Company logo upload (with preview)
+  - Primary brand color picker (hex input)
+  - Plan info card:
+    ┌─────────────────────────────────────────┐
+    │  باقتكم الحالية: احترافي               │
+    │  تنتهي في: 31 ديسمبر 2025              │
+    │  الموظفون: 47 / 200                     │
+    │  ████████████████████░░░░  47/200       │
+    │  [ترقية الباقة] [تجديد الاشتراك]        │
+    └─────────────────────────────────────────┘
+  - SSC registration number
+  - Tax registration number
+  - Work week configuration (Sun-Thu default for Jordan)
+
+--- 7.4 Multi-Company Data Isolation Test ---
+Add a test/verification checklist in AdminController:
+
+GET /api/admin/isolation-check
+Returns JSON report:
+{
+  "companiesWithCrossData": [],   // should be empty!
+  "tablesChecked": 32,
+  "isolationStatus": "CLEAN",
+  "details": {
+    "employees": { "company1": 47, "company2": 12, "company3": 203 },
+    "departments": { "company1": 5, "company2": 2, "company3": 8 }
+    // ...
+  }
+}
+
+═══════════════════════════════════════════════════════════════
+PART 8 — MIGRATION PLAN (SAFE UPGRADE)
+═══════════════════════════════════════════════════════════════
+
+Run these steps IN ORDER to avoid breaking v3.1:
+
+STEP 1: Database upgrades (non-breaking — only ADD columns)
+  ALTER TABLE companies ADD COLUMN IF NOT EXISTS PlanType ...
+  ALTER TABLE companies ADD COLUMN IF NOT EXISTS MaxEmployees ...
+  CREATE TABLE IF NOT EXISTS company_subscriptions ...
+  CREATE TABLE IF NOT EXISTS company_registrations ...
+
+STEP 2: Add TenantService + middleware (no controller changes yet)
+  - Create ITenantService + TenantService
+  - Create TenantValidationMiddleware
+  - Register both in Program.cs
+  - VERIFY existing calls still work (companyId = 1 in JWT)
+
+STEP 3: Update JWT token to include companyId
+  - Update AuthController to add companyId claim
+  - Test login: token now includes companyId
+  - VERIFY all existing 19 endpoints still work
+
+STEP 4: Update controllers ONE BY ONE
+  - Start with EmployeesController (most important)
+  - Test after each controller
+  - If any breaks, rollback that controller only
+
+STEP 5: Seed company 2 and company 3 data
+  - Add 2 more companies + users + employees
+  - Test: login as hr@nujoom.jo → can ONLY see company 2 data
+  - Test: login as hr@jordantech.jo → can ONLY see company 1 data
+
+STEP 6: Frontend changes
+  - Update AuthService JWT decoder
+  - Add /register page
+  - Add SuperAdmin dashboard
+  - Test all 6 existing demo accounts still work
+
+STEP 7: Plan limits + feature gates
+  - Add limit checks
+  - Test trial account (10 employee limit)
+
+PRESERVE THESE — DO NOT CHANGE:
+  - MySQL connection string (UNIX socket)
+  - JWT key and expiry settings
+  - All existing controller method signatures
+  - The DateOnly? fix from v3.1 (no HasColumnType on nullable DateOnly)
+  - In-memory mapping pattern for resignations/documents
+  - start.sh workflow
+
+═══════════════════════════════════════════════════════════════
+PART 9 — UPDATED SEED DATA (3 Companies)
+═══════════════════════════════════════════════════════════════
+
+DbSeeder.cs — update to seed 3 companies:
+
+COMPANY 1: Jordan Tech Co. (existing — keep all current data)
+  Users: admin, hr, payroll, manager, employee, recruiter
+  Employees: existing 10+ employees
+  Plan: Professional
+
+COMPANY 2: Al-Nujoom Trading Group (NEW)
+  Users:
+    hr2 / Hr@1234 / Role: HR
+    emp2 / Employee@1234 / Role: Employee
+  Departments: المبيعات, المشتريات, المستودع
+  Job Titles: مندوب مبيعات, مشتري, أمين مستودع
+  Employees: 5 employees (Arabic names, different from company 1)
+    - سلمى عمر البدري — مندوب مبيعات — 800 JOD
+    - خالد يوسف الزعبي — مشتري — 700 JOD
+    - هبة سامي الرشيد — محاسبة — 750 JOD
+    - عمر فواز القضاة — مدير مبيعات — 1,200 JOD
+    - رنا وائل الحوراني — سكرتيرة — 600 JOD
+  Plan: Starter
+
+COMPANY 3: Al-Shifa Jordan Hospital (NEW)
+  Users:
+    hr3 / Hr@1234 / Role: HR
+  Departments: طوارئ, عمليات, مختبر, صيدلية, إدارة
+  Employees: 8 employees (medical staff)
+    - د. محمد سعيد الطراونة — طبيب طوارئ — 2,500 JOD
+    - رنا عيسى البكر — ممرضة — 900 JOD
+    - أحمد فيصل الدباس — صيدلاني — 1,100 JOD
+    - مي ناصر الجابر — إداري — 700 JOD
+    + 4 more
+  Plan: Enterprise
+
+LOGIN TEST MATRIX AFTER UPGRADE:
+  admin / Admin@1234     → SuperAdmin: sees ALL 3 companies
+  hr / Hr@1234           → HR Company 1: sees only company 1 data
+  hr2 / Hr@1234          → HR Company 2: sees only company 2 data
+  hr3 / Hr@1234          → HR Company 3: sees only company 3 data
+  employee / Employee@1234 → Employee Company 1: sees only own data
+  emp2 / Employee@1234   → Employee Company 2: sees only own data
+
+═══════════════════════════════════════════════════════════════
+PART 10 — TESTING CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+After implementation, verify ALL of these:
+
+□ Login as hr → GET /api/employees → returns ONLY company 1 employees
+□ Login as hr2 → GET /api/employees → returns ONLY company 2 employees
+□ Token of company 1 user CANNOT access company 2 data (returns 403/empty)
+□ Login as admin → GET /api/admin/companies → returns ALL 3 companies
+□ POST /api/register/company → creates new company + HR user + default data
+□ Trial company with 10 employees: adding employee #11 → 403 PLAN_LIMIT_EXCEEDED
+□ Expired company login → 402 SUBSCRIPTION_EXPIRED
+□ All 19 original endpoints still return 200 for hr / Hr@1234
+□ All 6 original demo accounts still login successfully
+□ hr.payslips are NOT visible to hr2 (different company)
+□ Impersonation: admin impersonates company 2 → sees company 2 data only
+□ SuperAdmin dashboard shows all 3 companies with correct stats
+□ Company 2 settings show THEIR own SSC number, departments, etc.
+
+═══════════════════════════════════════════════════════════════
+FINAL NOTES
+═══════════════════════════════════════════════════════════════
+
+DO:
+  ✓ Use ITenantService.GetCompanyId() in EVERY controller method
+  ✓ Apply tenant filter on EVERY db query
+  ✓ Keep the DateOnly? fix from v3.1 (no HasColumnType on nullable)
+  ✓ Keep in-memory mapping for resignations and documents
+  ✓ Use IF NOT EXISTS on all ALTER TABLE statements
+  ✓ Pin MySQL version: new MySqlServerVersion(new Version(8, 0, 42))
+  ✓ Keep UNIX socket connection string unchanged
+  ✓ Test after each step before moving to next
+
+DON'T:
+  ✗ Don't change start.sh
+  ✗ Don't change JWT secret key
+  ✗ Don't add HasColumnType("date") to DateOnly? nullable fields
+  ✗ Don't use SQL-level projection on DateOnly? fields
+  ✗ Don't drop or recreate existing tables — only ALTER to add columns
+  ✗ Don't change existing API response shapes (frontend depends on them)
+  ✗ Don't let SuperAdmin queries be filtered by companyId
+
+EXPECTED RESULT:
+  - System supports unlimited companies
+  - Complete data isolation between companies
+  - Original demo (company 1) still works 100%
+  - New registration flow creates ready-to-use company in < 30 seconds
+  - SuperAdmin has bird's-eye view of all companies

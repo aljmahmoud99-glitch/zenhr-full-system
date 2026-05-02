@@ -1,0 +1,81 @@
+<section class="z-page settings-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ lang === 'ar' ? 'تهيئة النظام' : 'System Configuration' }}</span>
+      <h1 class="z-title">{{ lang === 'ar' ? 'الإعدادات' : 'Settings' }}</h1>
+      <p class="z-body">
+        {{ lang === 'ar'
+          ? 'إدارة إعدادات الحضور والرواتب والامتثال من مصدر واحد'
+          : 'Manage attendance, payroll, HR, and compliance settings from one source of truth' }}
+      </p>
+    </div>
+
+    <button class="z-btn-primary" type="button" (click)="saveAll()" [disabled]="saving()">
+      <span class="material-icons">save</span>
+      {{ saving() ? (lang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes') }}
+    </button>
+  </header>
+
+  <div class="alert alert-success" *ngIf="successMsg()">{{ successMsg() }}</div>
+  <div class="alert alert-danger" *ngIf="errorMsg()">{{ errorMsg() }}</div>
+
+  <section class="settings-shell" *ngIf="!loading(); else loadingTpl">
+    <aside class="settings-nav z-card">
+      <button
+        *ngFor="let cat of categories"
+        type="button"
+        class="settings-tab"
+        [class.active]="activeCategory() === cat.key"
+        (click)="activeCategory.set(cat.key)">
+        <span class="tab-copy">
+          <span class="material-icons">{{ cat.icon }}</span>
+          <span>
+            <strong>{{ lang === 'ar' ? cat.labelAr : cat.labelEn }}</strong>
+            <small>{{ categoryCount(cat.key) }} {{ lang === 'ar' ? 'حقل' : 'fields' }}</small>
+          </span>
+        </span>
+      </button>
+    </aside>
+
+    <div class="z-card settings-panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="z-heading">{{ currentCategoryLabel() }}</h2>
+          <p class="z-small">{{ lang === 'ar' ? 'التغييرات هنا تنعكس مباشرة على سلوك النظام' : 'Changes here directly affect system behavior' }}</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="setting-card" *ngFor="let cfg of filteredConfigs()">
+          <div class="setting-copy">
+            <label class="z-label">{{ fieldLabel(cfg) }}</label>
+            <div class="setting-key">{{ cfg.key }}</div>
+          </div>
+
+          <div class="setting-input">
+            <label class="toggle" *ngIf="isBoolean(cfg); else textInput">
+              <input type="checkbox" [checked]="editValues[cfg.key] === 'true'" (change)="setBooleanValue(cfg.key, $any($event.target).checked)" [disabled]="!cfg.isEditable">
+              <span>{{ editValues[cfg.key] === 'true' ? (lang === 'ar' ? 'مفعل' : 'Enabled') : (lang === 'ar' ? 'معطل' : 'Disabled') }}</span>
+            </label>
+
+            <ng-template #textInput>
+              <textarea *ngIf="isLongText(cfg); else shortInput" class="z-input textarea" rows="3" [(ngModel)]="editValues[cfg.key]" [readOnly]="!cfg.isEditable"></textarea>
+            </ng-template>
+
+            <ng-template #shortInput>
+              <input class="z-input" type="text" [(ngModel)]="editValues[cfg.key]" [readOnly]="!cfg.isEditable">
+            </ng-template>
+
+            <span class="read-only" *ngIf="!cfg.isEditable">{{ lang === 'ar' ? 'للقراءة فقط' : 'Read only' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <ng-template #loadingTpl>
+    <section class="z-card loading-card">
+      <div class="spinner"></div>
+    </section>
+  </ng-template>
+</section>

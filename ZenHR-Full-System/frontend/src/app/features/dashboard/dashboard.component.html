@@ -1,0 +1,348 @@
+﻿<section class="z-page dashboard-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <div class="dashboard-hero" [class.rtl-layout]="lang === 'ar'">
+    <div class="hero-content" [class.rtl-layout]="lang === 'ar'">
+      <div class="hero-copy" [class.rtl-layout]="lang === 'ar'">
+        <h2 class="hero-title">{{ lang === 'ar' ? headerTitle().ar : headerTitle().en }}</h2>
+        <p class="hero-subtitle">{{ lang === 'ar' ? headerSubtitle().ar : headerSubtitle().en }}</p>
+      </div>
+
+      <div class="hero-actions-cluster" [class.rtl-layout]="lang === 'ar'" *ngIf="heroActions().length > 0">
+        <a
+          *ngFor="let action of heroActions()"
+          [routerLink]="action.route"
+          class="hero-action"
+          [class.primary]="action.variant === 'primary'"
+          [class.secondary]="action.variant === 'secondary'">
+          <span class="material-icons">{{ action.icon }}</span>
+          <span>{{ lang === 'ar' ? action.labelAr : action.labelEn }}</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="loading()">
+    <app-skeleton-kpi-cards [count]="3" />
+    <div class="dashboard-main-grid">
+      <div class="dashboard-column-wide">
+        <app-skeleton-card />
+        <app-skeleton-card />
+      </div>
+      <div class="dashboard-column-side">
+        <app-skeleton-card />
+        <app-skeleton-card />
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="!loading()">
+    <ng-container *ngIf="role !== 'employee'; else employeeDashboardView">
+    <div class="dashboard-card-grid">
+      <a
+        *ngFor="let card of topCards()"
+        class="dashboard-stat-card z-card"
+        [class.is-link]="card.route"
+        [class.tone-emerald]="card.tone === 'emerald'"
+        [class.tone-blue]="card.tone === 'blue'"
+        [class.tone-amber]="card.tone === 'amber'"
+        [class.tone-danger]="card.tone === 'danger'"
+        [class.tone-purple]="card.tone === 'purple'"
+        [class.tone-gold]="card.tone === 'gold'"
+        [routerLink]="card.route || null">
+        <div class="stat-icon-shell">
+          <span class="material-icons">{{ icon(card.icon) }}</span>
+        </div>
+        <div class="stat-copy">
+          <span class="stat-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+          <strong class="stat-value">{{ card.value }}</strong>
+          <span class="stat-meta" *ngIf="card.metaAr || card.metaEn">{{ lang === 'ar' ? card.metaAr : card.metaEn }}</span>
+        </div>
+        <div class="stat-bar"></div>
+      </a>
+    </div>
+
+    <div class="dashboard-main-grid">
+      <div class="dashboard-column-wide">
+        <div class="z-card dashboard-panel" *ngIf="role === 'hradmin' || role === 'superadmin' || role === 'payrolladmin' || role === 'manager'">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('طھظˆط²ظٹط¹ ط§ظ„ظ…ظˆط¸ظپظٹظ† ط­ط³ط¨ ط§ظ„ظ‚ط³ظ…', 'Headcount by department') }}</h3>
+              <p class="z-small">{{ t('طµظˆط±ط© ط³ط±ظٹط¹ط© ظ„ظ„ظ‚ظˆظ‰ ط§ظ„ط¹ط§ظ…ظ„ط© ط§ظ„ط­ط§ظ„ظٹط©', 'A quick view of the active workforce mix') }}</p>
+            </div>
+          </div>
+
+          <div *ngIf="deptData().length === 0" class="empty-state">
+            <span class="material-icons empty-icon">dashboard</span>
+            <div class="empty-title">{{ t('ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ظ…طھط§ط­ط© ط¨ط¹ط¯', 'No data available yet') }}</div>
+          </div>
+
+          <div class="dept-list" *ngIf="deptData().length > 0">
+            <div class="dept-row" *ngFor="let dept of deptData()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? dept.nameAr : dept.nameEn }}</span>
+                <span class="dept-count">{{ dept.count }}</span>
+              </div>
+              <div class="dept-bar">
+                <div class="dept-fill" [style.width.%]="(dept.count / maxDept()) * 100"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel" *ngIf="role === 'employee'">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('ط§ط®طھطµط§ط±ط§طھ ط§ظ„ط®ط¯ظ…ط© ط§ظ„ط°ط§طھظٹط©', 'Self-service shortcuts') }}</h3>
+              <p class="z-small">{{ t('ظƒظ„ ظ…ط§ طھط­طھط§ط¬ظ‡ ظپظٹ ظ…ظƒط§ظ† ظˆط§ط­ط¯', 'Everything you need in one place') }}</p>
+            </div>
+          </div>
+
+          <div class="quick-action-grid">
+            <a routerLink="/app/attendance" class="quick-action-card">
+              <span class="material-icons">schedule</span>
+              <span>{{ t('ط§ظ„ط­ط¶ظˆط± ظˆط§ظ„ط§ظ†طµط±ط§ظپ', 'Attendance') }}</span>
+            </a>
+            <a routerLink="/app/leave" class="quick-action-card">
+              <span class="material-icons">event_note</span>
+              <span>{{ t('ط·ظ„ط¨ ط¥ط¬ط§ط²ط©', 'Leave requests') }}</span>
+            </a>
+            <a routerLink="/app/overtime" class="quick-action-card">
+              <span class="material-icons">more_time</span>
+              <span>{{ t('ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ', 'Overtime') }}</span>
+            </a>
+            <a routerLink="/app/advances" class="quick-action-card">
+              <span class="material-icons">payments</span>
+              <span>{{ t('ط§ظ„ط³ظ„ظپ', 'Advances') }}</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel" *ngIf="role === 'employee' && employeeComplianceSummary()">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('ط­ط§ظ„ط© ط§ظ„ط§ظ…طھط«ط§ظ„ ط§ظ„ط®ط§طµط© ط¨ظٹ', 'My compliance status') }}</h3>
+              <p class="z-small">{{ t('ظ…ظ„ط®طµ ط§ظ„ظˆط«ط§ط¦ظ‚ ط§ظ„ظ…ط·ظ„ظˆط¨ط© ظˆط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ظ…ط±طھط¨ط·ط© ط¨ظ‡ط§', 'A quick summary of required documents and related alerts') }}</p>
+            </div>
+            <a [routerLink]="['/app/employees', auth.currentUser()?.employeeId]" class="panel-link">{{ t('ظپطھط­ ط§ظ„ظ…ظ„ظپ', 'Open profile') }}</a>
+          </div>
+
+          <div class="compliance-mini-grid">
+            <div class="mini-status-card">
+              <span class="mini-label">{{ t('ط³ط§ط±ظٹ', 'Valid') }}</span>
+              <strong>{{ employeeComplianceSummary()?.summary?.valid || 0 }}</strong>
+            </div>
+            <div class="mini-status-card warning">
+              <span class="mini-label">{{ t('ظ‚ط±ظٹط¨', 'Soon') }}</span>
+              <strong>{{ employeeComplianceSummary()?.summary?.expiringSoon || 0 }}</strong>
+            </div>
+            <div class="mini-status-card danger">
+              <span class="mini-label">{{ t('ط­ط±ط¬', 'Critical') }}</span>
+              <strong>{{ (employeeComplianceSummary()?.summary?.expired || 0) + (employeeComplianceSummary()?.summary?.missing || 0) }}</strong>
+            </div>
+          </div>
+
+          <div class="stack-list" *ngIf="employeeComplianceSummary()?.alerts?.length > 0">
+            <div class="stack-item" *ngFor="let alert of employeeComplianceSummary()?.alerts">
+              <div class="stack-item-main">
+                <span class="stack-item-title">{{ lang === 'ar' ? alert.labelAr : alert.labelEn }}</span>
+                <span class="stack-item-subtitle">{{ alert.daysRemaining == null ? t('ظٹط±ط¬ظ‰ ط§ط³طھظƒظ…ط§ظ„ ط§ظ„ظˆط«ظٹظ‚ط©', 'Please complete this document') : (alert.daysRemaining < 0 ? t('ط§ظ„ظˆط«ظٹظ‚ط© ظ…ظ†طھظ‡ظٹط©', 'Document expired') : t('ظٹظ†طھظ‡ظٹ ظ‚ط±ظٹط¨ط§ظ‹', 'Expiring soon')) }}</span>
+              </div>
+              <span class="z-badge" [class.danger]="alert.status === 'expired' || alert.status === 'missing'" [class.warning]="alert.status === 'expiring_soon'">
+                {{ alert.status === 'missing' ? t('ظ…ظپظ‚ظˆط¯', 'Missing') : alert.status === 'expired' ? t('ظ…ظ†طھظ‡ظٹ', 'Expired') : t('ظ‚ط±ظٹط¨', 'Soon') }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel" *ngIf="role === 'manager' && managerQueue().length > 0">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('ط·ظ„ط¨ط§طھ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚طھظƒ', 'Approval queue') }}</h3>
+              <p class="z-small">{{ t('ط£ظ‚ط±ط¨ ط§ظ„ط·ظ„ط¨ط§طھ ط§ظ„طھظٹ طھط­طھط§ط¬ ظ‚ط±ط§ط±ظƒ ط§ظ„ط¢ظ†', 'The nearest requests that need your decision now') }}</p>
+            </div>
+            <a routerLink="/app/leave" class="panel-link">{{ t('ظپطھط­ ط§ظ„ط·ظ„ط¨ط§طھ', 'Open requests') }}</a>
+          </div>
+
+          <div class="stack-list">
+            <div class="stack-item" *ngFor="let item of managerQueue()">
+              <div class="stack-item-main">
+                <span class="stack-item-title">{{ item.employeeName }}</span>
+                <span class="stack-item-subtitle">{{ item.details }}</span>
+              </div>
+              <span class="z-badge" [class.warning]="item.kind === 'leave'" [class.purple]="item.kind === 'overtime'">
+                {{ queueBadge(item.kind) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel" *ngIf="recentActivity().length > 0">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('ط¢ط®ط± ط§ظ„ط£ظ†ط´ط·ط©', 'Recent activity') }}</h3>
+              <p class="z-small">{{ t('ط¢ط®ط± ط§ظ„ط£ط­ط¯ط§ط« ط§ظ„ظ…ظ‡ظ…ط© ط¯ط§ط®ظ„ ط§ظ„ظ†ط¸ط§ظ…', 'Latest operational events inside the system') }}</p>
+            </div>
+          </div>
+
+          <div class="activity-feed">
+            <div class="activity-item" *ngFor="let item of recentActivity()">
+              <div class="activity-dot"></div>
+              <div class="activity-copy">
+                <div class="activity-text">{{ activityText(item) }}</div>
+                <div class="activity-time">{{ formatWhen(item.createdAt) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-column-side">
+        <div class="z-card dashboard-panel" *ngIf="complianceAlerts().length > 0">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط§ظ…طھط«ط§ظ„', 'Compliance alerts') }}</h3>
+              <p class="z-small">{{ t('طھظ†ط¨ظٹظ‡ط§طھ طھط­طھط§ط¬ ظ…طھط§ط¨ط¹ط© ظ…ط¨ط§ط´ط±ط©', 'Alerts that need direct action') }}</p>
+            </div>
+            <a routerLink="/app/compliance" class="panel-link">{{ t('ط¹ط±ط¶ ط§ظ„ظƒظ„', 'View all') }}</a>
+          </div>
+
+          <div class="stack-list">
+            <div class="stack-item" *ngFor="let alert of complianceAlerts()">
+              <div class="stack-item-main">
+                <span class="stack-item-title">{{ alert.message }}</span>
+                <span class="stack-item-subtitle">{{ alertText(alert) }}</span>
+              </div>
+              <span class="z-badge" [class.danger]="alert.severity === 'expired'" [class.warning]="alert.severity !== 'expired'">
+                {{ alert.daysRemaining == null ? t('طھظ†ط¨ظٹظ‡', 'Alert') : (alert.daysRemaining <= 0 ? t('ظ…ظ†طھظ‡ظٹ', 'Expired') : t('ظ‚ط±ظٹط¨', 'Soon')) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel" *ngIf="upcomingProbations().length > 0">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('طھظ†طھظ‡ظٹ ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط© ظ‚ط±ظٹط¨ظ‹ط§', 'Probation ending soon') }}</h3>
+              <p class="z-small">{{ t('ظ…ظˆط¸ظپظˆظ† ظٹط­طھط§ط¬ظˆظ† ظ‚ط±ط§ط± طھط«ط¨ظٹطھ ط£ظˆ ظ…طھط§ط¨ط¹ط©', 'Employees needing confirmation or review') }}</p>
+            </div>
+          </div>
+
+          <div class="stack-list">
+            <div class="stack-item" *ngFor="let item of upcomingProbations()">
+              <div class="stack-item-main">
+                <span class="stack-item-title">{{ item.nameAr }}</span>
+                <span class="stack-item-subtitle">{{ item.deptAr }} â€¢ {{ item.employeeCode }}</span>
+              </div>
+              <span class="z-badge" [class.danger]="probationTone(item.daysRemaining) === 'danger'" [class.warning]="probationTone(item.daysRemaining) === 'amber'" [class.info]="probationTone(item.daysRemaining) === 'blue'">
+                {{ item.daysRemaining }} {{ t('ظٹظˆظ…', 'days') }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="z-card dashboard-panel">
+          <div class="panel-head">
+            <div>
+              <h3 class="z-heading">{{ t('ظˆطµظˆظ„ ط³ط±ظٹط¹', 'Quick access') }}</h3>
+              <p class="z-small">{{ t('ط§ط®طھطµط§ط±ط§طھ ط­ط³ط¨ ط¯ظˆط±ظƒ ط§ظ„ط­ط§ظ„ظٹ', 'Shortcuts for your current role') }}</p>
+            </div>
+          </div>
+
+          <div class="shortcut-list">
+            <a routerLink="/app/employees" class="shortcut-link" *ngIf="access.canSeePage('/app/employees')">
+              <span class="material-icons">groups</span>
+              <span>{{ t('ط§ظ„ظ…ظˆط¸ظپظˆظ†', 'Employees') }}</span>
+            </a>
+            <a routerLink="/app/payroll/runs" class="shortcut-link" *ngIf="access.canSeePage('/app/payroll/runs')">
+              <span class="material-icons">receipt_long</span>
+              <span>{{ t('ظ…ط³ظٹط±ط§طھ ط§ظ„ط±ظˆط§طھط¨', 'Payroll') }}</span>
+            </a>
+            <a routerLink="/app/leave" class="shortcut-link" *ngIf="access.canSeePage('/app/leave')">
+              <span class="material-icons">event_note</span>
+              <span>{{ t('ط§ظ„ط¥ط¬ط§ط²ط§طھ', 'Leave') }}</span>
+            </a>
+            <a routerLink="/app/overtime" class="shortcut-link" *ngIf="access.canSeePage('/app/overtime')">
+              <span class="material-icons">more_time</span>
+              <span>{{ t('ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ', 'Overtime') }}</span>
+            </a>
+            <a routerLink="/app/reports" class="shortcut-link" *ngIf="access.canSeePage('/app/reports')">
+              <span class="material-icons">bar_chart</span>
+              <span>{{ t('ط§ظ„طھظ‚ط§ط±ظٹط±', 'Reports') }}</span>
+            </a>
+            <a routerLink="/app/forms" class="shortcut-link" *ngIf="access.canSeePage('/app/forms')">
+              <span class="material-icons">description</span>
+              <span>{{ t('ط§ظ„ظ†ظ…ط§ط°ط¬', 'Forms') }}</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    </ng-container>
+  </ng-container>
+
+  <ng-template #employeeDashboardView>
+    <div class="employee-dashboard-shell">
+      <div class="employee-widget-grid">
+        <div
+          class="employee-widget-card z-card"
+          *ngFor="let key of ['attendance', 'requests', 'leave', 'payslip', 'compliance', 'assets']"
+          [class.tone-emerald]="employeeWidgetTone($any(key)) === 'emerald'"
+          [class.tone-amber]="employeeWidgetTone($any(key)) === 'amber'"
+          [class.tone-danger]="employeeWidgetTone($any(key)) === 'danger'"
+          [class.tone-neutral]="employeeWidgetTone($any(key)) === 'neutral'">
+          <div class="employee-widget-head">
+            <div class="employee-widget-title-group">
+              <span class="employee-widget-label">{{ employeeWidgetLabel($any(key)) }}</span>
+              <strong class="employee-widget-value" *ngIf="!employeeWidgetLoadingState($any(key)) && !employeeWidgetErrorState($any(key))">{{ employeeWidgetValue($any(key)) }}</strong>
+              <strong class="employee-widget-value muted" *ngIf="employeeWidgetLoadingState($any(key))">{{ t('Loading...','جارٍ التحميل...') }}</strong>
+              <strong class="employee-widget-value muted" *ngIf="!employeeWidgetLoadingState($any(key)) && employeeWidgetErrorState($any(key))">—</strong>
+            </div>
+            <span class="material-icons employee-widget-icon">{{ employeeWidgetIcon($any(key)) }}</span>
+          </div>
+
+          <p class="employee-widget-meta" *ngIf="!employeeWidgetLoadingState($any(key)) && !employeeWidgetErrorState($any(key)) && hasEmployeeWidgetData($any(key))">
+            {{ employeeWidgetMeta($any(key)) }}
+          </p>
+
+          <p class="employee-widget-meta empty" *ngIf="!employeeWidgetLoadingState($any(key)) && !employeeWidgetErrorState($any(key)) && !hasEmployeeWidgetData($any(key))">
+            {{ employeeWidgetEmptyText($any(key)) }}
+          </p>
+
+          <div class="employee-widget-error" *ngIf="employeeWidgetErrorState($any(key))">
+            <span>{{ employeeWidgetErrorState($any(key)) }}</span>
+            <button type="button" class="z-btn-secondary btn-sm" (click)="retryEmployeeWidget($any(key))">
+              {{ t('Retry', 'إعادة المحاولة') }}
+            </button>
+          </div>
+
+          <a
+            class="employee-widget-link"
+            [routerLink]="employeeWidgetRoute($any(key))"
+            *ngIf="!employeeWidgetErrorState($any(key))">
+            {{ t('Open details', 'عرض التفاصيل') }}
+          </a>
+        </div>
+      </div>
+
+      <div class="z-card dashboard-panel employee-quick-actions-panel">
+        <div class="panel-head">
+          <div>
+            <h3 class="z-heading">{{ t('Quick actions', 'الإجراءات السريعة') }}</h3>
+            <p class="z-small">{{ t('Shortcuts connected directly to your HR modules.', 'اختصارات مرتبطة مباشرة بوحدات الموارد البشرية الخاصة بك.') }}</p>
+          </div>
+        </div>
+
+        <div class="employee-quick-actions-grid">
+          <a
+            *ngFor="let action of employeeQuickActions()"
+            [routerLink]="action.route"
+            class="employee-quick-action">
+            <span class="material-icons">{{ action.icon }}</span>
+            <span>{{ employeeQuickActionLabel(action) }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </ng-template>
+</section>
+
+

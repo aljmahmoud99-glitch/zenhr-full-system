@@ -1,0 +1,273 @@
+You are implementing a new HR feature in ZenJO HRMS for employees in the pre-employment / probation stage.
+
+IMPORTANT:
+Do NOT rebuild the employee module.
+Extend the existing employee list and employee profile experience.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+For HR users, improve the employee list and pre-employment tracking by adding:
+
+1. Employee Profile button in the employee list
+2. Probation / pre-employment progress bar for relevant employees
+3. Alert before probation period ends
+4. Performance evaluations during probation:
+
+   * evaluation after first month
+   * evaluation after second month
+   * final evaluation before confirmation
+
+This must be implemented as a real HR workflow, not just visual placeholders.
+
+═══════════════════════════════════════════════════════
+PART 1 — EMPLOYEE LIST IMPROVEMENT
+═══════════════════════════════════════════════════════
+
+In the HR employee list:
+
+* Add a button next to each employee:
+  "Employee Profile" / "الملف الوظيفي"
+
+When clicked:
+
+* Open employee profile page or drawer
+* Show employee details in a clean structured layout
+
+The profile must include:
+
+* personal info
+* job info
+* department
+* manager
+* employment type
+* hire date
+* probation/pre-employment status
+* uploaded documents
+* related forms if available
+* probation evaluation section
+
+═══════════════════════════════════════════════════════
+PART 2 — PRE-EMPLOYMENT / PROBATION PROGRESS BAR
+═══════════════════════════════════════════════════════
+
+For employees who are still in pre-employment / probation period:
+
+Add a visible progress bar in the employee list next to their name or status.
+
+The progress bar should show:
+
+* start date of probation
+* end date of probation
+* percentage completed
+* days remaining
+
+Examples:
+
+* 25% completed
+* 14 days remaining
+* nearing end of probation
+
+If employee is not in probation, do not show this bar.
+
+Use clear visual states:
+
+* normal
+* warning when nearing end
+* overdue if probation should have been reviewed already
+
+═══════════════════════════════════════════════════════
+PART 3 — ALERT BEFORE PROBATION ENDS
+═══════════════════════════════════════════════════════
+
+Add automatic alert logic for HR:
+
+When probation is close to ending, show alert in:
+
+* employee list
+* employee profile
+* HR dashboard notifications if possible
+
+Suggested warning thresholds:
+
+* 14 days before end
+* 7 days before end
+* overdue after expiry if no final decision recorded
+
+Alert examples:
+
+* "Probation period ends in 14 days"
+* "Probation period ends in 7 days"
+* "Final evaluation is overdue"
+
+Do NOT hardcode only UI text.
+Implement actual date-based logic.
+
+═══════════════════════════════════════════════════════
+PART 4 — PROBATION PERFORMANCE EVALUATION
+═══════════════════════════════════════════════════════
+
+Add a probation evaluation workflow with 3 required evaluations:
+
+1. First evaluation after 1 month
+2. Second evaluation after 2 months
+3. Final evaluation before confirmation / permanent hiring decision
+
+Each evaluation must include these criteria:
+
+* الالتزام / Commitment
+* جودة الشغل / Work Quality
+* التعلم / Learning
+* السلوك / Behavior
+* العمل ضمن فريق / Teamwork
+
+For each criterion:
+
+* allow score input
+* allow optional notes
+
+Also include:
+
+* overall comments
+* evaluator name
+* evaluation date
+* recommendation
+
+Recommendation options:
+
+* continue probation
+* needs improvement
+* confirm employee
+* not recommended
+
+═══════════════════════════════════════════════════════
+PART 5 — EMPLOYEE PROFILE SECTION
+═══════════════════════════════════════════════════════
+
+Inside Employee Profile, create a dedicated section:
+
+"Probation Tracking" / "متابعة فترة ما قبل التعيين"
+
+This section must show:
+
+* probation start date
+* probation end date
+* progress bar
+* days remaining
+* status
+* evaluation timeline
+
+Timeline example:
+
+* Month 1 evaluation: completed / pending
+* Month 2 evaluation: completed / pending
+* Final evaluation: completed / pending
+
+Also allow HR to open each evaluation form from this section.
+
+═══════════════════════════════════════════════════════
+PART 6 — DATA MODEL
+═══════════════════════════════════════════════════════
+
+Implement proper storage for probation evaluations.
+
+If needed, create a table such as:
+
+probation_evaluations
+
+* Id
+* CompanyId
+* EmployeeId
+* EvaluationStage (month1 / month2 / final)
+* EvaluationDate
+* CommitmentScore
+* WorkQualityScore
+* LearningScore
+* BehaviorScore
+* TeamworkScore
+* Notes
+* OverallComments
+* Recommendation
+* EvaluatedBy
+* CreatedAt
+
+Do NOT store this only in frontend state.
+
+═══════════════════════════════════════════════════════
+PART 7 — HR WORKFLOW
+═══════════════════════════════════════════════════════
+
+Expected workflow:
+
+* HR opens employee list
+* HR sees which employees are under probation
+* HR sees progress bar and warning state
+* HR clicks employee profile
+* HR reviews probation tracking
+* HR completes evaluation at month 1 / month 2 / final
+* HR uses final evaluation to support confirmation decision
+
+This must feel like a real HR process.
+
+═══════════════════════════════════════════════════════
+PART 8 — UI / UX REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first
+* RTL support
+* clean HR-style layout
+* progress bar must be visually clear
+* warning badges must stand out
+* evaluations should be easy to fill
+* do not clutter employee list excessively
+
+Recommended UI:
+
+* compact progress bar in employee table
+* profile drawer or profile page
+* evaluation cards or timeline cards
+
+═══════════════════════════════════════════════════════
+PART 9 — ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+Only HR-related roles should manage these evaluations.
+
+HR Admin:
+
+* full access
+
+HR Staff (if exists):
+
+* can view and create evaluations if allowed by system design
+
+Manager:
+
+* can optionally view or participate only if business rules allow
+* do NOT expose full HR controls unless already intended
+
+Employee:
+
+* should not edit probation evaluations
+
+SuperAdmin:
+
+* should not see this as daily operational workflow in main nav
+
+═══════════════════════════════════════════════════════
+FINAL DELIVERABLE
+═══════════════════════════════════════════════════════
+
+Implement:
+
+1. Employee Profile button in employee list
+2. Probation progress bar
+3. Probation ending alerts
+4. 3-stage probation evaluation workflow
+5. Employee profile probation section
+6. backend storage for evaluations
+7. clean Arabic-first UI
+
+Do NOT implement this as mock UI only.
+Build it as a real HR feature connected to employee data.

@@ -1,0 +1,270 @@
+You are implementing a FULL Employee Compliance & Documents Module in ZenJO HRMS.
+
+This is a critical legal and compliance module.
+It must ensure all employee documents are tracked, validated, and enforced across the system.
+
+Do NOT build a simple file upload feature.
+Build a full compliance tracking system.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a Compliance & Documents system where HR can:
+
+* track all employee documents
+* monitor expiration dates
+* enforce compliance rules
+* receive alerts for expiring documents
+* integrate with attendance and payroll restrictions
+
+═══════════════════════════════════════════════════════
+
+1. MAIN ROUTES
+   ═══════════════════════════════════════════════════════
+
+/app/compliance
+/app/compliance/list
+/app/compliance/employee/:id
+/app/compliance/reports
+/app/compliance/settings
+
+═══════════════════════════════════════════════════════
+2) MAIN HR VIEW (TABLE)
+═══════════════════════════════════════════════════════
+
+Create a main table showing:
+
+Columns:
+
+* Employee Name
+* Nationality
+* Work Permit / Visa
+* Medical Certificate
+* Police Clearance
+* National ID
+* Passport
+* Academic Certificate
+* Experience Certificate
+* Personal Photo
+
+Each column shows document status:
+
+* Valid (ساري)
+* Expired (منتهي)
+* Not Approved (غير معتمد)
+* Exists (موجود)
+* Missing (غير موجود)
+
+Table features:
+
+* search by employee name or ID
+* filter by document type
+* filter by status (expired / missing / valid)
+* highlight expired documents in red
+* highlight expiring soon in warning color
+
+═══════════════════════════════════════════════════════
+3) DOCUMENT DETAILS VIEW
+═══════════════════════════════════════════════════════
+
+When clicking any document:
+
+Open modal or side panel showing:
+
+* document preview (PDF / image)
+* issue date
+* expiry date
+* upload / replace document
+* approval status
+* HR notes
+* employee notes
+
+Support:
+
+* versioning (optional advanced)
+* download document
+
+═══════════════════════════════════════════════════════
+4) NON-JORDANIAN EMPLOYEE REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+For non-Jordanian employees, enforce mandatory documents:
+
+* Work Permit / Visa
+* Medical Certificate
+* Police Clearance
+
+Rules:
+
+Work Permit:
+
+* required before employment
+* must track expiry
+* alert 30 days before expiry
+
+Medical Certificate:
+
+* required before hiring
+* renewable (configurable period: 1 or 2 years)
+
+Police Clearance:
+
+* required for new hires
+* renewable based on company/legal policy
+
+System must enforce these requirements.
+
+═══════════════════════════════════════════════════════
+5) ALERTS & NOTIFICATIONS
+═══════════════════════════════════════════════════════
+
+System must generate automatic alerts:
+
+* document expiring in 30 days
+* document expiring in 7 days
+* expired document
+
+Notify:
+
+* employee
+* HR
+* managers (optional)
+
+Channels:
+
+* system notifications
+* email (if available)
+
+═══════════════════════════════════════════════════════
+6) SYSTEM INTEGRATION (CRITICAL)
+═══════════════════════════════════════════════════════
+
+Integrate compliance rules with:
+
+ATTENDANCE:
+
+* if work permit or required document is expired:
+  block check-in OR mark attendance as invalid
+
+PAYROLL:
+
+* prevent salary processing if critical documents are expired
+
+EMPLOYEE PROFILE:
+
+* show compliance status clearly
+* show document status summary
+
+═══════════════════════════════════════════════════════
+7) REPORTS
+═══════════════════════════════════════════════════════
+
+Build reports:
+
+* employees by document type
+* employees with expiring documents (next 30 days)
+* expired documents report
+* compliance status by department
+
+Reports must support:
+
+* filters
+* export (PDF / Excel)
+
+═══════════════════════════════════════════════════════
+8) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+documents:
+
+* Id
+* CompanyId
+* EmployeeId
+* DocumentType
+* FileUrl
+* IssueDate
+* ExpiryDate
+* Status (valid / expired / not approved)
+* Notes
+* UploadedBy
+* CreatedAt
+
+document_types:
+
+* Id
+* Name
+* IsRequired
+* IsForNonJordanianOnly
+* RenewalPeriodMonths
+
+═══════════════════════════════════════════════════════
+9) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full access
+
+HR Staff:
+
+* manage documents and compliance
+
+Employee:
+
+* upload own documents
+* view own documents
+
+Manager:
+
+* view team compliance summary only
+
+Payroll Admin:
+
+* read-only access for payroll validation
+
+SuperAdmin:
+
+* no operational involvement
+
+═══════════════════════════════════════════════════════
+10) AUDIT TRAIL
+═══════════════════════════════════════════════════════
+
+Track:
+
+* who uploaded document
+* who updated document
+* when it was changed
+
+This is required for compliance.
+
+═══════════════════════════════════════════════════════
+11) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* grid-style document table
+* color-coded statuses
+* quick filters for expired/missing
+* clear document icons
+* clean modal preview
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The compliance module must behave like a real legal HR system.
+
+NOT just file storage.
+
+It must:
+
+* enforce rules
+* track expirations
+* block system actions when needed
+* alert users
+* integrate with attendance and payroll
+* provide full visibility to HR
+
+Build it as a compliance enforcement engine.

@@ -1,0 +1,302 @@
+You are implementing a FULL Disciplinary & Violations Module in ZenJO HRMS.
+
+This is a core HR compliance module.
+It must be legally structured, traceable, and connected to employee lifecycle.
+
+Do NOT build a simple form.
+Build a complete case management system.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a Disciplinary System where HR can:
+
+* Record violations (cases)
+* Track investigation
+* Apply progressive disciplinary actions
+* Link violations to employee history
+* Ensure legal compliance and documentation
+
+═══════════════════════════════════════════════════════
+
+1. MAIN MODULE ROUTE
+   ═══════════════════════════════════════════════════════
+
+/app/disciplinary
+
+Sub routes:
+
+/app/disciplinary/cases
+/app/disciplinary/create
+/app/disciplinary/:id
+/app/disciplinary/settings (violation types config)
+
+═══════════════════════════════════════════════════════
+2) CASE LIST (MAIN SCREEN)
+═══════════════════════════════════════════════════════
+
+Display a table with:
+
+* Employee Name
+* Employee ID
+* Violation Type
+* Violation Date
+* Action Taken
+* Status (Open / Closed)
+
+Features:
+
+* Search
+* Filter by violation type
+* Filter by status
+* Filter by date
+* Click row → open case details
+
+═══════════════════════════════════════════════════════
+3) VIOLATION TYPES (CONFIGURABLE)
+═══════════════════════════════════════════════════════
+
+Create configurable violation types.
+
+Default values:
+
+* Late Attendance (تأخير متكرر)
+* Absence Without Permission (غياب بدون إذن)
+* Misconduct (سوء سلوك)
+* Policy Violation (عدم الالتزام بالسياسات)
+* Poor Performance (ضعف الأداء)
+
+Admin must be able to:
+
+* Add new types
+* Edit existing types
+* Enable/disable types
+
+Store in DB (NOT hardcoded)
+
+═══════════════════════════════════════════════════════
+4) CREATE NEW CASE
+═══════════════════════════════════════════════════════
+
+Form fields:
+
+* Select Employee
+* Violation Type
+* Description (detailed incident)
+* Violation Date
+* Attachments (images / files / emails)
+
+Auto-fill:
+
+* employee department
+* job title
+* manager
+
+Save case as:
+
+* Draft
+* Open case
+
+═══════════════════════════════════════════════════════
+5) DISCIPLINARY LEVELS (PROGRESSIVE SYSTEM)
+═══════════════════════════════════════════════════════
+
+Implement progressive penalties:
+
+1. Verbal Warning (تنبيه شفهي)
+2. First Written Warning (إنذار خطي أول)
+3. Second Written Warning (إنذار خطي ثاني)
+4. Final Warning (إنذار نهائي)
+5. Termination (فصل)
+
+System MUST:
+
+* Track employee disciplinary history
+* Know previous warnings for same employee
+* Suggest next level automatically
+* Prevent skipping levels unless HR overrides
+
+Example:
+If employee already has first warning → suggest second
+
+═══════════════════════════════════════════════════════
+6) INVESTIGATION MODULE
+═══════════════════════════════════════════════════════
+
+Each case must include investigation section:
+
+* HR Notes
+* Employee Statement
+* Manager Statement
+* Investigation Date
+* Attach evidence
+
+This must be editable before final decision.
+
+═══════════════════════════════════════════════════════
+7) DECISION SECTION
+═══════════════════════════════════════════════════════
+
+After investigation, HR records decision:
+
+* Action Type (warning level / termination)
+* Action Date
+* Salary Deduction (optional)
+* Temporary Suspension (optional)
+* Notes
+
+System must:
+
+* Link decision to disciplinary level
+* Close case after decision
+
+═══════════════════════════════════════════════════════
+8) INTEGRATION WITH OTHER MODULES
+═══════════════════════════════════════════════════════
+
+Connect disciplinary system with:
+
+1. Attendance:
+
+   * auto-detect repeated lateness/absence
+
+2. Employee Profile:
+
+   * show disciplinary history
+
+3. Payroll:
+
+   * apply deductions if needed
+
+4. Notifications:
+
+   * alert HR for unresolved cases
+
+═══════════════════════════════════════════════════════
+9) EMPLOYEE HISTORY VIEW
+═══════════════════════════════════════════════════════
+
+Inside Employee Profile:
+
+Add section:
+"Disciplinary History"
+
+Show:
+
+* all violations
+* warnings timeline
+* repeated issues
+* final status
+
+This must be chronological and clear.
+
+═══════════════════════════════════════════════════════
+10) ALERTS & COMPLIANCE
+═══════════════════════════════════════════════════════
+
+System must generate alerts:
+
+* employee reached final warning
+* case created but no action taken
+* repeated violations detected
+
+Compliance requirements:
+
+* all actions must be logged
+* timestamps required
+* user who performed action must be recorded
+
+═══════════════════════════════════════════════════════
+11) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+disciplinary_cases:
+
+* Id
+* CompanyId
+* EmployeeId
+* ViolationTypeId
+* Description
+* ViolationDate
+* Status
+* CreatedBy
+* CreatedAt
+
+disciplinary_actions:
+
+* Id
+* CaseId
+* ActionType
+* ActionDate
+* DeductionAmount
+* SuspensionDays
+* Notes
+
+disciplinary_investigations:
+
+* Id
+* CaseId
+* HrNotes
+* EmployeeStatement
+* ManagerStatement
+* InvestigationDate
+
+violation_types:
+
+* Id
+* Name
+* IsActive
+
+═══════════════════════════════════════════════════════
+12) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full access
+
+HR Staff:
+
+* create + manage cases
+
+Manager:
+
+* can submit incident or view team cases only (optional)
+
+Employee:
+
+* view own cases only (read-only if needed)
+
+SuperAdmin:
+
+* no operational access in UI
+
+═══════════════════════════════════════════════════════
+13) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* clean table for cases
+* clear status badges
+* timeline view inside case
+* structured sections:
+  (Case → Investigation → Decision)
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The system must behave like a real HR disciplinary system.
+
+NOT a simple form.
+
+It must:
+
+* track history
+* enforce progressive penalties
+* document investigation
+* support legal compliance
+* integrate with attendance and payroll
+
+Build it as an enterprise-grade feature.

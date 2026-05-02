@@ -1,0 +1,300 @@
+You are implementing a FULL Shifts Management Module in ZenJO HRMS.
+
+This is a critical core module.
+Everything in attendance, payroll, lateness, overtime depends on shifts.
+
+Do NOT build a simple CRUD page.
+Build a complete scheduling and rules engine.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a Shifts system where HR can:
+
+* Define shifts with full rules
+* Assign shifts to employees or departments
+* Support rotating shifts
+* Handle exceptions
+* Integrate with attendance and overtime calculations
+
+═══════════════════════════════════════════════════════
+
+1. MAIN ROUTES
+   ═══════════════════════════════════════════════════════
+
+/app/shifts
+/app/shifts/create
+/app/shifts/:id
+/app/shifts/assign
+/app/shifts/calendar
+/app/shifts/templates
+
+═══════════════════════════════════════════════════════
+2) SHIFTS LIST (MAIN SCREEN)
+═══════════════════════════════════════════════════════
+
+Display table:
+
+* Shift Name (Morning / Night / Office)
+* Start Time
+* End Time
+* Total Hours
+* Working Days
+* Status (Active / Inactive)
+
+Features:
+
+* Search
+* Filter by status
+* Click row → open shift details
+
+═══════════════════════════════════════════════════════
+3) CREATE / EDIT SHIFT
+═══════════════════════════════════════════════════════
+
+FORM SECTIONS:
+
+⏰ WORK TIME
+
+* Start Time
+* End Time
+* Break Duration (minutes)
+* Is Overnight Shift (cross midnight)
+
+Auto-calculate:
+
+* total working hours
+
+📅 WORKING DAYS
+
+* Select days (Sun–Thu, etc.)
+  OR
+* Flexible shift toggle
+
+⏳ LATE RULES
+
+* Grace Period (minutes)
+* Late Threshold
+* Deduction policy (none / fixed / salary-based)
+
+🚪 EARLY LEAVE RULES
+
+* Early leave threshold
+* Deduction option
+
+⏱️ OVERTIME RULES
+
+* OT starts after X hours
+* Auto-calculate OT
+* OT multiplier (optional)
+
+═══════════════════════════════════════════════════════
+4) ASSIGN SHIFTS
+═══════════════════════════════════════════════════════
+
+Support:
+
+* Assign to single employee
+* Assign to department
+* Bulk assignment (multi-select)
+
+Store assignments with:
+
+* start date
+* optional end date
+
+Do NOT override history.
+
+═══════════════════════════════════════════════════════
+5) ROTATING SHIFTS
+═══════════════════════════════════════════════════════
+
+Support rotation patterns:
+
+Examples:
+
+* Week 1 → Morning
+* Week 2 → Night
+
+Features:
+
+* Rotation cycle (weekly / custom)
+* Auto scheduler
+* Apply to group of employees
+
+System must generate future schedule automatically.
+
+═══════════════════════════════════════════════════════
+6) CALENDAR VIEW
+═══════════════════════════════════════════════════════
+
+Create calendar UI:
+
+* Weekly view
+* Monthly view
+
+Display:
+
+* employee name
+* assigned shift per day
+
+Allow:
+
+* quick edit
+* drag & drop (optional advanced)
+
+═══════════════════════════════════════════════════════
+7) EXCEPTIONS (OVERRIDES)
+═══════════════════════════════════════════════════════
+
+Support temporary overrides:
+
+Examples:
+
+* employee works different shift on specific day
+* special working hours
+
+Fields:
+
+* employee
+* date
+* custom shift or custom hours
+* reason
+
+Do NOT modify original shift.
+Store as override layer.
+
+═══════════════════════════════════════════════════════
+8) ATTENDANCE INTEGRATION (CRITICAL)
+═══════════════════════════════════════════════════════
+
+Shifts must be the reference for attendance calculations.
+
+System must:
+
+* compare check-in time vs shift start
+* apply grace period
+* mark Late
+* detect Early Leave
+* calculate overtime based on shift rules
+
+This logic must NOT be duplicated elsewhere.
+
+═══════════════════════════════════════════════════════
+9) SHIFT TEMPLATES
+═══════════════════════════════════════════════════════
+
+Provide pre-built templates:
+
+* Office Shift (9–5)
+* Factory Shift (rotating)
+* Remote Shift (flexible)
+
+HR can:
+
+* select template
+* customize values
+
+═══════════════════════════════════════════════════════
+10) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+shifts:
+
+* Id
+* CompanyId
+* Name
+* StartTime
+* EndTime
+* BreakMinutes
+* IsOvernight
+* WorkingDays (JSON)
+* GracePeriod
+* LateThreshold
+* EarlyLeaveThreshold
+* OvertimeStartAfter
+* Status
+
+shift_assignments:
+
+* Id
+* CompanyId
+* EmployeeId / DepartmentId
+* ShiftId
+* StartDate
+* EndDate
+
+shift_rotations:
+
+* Id
+* CompanyId
+* RotationPattern (JSON)
+* CycleLength
+* AssignedGroup
+
+shift_exceptions:
+
+* Id
+* CompanyId
+* EmployeeId
+* Date
+* CustomStartTime
+* CustomEndTime
+* Reason
+
+═══════════════════════════════════════════════════════
+11) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full access
+
+HR Staff:
+
+* manage shifts and assignments
+
+Manager:
+
+* view team shifts
+* request changes (optional)
+
+Employee:
+
+* view own shift only
+
+SuperAdmin:
+
+* no operational involvement
+
+═══════════════════════════════════════════════════════
+12) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* clear time display
+* clean forms
+* visual calendar
+* badges for shift types
+* highlight late/early rules
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+This must be a real scheduling engine.
+
+NOT just shift CRUD.
+
+It must:
+
+* drive attendance
+* control lateness & overtime
+* support rotation
+* handle exceptions
+* scale across departments
+
+If shifts are wrong → entire HR system becomes incorrect.
+
+Build it as a core system.

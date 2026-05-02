@@ -1,0 +1,181 @@
+<div class="superadmin-page">
+
+  <!-- ─── Stats Bar ─────────────────────────────────────── -->
+  <div class="stats-bar" *ngIf="stats()">
+    <div class="stat-card">
+      <div class="stat-num">{{ stats()!.totalCompanies }}</div>
+      <div class="stat-label">إجمالي الشركات</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-num">{{ stats()!.activeCompanies }}</div>
+      <div class="stat-label">شركات نشطة</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-num">{{ stats()!.trialCompanies }}</div>
+      <div class="stat-label">تجريبي</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-num">{{ stats()!.expiredCompanies }}</div>
+      <div class="stat-label">منتهي الاشتراك</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-num">{{ stats()!.pendingRegistrations }}</div>
+      <div class="stat-label">طلبات معلّقة</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ stats()!.totalUsers }}</div>
+      <div class="stat-label">إجمالي المستخدمين</div>
+    </div>
+  </div>
+
+  <!-- ─── Tabs ───────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab-btn" [class.active]="activeTab()==='companies'" (click)="activeTab.set('companies')">
+      <span class="material-icons">business</span> إدارة الشركات
+    </button>
+    <button class="tab-btn" [class.active]="activeTab()==='registrations'" (click)="activeTab.set('registrations'); loadRegistrations()">
+      <span class="material-icons">how_to_reg</span> طلبات التسجيل
+      <span class="badge badge-warning" *ngIf="(stats()?.pendingRegistrations ?? 0) > 0">{{ stats()!.pendingRegistrations }}</span>
+    </button>
+  </div>
+
+  <!-- ─── Companies Table ────────────────────────────────── -->
+  <div *ngIf="activeTab()==='companies'">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title"><span class="material-icons">business</span> الشركات المسجلة</h2>
+      </div>
+      <div class="table-wrap" *ngIf="!loading()">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>الشركة</th>
+              <th>الخطة</th>
+              <th>انتهاء الاشتراك</th>
+              <th>الحالة</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of companies()">
+              <td>
+                <div class="company-cell">
+                  <strong>{{ c.nameAr }}</strong>
+                  <small class="text-muted">{{ c.nameEn }}</small>
+                  <small class="text-muted">{{ c.email }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="badge" [class]="planBadgeClass(c.planType)">{{ planLabel(c.planType) }}</span>
+              </td>
+              <td>
+                <span [class.text-danger]="isExpired(c.planExpiryDate)">
+                  {{ c.planExpiryDate ? (c.planExpiryDate | date:'yyyy/MM/dd') : '—' }}
+                </span>
+              </td>
+              <td>
+                <span class="badge" [class]="statusBadge(c.isActive)">
+                  {{ c.isActive ? 'نشط' : 'موقوف' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn btn-sm btn-outline" (click)="openPlanModal(c)" title="تعديل الخطة">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="btn btn-sm btn-info" (click)="impersonate(c.id)"
+                          [disabled]="impersonateLoading() === c.id" title="تسجيل دخول بصفة المدير">
+                    <span class="material-icons">{{ impersonateLoading() === c.id ? 'hourglass_top' : 'login' }}</span>
+                  </button>
+                  <button *ngIf="c.isActive" class="btn btn-sm btn-danger" (click)="suspend(c.id)"
+                          [disabled]="actionLoading() === c.id" title="تعليق">
+                    <span class="material-icons">block</span>
+                  </button>
+                  <button *ngIf="!c.isActive" class="btn btn-sm btn-success" (click)="activate(c.id)"
+                          [disabled]="actionLoading() === c.id" title="تفعيل">
+                    <span class="material-icons">check_circle</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="loading-state" *ngIf="loading()">
+        <span class="material-icons spin">sync</span> جارٍ التحميل...
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Registrations ─────────────────────────────────── -->
+  <div *ngIf="activeTab()==='registrations'">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title"><span class="material-icons">how_to_reg</span> طلبات تسجيل الشركات</h2>
+        <div class="filter-tabs">
+          <button class="filter-btn" [class.active]="regFilter()==='pending'"
+                  (click)="regFilter.set('pending'); loadRegistrations()">معلّق</button>
+          <button class="filter-btn" [class.active]="regFilter()==='approved'"
+                  (click)="regFilter.set('approved'); loadRegistrations()">موافق عليه</button>
+          <button class="filter-btn" [class.active]="regFilter()==='rejected'"
+                  (click)="regFilter.set('rejected'); loadRegistrations()">مرفوض</button>
+        </div>
+      </div>
+      <div class="empty-state" *ngIf="registrations().length === 0">
+        <span class="material-icons">inbox</span>
+        <p>لا توجد طلبات</p>
+      </div>
+      <div class="reg-list" *ngIf="registrations().length > 0">
+        <div class="reg-card" *ngFor="let r of registrations()">
+          <div class="reg-info">
+            <strong>{{ r.companyNameAr }}</strong> — {{ r.companyNameEn }}
+            <div class="reg-meta">
+              <span>{{ r.contactEmail }}</span>
+              <span *ngIf="r.contactPhone">{{ r.contactPhone }}</span>
+              <span>خطة: {{ planLabel(r.planType) }}</span>
+              <span class="text-muted">{{ r.requestedAt | date:'yyyy/MM/dd' }}</span>
+            </div>
+          </div>
+          <div class="reg-actions" *ngIf="r.status === 'pending'">
+            <button class="btn btn-sm btn-success" (click)="approveReg(r.id)" [disabled]="actionLoading() === r.id">
+              <span class="material-icons">check</span> موافقة
+            </button>
+            <button class="btn btn-sm btn-danger" (click)="rejectReg(r.id, 'لم تستوف الشروط')" [disabled]="actionLoading() === r.id">
+              <span class="material-icons">close</span> رفض
+            </button>
+          </div>
+          <span class="badge" [class]="r.status === 'approved' ? 'badge-success' : 'badge-danger'" *ngIf="r.status !== 'pending'">
+            {{ r.status === 'approved' ? 'موافق عليه' : 'مرفوض' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── Plan Modal ────────────────────────────────────────── -->
+<div class="modal-backdrop" *ngIf="planModal()" (click)="planModal.set(null)">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <h3>تعديل خطة الاشتراك</h3>
+    <p class="modal-subtitle">{{ planModal()!.company.nameAr }}</p>
+    <div class="form-group">
+      <label>الخطة</label>
+      <select [(ngModel)]="planModal()!.newPlan" class="form-control">
+        <option *ngFor="let p of planOptions" [value]="p.value">{{ p.label }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>الحد الأقصى للموظفين</label>
+      <input type="number" [(ngModel)]="planModal()!.maxEmployees" class="form-control" min="1" />
+    </div>
+    <div class="form-group">
+      <label>تاريخ انتهاء الاشتراك</label>
+      <input type="date" [(ngModel)]="planModal()!.expiryDate" class="form-control" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="savePlan()">حفظ</button>
+      <button class="btn btn-ghost" (click)="planModal.set(null)">إلغاء</button>
+    </div>
+  </div>
+</div>

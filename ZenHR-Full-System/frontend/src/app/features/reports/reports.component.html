@@ -1,0 +1,256 @@
+<section class="z-page reports-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ lang === 'ar' ? 'التقارير والتحليلات' : 'Reports & Analytics' }}</span>
+      <h1 class="z-title">{{ lang === 'ar' ? 'التقارير' : 'Reports' }}</h1>
+      <p class="z-body">
+        {{ lang === 'ar'
+          ? 'كتالوج تقارير الموارد البشرية والرواتب مع معاينة مباشرة من البيانات الحية'
+          : 'HR and payroll report catalog with direct previews from live data' }}
+      </p>
+    </div>
+  </header>
+
+  <section class="report-catalog">
+    <button
+      *ngFor="let report of visibleReports"
+      type="button"
+      class="report-card z-card"
+      [class.active]="activeReport() === report.key"
+      (click)="selectReport(report.key)">
+      <span class="material-icons">{{ report.icon }}</span>
+      <strong>{{ lang === 'ar' ? report.labelAr : report.labelEn }}</strong>
+      <p>{{ lang === 'ar' ? report.descriptionAr : report.descriptionEn }}</p>
+    </button>
+  </section>
+
+  <section class="z-card filters-shell">
+    <div class="filters-row">
+      <label class="filter-field" *ngIf="usesMonthFilter()">
+        <span class="z-label">{{ lang === 'ar' ? 'الشهر' : 'Month' }}</span>
+        <select class="z-input" [(ngModel)]="filterMonth">
+          <option *ngFor="let month of (lang === 'ar' ? monthsAr : monthsEn); let i = index" [value]="i + 1">{{ month }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field" *ngIf="usesYearFilter()">
+        <span class="z-label">{{ lang === 'ar' ? 'السنة' : 'Year' }}</span>
+        <select class="z-input" [(ngModel)]="filterYear">
+          <option [value]="2024">2024</option>
+          <option [value]="2025">2025</option>
+          <option [value]="2026">2026</option>
+        </select>
+      </label>
+
+      <label class="filter-field" *ngIf="usesDateRange()">
+        <span class="z-label">{{ lang === 'ar' ? 'من' : 'From' }}</span>
+        <input class="z-input" type="date" [(ngModel)]="filterFrom">
+      </label>
+
+      <label class="filter-field" *ngIf="usesDateRange()">
+        <span class="z-label">{{ lang === 'ar' ? 'إلى' : 'To' }}</span>
+        <input class="z-input" type="date" [(ngModel)]="filterTo">
+      </label>
+
+      <div class="filter-actions">
+        <button class="z-btn-primary" type="button" (click)="loadReport()">
+          <span class="material-icons">assessment</span>
+          {{ lang === 'ar' ? 'عرض التقرير' : 'Show Report' }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="z-card viewer-shell">
+    <div class="viewer-head">
+      <div>
+        <h2 class="z-heading">{{ lang === 'ar' ? currentCard()?.labelAr : currentCard()?.labelEn }}</h2>
+        <p class="z-small">{{ lang === 'ar' ? currentCard()?.descriptionAr : currentCard()?.descriptionEn }}</p>
+      </div>
+    </div>
+
+    <div class="loading-wrap" *ngIf="loading()">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && activeReport() === 'headcount'">
+      <div class="split-grid">
+        <div class="z-table-container">
+          <table class="z-table">
+            <thead><tr><th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th><th>{{ lang === 'ar' ? 'العدد' : 'Count' }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let s of reportData()?.byStatus">
+                <td>{{ statusLabel(s.status ?? s.Status) }}</td>
+                <td>{{ s.count ?? s.Count }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="z-table-container">
+          <table class="z-table">
+            <thead><tr><th>{{ lang === 'ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</th><th>{{ lang === 'ar' ? 'العدد' : 'Count' }}</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let d of reportData()?.byDept">
+                <td>{{ orgUnitLabel(d) || '—' }}</td>
+                <td>
+                  <div class="bar-row">
+                    <div class="bar-fill" [style.width.%]="((d.count ?? d.Count) / maxDept()) * 100"></div>
+                    <span>{{ d.count ?? d.Count }}</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && activeReport() !== 'headcount'">
+      <table class="z-table" *ngIf="reportData() as rows">
+        <thead>
+          <tr *ngIf="activeReport() === 'payroll'">
+            <th>{{ lang === 'ar' ? 'الفترة' : 'Period' }}</th>
+            <th>{{ lang === 'ar' ? 'الموظفون' : 'Employees' }}</th>
+            <th>{{ lang === 'ar' ? 'الإجمالي' : 'Gross' }}</th>
+            <th>{{ lang === 'ar' ? 'الصافي' : 'Net' }}</th>
+            <th>{{ lang === 'ar' ? 'الاستقطاعات' : 'Deductions' }}</th>
+            <th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'ssc'">
+            <th>{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'رقم الضمان' : 'SSC No.' }}</th>
+            <th>{{ lang === 'ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</th>
+            <th>{{ lang === 'ar' ? 'الأساسي' : 'Basic' }}</th>
+            <th>{{ lang === 'ar' ? 'اشتراك الموظف' : 'Employee SSC' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'attendance'">
+            <th>{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</th>
+            <th>{{ lang === 'ar' ? 'حضور' : 'Present' }}</th>
+            <th>{{ lang === 'ar' ? 'غياب' : 'Absent' }}</th>
+            <th>{{ lang === 'ar' ? 'تأخير' : 'Late Minutes' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'leave'">
+            <th>{{ lang === 'ar' ? 'نوع الإجازة' : 'Leave Type' }}</th>
+            <th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th>
+            <th>{{ lang === 'ar' ? 'عدد الطلبات' : 'Requests' }}</th>
+            <th>{{ lang === 'ar' ? 'إجمالي الأيام' : 'Total Days' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'overtime'">
+            <th>{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</th>
+            <th>{{ lang === 'ar' ? 'الساعات الكلية' : 'Total Hours' }}</th>
+            <th>{{ lang === 'ar' ? 'الساعات المعتمدة' : 'Approved Hours' }}</th>
+            <th>{{ lang === 'ar' ? 'التكلفة' : 'Cost' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'disciplinary'">
+            <th>{{ lang === 'ar' ? 'نوع المخالفة' : 'Violation Type' }}</th>
+            <th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th>
+            <th>{{ lang === 'ar' ? 'العدد' : 'Count' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'income-tax'">
+            <th>{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</th>
+            <th>{{ lang === 'ar' ? 'الدخل السنوي' : 'Annual Gross' }}</th>
+            <th>{{ lang === 'ar' ? 'الضريبة' : 'Tax' }}</th>
+            <th>{{ lang === 'ar' ? 'إعفاء إضافي' : 'Extra Exemption' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'turnover'">
+            <th>{{ lang === 'ar' ? 'المؤشر' : 'Metric' }}</th>
+            <th>{{ lang === 'ar' ? 'القيمة' : 'Value' }}</th>
+          </tr>
+          <tr *ngIf="activeReport() === 'compliance'">
+            <th>{{ lang === 'ar' ? 'المؤشر' : 'Metric' }}</th>
+            <th>{{ lang === 'ar' ? 'القيمة' : 'Value' }}</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <ng-container *ngIf="activeReport() === 'payroll'">
+            <tr *ngFor="let row of rows">
+              <td>{{ row.runMonth }}/{{ row.runYear }}</td>
+              <td>{{ row.employeeCount }}</td>
+              <td>{{ row.totalGross | number:'1.3-3' }}</td>
+              <td>{{ row.totalNet | number:'1.3-3' }}</td>
+              <td>{{ row.totalDeductions | number:'1.3-3' }}</td>
+              <td>{{ statusLabel(row.status) }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'ssc'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.nameAr : (row.nameEn || row.nameAr) }}</td>
+              <td>{{ row.sscNumber }}</td>
+              <td>{{ orgUnitLabel(row) || '—' }}</td>
+              <td>{{ row.basicSalary | number:'1.3-3' }}</td>
+              <td>{{ row.sscDeduction | number:'1.3-3' }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'attendance'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.nameAr : (row.nameEn || row.nameAr) }}</td>
+              <td>{{ orgUnitLabel(row) || '—' }}</td>
+              <td>{{ row.presentDays }}</td>
+              <td>{{ row.absentDays }}</td>
+              <td>{{ row.totalLateMinutes }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'leave'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.typeAr : (row.typeEn || row.typeAr) }}</td>
+              <td>{{ statusLabel(row.status) }}</td>
+              <td>{{ row.count }}</td>
+              <td>{{ row.totalDays }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'overtime'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.nameAr : (row.nameEn || row.nameAr) }}</td>
+              <td>{{ orgUnitLabel(row) || '—' }}</td>
+              <td>{{ row.totalHours }}</td>
+              <td>{{ row.approvedHours }}</td>
+              <td>{{ row.totalCost | number:'1.3-3' }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'disciplinary'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.typeAr : (row.typeEn || row.typeAr) }}</td>
+              <td>{{ statusLabel(row.status) }}</td>
+              <td>{{ row.count }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'income-tax'">
+            <tr *ngFor="let row of rows">
+              <td>{{ lang === 'ar' ? row.nameAr : (row.nameEn || row.nameAr) }}</td>
+              <td>{{ orgUnitLabel(row) || '—' }}</td>
+              <td>{{ row.annualGross | number:'1.3-3' }}</td>
+              <td>{{ row.totalTax | number:'1.3-3' }}</td>
+              <td>{{ row.extraExemption | number:'1.3-3' }}</td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'turnover'">
+            <tr><td>{{ lang === 'ar' ? 'التعيينات' : 'Hires' }}</td><td>{{ rows.hires }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'المغادرون' : 'Exits' }}</td><td>{{ rows.exits }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'معدل الدوران %' : 'Turnover Rate %' }}</td><td>{{ rows.turnoverRate }}</td></tr>
+          </ng-container>
+
+          <ng-container *ngIf="activeReport() === 'compliance'">
+            <tr><td>{{ lang === 'ar' ? 'الموظفون النشطون' : 'Active Employees' }}</td><td>{{ rows.totalActive }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'مسجلون في الضمان' : 'SSC Enrolled' }}</td><td>{{ rows.sscEnrolled }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'غير مسجلين في الضمان' : 'SSC Not Enrolled' }}</td><td>{{ rows.sscNotEnrolled }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'غير الأردنيين' : 'Non-Jordanians' }}</td><td>{{ rows.nonJordanians }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'تصاريح منتهية' : 'Expired Work Permits' }}</td><td>{{ rows.workPermitsExpired }}</td></tr>
+            <tr><td>{{ lang === 'ar' ? 'تصاريح تنتهي قريبًا' : 'Permits Expiring Soon' }}</td><td>{{ rows.workPermitsExpiringSoon }}</td></tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

@@ -1,0 +1,431 @@
+You are fixing a CRITICAL product architecture issue in ZenJO HRMS.
+
+The system is a **multi-company SaaS platform for Jordan only**.
+It is NOT a single-company system.
+It is NOT a generic MENA HRMS.
+It is a **Jordanian multi-tenant HRMS** where multiple companies use the same platform, but each company is isolated. The current spec already uses company scoping and role-based access control.  
+
+The main problem right now:
+Many screens are visible to the wrong actors.
+Example:
+Operational HR screens are appearing for roles that should not see them.
+Especially the Super Admin is currently seeing HR operational screens, which is wrong.
+
+IMPORTANT:
+Do NOT treat Super Admin as HR Admin.
+Do NOT keep one shared product experience for all roles.
+Do NOT just filter a few menu items.
+Fix the product architecture properly.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Refactor the system so that each actor sees ONLY the screens that belong to their real business responsibility.
+
+This is not only a backend permission issue.
+This is a:
+
+* navigation issue
+* route ownership issue
+* dashboard issue
+* widget visibility issue
+* action-button visibility issue
+* product experience issue
+
+═══════════════════════════════════════════════════════
+SYSTEM MODEL (MUST FOLLOW)
+═══════════════════════════════════════════════════════
+
+ZenJO has TWO layers:
+
+1. PLATFORM LAYER
+   Used by Super Admin only
+   Purpose:
+
+   * manage companies
+   * manage users
+   * manage global settings
+   * manage lookup tables
+   * manage audit logs
+   * manage platform-wide controls
+
+2. TENANT / COMPANY LAYER
+   Used by:
+
+   * HR Admin
+   * Payroll Admin
+   * Manager
+   * Employee
+   * Recruiter
+
+Each non-superadmin role must only see data and screens inside their own company.
+
+═══════════════════════════════════════════════════════
+STRICT ROLE EXPERIENCE RULE
+═══════════════════════════════════════════════════════
+
+Backend permission does NOT automatically mean the screen should be shown.
+
+A role should see a screen ONLY if that screen belongs to that actor’s real operational responsibility.
+
+Seeing fewer screens is the correct behavior.
+
+═══════════════════════════════════════════════════════
+ROLE-TO-SCREEN OWNERSHIP (STRICT)
+═══════════════════════════════════════════════════════
+
+ROLE 1: SUPERADMIN
+This role is for PLATFORM administration only.
+
+SUPERADMIN SHOULD SEE:
+
+* Platform Dashboard
+* Companies
+* Company Details
+* User Management
+* Role / Permission Management
+* Lookup Tables
+* System Configurations
+* Audit Logs
+* Platform Reports
+* System Health / Platform Monitoring
+
+SUPERADMIN SHOULD NOT SEE AS NORMAL SIDEBAR ITEMS:
+
+* Employees
+* Add Employee
+* Attendance
+* Leave Requests
+* Leave Policies
+* Overtime
+* Payroll Runs
+* Payslips
+* Documents
+* Assets
+* Daily HR operations
+* Daily manager operations
+* Employee self-service pages
+
+Important:
+Superadmin can still have controlled admin access tools if needed,
+but these must NOT appear as standard HR operational navigation.
+
+ROLE 2: HRADMIN
+This role is for full HR operations inside ONE company only. 
+
+HRADMIN SHOULD SEE:
+
+* HR Dashboard
+* Employees
+* Add/Edit Employee
+* Departments
+* Job Titles
+* Attendance
+* Leave Requests
+* Leave Policies
+* Overtime
+* Documents
+* Assets
+* Onboarding
+* Offboarding
+* HR Reports
+* Company HR Settings
+
+HRADMIN SHOULD NOT SEE:
+
+* Global company management
+* Audit logs for the platform
+* Other companies
+* Platform-wide setup screens
+
+ROLE 3: PAYROLLADMIN
+This role is for payroll only. 
+
+PAYROLLADMIN SHOULD SEE:
+
+* Payroll Dashboard
+* Payroll Runs
+* Payroll Run Details
+* Payslips
+* Payroll Reports
+* Salary / deduction summaries
+* Read-only payroll employee view
+
+PAYROLLADMIN SHOULD NOT SEE:
+
+* Add Employee
+* HR employee editing
+* Recruitment
+* Leave operational management
+* Attendance operational management
+* Documents operational management
+* Assets operational management
+* Onboarding / Offboarding HR screens
+
+ROLE 4: MANAGER
+This role is for team management only. Managers only see their direct reports in their company. 
+
+MANAGER SHOULD SEE:
+
+* Manager Dashboard
+* My Team
+* Team Attendance
+* Team Leave Approvals
+* Team Overtime Approvals
+* Team Calendar
+* Team Performance Summary
+
+MANAGER SHOULD NOT SEE:
+
+* Full Employees List
+* Add Employee
+* Departments Management
+* Job Titles Management
+* Payroll Runs
+* Payslips of others
+* Leave Policies management
+* Documents management
+* Assets management
+* Global Attendance screens
+* HR settings
+* Platform screens
+
+ROLE 5: EMPLOYEE
+This role is for self-service only. Employees only see their own data and own payslips.  
+
+EMPLOYEE SHOULD SEE:
+
+* Employee Dashboard
+* My Attendance
+* My Leave Requests
+* My Overtime Requests
+* My Payslips
+* My Profile
+* My Documents
+* Notifications
+* ESS Quick Actions
+
+EMPLOYEE SHOULD NOT SEE:
+
+* Employees
+* Departments
+* Job Titles
+* Add Employee
+* Attendance for others
+* Leave Policies admin page
+* Payroll Runs
+* Assets admin page
+* Documents admin page
+* Approval pages
+* Any HR settings
+* Any platform settings
+
+ROLE 6: RECRUITER
+This role is for recruitment only, plus their own ESS. 
+
+RECRUITER SHOULD SEE:
+
+* Recruiter Dashboard
+* Vacancies
+* Candidates
+* Hiring Pipeline
+* Interview Scheduling
+* Candidate Communication
+* Draft Employee Creation
+* Own ESS only
+
+RECRUITER SHOULD NOT SEE:
+
+* Employees List
+* Full HR employee operations
+* Salary screens
+* Attendance operations
+* Leave processing
+* Overtime processing
+* Payroll Runs
+* Payslips
+* Documents management
+* Assets management
+* HR settings
+* Platform screens
+
+═══════════════════════════════════════════════════════
+IMMEDIATE ROUTE AUDIT REQUIRED
+═══════════════════════════════════════════════════════
+
+Audit and remap all existing routes.
+
+The current route access is too broad and must be corrected. The spec currently exposes multiple operational routes to multiple actors and this must be narrowed to correct ownership. 
+
+You MUST audit and fix these routes first:
+
+* /employees
+* /employees/new
+* /employees/:id
+* /departments
+* /job-titles
+* /attendance
+* /leave/requests
+* /leave/policies
+* /overtime
+* /payroll/runs
+* /payroll/runs/:id
+* /payroll/slips
+* /documents
+* /assets
+* /settings
+* dashboard routes
+
+═══════════════════════════════════════════════════════
+IMPLEMENTATION REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+1. Create a SINGLE SOURCE OF TRUTH for role-based product visibility:
+
+   * SCREEN_ACCESS_MAP
+   * NAV_ACCESS_MAP
+   * DASHBOARD_ACCESS_MAP
+   * ACTION_ACCESS_MAP
+
+2. Separate the following clearly:
+
+   * backend permission
+   * route access
+   * sidebar visibility
+   * dashboard widget visibility
+   * button/action visibility
+   * data scoping
+
+3. Do NOT rely only on canAccessRoute().
+   Add explicit helpers such as:
+
+   * canSeeNavItem()
+   * canSeePage()
+   * canSeeWidget()
+   * canSeeAction()
+
+4. Build DIFFERENT navigation trees per role.
+   Do NOT keep one generic nav with light filtering.
+   Each role should feel like a different product experience.
+
+5. Build DIFFERENT dashboards per role:
+
+   * superadmin dashboard = platform dashboard
+   * hradmin dashboard = HR operational dashboard
+   * payrolladmin dashboard = payroll dashboard
+   * manager dashboard = team dashboard
+   * employee dashboard = ESS dashboard
+   * recruiter dashboard = recruitment dashboard
+
+6. Hide unauthorized action buttons inside pages:
+   Examples:
+
+   * payrolladmin can view payroll-related employee info but cannot edit HR fields
+   * recruiter can create draft employee but cannot open salary sections
+   * manager can approve team requests but cannot access admin actions
+   * employee can view own documents but cannot access admin document operations
+
+═══════════════════════════════════════════════════════
+MULTI-COMPANY / TENANT RULES (VERY IMPORTANT)
+═══════════════════════════════════════════════════════
+
+The system is multi-company.
+
+You MUST preserve strict tenant isolation:
+
+* superadmin -> all companies
+* hradmin -> own company only
+* payrolladmin -> own company only
+* manager -> own company + direct reports only
+* employee -> self only
+* recruiter -> own company recruitment only
+
+Requirements:
+
+* Keep company_id scoping everywhere
+* No cross-company leakage
+* No company switcher for non-superadmin
+* Non-superadmin users should not feel that other companies even exist
+
+═══════════════════════════════════════════════════════
+ARABIC-FIRST PRODUCT EXPERIENCE
+═══════════════════════════════════════════════════════
+
+Arabic is primary.
+All role-specific navigation and labels must be Arabic-first.
+
+Examples:
+Platform / superadmin labels should feel like:
+
+* لوحة تحكم النظام
+* الشركات
+* إدارة المستخدمين
+* الصلاحيات
+* الإعدادات العامة
+* سجل التدقيق
+* الجداول المرجعية
+
+HR labels should feel like:
+
+* الموظفون
+* الحضور والانصراف
+* الإجازات
+* المستندات
+* الأصول
+* التعيين وإنهاء الخدمة
+
+Manager labels should feel like:
+
+* فريقي
+* حضور الفريق
+* طلبات الإجازة
+* طلبات العمل الإضافي
+
+Employee labels should feel like:
+
+* حضوري
+* إجازاتي
+* ساعاتي الإضافية
+* مسير راتبي
+* ملفي الشخصي
+
+═══════════════════════════════════════════════════════
+BACKEND ALIGNMENT CHECK
+═══════════════════════════════════════════════════════
+
+After frontend fixes, verify backend still matches:
+
+* employee -> self only
+* manager -> direct reports only
+* recruiter -> no full employee list
+* payrolladmin -> payroll read-only employee scope
+* hradmin -> own company HR scope
+* superadmin -> platform/global scope
+
+Important:
+Do NOT widen backend access to match bad UI.
+Fix the UI to match the correct product model.
+
+═══════════════════════════════════════════════════════
+DELIVERABLE
+═══════════════════════════════════════════════════════
+
+Do the following:
+
+1. Audit all routes, nav items, dashboards, widgets, and actions
+2. Build a final actor-to-screen matrix
+3. Refactor the app so each role sees only its owned screens
+4. Remove broad visibility of HR operational screens from superadmin and other non-owner roles
+5. Preserve tenant isolation
+6. Keep backend secure and scoped
+
+At the end provide:
+
+* final actor-screen matrix
+* changed route mapping
+* hidden screens per role
+* remaining conflicts if any
+
+Do not keep the current broad visibility model.
+Fix the product architecture properly.

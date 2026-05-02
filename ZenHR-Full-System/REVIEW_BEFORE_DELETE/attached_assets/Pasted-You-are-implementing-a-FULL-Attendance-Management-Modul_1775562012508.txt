@@ -1,0 +1,471 @@
+You are implementing a FULL Attendance Management Module in ZenJO HRMS.
+
+This is one of the most critical modules in the system.
+It must be accurate, scalable, and tightly integrated with shifts, leave, payroll, and disciplinary actions.
+
+Do NOT build a simple attendance table.
+Build a complete attendance operations system.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create an Attendance module where HR can:
+
+* monitor daily attendance status
+* review attendance logs
+* manage attendance methods
+* apply late / absence rules
+* calculate overtime
+* handle attendance-related requests
+* generate attendance reports
+* support mobile attendance with GPS and identity verification
+
+═══════════════════════════════════════════════════════
+
+1. MAIN ROUTES
+   ═══════════════════════════════════════════════════════
+
+/app/attendance
+/app/attendance/dashboard
+/app/attendance/log
+/app/attendance/requests
+/app/attendance/reports
+/app/attendance/settings
+/app/attendance/map
+
+═══════════════════════════════════════════════════════
+2) DAILY DASHBOARD
+═══════════════════════════════════════════════════════
+
+Build a daily attendance dashboard that shows quick company status:
+
+* Present Today
+* Late Today
+* Absent Today
+* On Leave Today
+
+This should give HR a fast company-wide overview in seconds.
+
+Add optional widgets:
+
+* half day count
+* pending attendance correction requests
+* employees currently checked in
+* suspicious attendance alerts
+
+═══════════════════════════════════════════════════════
+3) ATTENDANCE LOG
+═══════════════════════════════════════════════════════
+
+Main attendance table must include:
+
+* Employee Name
+* Check-in Time
+* Check-out Time
+* Total Working Hours
+* Status:
+
+  * Present
+  * Late
+  * Absent
+  * Half Day
+  * On Leave
+
+Extended fields:
+
+* Attendance Type (Office / Mobile / Manual / Device)
+* Verification Status (Yes / No)
+* Location / Map Link
+* Shift Name
+* Late Minutes
+* Overtime Hours
+
+Features:
+
+* search by employee
+* filter by status
+* filter by date
+* filter by department
+* export report
+
+═══════════════════════════════════════════════════════
+4) ATTENDANCE METHODS
+═══════════════════════════════════════════════════════
+
+Support multiple attendance sources:
+
+* Fingerprint Device
+* RFID Card
+* Manual Entry by HR
+* Mobile Attendance
+* Web attendance if already supported
+
+Each record should store method/source.
+
+═══════════════════════════════════════════════════════
+5) LATE RULES
+═══════════════════════════════════════════════════════
+
+Attendance module must support late rules:
+
+* grace period in minutes
+* when employee becomes late
+* repeated lateness tracking
+* optional automatic deduction policy
+* integration with disciplinary module
+
+Examples:
+
+* after X minutes = late
+* after 3 late records = alert / disciplinary suggestion
+
+Do NOT hardcode rules in UI.
+Use configurable settings.
+
+═══════════════════════════════════════════════════════
+6) ABSENCE RULES
+═══════════════════════════════════════════════════════
+
+System must distinguish automatically between:
+
+* absence without permission
+* justified absence
+* leave-covered absence
+
+Attendance logic must check:
+
+* approved leave
+* holidays
+* scheduled shifts
+
+Absence classification must be accurate.
+
+═══════════════════════════════════════════════════════
+7) SHIFTS INTEGRATION
+═══════════════════════════════════════════════════════
+
+Attendance must read shift rules dynamically.
+
+For each employee:
+
+* start time
+* end time
+* break
+* working days
+* flexible/rotating shifts if assigned
+
+System must compare attendance against employee shift to determine:
+
+* late
+* early leave
+* overtime
+* absence
+
+Do NOT duplicate shift logic inside attendance.
+Attendance must use shifts as the source of truth.
+
+═══════════════════════════════════════════════════════
+8) OVERTIME
+═══════════════════════════════════════════════════════
+
+System must calculate overtime based on shift rules.
+
+Support:
+
+* paid overtime
+* unpaid overtime
+* approval-required overtime
+
+Integrate with payroll:
+
+* approved overtime should be available for payroll processing
+
+═══════════════════════════════════════════════════════
+9) REQUESTS WORKFLOW
+═══════════════════════════════════════════════════════
+
+Employees must be able to submit attendance-related requests such as:
+
+* missing punch correction
+* time correction
+* exit permission
+* attendance adjustment
+
+Workflow:
+Employee → Manager → HR
+
+Each request must include:
+
+* request type
+* employee
+* date
+* reason
+* supporting notes or attachment
+* approval status
+
+═══════════════════════════════════════════════════════
+10) REPORTS
+═══════════════════════════════════════════════════════
+
+Build attendance reports:
+
+* monthly attendance report
+* late report
+* absence report
+* working hours report
+* overtime report
+* attendance by location report
+* employee movement report
+* site arrival time report
+
+Reports must support:
+
+* filters
+* export
+* date range
+* employee / department / location filtering
+
+═══════════════════════════════════════════════════════
+11) SYSTEM INTEGRATION
+═══════════════════════════════════════════════════════
+
+Attendance must integrate with:
+
+* Payroll
+  for deductions and overtime
+
+* Disciplinary
+  for repeated lateness / repeated absence
+
+* Leave
+  to classify leave-covered absence correctly
+
+* Employee Profile
+  to show personal attendance history
+
+═══════════════════════════════════════════════════════
+12) MOBILE ATTENDANCE (GPS + BIOMETRIC)
+═══════════════════════════════════════════════════════
+
+Implement mobile attendance support for field employees.
+
+Employees must be able to:
+
+* clock in from mobile
+* clock out from mobile
+
+System must capture:
+
+* timestamp
+* GPS location
+* attendance type = mobile
+* verification method
+* optional live selfie / biometric status
+
+═══════════════════════════════════════════════════════
+13) GOOGLE MAPS / LOCATION TRACKING
+═══════════════════════════════════════════════════════
+
+Integrate with Google Maps API if possible.
+
+Store:
+
+* Latitude
+* Longitude
+
+Show:
+
+* employee location on map
+* link to map in attendance log
+* location marker in HR map dashboard
+
+═══════════════════════════════════════════════════════
+14) GEOFENCING
+═══════════════════════════════════════════════════════
+
+Support geofencing for work locations.
+
+HR must be able to define allowed work zones.
+If employee is outside allowed zone:
+
+* block clock-in
+  OR
+* mark as suspicious / invalid depending on settings
+
+Examples:
+
+* construction site
+* branch office
+* client site
+* field service zone
+
+═══════════════════════════════════════════════════════
+15) IDENTITY VERIFICATION
+═══════════════════════════════════════════════════════
+
+To prevent fraud, support attendance verification options:
+
+* Face ID / facial verification
+* mobile fingerprint / biometric confirmation
+* selfie verification
+
+Each attendance record should store:
+
+* verified yes/no
+* verification method
+* verification timestamp if applicable
+
+═══════════════════════════════════════════════════════
+16) ANTI-FRAUD SYSTEM
+═══════════════════════════════════════════════════════
+
+Implement anti-fraud checks for mobile attendance:
+
+* prevent one employee from clocking in for another
+* detect attendance outside allowed zone
+* detect suspicious/mock GPS if possible
+* flag unverified attendance
+
+Create alerts for HR when suspicious records appear.
+
+═══════════════════════════════════════════════════════
+17) OFFLINE MODE
+═══════════════════════════════════════════════════════
+
+For field work, support offline attendance mode:
+
+* if internet is unavailable
+* store attendance locally
+* sync when connection returns
+
+Attendance record must preserve:
+
+* original local time
+* sync status
+* pending upload state
+
+═══════════════════════════════════════════════════════
+18) HR MAP VIEW
+═══════════════════════════════════════════════════════
+
+Create a map-based attendance screen for HR.
+
+Show:
+
+* employees who checked in via mobile
+* current locations or last known check-in locations
+* who is checked in today
+* optional real-time tracking flag if supported
+
+═══════════════════════════════════════════════════════
+19) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+attendance_records:
+
+* Id
+* CompanyId
+* EmployeeId
+* CheckInTime
+* CheckOutTime
+* WorkingHours
+* Status
+* AttendanceType
+* ShiftId
+* LateMinutes
+* OvertimeHours
+* Latitude
+* Longitude
+* VerificationStatus
+* VerificationMethod
+* IsSuspicious
+* Notes
+* CreatedAt
+
+attendance_requests:
+
+* Id
+* CompanyId
+* EmployeeId
+* RequestType
+* RequestDate
+* Reason
+* Status
+* ManagerApproval
+* HrApproval
+
+work_locations:
+
+* Id
+* CompanyId
+* Name
+* Latitude
+* Longitude
+* RadiusMeters
+* IsActive
+
+═══════════════════════════════════════════════════════
+20) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full attendance management
+
+HR Staff:
+
+* manage attendance logs, requests, corrections
+
+Manager:
+
+* view team attendance
+* approve attendance requests for direct reports
+
+Employee:
+
+* view own attendance
+* submit correction requests
+* clock in / clock out from allowed channels
+
+Payroll Admin:
+
+* read-only access to attendance summaries relevant to payroll
+
+SuperAdmin:
+
+* not part of daily attendance operations in main UI
+
+═══════════════════════════════════════════════════════
+21) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first
+* RTL
+* clean dashboard cards
+* clear status badges
+* strong filtering in logs
+* responsive mobile-friendly attendance actions
+* map view for location attendance
+* suspicious records must stand out visually
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The attendance module must behave like a real enterprise attendance system.
+
+NOT just a log table.
+
+It must:
+
+* support shifts
+* support lateness and absence rules
+* support overtime
+* support correction requests
+* support mobile attendance with GPS
+* support geofencing
+* support anti-fraud logic
+* integrate with payroll, leave, and disciplinary modules
+
+Build it as a production-grade module.

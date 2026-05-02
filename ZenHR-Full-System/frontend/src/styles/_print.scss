@@ -1,0 +1,49 @@
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .modal-overlay > *:not(.slip-detail-modal) {
+    display: none !important;
+  }
+
+  .slip-detail-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .detail-header-actions,
+  .icon-btn,
+  .btn,
+  .sidebar,
+  .top-bar,
+  .layout-overlay,
+  .impersonation-banner {
+    display: none !important;
+  }
+
+  .main-area,
+  .main-content,
+  .z-page,
+  .modal-box,
+  .payslip-print-area {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .payslip-print-area {
+    display: block !important;
+  }
+}

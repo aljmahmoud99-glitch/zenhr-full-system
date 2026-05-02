@@ -1,0 +1,276 @@
+You are implementing a FULL "Forms Module" in ZenJO HRMS.
+
+This is NOT a simple UI feature.
+This is a core enterprise module for generating official HR documents.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a complete "Forms" system where users can:
+
+* Fill HR forms
+* Auto-populate data from system (employees, departments, payroll)
+* Preview documents in real-time
+* Print professional A4 documents (Arabic-first, RTL)
+* Save drafts and history
+
+═══════════════════════════════════════════════════════
+ROUTE STRUCTURE
+═══════════════════════════════════════════════════════
+
+Create main route:
+
+/app/forms
+
+Sub routes:
+
+/app/forms/leave
+/app/forms/exit-permit
+/app/forms/resignation
+/app/forms/hiring-request
+/app/forms/appointment-letter
+/app/forms/employment-contract
+/app/forms/salary-advance
+/app/forms/asset-handover
+/app/forms/work-permit
+/app/forms/passport-request
+/app/forms/investigation
+/app/forms/termination
+/app/forms/clearance
+/app/forms/experience-certificate
+/app/forms/admin-decision
+/app/forms/letterhead
+
+═══════════════════════════════════════════════════════
+FORM CATEGORIES (UI GROUPING)
+═══════════════════════════════════════════════════════
+
+Group forms in UI:
+
+1. Employee Forms (نماذج الموظفين)
+2. Recruitment & Hiring (التوظيف والتعيين)
+3. Assets & Permits (العهد والتصاريح)
+4. Legal & Administrative (قانونية وادارية)
+5. Letters & Certificates (خطابات وشهادات)
+
+═══════════════════════════════════════════════════════
+FORM ENGINE (VERY IMPORTANT)
+═══════════════════════════════════════════════════════
+
+DO NOT build each form separately.
+
+Create a reusable Form Engine:
+
+* Dynamic form fields
+* Unified layout
+* Shared header/footer
+* Shared print layout
+* Shared actions
+
+Each form defines:
+
+* fields
+* template
+* data bindings
+
+═══════════════════════════════════════════════════════
+FORM PAGE LAYOUT
+═══════════════════════════════════════════════════════
+
+Split screen layout:
+
+RIGHT SIDE:
+
+* Input fields (form)
+
+LEFT SIDE:
+
+* Live preview (document)
+
+Preview updates instantly when user types.
+
+═══════════════════════════════════════════════════════
+AUTO DATA BINDING
+═══════════════════════════════════════════════════════
+
+Forms must auto-fill data:
+
+When selecting employee:
+
+* full name
+* employee ID
+* department
+* job title
+* salary (if allowed)
+
+Examples:
+
+Leave Form:
+
+* employee name
+* leave balance
+* leave type
+* dates
+
+Resignation:
+
+* employee name
+* resignation date
+* last working day
+
+Employment Contract:
+
+* employee details
+* salary
+* allowances
+* start date
+
+Salary Advance:
+
+* salary
+* requested amount
+* installments
+
+DO NOT require user to type existing system data manually.
+
+═══════════════════════════════════════════════════════
+PRINTING SYSTEM (CRITICAL)
+═══════════════════════════════════════════════════════
+
+Implement dedicated print mode:
+
+When user clicks "Print":
+
+* Hide sidebar
+* Hide buttons
+* Render clean A4 document
+* RTL layout
+* Arabic-first formatting
+* Company logo in header
+* Signature area at bottom
+
+Use CSS:
+
+@media print
+
+Support:
+
+* Browser print
+* PDF export (if possible)
+
+═══════════════════════════════════════════════════════
+FORM ACTIONS
+═══════════════════════════════════════════════════════
+
+Each form must support:
+
+* Save Draft
+* Preview
+* Print
+* Export PDF (optional)
+* Submit (if workflow needed)
+
+Store form records in DB (forms table or JSON storage)
+
+═══════════════════════════════════════════════════════
+ROLE ACCESS CONTROL
+═══════════════════════════════════════════════════════
+
+Forms must be role-based:
+
+HR ADMIN:
+
+* Full access to all forms
+
+PAYROLL ADMIN:
+
+* salary advance
+* clearance (financial part)
+* selected financial forms only
+
+MANAGER:
+
+* hiring request
+* some administrative requests only
+
+EMPLOYEE:
+
+* leave
+* resignation
+* salary advance
+* passport request
+
+RECRUITER:
+
+* hiring request
+* appointment letter draft
+
+SUPERADMIN:
+
+* MUST NOT see forms module in main navigation
+
+═══════════════════════════════════════════════════════
+ARABIC-FIRST REQUIREMENT
+═══════════════════════════════════════════════════════
+
+* Arabic is default
+* Full RTL layout
+* Proper Arabic typography
+* Professional wording
+
+Examples:
+
+* "نموذج طلب إجازة"
+* "كتاب تعيين"
+* "عقد عمل"
+* "شهادة خبرة"
+
+═══════════════════════════════════════════════════════
+DATABASE DESIGN (SIMPLE APPROACH)
+═══════════════════════════════════════════════════════
+
+Create table:
+
+forms_records:
+
+* Id
+* CompanyId
+* FormType
+* EmployeeId (nullable)
+* Data (JSON)
+* Status (draft / submitted / printed)
+* CreatedBy
+* CreatedAt
+
+═══════════════════════════════════════════════════════
+UX DETAILS
+═══════════════════════════════════════════════════════
+
+* Show list of forms
+* Filter by category
+* Search
+* Show recent forms
+* Show status (draft / printed)
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The Forms module must behave like a real HR document system.
+
+NOT just input forms.
+
+It must:
+
+* look official
+* print-ready
+* role-restricted
+* data-driven
+* reusable
+
+Think:
+Enterprise HR Document Generator
+
+Do NOT build static pages.
+Build a scalable system.

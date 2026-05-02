@@ -1,0 +1,221 @@
+You are implementing a FULL Public Holidays Module in ZenJO HRMS.
+
+This is a core scheduling and compliance module.
+It must integrate with attendance, payroll, shifts, employee calendar, and notifications.
+
+Do NOT build a simple holiday table.
+Build a complete official holidays management system.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a Public Holidays system where HR can:
+
+* manage official holidays
+* define holiday periods and recurrence
+* integrate holidays with attendance and payroll
+* support holiday notifications
+* generate holiday reports
+
+═══════════════════════════════════════════════════════
+
+1. MAIN ROUTES
+   ═══════════════════════════════════════════════════════
+
+/app/public-holidays
+/app/public-holidays/list
+/app/public-holidays/create
+/app/public-holidays/:id
+/app/public-holidays/reports
+
+═══════════════════════════════════════════════════════
+2) HOLIDAYS LIST
+═══════════════════════════════════════════════════════
+
+Display table:
+
+* Holiday Name
+* Date / Date Range
+* Type (National / Religious / Company)
+* Status (Active / Inactive)
+
+Features:
+
+* search
+* filter by type
+* filter by year
+* click row → open holiday details
+
+═══════════════════════════════════════════════════════
+3) ADD / EDIT HOLIDAY
+═══════════════════════════════════════════════════════
+
+Form fields:
+
+* Holiday Name
+* Date or Date Range
+* Description (optional)
+* Annual Recurrence (optional)
+* Scope:
+
+  * all employees
+  * selected departments only
+
+Support:
+
+* single-day holiday
+* multi-day holiday
+
+═══════════════════════════════════════════════════════
+4) ATTENDANCE INTEGRATION
+═══════════════════════════════════════════════════════
+
+This is critical.
+
+When a day is marked as a public holiday:
+
+* attendance records for that day should show "On Holiday"
+* employees should not be required to clock in / clock out
+* if employee clocks in by mistake, system should:
+
+  * either auto-correct the record
+  * or flag it as holiday attendance depending on company settings
+
+Attendance views and dashboards must reflect holiday status correctly.
+
+═══════════════════════════════════════════════════════
+5) PAYROLL INTEGRATION
+═══════════════════════════════════════════════════════
+
+Public holidays must affect payroll logic.
+
+Rules:
+
+* holiday days are paid according to company policy
+* if employee works on a holiday:
+
+  * overtime / holiday work rate may be higher
+  * example: 200% instead of 150%
+
+This must be configurable.
+
+Integrate with:
+
+* payroll calculation
+* overtime rules
+* payslip display if holiday work occurred
+
+═══════════════════════════════════════════════════════
+6) REPORTS
+═══════════════════════════════════════════════════════
+
+Build reports such as:
+
+* annual public holidays report
+* comparison between public holidays and employee consumed leave
+* holidays by type
+* holiday work report (employees who worked during official holidays)
+
+Reports must support:
+
+* year filter
+* type filter
+* export
+
+═══════════════════════════════════════════════════════
+7) NOTIFICATIONS & ALERTS
+═══════════════════════════════════════════════════════
+
+System must generate alerts:
+
+* reminder one week before holiday
+* reminder one day before holiday
+* display holiday in employee calendar / company calendar
+* notify managers for shift planning
+
+Holiday notifications should appear in:
+
+* dashboard widgets
+* employee calendar
+* app/company notifications
+
+═══════════════════════════════════════════════════════
+8) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+public_holidays:
+
+* Id
+* CompanyId
+* Name
+* StartDate
+* EndDate
+* Type (national / religious / company)
+* Description
+* IsRecurringAnnually
+* ScopeType (all / selected departments)
+* Status
+* CreatedAt
+
+public_holiday_departments:
+
+* Id
+* HolidayId
+* DepartmentId
+
+═══════════════════════════════════════════════════════
+9) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+HR Admin:
+
+* full access
+
+HR Staff:
+
+* manage holidays if allowed
+
+Manager:
+
+* view holidays for planning only
+
+Employee:
+
+* view holidays in calendar only
+
+Payroll Admin:
+
+* read-only for payroll integration
+
+SuperAdmin:
+
+* not part of daily holiday operations
+
+═══════════════════════════════════════════════════════
+10) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* clear holiday list
+* distinguish holiday types with badges/colors
+* date range display must be readable
+* show holidays in calendar-style components where useful
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The public holidays module must behave like a real enterprise holiday management system.
+
+NOT just a list of dates.
+
+It must:
+
+* integrate with attendance
+* affect payroll and overtime
+* notify employees and managers
+* support recurrence and department scope
+* provide clear reports
+
+Build it as a scheduling + compliance feature.

@@ -1,0 +1,172 @@
+<div class="app-shell z-app-shell" [class.sidebar-closed]="!sidebarOpen()" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
+  <div class="layout-overlay" *ngIf="sidebarOpen()" (click)="toggleSidebar()"></div>
+
+  <aside class="sidebar z-sidebar">
+    <div class="sidebar-brand-card">
+      <div class="logo-mark">Z</div>
+      <div class="brand-copy">
+        <strong class="logo-text">{{ 'app.name' | translate }}</strong>
+        <span class="logo-subtitle">{{ sidebarBadgeLabel }}</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ng-container *ngFor="let group of navGroups">
+        <div class="nav-group-label" *ngIf="sidebarOpen()">
+          {{ label(group.labelAr, group.labelEn) }}
+        </div>
+
+        <a
+          *ngFor="let item of group.items"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          class="nav-item"
+          [attr.title]="!sidebarOpen() ? label(item.labelAr, item.labelEn) : null">
+          <span class="material-icons nav-icon">{{ item.icon }}</span>
+          <span class="nav-text" *ngIf="sidebarOpen()">{{ label(item.labelAr, item.labelEn) }}</span>
+        </a>
+      </ng-container>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="footer-action logout-btn" type="button" (click)="logout()">
+        <span class="material-icons">logout</span>
+        <span class="footer-label" *ngIf="sidebarOpen()">{{ 'nav.logout' | translate }}</span>
+      </button>
+
+      <button
+        class="sidebar-toggle footer-action"
+        type="button"
+        (click)="toggleSidebar()"
+        [attr.aria-label]="sidebarToggleLabel">
+        <span class="material-icons">{{ sidebarOpen() ? (i18n.isRTL() ? 'right_panel_close' : 'left_panel_close') : (i18n.isRTL() ? 'right_panel_open' : 'left_panel_open') }}</span>
+        <span class="footer-label" *ngIf="sidebarOpen()">{{ sidebarToggleLabel }}</span>
+      </button>
+    </div>
+  </aside>
+
+  <section class="main-area z-main">
+    <header class="top-bar z-topbar">
+      <div class="topbar-page-meta">
+        <div class="page-title-block">
+          <div class="page-eyebrow">{{ pageEyebrow }}</div>
+          <h1 class="top-page-title">{{ pageTitle }}</h1>
+          <div class="breadcrumb-row">
+            <span>{{ pageSubtitle }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-tools">
+        <div class="date-pill">
+          <span class="date-line">{{ todayDayLabel }}</span>
+          <span class="date-line">{{ todayMonthLabel }}</span>
+        </div>
+
+        <label class="search-shell search-box">
+          <span class="material-icons search-icon">search</span>
+          <input class="top-search-input" [placeholder]="'shell.search' | translate" />
+        </label>
+
+        <div class="topbar-actions">
+          <div class="topbar-lang-switch" role="group" [attr.aria-label]="currentLanguageLabel">
+            <button
+              type="button"
+              class="lang-chip"
+              [class.active]="i18n.currentLang === 'ar'"
+              (click)="setLang('ar')">
+              {{ languageLabel('ar') }}
+            </button>
+            <button
+              type="button"
+              class="lang-chip"
+              [class.active]="i18n.currentLang === 'en'"
+              (click)="setLang('en')">
+              {{ languageLabel('en') }}
+            </button>
+          </div>
+
+          <div class="notification-shell">
+            <button
+              class="surface-icon notif-btn"
+              type="button"
+              [class.active]="notificationsOpen()"
+              [attr.aria-expanded]="notificationsOpen()"
+              [attr.aria-label]="'shell.notifications' | translate"
+              (click)="toggleNotifications()">
+              <span class="material-icons">notifications</span>
+              <span class="notif-count" *ngIf="notificationCount()">{{ notificationCount() }}</span>
+            </button>
+
+            <div class="notification-panel z-card" *ngIf="notificationsOpen()">
+              <div class="notification-panel-head">
+                <div class="notification-panel-title">{{ 'shell.notifications' | translate }}</div>
+              </div>
+
+              <div class="notification-panel-body" *ngIf="notificationsLoading()">
+                <div class="notification-empty-state">{{ 'common.loading' | translate }}</div>
+              </div>
+
+              <div class="notification-panel-body" *ngIf="!notificationsLoading() && notifications().length === 0">
+                <div class="notification-empty-state">
+                  {{ i18n.currentLang === 'ar' ? 'لا توجد إشعارات حالياً' : 'No notifications right now' }}
+                </div>
+              </div>
+
+              <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
+                <div class="notification-item" *ngFor="let item of notifications()">
+                  <div class="notification-item-icon">
+                    <span class="material-icons">{{ item.icon }}</span>
+                  </div>
+                  <div class="notification-item-copy">
+                    <div class="notification-item-title">{{ notificationLabel(item) }}</div>
+                    <div class="notification-item-meta">{{ notificationMeta(item) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="top-user-chip" type="button">
+            <div class="avatar avatar-sm user-avatar-shell">
+              <img
+                *ngIf="avatarUrl && !avatarLoadFailed()"
+                class="avatar-image"
+                [src]="avatarUrl"
+                [alt]="userDisplayName"
+                (error)="onAvatarError()" />
+              <span class="avatar-fallback" *ngIf="!avatarUrl || avatarLoadFailed()">{{ getInitials() }}</span>
+            </div>
+            <div class="top-user-meta">
+              <div class="top-user-name">{{ userDisplayName }}</div>
+              <div class="top-user-role">{{ roleName }}</div>
+            </div>
+            <span class="material-icons top-user-arrow">expand_more</span>
+          </button>
+
+          <button class="surface-icon topbar-menu" type="button" (click)="toggleSidebar()">
+            <span class="material-icons">menu</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="impersonation-banner" *ngIf="auth.isImpersonating()">
+      <span class="material-icons">shield_person</span>
+      <span>
+        {{ 'shell.impersonating' | translate }}
+        <strong>{{ user()?.username }}</strong>
+      </span>
+      <button class="end-imp-btn" type="button" (click)="endImpersonation()" [disabled]="endingImpersonation()">
+        <span class="material-icons">exit_to_app</span>
+        {{ endingImpersonation() ? ('shell.ending' | translate) : ('shell.endImpersonation' | translate) }}
+      </button>
+    </div>
+
+    <main class="main-content z-page">
+      <router-outlet />
+    </main>
+  </section>
+
+  <app-toast-container />
+</div>

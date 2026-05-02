@@ -1,0 +1,380 @@
+<section class="z-page assets-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div>
+      <h1 class="z-title">{{ t('إدارة الأصول', 'Assets') }}</h1>
+      <p class="z-subtitle">{{ t('سجل موحد لتتبع الأصول، تعيينها، إرجاعها، وربطها بملف الموظف والتسليم النهائي.', 'A unified asset register for assignment, return, and integration with employee profile and clearance.') }}</p>
+    </div>
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" *ngIf="!isEmployee" (click)="exportReport()">
+        <span class="material-icons">print</span>
+        {{ t('طباعة التقرير', 'Print report') }}
+      </button>
+      <button class="z-btn-primary" type="button" *ngIf="canManage" (click)="openCreateModal()">
+        <span class="material-icons">add</span>
+        {{ t('أصل جديد', 'New asset') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+
+  <app-skeleton-kpi-cards *ngIf="loading()" [count]="isEmployee ? 4 : 6" />
+
+  <section class="summary-grid" *ngIf="!loading() && summary() as stats">
+    <ng-container *ngIf="isEmployee; else adminSummary">
+      <article class="z-card summary-card"><span>{{ t('الأصول المخصصة لي', 'Total assigned assets') }}</span><strong>{{ stats.totalAssignedAssets || 0 }}</strong></article>
+      <article class="z-card summary-card warning"><span>{{ t('بانتظار الإرجاع', 'Pending return') }}</span><strong>{{ stats.pendingReturnAssets || 0 }}</strong></article>
+      <article class="z-card summary-card danger"><span>{{ t('أصول تالفة', 'Damaged assets') }}</span><strong>{{ stats.damagedAssets || 0 }}</strong></article>
+      <article class="z-card summary-card info"><span>{{ t('متاحة لإعادة التخصيص', 'Available (reassignable)') }}</span><strong>{{ stats.availableAssets || 0 }}</strong></article>
+    </ng-container>
+    <ng-template #adminSummary>
+      <article class="z-card summary-card"><span>{{ t('إجمالي الأصول', 'Total assets') }}</span><strong>{{ stats.total || 0 }}</strong></article>
+      <article class="z-card summary-card"><span>{{ t('متاحة', 'Available') }}</span><strong>{{ stats.available || 0 }}</strong></article>
+      <article class="z-card summary-card info"><span>{{ t('معيّنة', 'Assigned') }}</span><strong>{{ stats.assigned || 0 }}</strong></article>
+      <article class="z-card summary-card danger"><span>{{ t('تالف / مفقود', 'Damaged / lost') }}</span><strong>{{ stats.damagedOrLost || 0 }}</strong></article>
+      <article class="z-card summary-card warning"><span>{{ t('بانتظار الإرجاع', 'Pending return') }}</span><strong>{{ stats.pendingReturn || 0 }}</strong></article>
+      <article class="z-card summary-card warning"><span>{{ t('مرتبطة بموظفين مستقيلين', 'Assigned to resigning employees') }}</span><strong>{{ stats.resigningEmployees || 0 }}</strong></article>
+    </ng-template>
+  </section>
+
+  <section class="z-card">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('البحث والتصفية', 'Search & filters') }}</h2>
+        <p class="z-small">{{ t('ابحث بالأصل أو الرقم التسلسلي، ثم صفِّ حسب الحالة والفئة.', 'Search by asset or serial, then filter by status and category.') }}</p>
+      </div>
+      <div class="header-actions">
+        <button class="z-btn-secondary" type="button" *ngIf="hasActiveFilters()" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+        <button class="z-btn-secondary" type="button" *ngIf="error()" (click)="loadAll()">{{ t('إعادة المحاولة', 'Retry') }}</button>
+      </div>
+    </div>
+
+    <div class="filter-grid">
+      <label class="field">
+        <span class="z-label">{{ t('بحث', 'Search') }}</span>
+        <input class="z-input" [(ngModel)]="searchTerm" (ngModelChange)="applyFilters()" [placeholder]="t('الأصل أو الرقم التسلسلي أو المورد', 'Asset, serial, or supplier')" />
+      </label>
+
+      <label class="field">
+        <span class="z-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="available" *ngIf="!isEmployee">{{ statusLabel('available') }}</option>
+          <option value="assigned">{{ statusLabel('assigned') }}</option>
+          <option value="pending_return">{{ statusLabel('pending_return') }}</option>
+          <option value="maintenance">{{ statusLabel('maintenance') }}</option>
+          <option value="damaged">{{ statusLabel('damaged') }}</option>
+          <option value="retired">{{ statusLabel('retired') }}</option>
+          <option value="lost">{{ statusLabel('lost') }}</option>
+        </select>
+      </label>
+
+      <label class="field" *ngIf="!isEmployee">
+        <span class="z-label">{{ t('الفئة', 'Category') }}</span>
+        <select class="z-input" [(ngModel)]="filterCategory" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الفئات', 'All categories') }}</option>
+          <option *ngFor="let category of categories()" [value]="category.id">{{ lang === 'ar' ? category.nameAr : (category.nameEn || category.nameAr) }}</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="z-label">{{ t('الحالة الفنية', 'Condition') }}</span>
+        <select class="z-input" [(ngModel)]="filterCondition" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All conditions') }}</option>
+          <option value="new">{{ conditionLabel('new') }}</option>
+          <option value="good">{{ conditionLabel('good') }}</option>
+          <option value="damaged">{{ conditionLabel('damaged') }}</option>
+          <option value="lost">{{ conditionLabel('lost') }}</option>
+        </select>
+      </label>
+
+      <label class="field" *ngIf="canManage">
+        <span class="z-label">{{ t('التخصيص', 'Assignment') }}</span>
+        <select class="z-input" [(ngModel)]="filterAssignment" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('الكل', 'All') }}</option>
+          <option value="assigned">{{ t('معيّن', 'Assigned') }}</option>
+          <option value="unassigned">{{ t('غير معيّن', 'Unassigned') }}</option>
+        </select>
+      </label>
+
+      <label class="field" *ngIf="canManage">
+        <span class="z-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <select class="z-input" [(ngModel)]="filterOrgUnit" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
+          <option *ngFor="let dept of departments()" [value]="dept">{{ dept }}</option>
+        </select>
+      </label>
+
+      <label class="toggle-card" *ngIf="canManage">
+        <input type="checkbox" [(ngModel)]="longLeaveOnly" (ngModelChange)="applyFilters()">
+        <span>{{ t('موظفون في إجازة طويلة مع أصول', 'Employees on long leave with assets') }}</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="z-table-container">
+    <div class="table-toolbar">
+      <div>
+        <h2 class="z-heading">{{ t('سجل الأصول', 'Asset register') }}</h2>
+        <p class="z-small">{{ t(filteredAssets().length + ' أصل معروض', filteredAssets().length + ' assets shown') }}</p>
+      </div>
+    </div>
+
+    <app-skeleton-table *ngIf="loading()" [rows]="8" [cols]="9" />
+
+    <div class="empty-state" *ngIf="!loading() && filteredAssets().length === 0">
+      <span class="material-icons">inventory_2</span>
+      <div>{{ isEmployee ? t('لا توجد أصول مخصصة لك', 'No assets assigned to you') : t('لا توجد أصول مطابقة.', 'No matching assets.') }}</div>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && filteredAssets().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ t('الأصل', 'Asset') }}</th>
+            <th>{{ t('الفئة', 'Category') }}</th>
+            <th>{{ t('الرقم التسلسلي', 'Serial number') }}</th>
+            <th>{{ t('القيمة', 'Value') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th *ngIf="canManage">{{ t('مُعيّن إلى', 'Assigned to') }}</th>
+            <th>{{ t('تاريخ التعيين', 'Assigned date') }}</th>
+            <th>{{ t('تاريخ الإرجاع', 'Return date') }}</th>
+            <th>{{ t('الحالة الفنية', 'Condition') }}</th>
+            <th>{{ t('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let asset of filteredAssets()">
+            <td>
+              <strong>{{ assetName(asset) }}</strong>
+              <div class="table-subline">{{ categoryName(asset) }}<span *ngIf="asset.supplier"> · {{ asset.supplier }}</span></div>
+            </td>
+            <td>{{ categoryName(asset) }}</td>
+            <td>{{ asset.serialNumber || '—' }}</td>
+            <td>{{ (asset.currentValue || asset.purchaseValue || 0) | number:'1.3-3' }}</td>
+            <td>
+              <div class="stack-badges">
+                <span [class]="assetStatusClass(asset.currentStatus)">{{ statusLabel(asset.currentStatus) }}</span>
+                <span class="z-badge warning" *ngIf="asset.assignedToResigningEmployee">{{ t('استقالة', 'Resignation') }}</span>
+                <span class="z-badge warning" *ngIf="asset.assignedToClearanceEmployee">{{ t('براءة ذمة', 'Clearance') }}</span>
+                <span class="z-badge danger" *ngIf="asset.employeeOnLongLeave">{{ t('إجازة طويلة', 'Long leave') }}</span>
+              </div>
+            </td>
+            <td *ngIf="canManage">
+              <div *ngIf="asset.assignedToEmployeeId; else noAssignee">
+                <strong>{{ assignedEmployee(asset) }}</strong>
+                <div class="table-subline">{{ asset.assignedEmployeeCode }}<span *ngIf="asset.assignedDepartmentAr || asset.assignedDepartmentEn"> · {{ lang === 'ar' ? asset.assignedDepartmentAr : (asset.assignedDepartmentEn || asset.assignedDepartmentAr) }}</span></div>
+              </div>
+              <ng-template #noAssignee>—</ng-template>
+            </td>
+            <td>{{ asset.assignedDate ? (asset.assignedDate | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>{{ (asset.returnDate || asset.expectedReturnDate) ? ((asset.returnDate || asset.expectedReturnDate) | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>{{ conditionLabel(asset.currentCondition) }}</td>
+            <td>
+              <div class="row-actions">
+                <button class="icon-btn" type="button" (click)="openDetails(asset)" [title]="t('عرض', 'View')"><span class="material-icons">visibility</span></button>
+                <button class="icon-btn" type="button" *ngIf="isEmployee && asset.canConfirmReceive" (click)="confirmReceive(asset)" [title]="t('تأكيد الاستلام', 'Confirm receive')"><span class="material-icons">check_circle</span></button>
+                <button class="icon-btn" type="button" *ngIf="isEmployee && asset.currentStatus === 'assigned'" (click)="requestReturn(asset)" [title]="t('طلب إرجاع', 'Request return')"><span class="material-icons">assignment_return</span></button>
+                <button class="icon-btn" type="button" *ngIf="canManage && asset.currentStatus !== 'assigned'" (click)="openAssignModal(asset)" [title]="t('تعيين', 'Assign')"><span class="material-icons">person_add</span></button>
+                <button class="icon-btn" type="button" *ngIf="canManage && asset.currentStatus === 'assigned'" (click)="openReturnModal(asset)" [title]="t('إرجاع', 'Return')"><span class="material-icons">assignment_return</span></button>
+                <button class="icon-btn" type="button" *ngIf="canManage" (click)="openEditModal(asset)" [title]="t('تعديل', 'Edit')"><span class="material-icons">edit</span></button>
+                <button class="icon-btn danger" type="button" *ngIf="canManage && asset.currentStatus !== 'assigned'" (click)="promptRetire(asset)" [title]="t('أرشفة', 'Retire')"><span class="material-icons">inventory_off</span></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="formOpen()" (click)="closeForm()">
+    <section class="modal-panel" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ editingId() ? t('تحديث الأصل', 'Update asset') : t('إضافة أصل جديد', 'Add new asset') }}</h2>
+          <p class="z-small">{{ t('سجل بيانات الأصل وقيمته ومورده وحالته الفنية في نموذج واحد.', 'Manage asset identity, supplier, value, and condition in one form.') }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeForm()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="alert alert-danger" *ngIf="formError()">{{ formError() }}</div>
+
+      <div class="form-grid two-col">
+        <label class="field"><span class="z-label">{{ t('اسم الأصل بالعربية', 'Asset name AR') }}</span><input class="z-input" [(ngModel)]="form.assetNameAr"></label>
+        <label class="field"><span class="z-label">{{ t('اسم الأصل بالإنجليزية', 'Asset name EN') }}</span><input class="z-input" [(ngModel)]="form.assetNameEn"></label>
+        <label class="field">
+          <span class="z-label">{{ t('الفئة', 'Category') }}</span>
+          <select class="z-input" [(ngModel)]="form.categoryId">
+            <option [ngValue]="0">{{ t('اختر الفئة', 'Select category') }}</option>
+            <option *ngFor="let category of categories()" [ngValue]="category.id">{{ lang === 'ar' ? category.nameAr : (category.nameEn || category.nameAr) }}</option>
+          </select>
+        </label>
+        <label class="field"><span class="z-label">{{ t('الرقم التسلسلي', 'Serial number') }}</span><input class="z-input" [(ngModel)]="form.serialNumber"></label>
+        <label class="field"><span class="z-label">{{ t('الباركود', 'Barcode') }}</span><input class="z-input" [(ngModel)]="form.barcode"></label>
+        <label class="field"><span class="z-label">{{ t('تاريخ الشراء', 'Purchase date') }}</span><input class="z-input" type="date" [(ngModel)]="form.purchaseDate"></label>
+        <label class="field"><span class="z-label">{{ t('قيمة الشراء', 'Purchase value') }}</span><input class="z-input" type="number" [(ngModel)]="form.purchaseValue"></label>
+        <label class="field"><span class="z-label">{{ t('المورد', 'Supplier') }}</span><input class="z-input" [(ngModel)]="form.supplier"></label>
+        <label class="field">
+          <span class="z-label">{{ t('الحالة', 'Status') }}</span>
+          <select class="z-input" [(ngModel)]="form.currentStatus">
+            <option value="available">{{ statusLabel('available') }}</option>
+            <option value="maintenance">{{ statusLabel('maintenance') }}</option>
+            <option value="retired">{{ statusLabel('retired') }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('الحالة الفنية', 'Condition') }}</span>
+          <select class="z-input" [(ngModel)]="form.condition">
+            <option value="new">{{ conditionLabel('new') }}</option>
+            <option value="good">{{ conditionLabel('good') }}</option>
+            <option value="damaged">{{ conditionLabel('damaged') }}</option>
+            <option value="lost">{{ conditionLabel('lost') }}</option>
+          </select>
+        </label>
+        <label class="field field-full"><span class="z-label">{{ t('ملاحظات', 'Notes') }}</span><textarea class="z-input" rows="4" [(ngModel)]="form.notes"></textarea></label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeForm()" [disabled]="saving()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="saveAsset()" [disabled]="saving()">{{ saving() ? '...' : t('حفظ', 'Save') }}</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="assignOpen()" (click)="closeAssignModal()">
+    <section class="modal-panel slim" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('تعيين الأصل', 'Assign asset') }}</h2>
+          <p class="z-small">{{ selectedAsset() ? assetName(selectedAsset()) : '' }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeAssignModal()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="alert alert-danger" *ngIf="assignError()">{{ assignError() }}</div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span class="z-label">{{ t('الموظف', 'Employee') }}</span>
+          <select class="z-input" [(ngModel)]="assignForm.employeeId">
+            <option [ngValue]="0">{{ t('اختر الموظف', 'Select employee') }}</option>
+            <option *ngFor="let employee of employees()" [ngValue]="employee.id">{{ employee.fullNameAr || employee.firstNameAr + ' ' + employee.lastNameAr }} ({{ employee.employeeCode }})</option>
+          </select>
+        </label>
+        <label class="field"><span class="z-label">{{ t('تاريخ التعيين', 'Assignment date') }}</span><input class="z-input" type="date" [(ngModel)]="assignForm.assignedDate"></label>
+        <label class="field"><span class="z-label">{{ t('تاريخ الإرجاع المتوقع', 'Expected return date') }}</span><input class="z-input" type="date" [(ngModel)]="assignForm.expectedReturnDate"></label>
+        <label class="field">
+          <span class="z-label">{{ t('الحالة عند التسليم', 'Condition at handover') }}</span>
+          <select class="z-input" [(ngModel)]="assignForm.condition">
+            <option value="new">{{ conditionLabel('new') }}</option>
+            <option value="good">{{ conditionLabel('good') }}</option>
+            <option value="damaged">{{ conditionLabel('damaged') }}</option>
+          </select>
+        </label>
+        <label class="field"><span class="z-label">{{ t('ملاحظات التسليم', 'Handover notes') }}</span><textarea class="z-input" rows="4" [(ngModel)]="assignForm.notes"></textarea></label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeAssignModal()" [disabled]="assigning()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="submitAssign()" [disabled]="assigning()">{{ assigning() ? '...' : t('تعيين', 'Assign') }}</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="returnOpen()" (click)="closeReturnModal()">
+    <section class="modal-panel slim" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('إرجاع الأصل', 'Return asset') }}</h2>
+          <p class="z-small">{{ selectedAsset() ? assetName(selectedAsset()) : '' }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeReturnModal()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="alert alert-danger" *ngIf="returnError()">{{ returnError() }}</div>
+
+      <div class="form-grid">
+        <label class="field"><span class="z-label">{{ t('تاريخ الإرجاع', 'Return date') }}</span><input class="z-input" type="date" [(ngModel)]="returnForm.returnDate"></label>
+        <label class="field">
+          <span class="z-label">{{ t('الحالة عند الإرجاع', 'Returned condition') }}</span>
+          <select class="z-input" [(ngModel)]="returnForm.condition">
+            <option value="good">{{ conditionLabel('good') }}</option>
+            <option value="damaged">{{ conditionLabel('damaged') }}</option>
+            <option value="lost">{{ conditionLabel('lost') }}</option>
+          </select>
+        </label>
+        <label class="field"><span class="z-label">{{ t('مبلغ الخصم', 'Deduction amount') }}</span><input class="z-input" type="number" [(ngModel)]="returnForm.deductionAmount"></label>
+        <label class="field field-full"><span class="z-label">{{ t('ملاحظات الإرجاع', 'Return notes') }}</span><textarea class="z-input" rows="4" [(ngModel)]="returnForm.notes"></textarea></label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeReturnModal()" [disabled]="returning()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="submitReturn()" [disabled]="returning()">{{ returning() ? '...' : t('إرجاع', 'Return') }}</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="detailOpen()" (click)="closeDetails()">
+    <section class="modal-panel" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ detail() ? assetName(detail()) : '' }}</h2>
+          <p class="z-small">{{ detail()?.serialNumber || '—' }} · {{ detail() ? statusLabel(detail().currentStatus) : '' }}</p>
+        </div>
+        <div class="header-actions">
+          <button class="z-btn-secondary" type="button" *ngIf="detail()" (click)="printAssetSlip(detail(), detail()?.assignment ? 'handover' : 'return')">{{ t('طباعة النموذج', 'Print form') }}</button>
+          <button class="z-btn-secondary" type="button" (click)="closeDetails()">{{ t('إغلاق', 'Close') }}</button>
+        </div>
+      </div>
+
+      <div class="detail-grid" *ngIf="detail() as asset">
+        <article class="detail-card">
+          <span class="z-label">{{ t('ملخص الأصل', 'Asset summary') }}</span>
+          <strong>{{ assetName(asset) }}</strong>
+          <div class="detail-copy">{{ categoryName(asset) }} · {{ asset.serialNumber || '—' }}</div>
+          <div class="detail-copy">{{ t('القيمة', 'Value') }}: {{ (asset.currentValue || asset.purchaseValue || 0) | number:'1.3-3' }}</div>
+          <div class="detail-copy">{{ t('المورد', 'Supplier') }}: {{ asset.supplier || '—' }}</div>
+          <div class="detail-copy">{{ t('الحالة الفنية', 'Condition') }}: {{ conditionLabel(asset.currentCondition) }}</div>
+        </article>
+
+        <article class="detail-card">
+          <span class="z-label">{{ t('التخصيص الحالي', 'Current assignment') }}</span>
+          <ng-container *ngIf="asset.assignment; else unassigned">
+            <strong>{{ lang === 'ar' ? asset.assignment.nameAr : (asset.assignment.nameEn || asset.assignment.nameAr) }}</strong>
+            <div class="detail-copy">{{ asset.assignment.employeeCode }} · {{ lang === 'ar' ? asset.assignment.departmentAr : (asset.assignment.departmentEn || asset.assignment.departmentAr) }}</div>
+            <div class="detail-copy">{{ t('تاريخ التعيين', 'Assigned date') }}: {{ asset.assignment.assignedDate ? (asset.assignment.assignedDate | date:'dd/MM/yyyy') : '—' }}</div>
+            <div class="detail-copy">{{ t('تاريخ الإرجاع المتوقع', 'Expected return') }}: {{ asset.assignment.expectedReturnDate ? (asset.assignment.expectedReturnDate | date:'dd/MM/yyyy') : '—' }}</div>
+            <div class="detail-actions">
+              <button class="z-btn-secondary" type="button" (click)="openEmployeeProfile({ assignedToEmployeeId: asset.assignment.employeeId })">{{ t('ملف الموظف', 'Employee profile') }}</button>
+            </div>
+          </ng-container>
+          <ng-template #unassigned><div class="detail-copy">{{ t('الأصل غير معيّن حالياً.', 'This asset is currently unassigned.') }}</div></ng-template>
+        </article>
+
+        <article class="detail-card">
+          <span class="z-label">{{ t('تنبيهات الأصل', 'Asset alerts') }}</span>
+          <div class="stack-badges">
+            <span class="z-badge warning" *ngIf="asset.flags?.pendingReturn">{{ t('بانتظار الإرجاع', 'Pending return') }}</span>
+            <span class="z-badge warning" *ngIf="asset.flags?.assignedToResigningEmployee">{{ t('يرتبط باستقالة', 'Linked to resignation') }}</span>
+            <span class="z-badge warning" *ngIf="asset.flags?.assignedToClearanceEmployee">{{ t('يرتبط ببراءة ذمة', 'Linked to clearance') }}</span>
+            <span class="z-badge danger" *ngIf="asset.flags?.employeeOnLongLeave">{{ t('موظف في إجازة طويلة', 'Employee on long leave') }}</span>
+            <span class="z-badge success" *ngIf="!asset.flags?.pendingReturn && !asset.flags?.assignedToResigningEmployee && !asset.flags?.assignedToClearanceEmployee && !asset.flags?.employeeOnLongLeave">{{ t('لا توجد تنبيهات حالية', 'No active alerts') }}</span>
+          </div>
+          <div class="detail-copy">{{ asset.notes || '—' }}</div>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <app-confirm-dialog
+    [open]="retireTarget() !== null"
+    [title]="t('أرشفة الأصل', 'Retire asset')"
+    [message]="t('سيتم نقل الأصل إلى حالة مؤرشفة ولن يكون متاحاً للتعيين.', 'The asset will be moved to a retired state and will no longer be assignable.')"
+    [confirmLabel]="t('أرشفة', 'Retire')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loading]="actionLoading()"
+    tone="danger"
+    (confirm)="confirmRetire()"
+    (cancel)="cancelRetire()">
+  </app-confirm-dialog>
+</section>

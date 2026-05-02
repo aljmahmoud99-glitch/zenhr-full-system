@@ -1,0 +1,56 @@
+.z-topbar {
+  background: var(--z-white);
+  border-bottom: 1px solid var(--z-border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  
+  .topbar-left {
+    .breadcrumb { font-size: 12px; color: var(--z-text-muted); margin-bottom: 2px; }
+    .page-title  { font-size: 20px; font-weight: 700; color: var(--z-text-primary); }
+  }
+  
+  .topbar-right {
+    display: flex; align-items: center; gap: 12px;
+    
+    .search-box {
+      position: relative;
+      input { 
+        width: 220px; height: 38px; padding: 0 36px 0 14px;
+        border: 1.5px solid var(--z-border); border-radius: 20px;
+        font-size: 13px; background: var(--z-cream);
+        transition: all 200ms;
+        &:focus { outline: none; width: 280px; border-color: var(--z-emerald); background: white; }
+      }
+      .search-icon { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); color: var(--z-text-muted); }
+    }
+    
+    .notif-btn {
+      position: relative; width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--z-text-secondary);
+      background: var(--z-cream); border: 1px solid var(--z-border);
+      &:hover { background: white; color: var(--z-text-primary); }
+      .notif-count {
+        position: absolute; top: 2px; inset-inline-end: 2px;
+        background: var(--z-danger); color: white;
+        font-size: 10px; font-weight: 700; min-width: 16px; height: 16px;
+        border-radius: 8px; display: flex; align-items: center; justify-content: center;
+        padding: 0 3px; border: 2px solid white;
+      }
+    }
+    
+    .user-menu {
+      display: flex; align-items: center; gap: 8px;
+      cursor: pointer; padding: 6px 10px; border-radius: var(--z-radius-sm);
+      &:hover { background: var(--z-cream); }
+      
+      .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--z-pine);
+                display: flex; align-items: center; justify-content: center;
+                font-weight: 700; font-size: 13px; color: var(--z-mint); }
+      .user-info { text-align: start; }
+      .user-name { font-size: 13px; font-weight: 600; color: var(--z-text-primary); }
+      .user-role { font-size: 11px; color: var(--z-text-muted); }
+    }
+  }
+}

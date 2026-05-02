@@ -1,0 +1,199 @@
+You are continuing the development of an enterprise HRMS system (ZenHR-style).
+
+IMPORTANT:
+You MUST strictly follow the existing documentation provided.
+DO NOT invent roles, permissions, or workflows.
+ALL logic must match the documented system behavior.
+
+═══════════════════════════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════════════════════════
+
+Complete the implementation of ALL system actors (roles) and enforce
+STRICT Role-Based Access Control (RBAC) across the entire system.
+
+The system already includes partial implementation.
+You must complete and enforce consistency.
+
+═══════════════════════════════════════════════════════
+ACTORS (MUST IMPLEMENT ALL)
+═══════════════════════════════════════════════════════
+
+Implement these roles EXACTLY:
+
+1. Super Admin
+2. HR Admin
+3. Payroll Admin
+4. Manager (Line Manager)
+5. Employee (Self-Service)
+6. Recruiter
+
+Each role MUST:
+
+* Have clearly defined permissions
+* Be enforced in backend AND frontend
+* Be restricted to their scope (company / team / self)
+
+═══════════════════════════════════════════════════════
+CRITICAL RULES (NON-NEGOTIABLE)
+═══════════════════════════════════════════════════════
+
+1. NEVER allow access outside role scope:
+
+   * Employee → ONLY own data
+   * Manager → ONLY direct reports
+   * HR → ONLY company data
+   * Super Admin → ALL data
+
+2. NEVER expose restricted data:
+
+   * Salaries visible ONLY to HR Admin & Payroll Admin
+   * Employees cannot see other employees' data
+
+3. ALL endpoints must be protected
+
+4. ALL UI screens must be filtered by role
+
+═══════════════════════════════════════════════════════
+BACKEND REQUIREMENTS (.NET API)
+═══════════════════════════════════════════════════════
+
+1. Implement Role-Based Authorization:
+
+   * Use JWT claims (role, companyId, employeeId)
+   * Create Authorization Policies:
+
+     * RequireSuperAdmin
+     * RequireHRAdmin
+     * RequirePayrollAdmin
+     * RequireManager
+     * RequireEmployee
+
+2. Add role checks in ALL endpoints:
+
+Example:
+
+* POST /employees → HR Admin only
+* GET /employees → HR Admin (all) / Manager (team) / Employee (self)
+
+3. Enforce DATA FILTERING:
+
+   * Manager queries must filter by DirectManagerId
+   * Employee queries must filter by EmployeeId
+
+4. Implement middleware:
+
+   * Extract user context (role, companyId, employeeId)
+   * Attach to request
+
+5. Block unauthorized access with 403
+
+═══════════════════════════════════════════════════════
+FRONTEND REQUIREMENTS (Angular)
+═══════════════════════════════════════════════════════
+
+1. Implement AccessControlService:
+
+   * canAccessRoute(role)
+   * canAccessFeature(role)
+   * canAccessData(scope)
+
+2. Role-based routing:
+
+   * Each route must define allowedRoles
+   * Unauthorized users redirected to their dashboard
+
+3. Dynamic Navigation:
+
+   * Show ONLY allowed menu items per role
+   * Hide restricted modules completely
+
+4. UI Data Filtering:
+
+   * Employee dashboard → own data only
+   * Manager dashboard → team only
+   * HR dashboard → full company
+
+═══════════════════════════════════════════════════════
+ROLE PERMISSIONS (STRICT IMPLEMENTATION)
+═══════════════════════════════════════════════════════
+
+SUPER ADMIN:
+
+* Full system access
+* Manage companies, users, system config
+* Access all data
+
+HR ADMIN:
+
+* Full HR operations
+* Manage employees
+* Approve all HR requests
+* Cannot finalize payroll
+
+PAYROLL ADMIN:
+
+* Manage payroll only
+* Access salary data
+* Finalize payroll
+* Cannot modify employee core data
+
+MANAGER:
+
+* Access ONLY direct reports
+* Approve leave & overtime
+* View team attendance
+* Cannot access salaries
+
+EMPLOYEE:
+
+* Self-service ONLY
+* Own data only
+* Submit requests
+* View own payslip
+
+RECRUITER:
+
+* Recruitment module only
+* Manage candidates
+* Convert candidate → employee (draft only)
+
+═══════════════════════════════════════════════════════
+WORKFLOW ENFORCEMENT (VERY IMPORTANT)
+═══════════════════════════════════════════════════════
+
+1. Leave Request:
+   Employee → Manager → HR Admin
+
+2. Overtime:
+   Employee → Manager → HR
+
+3. Payroll:
+   HR prepares → Payroll Admin finalizes
+
+4. Hiring:
+   Recruiter → HR Admin approves
+
+═══════════════════════════════════════════════════════
+VALIDATION RULES
+═══════════════════════════════════════════════════════
+
+* Prevent cross-company access
+* Prevent unauthorized role actions
+* Ensure approval chain integrity
+* Log all actions (audit trail)
+
+═══════════════════════════════════════════════════════
+DELIVERABLE
+═══════════════════════════════════════════════════════
+
+You must:
+
+* Complete ALL missing role logic
+* Apply RBAC everywhere
+* Ensure full consistency with documentation
+* Refactor any conflicting code
+
+DO NOT SIMPLIFY.
+DO NOT SKIP EDGE CASES.
+THIS IS A PRODUCTION-LEVEL SYSTEM.

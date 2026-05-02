@@ -1,0 +1,1067 @@
+﻿<section *ngIf="loading()" class="z-page">
+  <app-skeleton-kpi-cards [count]="4" />
+  <app-skeleton-card />
+  <app-skeleton-card />
+</section>
+
+<div *ngIf="!loading() && error()" class="alert alert-error profile-error">{{error()}}</div>
+
+<div *ngIf="!loading() && employee()" class="z-page employee-profile-page" [attr.dir]="lang==='ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+
+  <!-- â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="profile-header-bar">
+    <button class="btn btn-secondary btn-sm" (click)="goBack()">
+      <span class="material-icons">arrow_back</span>
+      {{ lang==='ar' ? 'ط±ط¬ظˆط¹' : 'Back' }}
+    </button>
+    <div class="profile-header-info">
+      <div class="profile-avatar">
+        <span class="material-icons profile-avatar-icon">person</span>
+      </div>
+      <div>
+        <h1 class="profile-name">{{ lang==='ar' ? employee()!.fullNameAr : employee()!.fullNameEn }}</h1>
+        <div class="profile-meta-row">
+          <code class="emp-code">{{ employee()!.employeeCode }}</code>
+          <span class="badge" [class]="statusClass(employee()!.employmentStatus)">{{ statusLabel(employee()!.employmentStatus) }}</span>
+          <span *ngIf="employee()!.jobTitleAr" class="profile-meta-secondary">
+            {{ lang==='ar' ? employee()!.jobTitleAr : employee()!.jobTitleEn }}
+          </span>
+          <span *ngIf="employee()!.departmentNameAr" class="profile-meta-secondary">
+            â€” {{ lang==='ar' ? employee()!.departmentNameAr : employee()!.departmentNameEn }}
+          </span>
+          <!-- â”€â”€ Compliance badge â”€â”€ -->
+          <span class="badge"
+                [class]="complianceStatus.status === 'compliant' ? 'badge-success' : complianceStatus.status === 'warning' ? 'badge-warning' : 'badge-danger'"
+                class="compliance-badge"
+                (click)="onTabChange('compliance')"
+                [title]="lang==='ar' ? 'ط§ظ†ظ‚ط± ظ„ط¹ط±ط¶ طھظپط§طµظٹظ„ ط§ظ„ط§ظ…طھط«ط§ظ„' : 'Click to view compliance details'">
+            <span class="material-icons compliance-badge-icon">
+              {{ complianceStatus.status === 'compliant' ? 'verified' : complianceStatus.status === 'warning' ? 'warning' : 'gpp_bad' }}
+            </span>
+            {{ lang==='ar'
+                ? (complianceStatus.status === 'compliant' ? 'ظ…ظ…طھط«ظ„' : complianceStatus.status === 'warning' ? 'طھظ†ط¨ظٹظ‡ ط§ظ…طھط«ط§ظ„' : 'ط؛ظٹط± ظ…ظ…طھط«ظ„')
+                : (complianceStatus.status === 'compliant' ? 'Compliant' : complianceStatus.status === 'warning' ? 'Compliance Warning' : 'Non-Compliant') }}
+            <span *ngIf="complianceStatus.alertCount > 0"
+                  class="compliance-badge-count">
+              {{ complianceStatus.alertCount }}
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- â”€â”€ Probation Alert Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div *ngIf="probationProgress && probationProgress.alertLevel !== 'normal'" class="probation-alert-banner"
+       [class]="'probation-alert-' + probationProgress.alertLevel">
+    <span class="material-icons">{{ probationProgress.alertLevel === 'overdue' ? 'error' : 'warning' }}</span>
+    <span *ngIf="probationProgress.alertLevel === 'overdue'">
+      {{ lang==='ar' ? 'ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط© ظ…ظ†طھظ‡ظٹط© ظˆظ„ظ… ظٹطھط®ط° ظ‚ط±ط§ط± ط¨ط¹ط¯' : 'Probation period has expired â€” no final decision recorded' }}
+    </span>
+    <span *ngIf="probationProgress.alertLevel === 'critical'">
+      {{ lang==='ar' ? 'طھظ†طھظ‡ظٹ ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط© ط®ظ„ط§ظ„ ' + probationProgress.daysLeft + ' ط£ظٹط§ظ…' : 'Probation ends in ' + probationProgress.daysLeft + ' days' }}
+    </span>
+    <span *ngIf="probationProgress.alertLevel === 'warning'">
+      {{ lang==='ar' ? 'طھظ†طھظ‡ظٹ ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط© ط®ظ„ط§ظ„ ' + probationProgress.daysLeft + ' ظٹظˆظ…' : 'Probation ends in ' + probationProgress.daysLeft + ' days' }}
+    </span>
+  </div>
+
+  <!-- â”€â”€ Tab Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  <div class="profile-tabs">
+    <button class="profile-tab" *ngIf="canSeeTab('personal')" [class.active]="activeTab()==='personal'" (click)="onTabChange('personal')">
+      <span class="material-icons">badge</span>
+      {{ lang==='ar' ? 'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط´ط®طµظٹط©' : 'Personal Info' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('employment')" [class.active]="activeTab()==='employment'" (click)="onTabChange('employment')">
+      <span class="material-icons">work</span>
+      {{ lang==='ar' ? 'بيانات التوظيف' : 'Employment' }}
+    </button>
+    <button class="profile-tab" [class.active]="activeTab()==='probation'"
+            (click)="onTabChange('probation')"
+            *ngIf="employee()!.employmentStatus === 'probation' || employee()!.probationEndDate">
+      <span class="material-icons">timeline</span>
+      {{ lang==='ar' ? 'ظ…طھط§ط¨ط¹ط© ط§ظ„طھط¬ط±ط¨ط©' : 'Probation Tracking' }}
+      <span *ngIf="probationProgress && probationProgress.alertLevel !== 'normal'"
+            class="tab-alert-dot" [class]="'dot-' + probationProgress.alertLevel"></span>
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('attendance')" [class.active]="activeTab()==='attendance'" (click)="onTabChange('attendance')">
+      <span class="material-icons">schedule</span>
+      {{ lang==='ar' ? 'ط§ظ„ط­ط¶ظˆط±' : 'Attendance' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('compliance')" [class.active]="activeTab()==='compliance'" (click)="onTabChange('compliance')">
+      <span class="material-icons">policy</span>
+      {{ lang==='ar' ? 'ط§ظ„ط§ظ…طھط«ط§ظ„' : 'Compliance' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('documents')" [class.active]="activeTab()==='documents'" (click)="onTabChange('documents')">
+      <span class="material-icons">folder_open</span>
+      {{ lang==='ar' ? 'الوثائق' : 'Documents' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('qualifications')" [class.active]="activeTab()==='qualifications'" (click)="onTabChange('qualifications')">
+      <span class="material-icons">workspace_premium</span>
+      {{ lang==='ar' ? 'الكفاءات' : 'Qualifications' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('assets')" [class.active]="activeTab()==='assets'" (click)="onTabChange('assets')">
+      <span class="material-icons">inventory_2</span>
+      {{ lang==='ar' ? 'الأصول' : 'Assets' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('advances')" [class.active]="activeTab()==='advances'" (click)="onTabChange('advances')">
+      <span class="material-icons">request_quote</span>
+      {{ lang==='ar' ? 'السلف' : 'Advances' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('payslips')" [class.active]="activeTab()==='payslips'" (click)="onTabChange('payslips')">
+      <span class="material-icons">receipt_long</span>
+      {{ lang==='ar' ? 'كشوف الرواتب' : 'Payslips' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('bank-ssc')" [class.active]="activeTab()==='bank-ssc'" (click)="onTabChange('bank-ssc')">
+      <span class="material-icons">account_balance</span>
+      {{ lang==='ar' ? 'ط¨ظٹط§ظ†ط§طھ ط¨ظ†ظƒظٹط©' : 'Banking' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('disciplinary')" [class.active]="activeTab()==='disciplinary'" (click)="onTabChange('disciplinary')">
+      <span class="material-icons">gavel</span>
+      {{ lang==='ar' ? 'ط§ظ„ظ…ط®ط§ظ„ظپط§طھ' : 'Disciplinary' }}
+    </button>
+  </div>
+
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <!-- TAB: Personal Info -->
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <div *ngIf="activeTab()==='personal'" class="profile-tab-body">
+    <z-accordion>
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'البيانات الشخصية' : 'Personal Information'"
+        icon="👤"
+        [openByDefault]="true">
+        <div class="profile-grid-2">
+
+      <div class="profile-section-card">
+        <div class="profile-section-title">
+          <span class="material-icons">person</span>
+          {{ lang==='ar' ? 'البيانات الشخصية' : 'Personal Details' }}
+        </div>
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الاسم (عربي)' : 'Name (AR)' }}</span><span class="info-val">{{ employee()!.fullNameAr }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الاسم (إنجليزي)' : 'Name (EN)' }}</span><span class="info-val">{{ employee()!.fullNameEn }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجنس' : 'Gender' }}</span><span class="info-val">{{ employee()!.gender === 'male' ? (lang==='ar'?'ذكر':'Male') : (lang==='ar'?'أنثى':'Female') }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ الميلاد' : 'Date of Birth' }}</span><span class="info-val">{{ employee()!.dateOfBirth ? (employee()!.dateOfBirth | date:'dd/MM/yyyy') : '-' }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجنسية' : 'Nationality' }}</span><span class="info-val">{{ employee()!.nationality || '-' }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الحالة الاجتماعية' : 'Marital Status' }}</span><span class="info-val">{{ employee()!.maritalStatus || '-' }}</span></div>
+        </div>
+      </div>
+
+      <div class="profile-section-card" *ngIf="employee()!.basicSalary != null">
+        <div class="profile-section-title">
+          <span class="material-icons">payments</span>
+          {{ lang==='ar' ? 'الراتب والبدلات' : 'Salary & Allowances' }}
+        </div>
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الأساسي' : 'Basic' }}</span><span class="info-val">{{ employee()!.basicSalary | number:'1.0-0' }} JOD</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'السكن' : 'Housing' }}</span><span class="info-val">{{ employee()!.housingAllowance | number:'1.0-0' }} JOD</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المواصلات' : 'Transport' }}</span><span class="info-val">{{ employee()!.transportAllowance | number:'1.0-0' }} JOD</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الإجمالي' : 'Gross' }}</span><span class="info-val info-val-accent">{{ employee()!.grossSalary | number:'1.0-0' }} JOD</span></div>
+        </div>
+      </div>
+
+        </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'معلومات التواصل' : 'Contact Information'"
+        icon="📞">
+        <div class="profile-section-card">
+          <div class="profile-section-title">
+            <span class="material-icons">contact_phone</span>
+            {{ lang==='ar' ? 'معلومات التواصل' : 'Contact' }}
+          </div>
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'البريد الرسمي' : 'Work Email' }}</span><span class="info-val">{{ employee()!.workEmail || '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الهاتف' : 'Phone' }}</span><span class="info-val">{{ employee()!.personalPhone || '-' }}</span></div>
+          </div>
+        </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'العنوان' : 'Address'"
+        icon="📍">
+        <div class="empty-state">
+          <div class="empty-icon">📍</div>
+          {{ lang==='ar' ? 'لا توجد حقول عنوان حالياً' : 'No address fields are currently shown in this section' }}
+        </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'الهوية والتأمين' : 'Identity & Insurance'"
+        icon="🪪">
+        <div class="profile-section-card">
+          <div class="profile-section-title">
+            <span class="material-icons">badge</span>
+            {{ lang==='ar' ? 'الهوية والتأمين' : 'Identity & Insurance' }}
+          </div>
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الهوية' : 'National ID' }}</span><span class="info-val">{{ employee()!.nationalId || '-' }}</span></div>
+          </div>
+        </div>
+      </z-accordion-panel>
+    </z-accordion>
+  </div>
+
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <!-- TAB: Employment -->
+  <div *ngIf="activeTab()==='employment'" class="profile-tab-body">
+    <z-accordion>
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'بيانات التوظيف' : 'Employment Details'"
+        icon="💼"
+        [openByDefault]="true">
+        <div class="profile-section-card">
+          <div class="profile-section-title">
+            <span class="material-icons">work</span>
+            {{ lang==='ar' ? 'بيانات التوظيف' : 'Job Details' }}
+          </div>
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رمز الموظف' : 'Employee Code' }}</span><span class="info-val"><code>{{ employee()!.employeeCode }}</code></span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</span><span class="info-val">{{ lang==='ar' ? employee()!.departmentNameAr : employee()!.departmentNameEn }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</span><span class="info-val">{{ lang==='ar' ? employee()!.jobTitleAr : employee()!.jobTitleEn }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المدير المباشر' : 'Manager' }}</span><span class="info-val">{{ employee()!.directManagerId || '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع التوظيف' : 'Employment Type' }}</span><span class="info-val">{{ empTypeLabel(employee()!.employmentType) }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ التعيين' : 'Hire Date' }}</span><span class="info-val">{{ employee()!.hireDate ? (employee()!.hireDate | date:'dd/MM/yyyy') : '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الحالة الوظيفية' : 'Status' }}</span>
+              <span class="info-val"><span class="badge" [class]="statusClass(employee()!.employmentStatus)">{{ statusLabel(employee()!.employmentStatus) }}</span></span>
+            </div>
+          </div>
+        </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'عقد العمل' : 'Contract'"
+        icon="📄">
+        <div class="profile-section-card">
+          <div class="profile-section-title">
+            <span class="material-icons">description</span>
+            {{ lang==='ar' ? 'عقد العمل' : 'Contract' }}
+          </div>
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع العقد' : 'Contract Type' }}</span><span class="info-val">{{ employee()!.employmentType || '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ نهاية العقد' : 'Contract End Date' }}</span><span class="info-val">-</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نهاية التجربة' : 'Probation End Date' }}</span><span class="info-val">{{ employee()!.probationEndDate ? (employee()!.probationEndDate | date:'dd/MM/yyyy') : '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'فترة الإشعار' : 'Notice Period' }}</span><span class="info-val">-</span></div>
+          </div>
+        </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'الوحدة التنظيمية' : 'Org Structure'"
+        icon="🏢">
+        <p *ngIf="employee()!.orgNodeId || employee()!.orgNodeNameAr || employee()!.orgNodeNameEn" class="text-muted fs-13">
+          {{ getOrgBreadcrumb(employee()!) }}
+        </p>
+        <p *ngIf="!employee()!.orgNodeId && !employee()!.orgNodeNameAr && !employee()!.orgNodeNameEn" class="text-muted fs-13">
+          {{ lang==='ar' ? 'غير محدد' : 'Not assigned' }}
+        </p>
+      </z-accordion-panel>
+    </z-accordion>
+  </div>
+
+  <!-- TAB: Probation Tracking -->
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <div *ngIf="activeTab()==='probation'" class="profile-tab-body">
+
+    <div *ngIf="!probationProgress" class="empty-state">
+      <div class="empty-icon">ًں“‹</div>
+      <div class="empty-title">{{ lang==='ar' ? 'ظ„ط§ طھظˆط¬ط¯ ظپطھط±ط© طھط¬ط±ط¨ط© ظ…ط³ط¬ظ„ط©' : 'No probation period recorded' }}</div>
+    </div>
+
+    <div *ngIf="probationProgress">
+
+      <!-- Progress Overview Card -->
+      <div class="probation-overview-card">
+        <div class="probation-overview-header">
+          <div>
+            <div class="probation-overview-title">{{ lang==='ar' ? 'ظ…طھط§ط¨ط¹ط© ظپطھط±ط© ظ…ط§ ظ‚ط¨ظ„ ط§ظ„طھط¹ظٹظٹظ†' : 'Probation Tracking' }}</div>
+            <div class="probation-dates-row">
+              <span><span class="material-icons inline-icon-sm">event</span> {{ lang==='ar' ? 'ط¨ط¯ط§ظٹط©:' : 'Start:' }} <strong>{{ probationProgress.start | date:'dd/MM/yyyy' }}</strong></span>
+              <span><span class="material-icons inline-icon-sm">event_busy</span> {{ lang==='ar' ? 'ظ†ظ‡ط§ظٹط©:' : 'End:' }} <strong>{{ probationProgress.end | date:'dd/MM/yyyy' }}</strong></span>
+            </div>
+          </div>
+          <div class="probation-pct-badge" [class]="'pct-' + probationProgress.alertLevel">
+            {{ probationProgress.pct }}%
+          </div>
+        </div>
+
+        <div class="probation-bar-wrap">
+          <div class="probation-bar-track">
+            <div class="probation-bar-fill" [class]="'fill-' + probationProgress.alertLevel" [style.width.%]="probationProgress.pct"></div>
+          </div>
+          <div class="probation-bar-labels">
+            <span>{{ lang==='ar' ? 'ط§ظ„ط¨ط¯ط§ظٹط©' : 'Start' }}</span>
+            <span *ngIf="probationProgress.alertLevel !== 'overdue'" class="probation-text-strong" [class]="'text-' + probationProgress.alertLevel">
+              {{ lang==='ar' ? 'ظ…طھط¨ظ‚ظٹ: ' + probationProgress.daysLeft + ' ظٹظˆظ…' : probationProgress.daysLeft + ' days remaining' }}
+            </span>
+            <span *ngIf="probationProgress.alertLevel === 'overdue'" class="probation-overdue">
+              {{ lang==='ar' ? 'ظ…ظ†طھظ‡ظٹط© ظ…ظ†ط° ' + (-probationProgress.daysLeft) + ' ظٹظˆظ…' : 'Overdue by ' + (-probationProgress.daysLeft) + ' days' }}
+            </span>
+            <span>{{ lang==='ar' ? 'ط§ظ„ظ†ظ‡ط§ظٹط©' : 'End' }}</span>
+          </div>
+        </div>
+
+        <div class="probation-stats-row">
+          <div class="probation-stat">
+            <div class="probation-stat-val">{{ probationProgress.daysPassed }}</div>
+            <div class="probation-stat-label">{{ lang==='ar' ? 'ظٹظˆظ… ظ…ط¶ظ‰' : 'Days Passed' }}</div>
+          </div>
+          <div class="probation-stat">
+            <div class="probation-stat-val" [class]="'text-' + probationProgress.alertLevel">{{ probationProgress.daysLeft > 0 ? probationProgress.daysLeft : 0 }}</div>
+            <div class="probation-stat-label">{{ lang==='ar' ? 'ظٹظˆظ… ظ…طھط¨ظ‚ظٹ' : 'Days Left' }}</div>
+          </div>
+          <div class="probation-stat">
+            <div class="probation-stat-val">{{ evaluations().length }}/3</div>
+            <div class="probation-stat-label">{{ lang==='ar' ? 'طھظ‚ظٹظٹظ…ط§طھ ظ…ظ†ط¬ط²ط©' : 'Evaluations Done' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Evaluation Timeline -->
+      <div class="eval-timeline">
+        <div class="eval-timeline-title">{{ lang==='ar' ? 'ظ…ط±ط§ط­ظ„ ط§ظ„طھظ‚ظٹظٹظ…' : 'Evaluation Stages' }}</div>
+
+        <ng-container *ngFor="let stage of ['month1','month2','final']">
+          <div class="eval-stage-card" [class.eval-done]="stageEval(stage)" [class.eval-unavailable]="!stageAvailable(stage) && !stageEval(stage)">
+            <div class="eval-stage-header">
+              <div class="eval-stage-icon" [class.icon-done]="stageEval(stage)" [class.icon-pending]="!stageEval(stage) && stageAvailable(stage)" [class.icon-locked]="!stageEval(stage) && !stageAvailable(stage)">
+                <span class="material-icons">{{ stageEval(stage) ? 'check_circle' : stageAvailable(stage) ? 'radio_button_unchecked' : 'lock' }}</span>
+              </div>
+              <div class="eval-stage-info">
+                <div class="eval-stage-name">{{ lang==='ar' ? stageLabel(stage).ar : stageLabel(stage).en }}</div>
+                <div class="eval-stage-subtitle">
+                  <span *ngIf="stage==='month1'">{{ lang==='ar' ? 'ط¨ط¹ط¯ 30 ظٹظˆظ…ط§ظ‹ ظ…ظ† ط§ظ„طھط¹ظٹظٹظ†' : 'After 30 days of hire' }}</span>
+                  <span *ngIf="stage==='month2'">{{ lang==='ar' ? 'ط¨ط¹ط¯ 60 ظٹظˆظ…ط§ظ‹ ظ…ظ† ط§ظ„طھط¹ظٹظٹظ†' : 'After 60 days of hire' }}</span>
+                  <span *ngIf="stage==='final'">{{ lang==='ar' ? 'ط§ظ„طھظ‚ظٹظٹظ… ط§ظ„ظ†ظ‡ط§ط¦ظٹ ظ‚ط¨ظ„ ط§ظ„طھط«ط¨ظٹطھ' : 'Final assessment before confirmation' }}</span>
+                </div>
+                <div *ngIf="stageEval(stage)" class="eval-stage-meta">
+                  <span>{{ lang==='ar' ? 'طھط§ط±ظٹط® ط§ظ„طھظ‚ظٹظٹظ…:' : 'Date:' }} {{ stageEval(stage)!.evaluationDate | date:'dd/MM/yyyy' }}</span>
+                  <span *ngIf="stageEval(stage)!.evaluatedBy"> آ· {{ stageEval(stage)!.evaluatedBy }}</span>
+                  <span class="badge" [class]="recLabel(stageEval(stage)!.recommendation).cls">
+                    {{ lang==='ar' ? recLabel(stageEval(stage)!.recommendation).ar : recLabel(stageEval(stage)!.recommendation).en }}
+                  </span>
+                </div>
+              </div>
+              <div class="eval-stage-actions" *ngIf="canEvaluate">
+                <button *ngIf="!stageEval(stage) && stageAvailable(stage)" class="btn btn-primary btn-sm"
+                        (click)="openEvalModalStr(stage)">
+                  <span class="material-icons eval-action-icon">add</span>
+                  {{ lang==='ar' ? 'ط¥ط¶ط§ظپط© طھظ‚ظٹظٹظ…' : 'Add Evaluation' }}
+                </button>
+                <button *ngIf="stageEval(stage)" class="btn btn-secondary btn-sm"
+                        (click)="openEvalModalStr(stage, stageEval(stage))">
+                  <span class="material-icons eval-action-icon">edit</span>
+                </button>
+                <button *ngIf="stageEval(stage) && canManage" class="btn btn-danger btn-sm"
+                        (click)="stageEval(stage) && deleteEval(stageEval(stage)!.id)">
+                  <span class="material-icons eval-action-icon">delete</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Scores summary if evaluated -->
+            <div *ngIf="stageEval(stage)" class="eval-scores-summary">
+              <div class="score-pill">
+                <span>{{ lang==='ar' ? 'ط§ظ„ط§ظ„طھط²ط§ظ…' : 'Commitment' }}</span>
+                <div class="score-stars">
+                  <span *ngFor="let s of [1,2,3,4,5]" class="star" [class.filled]="s <= stageEval(stage)!.commitmentScore">âک…</span>
+                </div>
+              </div>
+              <div class="score-pill">
+                <span>{{ lang==='ar' ? 'ط¬ظˆط¯ط© ط§ظ„ط´ط؛ظ„' : 'Work Quality' }}</span>
+                <div class="score-stars">
+                  <span *ngFor="let s of [1,2,3,4,5]" class="star" [class.filled]="s <= stageEval(stage)!.workQualityScore">âک…</span>
+                </div>
+              </div>
+              <div class="score-pill">
+                <span>{{ lang==='ar' ? 'ط§ظ„طھط¹ظ„ظ…' : 'Learning' }}</span>
+                <div class="score-stars">
+                  <span *ngFor="let s of [1,2,3,4,5]" class="star" [class.filled]="s <= stageEval(stage)!.learningScore">âک…</span>
+                </div>
+              </div>
+              <div class="score-pill">
+                <span>{{ lang==='ar' ? 'ط§ظ„ط³ظ„ظˆظƒ' : 'Behavior' }}</span>
+                <div class="score-stars">
+                  <span *ngFor="let s of [1,2,3,4,5]" class="star" [class.filled]="s <= stageEval(stage)!.behaviorScore">âک…</span>
+                </div>
+              </div>
+              <div class="score-pill">
+                <span>{{ lang==='ar' ? 'ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¬ظ…ط§ط¹ظٹ' : 'Teamwork' }}</span>
+                <div class="score-stars">
+                  <span *ngFor="let s of [1,2,3,4,5]" class="star" [class.filled]="s <= stageEval(stage)!.teamworkScore">âک…</span>
+                </div>
+              </div>
+              <div class="score-pill avg-pill">
+                <span>{{ lang==='ar' ? 'ط§ظ„ظ…طھظˆط³ط·' : 'Average' }}</span>
+                <strong>{{ stageEval(stage)!.averageScore }}/5</strong>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <!-- TAB: Attendance -->
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <div *ngIf="activeTab()==='attendance'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">schedule</span>
+        {{ lang==='ar' ? 'ط³ط¬ظ„ ط§ظ„ط­ط¶ظˆط±' : 'Attendance Record' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingAttendance()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'ط¬ط§ط±ظچ طھط­ظ…ظٹظ„ ط³ط¬ظ„ ط§ظ„ط­ط¶ظˆط±...' : 'Loading attendance record...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingAttendance() && attendanceRecords().length === 0">
+        <div class="empty-icon"><span class="material-icons">fact_check</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'ظ„ط§ طھظˆط¬ط¯ ط³ط¬ظ„ط§طھ ط­ط¶ظˆط± ظ„ظ‡ط°ط§ ط§ظ„ظ…ظˆط¸ظپ.' : 'No attendance records for this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingAttendance() && attendanceRecords().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'ط§ظ„طھط§ط±ظٹط®' : 'Date' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„ط­ط¶ظˆط±' : 'Clock in' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„ط§ظ†طµط±ط§ظپ' : 'Clock out' }}</th>
+              <th>{{ lang==='ar' ? 'ط³ط§ط¹ط§طھ ط§ظ„ط¹ظ…ظ„' : 'Worked hours' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„ط­ط§ظ„ط©' : 'Status' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„طھط£ط®ظٹط±' : 'Late' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of attendanceRecords()">
+              <td>{{ item.date | date:'dd/MM/yyyy' }}</td>
+              <td>{{ formatAttendanceTime(item.clockIn) }}</td>
+              <td>{{ formatAttendanceTime(item.clockOut) }}</td>
+              <td>{{ formatWorkedHours(item.workedMinutes) }}</td>
+              <td><span class="badge" [class]="attendanceBadgeClass(item.status)">{{ attendanceStatusLabel(item.status) }}</span></td>
+              <td>{{ item.lateMinutes > 0 ? (lang==='ar' ? item.lateMinutes + ' ط¯ظ‚ظٹظ‚ط©' : item.lateMinutes + ' min') : (lang==='ar' ? 'ظ„ط§' : 'No') }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <!-- TAB: Compliance -->
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <div *ngIf="activeTab()==='compliance'" class="profile-tab-body">
+    <div class="loading-wrap" *ngIf="loadingCompliance()">
+      <div class="spinner"></div>
+      <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل ملف الامتثال...' : 'Loading compliance status...' }}</div>
+    </div>
+
+    <ng-container *ngIf="!loadingCompliance() && complianceProfile() as compliance">
+      <div class="compliance-status-banner">
+        <span class="material-icons compliance-status-icon">
+          {{ compliance.summary?.overallStatus === 'compliant' ? 'verified' : compliance.summary?.overallStatus === 'warning' ? 'warning' : 'gpp_bad' }}
+        </span>
+        <div class="compliance-status-copy">
+          <div class="compliance-status-title">
+            {{ lang==='ar'
+              ? (compliance.summary?.overallStatus === 'compliant' ? 'الامتثال مكتمل' : compliance.summary?.overallStatus === 'warning' ? 'توجد عناصر تنتهي قريباً' : 'هناك عناصر منتهية أو مفقودة')
+              : (compliance.summary?.overallStatus === 'compliant' ? 'Compliance is clear' : compliance.summary?.overallStatus === 'warning' ? 'Some items are expiring soon' : 'There are expired or missing items') }}
+          </div>
+          <div class="compliance-status-items">
+            <span class="badge badge-success">{{ compliance.summary?.valid || 0 }} {{ lang==='ar' ? 'ساري' : 'Valid' }}</span>
+            <span class="badge badge-warning">{{ compliance.summary?.expiringSoon || 0 }} {{ lang==='ar' ? 'قريب' : 'Soon' }}</span>
+            <span class="badge badge-danger">{{ (compliance.summary?.expired || 0) + (compliance.summary?.missing || 0) }} {{ lang==='ar' ? 'حرج' : 'Critical' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-grid-2 compliance-grid">
+        <div class="profile-section-card" *ngFor="let item of compliance.items">
+          <div class="profile-section-title">
+            <span class="material-icons">verified_user</span>
+            {{ lang==='ar' ? item.labelAr : item.labelEn }}
+          </div>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'الحالة' : 'Status' }}</span>
+              <span class="info-val"><span class="badge" [class]="complianceItemStatusCls(item.status)">{{ complianceItemStatusLabel(item.status) }}</span></span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'تاريخ الإصدار' : 'Issue date' }}</span>
+              <span class="info-val">{{ item.issueDate ? (item.issueDate | date:'dd/MM/yyyy') : '—' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</span>
+              <span class="info-val">{{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : '—' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'الأيام المتبقية' : 'Days remaining' }}</span>
+              <span class="info-val">{{ item.daysRemaining == null ? '—' : item.daysRemaining < 0 ? (lang==='ar' ? 'منتهي' : 'Expired') : item.daysRemaining }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'المرجع' : 'Reference' }}</span>
+              <span class="info-val">{{ item.referenceNumber || '—' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ lang==='ar' ? 'آخر تحديث' : 'Last updated' }}</span>
+              <span class="info-val">{{ item.lastUpdated | date:'dd/MM/yyyy' }}</span>
+            </div>
+            <div class="info-row" *ngIf="item.notes">
+              <span class="info-label">{{ lang==='ar' ? 'ملاحظات' : 'Notes' }}</span>
+              <span class="info-val">{{ item.notes }}</span>
+            </div>
+            <div class="info-row" *ngIf="item.sourceDocumentUrl">
+              <span class="info-label">{{ lang==='ar' ? 'المستند' : 'Document' }}</span>
+              <span class="info-val"><a class="inline-link" [href]="item.sourceDocumentUrl" target="_blank" rel="noopener">{{ lang==='ar' ? 'فتح' : 'Open' }}</a></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+
+  <div *ngIf="activeTab()==='documents'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">folder_open</span>
+        {{ lang==='ar' ? 'مستندات الموظف' : 'Employee documents' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingDocuments()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل المستندات...' : 'Loading documents...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingDocuments() && documents().length === 0">
+        <div class="empty-icon"><span class="material-icons">folder_off</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'لا توجد مستندات لهذا الموظف.' : 'No documents for this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingDocuments() && documents().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'النوع' : 'Type' }}</th>
+              <th>{{ lang==='ar' ? 'رقم المستند' : 'Document number' }}</th>
+              <th>{{ lang==='ar' ? 'تاريخ الإصدار' : 'Issue date' }}</th>
+              <th>{{ lang==='ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</th>
+              <th>{{ lang==='ar' ? 'الأيام المتبقية' : 'Days left' }}</th>
+              <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+              <th>{{ lang==='ar' ? 'الإجراءات' : 'Actions' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of documents()">
+              <td>{{ documentTypeLabel(item) }}</td>
+              <td>{{ item.documentNumber || '—' }}</td>
+              <td>{{ item.issuedDate ? (item.issuedDate | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ documentDaysLeftLabel(item.daysUntilExpiry) }}</td>
+              <td><span class="badge" [class]="documentStatusClass(item.status)">{{ documentStatusLabel(item.status) }}</span></td>
+              <td>
+                <div class="row-actions">
+                  <a *ngIf="item.fileUrl" class="icon-btn" [href]="item.fileUrl" target="_blank" rel="noopener">
+                    <span class="material-icons">visibility</span>
+                  </a>
+                  <a *ngIf="item.fileUrl" class="icon-btn" [href]="item.fileUrl" target="_blank" rel="noopener" download>
+                    <span class="material-icons">download</span>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab()==='qualifications'" class="profile-tab-body">
+    <z-accordion>
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'المؤهلات العلمية' : 'Education'"
+        icon="🎓"
+        [count]="getQualCount('education')">
+        <div *ngFor="let item of getQuals('education')" class="qual-item">
+          <div class="qual-row">
+            <span class="fw-600">{{ item.data?.degree }}</span>
+            <span class="text-muted">{{ item.data?.institution }}</span>
+            <span class="badge badge-neutral">{{ item.data?.year }}</span>
+            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
+              {{ lang==='ar' ? 'حذف' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+        <div *ngIf="getQuals('education').length===0" class="text-muted fs-13">
+          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px"
+                *ngIf="canEdit" (click)="openAddQual('education')">
+          + {{ lang==='ar' ? 'إضافة' : 'Add' }}
+        </button>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience'"
+        icon="💼"
+        [count]="getQualCount('experience')">
+        <div *ngFor="let item of getQuals('experience')" class="qual-item">
+          <div class="qual-row">
+            <span class="fw-600">{{ item.data?.jobTitle }}</span>
+            <span class="text-muted">{{ item.data?.company }}</span>
+            <span class="badge badge-neutral">{{ item.data?.years }} {{ lang==='ar' ? 'سنوات' : 'yrs' }}</span>
+            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
+              {{ lang==='ar' ? 'حذف' : 'Delete' }}
+            </button>
+          </div>
+          <p *ngIf="item.data?.description" class="text-muted fs-12" style="margin-top:4px">
+            {{ item.data.description }}
+          </p>
+        </div>
+        <div *ngIf="getQuals('experience').length===0" class="text-muted fs-13">
+          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px"
+                *ngIf="canEdit" (click)="openAddQual('experience')">
+          + {{ lang==='ar' ? 'إضافة' : 'Add' }}
+        </button>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'المهارات' : 'Skills'"
+        icon="⚡"
+        [count]="getQualCount('skill')">
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span *ngFor="let item of getQuals('skill')"
+                class="badge badge-info" style="font-size:12px">
+            {{ item.data?.name }}
+            <span *ngIf="item.data?.level" class="text-muted">· {{ item.data.level }}/5</span>
+            <button class="btn-icon" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">×</button>
+          </span>
+          <span *ngIf="getQuals('skill').length===0" class="text-muted fs-13">
+            {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+          </span>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px"
+                *ngIf="canEdit" (click)="openAddQual('skill')">
+          + {{ lang==='ar' ? 'إضافة' : 'Add' }}
+        </button>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications'"
+        icon="📜"
+        [count]="getQualCount('course')">
+        <div *ngFor="let item of getQuals('course')" class="qual-item">
+          <div class="qual-row">
+            <span class="fw-600">{{ item.data?.name }}</span>
+            <span class="text-muted">{{ item.data?.provider }}</span>
+            <span class="badge badge-neutral">{{ item.data?.date }}</span>
+            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
+              {{ lang==='ar' ? 'حذف' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+        <div *ngIf="getQuals('course').length===0" class="text-muted fs-13">
+          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px"
+                *ngIf="canEdit" (click)="openAddQual('course')">
+          + {{ lang==='ar' ? 'إضافة' : 'Add' }}
+        </button>
+      </z-accordion-panel>
+    </z-accordion>
+
+    <div *ngIf="showQualModal" class="modal-overlay" (click)="closeQualModal()">
+      <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:520px">
+        <div class="modal-header">
+          <h3>{{ lang==='ar' ? 'إضافة كفاءة' : 'Add Qualification' }}</h3>
+          <button class="btn-icon" type="button" (click)="closeQualModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">{{ lang==='ar' ? 'النوع' : 'Type' }}</label>
+            <select class="form-select" [(ngModel)]="qualForm.qualificationType">
+              <option value="education">{{ lang==='ar' ? 'المؤهلات العلمية' : 'Education' }}</option>
+              <option value="experience">{{ lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience' }}</option>
+              <option value="skill">{{ lang==='ar' ? 'المهارات' : 'Skills' }}</option>
+              <option value="course">{{ lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications' }}</option>
+            </select>
+          </div>
+
+          <ng-container *ngIf="qualForm.qualificationType === 'education'">
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'الدرجة' : 'Degree' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.degree">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'المؤسسة' : 'Institution' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.institution">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'السنة' : 'Year' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.year">
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="qualForm.qualificationType === 'experience'">
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.jobTitle">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'الشركة' : 'Company' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.company">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'السنوات' : 'Years' }}</label>
+              <input class="form-input" type="number" [(ngModel)]="qualForm.years">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'الوصف' : 'Description' }}</label>
+              <textarea class="form-textarea" rows="2" [(ngModel)]="qualForm.description"></textarea>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="qualForm.qualificationType === 'skill'">
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'المهارة' : 'Skill' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'المستوى' : 'Level' }}</label>
+              <input class="form-input" type="number" min="1" max="5" [(ngModel)]="qualForm.level">
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="qualForm.qualificationType === 'course'">
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'الاسم' : 'Name' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'الجهة' : 'Provider' }}</label>
+              <input class="form-input" [(ngModel)]="qualForm.provider">
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'التاريخ' : 'Date' }}</label>
+              <input class="form-input" type="date" [(ngModel)]="qualForm.date">
+            </div>
+          </ng-container>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" (click)="closeQualModal()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+          <button class="btn btn-primary" type="button" [disabled]="qualSaving" (click)="saveQualification()">
+            {{ qualSaving ? (lang==='ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang==='ar' ? 'حفظ' : 'Save') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab()==='assets'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">inventory_2</span>
+        {{ lang==='ar' ? 'أصول الموظف' : 'Employee assets' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingAssets()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل الأصول...' : 'Loading assets...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingAssets() && assets().length === 0">
+        <div class="empty-icon"><span class="material-icons">inventory_2</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'لا توجد أصول مرتبطة بهذا الموظف.' : 'No assets linked to this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingAssets() && assets().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'الأصل' : 'Asset' }}</th>
+              <th>{{ lang==='ar' ? 'الرقم التسلسلي' : 'Serial' }}</th>
+              <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+              <th>{{ lang==='ar' ? 'تاريخ التعيين' : 'Assigned date' }}</th>
+              <th>{{ lang==='ar' ? 'الإرجاع المتوقع' : 'Expected return' }}</th>
+              <th>{{ lang==='ar' ? 'الحالة الفنية' : 'Condition' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of assets()">
+              <td>
+                <strong>{{ lang==='ar' ? item.assetNameAr : (item.assetNameEn || item.assetNameAr) }}</strong>
+                <div class="table-subline">{{ lang==='ar' ? item.categoryNameAr : (item.categoryNameEn || item.categoryNameAr) }}</div>
+              </td>
+              <td>{{ item.serialNumber || '—' }}</td>
+              <td><span class="badge" [class]="assetStatusClass(item.currentStatus)">{{ assetStatusLabel(item.currentStatus) }}</span></td>
+              <td>{{ item.assignedDate ? (item.assignedDate | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ item.expectedReturnDate ? (item.expectedReturnDate | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ assetConditionLabel(item.currentCondition) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab()==='advances'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">request_quote</span>
+        {{ lang==='ar' ? 'سلف الموظف' : 'Employee advances' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingAdvances()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل السلف...' : 'Loading advances...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingAdvances() && advances().length === 0">
+        <div class="empty-icon"><span class="material-icons">request_quote</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'لا توجد سلف مرتبطة بهذا الموظف.' : 'No advances linked to this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingAdvances() && advances().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'المبلغ المطلوب' : 'Requested amount' }}</th>
+              <th>{{ lang==='ar' ? 'المبلغ المعتمد' : 'Approved amount' }}</th>
+              <th>{{ lang==='ar' ? 'تاريخ الطلب' : 'Request date' }}</th>
+              <th>{{ lang==='ar' ? 'طريقة السداد' : 'Repayment method' }}</th>
+              <th>{{ lang==='ar' ? 'الرصيد المتبقي' : 'Remaining balance' }}</th>
+              <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of advances()">
+              <td>{{ item.requestedAmount ?? '—' }}</td>
+              <td>{{ item.approvedAmount ?? '—' }}</td>
+              <td>{{ item.requestDate ? (item.requestDate | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ advanceRepaymentLabel(item.repaymentMethod) }}</td>
+              <td>{{ item.remainingBalance ?? '—' }}</td>
+              <td><span [class]="advanceStatusClass(item.status)">{{ advanceStatusLabel(item.status) }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab()==='payslips'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">receipt_long</span>
+        {{ lang==='ar' ? 'كشوف الرواتب' : 'Payslips' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingPayslips()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل كشوف الرواتب...' : 'Loading payslips...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingPayslips() && payslips().length === 0">
+        <div class="empty-icon"><span class="material-icons">receipt_long</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'لا توجد كشوف رواتب متاحة لهذا الموظف.' : 'No payslips available for this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingPayslips() && payslips().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'الفترة' : 'Period' }}</th>
+              <th>{{ lang==='ar' ? 'الإجمالي' : 'Gross' }}</th>
+              <th>{{ lang==='ar' ? 'الاستقطاعات' : 'Deductions' }}</th>
+              <th>{{ lang==='ar' ? 'الصافي' : 'Net' }}</th>
+              <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of payslips()">
+              <td>{{ (lang==='ar' ? ['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][item.periodMonth] : ['','January','February','March','April','May','June','July','August','September','October','November','December'][item.periodMonth]) }} {{ item.periodYear }}</td>
+              <td>{{ payrollMoney(item.grossSalary) }}</td>
+              <td>{{ payrollMoney(item.totalDeductions) }}</td>
+              <td>{{ payrollMoney(item.netSalary) }}</td>
+              <td><span [class]="payslipStatusClass(item.paymentStatus || item.payrollRunStatus)">{{ payslipStatusLabel(item.paymentStatus || item.payrollRunStatus) }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <!-- TAB: Banking -->
+  <!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+  <div *ngIf="activeTab()==='bank-ssc'" class="profile-tab-body">
+    <div class="profile-section-card bank-section--narrow">
+      <div class="profile-section-title"><span class="material-icons">account_balance</span> {{ lang==='ar' ? 'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ظ†ظƒظٹط©' : 'Banking Details' }}</div>
+      <div class="info-grid">
+        <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'ط§ظ„ط¨ظ†ظƒ' : 'Bank' }}</span><span class="info-val">{{ employee()!.bankName || '-' }}</span></div>
+        <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'ط±ظ‚ظ… ط§ظ„ط­ط³ط§ط¨' : 'Account No.' }}</span><span class="info-val">{{ employee()!.bankAccountNumber || '-' }}</span></div>
+        <div class="info-row"><span class="info-label">IBAN</span><span class="info-val">{{ employee()!.iban || '-' }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="activeTab()==='disciplinary'" class="profile-tab-body">
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons">gavel</span>
+        {{ lang==='ar' ? 'ط§ظ„ط³ط¬ظ„ ط§ظ„طھط£ط¯ظٹط¨ظٹ' : 'Disciplinary Record' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingDisciplinary()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'ط¬ط§ط±ظچ طھط­ظ…ظٹظ„ ط§ظ„ط³ط¬ظ„ ط§ظ„طھط£ط¯ظٹط¨ظٹ...' : 'Loading disciplinary record...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingDisciplinary() && disciplinaryCases().length === 0">
+        <div class="empty-icon"><span class="material-icons">gavel</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'ظ„ط§ طھظˆط¬ط¯ ظ…ط®ط§ظ„ظپط§طھ ظ…ط³ط¬ظ„ط© ظ„ظ‡ط°ط§ ط§ظ„ظ…ظˆط¸ظپ.' : 'No disciplinary cases recorded for this employee.' }}</div>
+      </div>
+
+      <div class="table-scroll" *ngIf="!loadingDisciplinary() && disciplinaryCases().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©' : 'Violation' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„طھط§ط±ظٹط®' : 'Date' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„ط¹ظ‚ظˆط¨ط©' : 'Penalty' }}</th>
+              <th>{{ lang==='ar' ? 'ط§ظ„ط­ط§ظ„ط©' : 'Status' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of disciplinaryCases()">
+              <td>{{ item.violationNameAr }}</td>
+              <td>{{ item.violationDate | date:'dd/MM/yyyy' }}</td>
+              <td>{{ item.penaltyType || 'â€”' }}</td>
+              <td>{{ item.status }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+<!-- Evaluation Modal -->
+<!-- â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ -->
+<div class="modal-overlay" *ngIf="showEvalModal()" (click)="closeEvalModal()">
+  <div class="modal-box eval-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">
+        {{ lang==='ar' ? stageLabel(evalStage).ar : stageLabel(evalStage).en }}
+      </span>
+      <button class="icon-btn" (click)="closeEvalModal()"><span class="material-icons">close</span></button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error" *ngIf="evalError()">{{ evalError() }}</div>
+
+      <div class="form-group">
+        <label class="form-label">{{ lang==='ar' ? 'طھط§ط±ظٹط® ط§ظ„طھظ‚ظٹظٹظ…' : 'Evaluation Date' }}</label>
+        <input type="date" class="form-control" [(ngModel)]="evalForm['evaluationDate']">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">{{ lang==='ar' ? 'ط§ظ„ظ…ظ‚ظٹظگظ‘ظ…' : 'Evaluated By' }}</label>
+        <input type="text" class="form-control" [(ngModel)]="evalForm['evaluatedBy']"
+               [placeholder]="lang==='ar' ? 'ط§ط³ظ… ط§ظ„ظ…ط¯ظٹط± ط£ظˆ ظ…ظˆط¸ظپ HR' : 'Manager or HR name'">
+      </div>
+
+      <!-- Criteria Scores -->
+      <div class="eval-criteria-table">
+        <div class="eval-criteria-header">
+          <span>{{ lang==='ar' ? 'ط§ظ„ظ…ط¹ظٹط§ط±' : 'Criterion' }}</span>
+          <span>{{ lang==='ar' ? 'ط§ظ„ط¯ط±ط¬ط© (1-5)' : 'Score (1-5)' }}</span>
+          <span>{{ lang==='ar' ? 'ظ…ظ„ط§ط­ط¸ط§طھ' : 'Notes' }}</span>
+        </div>
+
+        <div class="eval-criterion-row">
+          <span class="criterion-name">{{ lang==='ar' ? 'ط§ظ„ط§ظ„طھط²ط§ظ…' : 'Commitment' }}</span>
+          <div class="score-input-stars">
+            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+                  [class.active]="evalForm['commitmentScore'] >= s"
+                  (click)="evalForm['commitmentScore'] = s">âک…</span>
+            <span class="score-num">{{ evalForm['commitmentScore'] }}/5</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['commitmentNotes']">
+        </div>
+
+        <div class="eval-criterion-row">
+          <span class="criterion-name">{{ lang==='ar' ? 'ط¬ظˆط¯ط© ط§ظ„ط´ط؛ظ„' : 'Work Quality' }}</span>
+          <div class="score-input-stars">
+            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+                  [class.active]="evalForm['workQualityScore'] >= s"
+                  (click)="evalForm['workQualityScore'] = s">âک…</span>
+            <span class="score-num">{{ evalForm['workQualityScore'] }}/5</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['workQualityNotes']">
+        </div>
+
+        <div class="eval-criterion-row">
+          <span class="criterion-name">{{ lang==='ar' ? 'ط§ظ„طھط¹ظ„ظ… ظˆط§ظ„طھط·ظˆط±' : 'Learning' }}</span>
+          <div class="score-input-stars">
+            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+                  [class.active]="evalForm['learningScore'] >= s"
+                  (click)="evalForm['learningScore'] = s">âک…</span>
+            <span class="score-num">{{ evalForm['learningScore'] }}/5</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['learningNotes']">
+        </div>
+
+        <div class="eval-criterion-row">
+          <span class="criterion-name">{{ lang==='ar' ? 'ط§ظ„ط³ظ„ظˆظƒ ط§ظ„ظ…ظ‡ظ†ظٹ' : 'Behavior' }}</span>
+          <div class="score-input-stars">
+            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+                  [class.active]="evalForm['behaviorScore'] >= s"
+                  (click)="evalForm['behaviorScore'] = s">âک…</span>
+            <span class="score-num">{{ evalForm['behaviorScore'] }}/5</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['behaviorNotes']">
+        </div>
+
+        <div class="eval-criterion-row">
+          <span class="criterion-name">{{ lang==='ar' ? 'ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¬ظ…ط§ط¹ظٹ' : 'Teamwork' }}</span>
+          <div class="score-input-stars">
+            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+                  [class.active]="evalForm['teamworkScore'] >= s"
+                  (click)="evalForm['teamworkScore'] = s">âک…</span>
+            <span class="score-num">{{ evalForm['teamworkScore'] }}/5</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['teamworkNotes']">
+        </div>
+      </div>
+
+      <div class="form-group eval-comments-group">
+        <label class="form-label">{{ lang==='ar' ? 'ظ…ظ„ط§ط­ط¸ط§طھ ط¹ط§ظ…ط©' : 'Overall Comments' }}</label>
+        <textarea class="form-control" rows="3" [(ngModel)]="evalForm['overallComments']"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">{{ lang==='ar' ? 'ط§ظ„طھظˆطµظٹط©' : 'Recommendation' }}</label>
+        <select class="form-control" [(ngModel)]="evalForm['recommendation']">
+          <option value="continue">{{ lang==='ar' ? 'ط§ط³طھظ…ط±ط§ط± ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط©' : 'Continue Probation' }}</option>
+          <option value="needs_improvement">{{ lang==='ar' ? 'ظٹط­طھط§ط¬ طھط­ط³ظٹظ†' : 'Needs Improvement' }}</option>
+          <option value="confirm">{{ lang==='ar' ? 'طھط«ط¨ظٹطھ ط§ظ„ظ…ظˆط¸ظپ' : 'Confirm Employee' }}</option>
+          <option value="not_recommended">{{ lang==='ar' ? 'ط؛ظٹط± ظ…ظˆطµظ‰ ط¨ط§ظ„طھط¹ظٹظٹظ†' : 'Not Recommended' }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeEvalModal()">{{ lang==='ar' ? 'ط¥ظ„ط؛ط§ط،' : 'Cancel' }}</button>
+      <button class="btn btn-primary" (click)="saveEval()" [disabled]="evalSaving()">
+        {{ evalSaving() ? (lang==='ar' ? 'ط¬ط§ط±ظٹ ط§ظ„ط­ظپط¸...' : 'Saving...') : (lang==='ar' ? 'ط­ظپط¸ ط§ظ„طھظ‚ظٹظٹظ…' : 'Save Evaluation') }}
+      </button>
+    </div>
+  </div>
+</div>
+

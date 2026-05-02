@@ -1,0 +1,26 @@
+.z-form-group { margin-bottom: 20px; }
+.z-label {
+  display: block; font-size: 13px; font-weight: 600;
+  color: var(--z-text-primary); margin-bottom: 6px;
+  &.required::after { content: ' *'; color: var(--z-danger); }
+}
+.z-input {
+  width: 100%; height: 44px; padding: 0 14px;
+  border: 1.5px solid var(--z-border); border-radius: var(--z-radius-sm);
+  font-size: 14px; background: var(--z-white); color: var(--z-text-primary);
+  transition: border-color 150ms, box-shadow 150ms;
+  &:focus {
+    outline: none; border-color: var(--z-emerald);
+    box-shadow: 0 0 0 3px rgba(45,158,107,0.12);
+  }
+  &.ng-invalid.ng-touched {
+    border-color: var(--z-danger);
+    box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+  }
+}
+.z-select { @extend .z-input; appearance: none; cursor: pointer; }
+.z-textarea { @extend .z-input; height: auto; min-height: 100px; padding: 12px 14px; resize: vertical; }
+.z-hint { font-size: 12px; color: var(--z-text-muted); margin-top: 4px; }
+.z-error { font-size: 12px; color: var(--z-danger); margin-top: 4px; }
+.z-form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.z-form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }

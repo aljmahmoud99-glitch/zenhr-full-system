@@ -1,0 +1,286 @@
+<section class="z-page documents-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('مركز مستندات الموظفين', 'Employee document center') }}</span>
+      <h1 class="z-title">{{ t('الوثائق', 'Documents') }}</h1>
+      <p class="z-subtitle">{{ t('مركز موحد لمستندات الموظفين والامتثال والتوظيف المسبق والتنبيهات المرتبطة بها.', 'A unified center for employee documents, compliance-linked files, pre-employment files, and expiry alerts.') }}</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" *ngIf="canExport && !isEmployee" (click)="exportReport()" [disabled]="exporting()">
+        <span class="material-icons">print</span>
+        {{ exporting() ? '...' : t('طباعة التقرير', 'Print report') }}
+      </button>
+      <button class="z-btn-primary" type="button" *ngIf="canManage" (click)="openCreateModal()">
+        <span class="material-icons">add</span>
+        {{ t('رفع مستند', 'Upload document') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+
+  <section class="summary-grid" *ngIf="summary()">
+    <article class="z-card summary-card">
+      <span class="summary-label">{{ t('إجمالي المستندات', 'Total documents') }}</span>
+      <strong class="summary-value">{{ summary()?.totalDocuments ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card danger">
+      <span class="summary-label">{{ t('منتهية', 'Expired') }}</span>
+      <strong class="summary-value">{{ summary()?.expired ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card warning">
+      <span class="summary-label">{{ t('تنتهي قريباً', 'Expiring soon') }}</span>
+      <strong class="summary-value">{{ summary()?.expiringSoon ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card danger">
+      <span class="summary-label">{{ t('مطلوبة ومفقودة', 'Missing required') }}</span>
+      <strong class="summary-value">{{ summary()?.missingRequired ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card">
+      <span class="summary-label">{{ t('مرتبطة بالامتثال', 'Compliance-related') }}</span>
+      <strong class="summary-value">{{ t(summary()?.complianceStatus === 'compliant' ? 'متوافق' : (summary()?.complianceStatus === 'warning' ? 'تحذير' : 'غير متوافق'), summary()?.complianceStatus === 'compliant' ? 'Compliant' : (summary()?.complianceStatus === 'warning' ? 'Warning' : 'Non-compliant')) }}</strong>
+    </article>
+  </section>
+
+  <section class="warning-banner z-card" *ngIf="expiringAlerts().length > 0">
+    <div class="warning-copy">
+      <span class="material-icons">warning</span>
+      <div>
+        <strong>{{ t('توجد مستندات تنتهي خلال 30 يوماً', 'Documents are expiring within 30 days') }}</strong>
+        <p>{{ expiringAlerts().length }} {{ t('مستند يحتاج متابعة أو تجديد قريب.', 'documents need renewal or follow-up soon.') }}</p>
+      </div>
+    </div>
+    <button class="z-btn-secondary" type="button" (click)="filterExpiringWithin30()">
+      {{ t('عرض العناصر المنتهية قريباً', 'Show expiring items') }}
+    </button>
+  </section>
+
+  <section class="z-card">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('البحث والتصفية', 'Search and filters') }}</h2>
+        <p class="z-small">{{ t('ابحث برقم المستند أو الجهة المصدرة، وفلتر حسب النوع والحالة ونطاق الانتهاء.', 'Search by document number or issuer, and filter by type, status, and expiry range.') }}</p>
+      </div>
+    </div>
+
+    <div class="filter-grid">
+      <div class="form-group">
+        <label class="z-label">{{ t('بحث', 'Search') }}</label>
+        <input class="z-input" [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" [placeholder]="t('رقم المستند أو الجهة المصدرة', 'Document number or issuer')">
+      </div>
+
+      <div class="form-group" *ngIf="canManage && !isEmployee">
+        <label class="z-label">{{ t('الموظف', 'Employee') }}</label>
+        <select class="z-input" [ngModel]="employeeFilter()" (ngModelChange)="employeeFilter.set($event)">
+          <option value="">{{ t('الكل', 'All') }}</option>
+          <option *ngFor="let employee of employeeOptions()" [value]="employee.id">{{ employee.label }}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="z-label">{{ t('نوع المستند', 'Document type') }}</label>
+        <select class="z-input" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event)">
+          <option value="">{{ t('الكل', 'All') }}</option>
+          <option *ngFor="let type of docTypes()" [value]="type.id">{{ lang === 'ar' ? type.nameAr : (type.nameEn || type.nameAr) }}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="z-label">{{ t('الحالة', 'Status') }}</label>
+        <select class="z-input" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="valid">{{ statusLabel('valid') }}</option>
+          <option value="expiring_soon">{{ statusLabel('expiring_soon') }}</option>
+          <option value="expired">{{ statusLabel('expired') }}</option>
+          <option value="missing">{{ statusLabel('missing') }}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="z-label">{{ t('انتهاء من', 'Expiry from') }}</label>
+        <input class="z-input" type="date" [ngModel]="expiryFromFilter()" (ngModelChange)="expiryFromFilter.set($event)">
+      </div>
+
+      <div class="form-group">
+        <label class="z-label">{{ t('انتهاء إلى', 'Expiry to') }}</label>
+        <input class="z-input" type="date" [ngModel]="expiryToFilter()" (ngModelChange)="expiryToFilter.set($event)">
+      </div>
+
+      <label class="toggle-card">
+        <input type="checkbox" [ngModel]="complianceOnly()" (ngModelChange)="complianceOnly.set(!!$event)">
+        <span>{{ t('مستندات الامتثال فقط', 'Compliance documents only') }}</span>
+      </label>
+
+      <label class="toggle-card">
+        <input type="checkbox" [ngModel]="missingOnly()" (ngModelChange)="missingOnly.set(!!$event)">
+        <span>{{ t('عرض المطلوب والمفقود فقط', 'Show missing required only') }}</span>
+      </label>
+
+      <div class="filter-actions">
+        <button class="z-btn-ghost" type="button" *ngIf="hasActiveFilters()" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="z-card">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('سجل المستندات', 'Document register') }}</h2>
+        <p class="z-small">{{ t('ملفات الموظفين، مستندات الامتثال، ومستندات ما قبل التوظيف من مصدر واحد.', 'Employee files, compliance documents, and pre-employment documents from one source of truth.') }}</p>
+      </div>
+    </div>
+
+    <div class="loading-wrap" *ngIf="loading()">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && filteredDocuments().length === 0">
+      <span class="material-icons empty-icon">folder_off</span>
+      <strong>{{ hasActiveFilters() ? t('لا توجد نتائج مطابقة للفلاتر الحالية.', 'No documents match current filters.') : t('لا توجد مستندات بعد. ابدأ برفع مستندك الأول.', 'No documents yet. Start by uploading your first document.') }}</strong>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && filteredDocuments().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th *ngIf="canManage && !isEmployee">{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('نوع المستند', 'Document type') }}</th>
+            <th>{{ t('رقم المستند', 'Document number') }}</th>
+            <th>{{ t('جهة الإصدار', 'Issued by') }}</th>
+            <th>{{ t('تاريخ الإصدار', 'Issue date') }}</th>
+            <th>{{ t('تاريخ الانتهاء', 'Expiry date') }}</th>
+            <th>{{ t('الأيام المتبقية', 'Days left') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th>{{ t('مطلوب', 'Required') }}</th>
+            <th>{{ t('الوحدة المرتبطة', 'Linked module') }}</th>
+            <th>{{ t('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of filteredDocuments()">
+            <td *ngIf="canManage && !isEmployee">
+              <strong>{{ employeeName(item) }}</strong>
+              <div class="table-subline">{{ item.employeeCode }}<span *ngIf="item.departmentAr || item.departmentEn"> • {{ lang === 'ar' ? item.departmentAr : (item.departmentEn || item.departmentAr) }}</span></div>
+            </td>
+            <td>{{ documentTypeName(item) }}</td>
+            <td>{{ item.documentNumber || dash }}</td>
+            <td>{{ item.issuedBy || dash }}</td>
+            <td>{{ item.issuedDate ? (item.issuedDate | date:'dd/MM/yyyy') : dash }}</td>
+            <td>{{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : dash }}</td>
+            <td>{{ daysLeftLabel(item.daysUntilExpiry) }}</td>
+            <td>
+              <span class="badge status-badge" [class]="statusClass(item.status)">
+                <span class="material-icons status-icon" *ngIf="item.status === 'valid'">check_circle</span>
+                <span class="material-icons status-icon" *ngIf="item.status === 'expiring_soon'">schedule</span>
+                <span class="material-icons status-icon" *ngIf="item.status === 'expired'">error</span>
+                <span class="material-icons status-icon" *ngIf="item.status === 'missing'">report_problem</span>
+                {{ statusLabel(item.status) }}
+              </span>
+            </td>
+            <td>{{ item.isRequired ? t('نعم', 'Yes') : t('لا', 'No') }}</td>
+            <td><span class="module-chip">{{ linkedModuleLabel(item.linkedModule) }}</span></td>
+            <td>
+              <div class="row-actions">
+                <a *ngIf="item.fileUrl" class="icon-btn" [href]="item.fileUrl" target="_blank" rel="noopener" [title]="t('عرض الملف', 'View file')"><span class="material-icons">visibility</span></a>
+                <button class="icon-btn" type="button" (click)="printDocument(item)" [title]="t('طباعة الملخص', 'Print summary')"><span class="material-icons">print</span></button>
+                <button class="icon-btn" type="button" *ngIf="canManage && item.id" (click)="openEditModal(item)" [title]="t('استبدال / تحديث', 'Replace / update')"><span class="material-icons">upload_file</span></button>
+                <button class="icon-btn danger" type="button" *ngIf="canManage && item.id && !isEmployee" (click)="promptDelete(item)" [title]="t('حذف', 'Delete')"><span class="material-icons">delete</span></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="documents-modal-overlay" *ngIf="formOpen()" (click)="closeModal()">
+    <aside class="documents-modal" (click)="$event.stopPropagation()">
+      <div class="documents-modal-head">
+        <div>
+          <h3 class="z-heading">{{ editingId() ? t('تحديث المستند', 'Update document') : t('إضافة مستند جديد', 'Add new document') }}</h3>
+          <p class="z-small">{{ t('حفظ بيانات المستند وربطها تلقائياً بالامتثال والتوظيف المسبق عند الحاجة.', 'Save document details and automatically link them to compliance and pre-employment when relevant.') }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeModal()"><span class="material-icons">close</span></button>
+      </div>
+
+      <div class="alert alert-danger" *ngIf="formError()">{{ formError() }}</div>
+
+      <div class="z-form-grid two-col">
+        <div class="form-group">
+          <label class="z-label">{{ t('الموظف', 'Employee') }}</label>
+          <select class="z-input" [(ngModel)]="form.employeeId" [disabled]="isEmployee">
+            <option value="">{{ t('اختر الموظف', 'Select employee') }}</option>
+            <option *ngFor="let employee of employeeOptions()" [value]="employee.id">{{ employee.label }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="z-label">{{ t('نوع المستند', 'Document type') }}</label>
+          <select class="z-input" [(ngModel)]="form.documentTypeId">
+            <option value="">{{ t('اختر النوع', 'Select type') }}</option>
+            <option *ngFor="let type of docTypes()" [value]="type.id">{{ lang === 'ar' ? type.nameAr : (type.nameEn || type.nameAr) }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="z-label">{{ t('رقم المستند', 'Document number') }}</label>
+          <input class="z-input" [(ngModel)]="form.documentNumber">
+        </div>
+
+        <div class="form-group">
+          <label class="z-label">{{ t('جهة الإصدار', 'Issued by') }}</label>
+          <input class="z-input" [(ngModel)]="form.issuedBy">
+        </div>
+
+        <div class="form-group">
+          <label class="z-label">{{ t('تاريخ الإصدار', 'Issue date') }}</label>
+          <input class="z-input" type="date" [(ngModel)]="form.issuedDate">
+        </div>
+
+        <div class="form-group">
+          <label class="z-label">{{ t('تاريخ الانتهاء', 'Expiry date') }}</label>
+          <input class="z-input" type="date" [(ngModel)]="form.expiryDate">
+        </div>
+
+        <div class="form-group field-full">
+          <label class="z-label">{{ t('رفع المرفق', 'Upload attachment') }}</label>
+          <input class="z-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" (change)="onFileSelected($event)">
+          <small class="z-small">{{ t('الأنواع المسموحة: PDF / JPG / PNG / WEBP - الحد الأقصى 5MB.', 'Allowed: PDF / JPG / PNG / WEBP - Max 5MB.') }}</small>
+          <small class="z-small" *ngIf="uploading()">{{ t('جارٍ رفع الملف...', 'Uploading file...') }}</small>
+          <small class="z-small" *ngIf="form.fileName">{{ t('الملف الحالي:', 'Current file:') }} {{ form.fileName }}</small>
+        </div>
+
+        <div class="form-group field-full">
+          <label class="z-label">{{ t('ملاحظات', 'Notes') }}</label>
+          <textarea class="z-input" rows="4" [(ngModel)]="form.notes"></textarea>
+        </div>
+      </div>
+
+      <div class="documents-meta" *ngIf="selectedDocumentType() as type">
+        <span class="meta-chip" *ngIf="type.requiresExpiry">{{ t('يتطلب تاريخ انتهاء', 'Requires expiry date') }}</span>
+        <span class="meta-chip" *ngIf="documentMeta(type.code).complianceRelated">{{ t('مرتبط بالامتثال', 'Compliance-linked') }}</span>
+        <span class="meta-chip" *ngIf="documentMeta(type.code).linkedModule === 'pre_employment'">{{ t('مرتبط بالتوظيف المسبق', 'Pre-employment linked') }}</span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeModal()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="saveDocument()" [disabled]="saving()">
+          {{ saving() ? '...' : t('حفظ', 'Save') }}
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <app-confirm-dialog
+    [open]="deleteTarget() !== null"
+    [title]="t('حذف المستند', 'Delete document')"
+    [message]="t('سيتم حذف المستند بعد التأكيد.', 'The document will be deleted after confirmation.')"
+    [confirmLabel]="t('حذف', 'Delete')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loading]="deleting()"
+    tone="danger"
+    (confirm)="confirmDelete()"
+    (cancel)="cancelDelete()">
+  </app-confirm-dialog>
+</section>

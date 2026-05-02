@@ -1,0 +1,31 @@
+.z-card {
+  background: var(--z-white);
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-md);
+  box-shadow: var(--z-shadow-card);
+  padding: 24px;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+  &:hover { box-shadow: var(--z-shadow-lg); }
+}
+.z-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 16px; border-bottom: 1px solid var(--z-border); margin-bottom: 16px;
+  h3 { font-size: 15px; font-weight: 600; margin: 0; }
+}
+.z-kpi-card {
+  @extend .z-card;
+  position: relative; overflow: hidden; padding: 20px 24px;
+  .kpi-accent { 
+    position: absolute; inset-inline-start: 0; top: 0; bottom: 0; 
+    width: 4px; border-radius: var(--z-radius-md) 0 0 var(--z-radius-md);
+  }
+  .kpi-icon {
+    position: absolute; inset-inline-end: 20px; top: 50%; transform: translateY(-50%);
+    opacity: 0.08; font-size: 64px;
+  }
+  .kpi-value { font-size: 32px; font-weight: 700; line-height: 1; margin: 8px 0 4px; }
+  .kpi-label { font-size: 13px; color: var(--z-text-secondary); font-weight: 500; }
+  .kpi-trend { font-size: 12px; margin-top: 8px; }
+  .kpi-trend.up   { color: var(--z-success); }
+  .kpi-trend.down { color: var(--z-danger); }
+}

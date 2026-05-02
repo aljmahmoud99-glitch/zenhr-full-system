@@ -1,0 +1,450 @@
+<section class="z-page compliance-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ lang === 'ar' ? 'مراقبة الامتثال' : 'Compliance monitoring' }}</span>
+      <h1 class="z-title">{{ lang === 'ar' ? 'لوحة الامتثال' : 'Compliance dashboard' }}</h1>
+      <p class="z-subtitle">{{ lang === 'ar' ? 'عرض موحد لحالة الضمان والتصاريح والشهادات والوثائق الحرجة.' : 'A unified view of social security, permits, certificates, and critical document status.' }}</p>
+    </div>
+
+    <div class="header-actions">
+      <a class="z-btn-secondary" *ngIf="portalLink('social')" [href]="portalLink('social')" target="_blank" rel="noopener">
+        <span class="material-icons">open_in_new</span>
+        {{ lang === 'ar' ? 'موقع الضمان' : 'SSC portal' }}
+      </a>
+      <a class="z-btn-secondary" *ngIf="portalLink('health')" [href]="portalLink('health')" target="_blank" rel="noopener">
+        <span class="material-icons">open_in_new</span>
+        {{ lang === 'ar' ? 'وزارة الصحة' : 'Health portal' }}
+      </a>
+      <button class="z-btn-secondary" type="button" *ngIf="isHr" (click)="settingsOpen.set(!settingsOpen())">
+        <span class="material-icons">tune</span>
+        {{ lang === 'ar' ? 'الإعدادات' : 'Settings' }}
+      </button>
+      <button class="z-btn-primary" type="button" *ngIf="isHr" (click)="exportReport()" [disabled]="exporting()">
+        <span class="material-icons">print</span>
+        {{ exporting() ? '...' : (lang === 'ar' ? 'طباعة التقرير' : 'Print report') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+
+  <section class="summary-grid" *ngIf="overview()">
+    <article class="z-card summary-card">
+      <span class="summary-label">{{ lang === 'ar' ? 'إجمالي الموظفين' : 'Total employees' }}</span>
+      <strong class="summary-value">{{ overview()?.stats?.totalEmployees ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card danger">
+      <span class="summary-label">{{ lang === 'ar' ? 'غير مسجلين بالضمان' : 'Not in social security' }}</span>
+      <strong class="summary-value">{{ overview()?.stats?.sscMissing ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card warning">
+      <span class="summary-label">{{ lang === 'ar' ? 'تصاريح عمل تنتهي قريباً' : 'Expiring work permits' }}</span>
+      <strong class="summary-value">{{ overview()?.stats?.workPermitsExpiring ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card danger">
+      <span class="summary-label">{{ lang === 'ar' ? 'شهادات صحية منتهية' : 'Expired health certificates' }}</span>
+      <strong class="summary-value">{{ overview()?.stats?.healthCertificatesExpired ?? 0 }}</strong>
+    </article>
+    <article class="z-card summary-card danger">
+      <span class="summary-label">{{ lang === 'ar' ? 'سجل جنائي منتهي' : 'Expired criminal records' }}</span>
+      <strong class="summary-value">{{ overview()?.stats?.criminalRecordsExpired ?? 0 }}</strong>
+    </article>
+  </section>
+
+  <section class="dashboard-grid">
+    <article class="z-card alerts-panel">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ lang === 'ar' ? 'التنبيهات الحرجة' : 'Critical alerts' }}</h2>
+          <p class="z-small">{{ lang === 'ar' ? 'المنتهي أولاً ثم ما يوشك على الانتهاء.' : 'Expired items first, then expiring soon.' }}</p>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loading() && criticalAlerts().length === 0">
+        <span class="material-icons empty-icon">verified_user</span>
+        <strong>{{ lang === 'ar' ? 'لا توجد تنبيهات امتثال حالياً.' : 'No compliance alerts right now.' }}</strong>
+      </div>
+
+      <div class="alert-list" *ngIf="criticalAlerts().length > 0">
+        <button type="button" class="alert-row" *ngFor="let alert of criticalAlerts()" (click)="openEmployeeCompliance(alert.employeeId)">
+          <div class="alert-copy">
+            <strong>{{ lang === 'ar' ? alert.employeeNameAr : alert.employeeNameEn }}</strong>
+            <span>{{ lang === 'ar' ? alert.documentTypeAr : alert.documentTypeEn }}</span>
+            <span>{{ alert.expiryDate ? (alert.expiryDate | date:'dd/MM/yyyy') : '—' }} • {{ alertSummary(alert) }}</span>
+          </div>
+          <span class="badge" [class]="statusClass(alert.status)">{{ statusLabel(alert.status) }}</span>
+        </button>
+      </div>
+    </article>
+
+    <article class="z-card settings-panel" *ngIf="isHr && settingsOpen()">
+      <div class="z-card-header">
+        <div>
+          <h2 class="z-heading">{{ lang === 'ar' ? 'إعدادات الامتثال' : 'Compliance settings' }}</h2>
+          <p class="z-small">{{ lang === 'ar' ? 'تحديد المتطلبات والتحذيرات وروابط البوابات الخارجية.' : 'Control requirements, warning windows, and external portal links.' }}</p>
+        </div>
+      </div>
+
+      <div class="z-form-grid two-col">
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'الشهادة الصحية مطلوبة' : 'Health certificate required' }}</span>
+          <input type="checkbox" [checked]="settings().health_certificate_required === 'true'" (change)="onSettingsChange('health_certificate_required')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'براءة الذمة مطلوبة' : 'Criminal record required' }}</span>
+          <input type="checkbox" [checked]="settings().criminal_record_required === 'true'" (change)="onSettingsChange('criminal_record_required')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'تصريح العمل لغير الأردني' : 'Work permit for non-Jordanian' }}</span>
+          <input type="checkbox" [checked]="settings().work_permit_required_non_jordanian === 'true'" (change)="onSettingsChange('work_permit_required_non_jordanian')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'الإقامة لغير الأردني' : 'Residency for non-Jordanian' }}</span>
+          <input type="checkbox" [checked]="settings().residency_required_non_jordanian === 'true'" (change)="onSettingsChange('residency_required_non_jordanian')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'جواز السفر لغير الأردني' : 'Passport for non-Jordanian' }}</span>
+          <input type="checkbox" [checked]="settings().passport_required_non_jordanian === 'true'" (change)="onSettingsChange('passport_required_non_jordanian')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <label class="switch-field">
+          <span>{{ lang === 'ar' ? 'الضمان للموظفين النشطين' : 'Social security for active employees' }}</span>
+          <input type="checkbox" [checked]="settings().social_security_required_active === 'true'" (change)="onSettingsChange('social_security_required_active')($any($event.target).checked ? 'true' : 'false')">
+        </label>
+        <div class="form-group">
+          <label class="z-label">{{ lang === 'ar' ? 'نافذة التحذير العامة (يوم)' : 'Warning window (days)' }}</label>
+          <input class="z-input" type="number" [ngModel]="settings().compliance_warning_days" (ngModelChange)="onSettingsChange('compliance_warning_days')($event)">
+        </div>
+        <div class="form-group">
+          <label class="z-label">{{ lang === 'ar' ? 'رابط الضمان' : 'Social security link' }}</label>
+          <input class="z-input" type="url" [ngModel]="settings().social_security_portal_url" (ngModelChange)="onSettingsChange('social_security_portal_url')($event)">
+        </div>
+        <div class="form-group field-full">
+          <label class="z-label">{{ lang === 'ar' ? 'رابط وزارة الصحة' : 'Ministry of Health link' }}</label>
+          <input class="z-input" type="url" [ngModel]="settings().ministry_of_health_portal_url" (ngModelChange)="onSettingsChange('ministry_of_health_portal_url')($event)">
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="z-btn-primary" type="button" (click)="saveSettings()" [disabled]="savingSettings()">
+          {{ savingSettings() ? '...' : (lang === 'ar' ? 'حفظ الإعدادات' : 'Save settings') }}
+        </button>
+      </div>
+    </article>
+  </section>
+
+  <section class="z-card">
+    <div class="z-card-header stack-mobile">
+      <div>
+        <h2 class="z-heading">{{ lang === 'ar' ? 'المتابعة حسب نوع الوثيقة' : 'Document-category monitoring' }}</h2>
+        <p class="z-small">{{ lang === 'ar' ? 'تصفية واستعراض حالة الامتثال لكل نوع من الوثائق.' : 'Filter and review compliance status by document category.' }}</p>
+      </div>
+
+      <div class="tab-strip">
+        <button
+          type="button"
+          *ngFor="let tab of tabOptions"
+          class="tab-chip"
+          [class.active]="activeTab() === tab.key"
+          (click)="activeTab.set(tab.key)">
+          <span class="material-icons">{{ tab.icon }}</span>
+          {{ lang === 'ar' ? tab.ar : tab.en }}
+        </button>
+      </div>
+
+      <button class="z-btn-primary" type="button" *ngIf="isHr" (click)="openCreateModal()">
+        <span class="material-icons">add</span>
+        {{ lang === 'ar' ? 'إضافة ' + currentTabLabel() : 'Add ' + currentTabLabel() }}
+      </button>
+    </div>
+
+    <div class="quick-add-strip" *ngIf="isHr">
+      <button
+        type="button"
+        class="quick-add-btn"
+        *ngFor="let action of quickAddActions"
+        (click)="openCreateModalFor(action.key)">
+        <span class="material-icons">{{ action.icon }}</span>
+        {{ lang === 'ar' ? action.ar : action.en }}
+      </button>
+    </div>
+
+    <div class="filter-grid">
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'بحث' : 'Search' }}</label>
+        <input class="z-input" [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)" [placeholder]="lang === 'ar' ? 'اسم الموظف أو الكود أو المرجع' : 'Employee name, code, or reference'">
+      </div>
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</label>
+        <select class="z-input" [ngModel]="employeeFilter()" (ngModelChange)="employeeFilter.set($event)">
+          <option value="">{{ lang === 'ar' ? 'الكل' : 'All' }}</option>
+          <option *ngFor="let employee of employeeOptions()" [value]="employee.id">{{ employee.name }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'الوحدة' : 'Org Unit' }}</label>
+        <select class="z-input" [ngModel]="orgUnitFilter()" (ngModelChange)="orgUnitFilter.set($event)">
+          <option value="">{{ lang === 'ar' ? 'الكل' : 'All' }}</option>
+          <option *ngFor="let orgUnit of orgUnitOptions()" [value]="orgUnit">{{ orgUnit }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'الحالة' : 'Status' }}</label>
+        <select class="z-input" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+          <option value="">{{ lang === 'ar' ? 'كل الحالات' : 'All statuses' }}</option>
+          <option value="valid">{{ statusLabel('valid') }}</option>
+          <option value="expiring_soon">{{ statusLabel('expiring_soon') }}</option>
+          <option value="expired">{{ statusLabel('expired') }}</option>
+          <option value="missing">{{ statusLabel('missing') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'الجنسية' : 'Nationality' }}</label>
+        <select class="z-input" [ngModel]="nationalityFilter()" (ngModelChange)="nationalityFilter.set($event)">
+          <option value="">{{ lang === 'ar' ? 'الكل' : 'All' }}</option>
+          <option *ngFor="let nationality of nationalityOptions()" [value]="nationality">{{ nationality }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="z-label">{{ lang === 'ar' ? 'ينتهي خلال' : 'Expiring within' }}</label>
+        <select class="z-input" [ngModel]="expiringWithinFilter()" (ngModelChange)="expiringWithinFilter.set($event)">
+          <option value="">{{ lang === 'ar' ? 'أي وقت' : 'Any time' }}</option>
+          <option value="7">{{ lang === 'ar' ? '7 أيام' : '7 days' }}</option>
+          <option value="30">{{ lang === 'ar' ? '30 يوماً' : '30 days' }}</option>
+          <option value="60">{{ lang === 'ar' ? '60 يوماً' : '60 days' }}</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button class="z-btn-secondary" type="button" *ngIf="hasFilters()" (click)="resetFilters()">
+          {{ lang === 'ar' ? 'مسح الفلاتر' : 'Reset filters' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && filteredItems().length === 0">
+      <span class="material-icons empty-icon">inventory_2</span>
+      <strong>{{ lang === 'ar' ? 'لا توجد نتائج مطابقة.' : 'No matching compliance records.' }}</strong>
+    </div>
+
+    <div class="table-scroll" *ngIf="filteredItems().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</th>
+            <th>{{ lang === 'ar' ? 'الحالة' : 'Status' }}</th>
+            <th>{{ lang === 'ar' ? 'تاريخ الإصدار' : 'Issue date' }}</th>
+            <th>{{ lang === 'ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</th>
+            <th>{{ lang === 'ar' ? 'الأيام المتبقية' : 'Days remaining' }}</th>
+            <th>{{ lang === 'ar' ? 'المرجع' : 'Reference' }}</th>
+            <th>{{ lang === 'ar' ? 'إجراءات' : 'Actions' }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of filteredItems()">
+            <td>
+              <strong>{{ employeeLabel(item) }}</strong>
+              <div class="table-subline">{{ item.employeeCode }} • {{ orgUnitLabel(item) || '—' }}</div>
+            </td>
+            <td><span class="badge" [class]="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td>
+            <td>{{ item.issueDate ? (item.issueDate | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>{{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>{{ itemDaysLabel(item) }}</td>
+            <td>{{ item.referenceNumber || '—' }}</td>
+            <td>
+              <div class="row-actions">
+                <button class="icon-btn" type="button" (click)="openEmployeeCompliance(item.employeeId)" [title]="lang === 'ar' ? 'عرض ملف الامتثال' : 'Open compliance view'">
+                  <span class="material-icons">visibility</span>
+                </button>
+                <button class="icon-btn" type="button" *ngIf="isHr" (click)="openCreateModal(item)" [title]="lang === 'ar' ? 'تعديل بيانات الامتثال' : 'Edit compliance data'">
+                  <span class="material-icons">edit</span>
+                </button>
+                <a *ngIf="item.sourceDocumentUrl" class="icon-btn" [href]="item.sourceDocumentUrl" target="_blank" rel="noopener" [title]="lang === 'ar' ? 'عرض المستند' : 'View document'">
+                  <span class="material-icons">description</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="employee-detail-overlay" *ngIf="employeeDetailOpen()" (click)="closeEmployeeCompliance()">
+    <aside class="employee-detail-panel" (click)="$event.stopPropagation()">
+      <div class="detail-head">
+        <div>
+          <h3 class="z-heading">{{ lang === 'ar' ? 'ملف الامتثال' : 'Employee compliance view' }}</h3>
+          <p class="z-small" *ngIf="employeeDetail()?.employee">
+            {{ lang === 'ar' ? employeeDetail()?.employee?.firstNameAr + ' ' + employeeDetail()?.employee?.lastNameAr : employeeDetail()?.employee?.firstNameEn + ' ' + employeeDetail()?.employee?.lastNameEn }}
+          </p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeEmployeeCompliance()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="loading-wrap" *ngIf="employeeDetailLoading()">
+        <div class="spinner"></div>
+      </div>
+
+      <ng-container *ngIf="!employeeDetailLoading() && employeeDetail()">
+        <div class="detail-summary-grid">
+          <article class="detail-summary-card" *ngFor="let item of employeeDetail().items">
+            <div class="detail-summary-head">
+              <strong>{{ lang === 'ar' ? item.labelAr : item.labelEn }}</strong>
+              <span class="badge" [class]="statusClass(item.status)">{{ statusLabel(item.status) }}</span>
+            </div>
+            <div class="detail-summary-row"><span>{{ lang === 'ar' ? 'الإصدار' : 'Issue' }}</span><strong>{{ item.issueDate ? (item.issueDate | date:'dd/MM/yyyy') : '—' }}</strong></div>
+            <div class="detail-summary-row"><span>{{ lang === 'ar' ? 'الانتهاء' : 'Expiry' }}</span><strong>{{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : '—' }}</strong></div>
+            <div class="detail-summary-row"><span>{{ lang === 'ar' ? 'الأيام المتبقية' : 'Days left' }}</span><strong>{{ itemDaysLabel(item) }}</strong></div>
+            <div class="detail-summary-row"><span>{{ lang === 'ar' ? 'المرجع' : 'Reference' }}</span><strong>{{ item.referenceNumber || '—' }}</strong></div>
+            <p class="detail-notes" *ngIf="item.notes">{{ item.notes }}</p>
+            <a class="inline-link" *ngIf="item.sourceDocumentUrl" [href]="item.sourceDocumentUrl" target="_blank" rel="noopener">
+              {{ lang === 'ar' ? 'فتح المستند' : 'Open document' }}
+            </a>
+          </article>
+        </div>
+      </ng-container>
+    </aside>
+  </div>
+
+  <div class="employee-detail-overlay" *ngIf="editModalOpen()" (click)="closeCreateModal()">
+    <aside class="employee-detail-panel edit-panel" (click)="$event.stopPropagation()">
+      <div class="detail-head">
+        <div>
+          <h3 class="z-heading">{{ lang === 'ar' ? 'إضافة / تحديث ' + currentTabLabel() : 'Add / update ' + currentTabLabel() }}</h3>
+          <p class="z-small">{{ lang === 'ar' ? 'يقوم قسم الموارد البشرية بحفظ بيانات الامتثال مباشرة للموظف.' : 'HR can save compliance information directly for the employee.' }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeCreateModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="alert alert-danger" *ngIf="editError()">{{ editError() }}</div>
+
+      <div class="z-form-grid two-col">
+        <div class="form-group field-full">
+          <label class="z-label">{{ lang === 'ar' ? 'الموظف' : 'Employee' }}</label>
+          <select class="z-input" [(ngModel)]="editForm.employeeId">
+            <option value="">{{ lang === 'ar' ? 'اختر الموظف' : 'Select employee' }}</option>
+            <option *ngFor="let employee of employeeOptions()" [value]="employee.id">{{ employee.name }}</option>
+          </select>
+        </div>
+
+        <ng-container *ngIf="activeTab() === 'social_security'">
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم الضمان' : 'SSC number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.sscNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ التسجيل' : 'Registration date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.registrationDate">
+          </div>
+          <div class="form-group field-full">
+            <label class="z-label">{{ lang === 'ar' ? 'الحالة' : 'Status' }}</label>
+            <select class="z-input" [(ngModel)]="editForm.sscStatus">
+              <option value="registered">{{ lang === 'ar' ? 'مسجل' : 'Registered' }}</option>
+              <option value="exempt">{{ lang === 'ar' ? 'معفى' : 'Exempt' }}</option>
+              <option value="pending">{{ lang === 'ar' ? 'قيد الإجراء' : 'Pending' }}</option>
+            </select>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab() === 'work_permit'">
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم تصريح العمل' : 'Work permit number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.workPermitNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الإصدار' : 'Issue date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.workPermitIssueDate">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.workPermitExpiryDate">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'الفئة' : 'Category' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.workPermitCategory">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم الإقامة' : 'Residency number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.residencyNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'نوع الإقامة' : 'Residency type' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.residencyType">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'انتهاء الإقامة' : 'Residency expiry' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.residencyExpiry">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم الجواز' : 'Passport number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.passportNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'انتهاء الجواز' : 'Passport expiry' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.passportExpiry">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'بلد الجواز' : 'Passport country' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.passportCountry">
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab() === 'health_certificate'">
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم الشهادة' : 'Certificate number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.healthCertificateNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الإصدار' : 'Issue date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.healthIssueDate">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.healthExpiryDate">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'الجهة المصدرة' : 'Issued by' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.healthIssuedBy">
+          </div>
+          <div class="form-group field-full">
+            <label class="z-label">{{ lang === 'ar' ? 'الحالة' : 'Status' }}</label>
+            <select class="z-input" [(ngModel)]="editForm.healthStatus">
+              <option value="valid">{{ lang === 'ar' ? 'سارية' : 'Valid' }}</option>
+              <option value="expired">{{ lang === 'ar' ? 'منتهية' : 'Expired' }}</option>
+            </select>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab() === 'criminal_record'">
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'رقم المرجع' : 'Reference number' }}</label>
+            <input class="z-input" [(ngModel)]="editForm.criminalReferenceNumber">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الإصدار' : 'Issue date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.criminalIssueDate">
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ lang === 'ar' ? 'تاريخ الانتهاء' : 'Expiry date' }}</label>
+            <input class="z-input" type="date" [(ngModel)]="editForm.criminalExpiryDate">
+          </div>
+        </ng-container>
+
+        <div class="form-group field-full">
+          <label class="z-label">{{ lang === 'ar' ? 'ملاحظات' : 'Notes' }}</label>
+          <textarea class="z-input" rows="3" [(ngModel)]="editForm.notes"></textarea>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeCreateModal()">{{ lang === 'ar' ? 'إلغاء' : 'Cancel' }}</button>
+        <button class="z-btn-primary" type="button" (click)="saveComplianceRecord()" [disabled]="editSaving()">
+          {{ editSaving() ? '...' : (lang === 'ar' ? 'حفظ' : 'Save') }}
+        </button>
+      </div>
+    </aside>
+  </div>
+</section>

@@ -1,0 +1,280 @@
+{
+  "info": {
+    "name": "ZenJO API",
+    "_postman_id": "d9f83282-c8fc-4ae9-b388-zenjo-api-collection",
+    "description": "Postman collection for the primary ZenJO Angular/.NET/MySQL system.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "employeeId", "value": "1" },
+    { "key": "advanceId", "value": "1" },
+    { "key": "companyId", "value": "1" },
+    { "key": "userId", "value": "1" },
+    { "key": "payrollRunId", "value": "1" },
+    { "key": "documentId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"employee\",\n  \"password\": \"Employee@1234\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/refresh"
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        { "name": "Summary", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/dashboard/summary" } },
+        { "name": "Headcount By Department", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/dashboard/headcount-by-department" } },
+        { "name": "Recent Activity", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/dashboard/recent-activity" } }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        { "name": "List Employees", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/employees" } },
+        { "name": "Get Employee", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/employees/{{employeeId}}" } },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeCode\": \"EMP-NEW\",\n  \"firstNameAr\": \"موظف\",\n  \"lastNameAr\": \"جديد\",\n  \"firstNameEn\": \"New\",\n  \"lastNameEn\": \"Employee\",\n  \"gender\": \"male\",\n  \"employmentType\": \"full_time\",\n  \"employmentStatus\": \"active\",\n  \"basicSalary\": 600,\n  \"housingAllowance\": 0,\n  \"transportAllowance\": 0,\n  \"mobileAllowance\": 0,\n  \"mealAllowance\": 0,\n  \"otherAllowances\": 0,\n  \"grossSalary\": 600\n}"
+            },
+            "url": "{{baseUrl}}/api/employees"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        { "name": "Dashboard", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/attendance/dashboard" } },
+        { "name": "List Records", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/attendance" } },
+        {
+          "name": "Clock In",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/attendance/clock-in"
+          }
+        },
+        {
+          "name": "Clock Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/attendance/clock-out"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leave",
+      "item": [
+        { "name": "Leave Types", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/leave/types" } },
+        { "name": "Leave Requests", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/leave/requests" } },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveTypeId\": 1,\n  \"startDate\": \"2026-04-20\",\n  \"endDate\": \"2026-04-21\",\n  \"reason\": \"Personal reason\"\n}"
+            },
+            "url": "{{baseUrl}}/api/leave/requests"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Overtime",
+      "item": [
+        { "name": "Dashboard", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/overtime/dashboard" } },
+        { "name": "Requests", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/overtime/requests" } },
+        {
+          "name": "Create Overtime Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-04-17\",\n  \"hours\": 2,\n  \"reason\": \"Support work\",\n  \"overtimeType\": \"normal\",\n  \"compensationType\": \"payment\"\n}"
+            },
+            "url": "{{baseUrl}}/api/overtime/requests"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payroll",
+      "item": [
+        { "name": "Payroll Runs", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/payroll/runs" } },
+        { "name": "My Payslips", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/payroll/slips/my" } },
+        { "name": "Run Payslips", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/payroll/runs/{{payrollRunId}}/payslips" } }
+      ]
+    },
+    {
+      "name": "Salary Advances",
+      "item": [
+        { "name": "List Advances", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/salary-advances" } },
+        {
+          "name": "Create Advance Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"amount\": 150,\n  \"reason\": \"Advance request from Postman\",\n  \"repaymentMethod\": \"monthly\",\n  \"notes\": \"Test request\"\n}"
+            },
+            "url": "{{baseUrl}}/api/salary-advances"
+          }
+        },
+        {
+          "name": "Approve Advance",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvedAmount\": 150,\n  \"repaymentMethod\": \"monthly\",\n  \"repaymentPlan\": \"3 monthly deductions\",\n  \"notes\": \"Approved by HR\"\n}"
+            },
+            "url": "{{baseUrl}}/api/salary-advances/{{advanceId}}/approve"
+          }
+        },
+        {
+          "name": "Reject Advance",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rejected by HR\",\n  \"notes\": \"Insufficient justification\"\n}"
+            },
+            "url": "{{baseUrl}}/api/salary-advances/{{advanceId}}/reject"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        { "name": "List Documents", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/documents" } },
+        { "name": "Get Document", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/documents/{{documentId}}" } },
+        { "name": "Expiring Documents", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/documents/expiring" } }
+      ]
+    },
+    {
+      "name": "Assets",
+      "item": [
+        { "name": "List Assets", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/assets" } },
+        {
+          "name": "Assign Asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": {{employeeId}}\n}" },
+            "url": "{{baseUrl}}/api/assets/1/assign"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        { "name": "Headcount", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/reports/headcount" } },
+        { "name": "Payroll Summary", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/reports/payroll-summary" } },
+        { "name": "Attendance Summary", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/reports/attendance-summary" } }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        { "name": "Companies", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/admin/companies" } },
+        { "name": "Stats", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/admin/stats" } },
+        { "name": "Registrations", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/admin/registrations" } }
+      ]
+    }
+  ]
+}

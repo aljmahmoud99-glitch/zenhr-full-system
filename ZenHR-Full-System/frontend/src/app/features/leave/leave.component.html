@@ -1,0 +1,367 @@
+<section class="z-page leave-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ isEmployeeSelfService ? t('الخدمة الذاتية للإجازات', 'Self-service leave') : t('إدارة طلبات الإجازة', 'Leave management') }}</span>
+      <h1 class="z-title">{{ t('الإجازات', 'Leave') }}</h1>
+      <p class="z-body">{{ t('إدارة سياسات الإجازات والطلبات والأرصدة ضمن مسار اعتماد واضح وقابل للطباعة.', 'Manage leave policies, requests, and balances in one printable approval workflow.') }}</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" *ngIf="canManagePolicies" (click)="openPolicies()">
+        <span class="material-icons">settings</span>
+        {{ t('سياسات الإجازات', 'Leave settings') }}
+      </button>
+      <button class="z-btn-primary" type="button" (click)="openCreate()">
+        <span class="material-icons">event_available</span>
+        {{ t('طلب إجازة جديد', 'Request leave') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+  <app-skeleton-kpi-cards *ngIf="loading()" [count]="5" />
+
+  <section class="summary-grid" *ngIf="!loading()">
+    <article class="z-card summary-card" *ngFor="let card of summaryCards()">
+      <span class="summary-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+      <strong class="summary-value">{{ card.value }}</strong>
+    </article>
+  </section>
+
+  <section class="balance-grid" *ngIf="balances().length > 0">
+    <article class="z-card balance-card" *ngFor="let balance of balances()">
+      <div class="balance-top">
+        <div>
+          <strong>{{ lang === 'ar' ? balance.leaveTypeNameAr : balance.leaveTypeNameEn }}</strong>
+          <p>{{ t('الرصيد المتبقي', 'Remaining balance') }}</p>
+        </div>
+        <span class="remaining-days">{{ balance.remainingDays }}</span>
+      </div>
+
+      <div class="balance-metrics">
+        <div><span>{{ t('المستخدم', 'Used') }}</span><strong>{{ balance.usedDays }}</strong></div>
+        <div><span>{{ t('قيد الاعتماد', 'Pending') }}</span><strong>{{ balance.pendingDays }}</strong></div>
+        <div><span>{{ t('الإجمالي', 'Total') }}</span><strong>{{ balance.totalDays }}</strong></div>
+      </div>
+
+      <div class="progress-shell">
+        <div class="progress-track"><div class="progress-fill" [style.width.%]="usedPercent(balance)"></div></div>
+        <small>{{ usedPercent(balance) }}%</small>
+      </div>
+
+      <div class="policy-meta" *ngIf="balance.policy as policy">
+        <span>{{ t('اعتماد المدير', 'Manager approval') }}: <strong>{{ policy.requiresManagerApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</strong></span>
+        <span>{{ t('اعتماد الموارد البشرية', 'HR approval') }}: <strong>{{ policy.requiresHrApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</strong></span>
+        <span>{{ t('المرفق', 'Attachment') }}: <strong>{{ policy.requiresAttachment ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</strong></span>
+        <span>{{ t('حد الطلب', 'Max request') }}: <strong>{{ policy.maxConsecutiveDays ?? '—' }}</strong></span>
+        <span>{{ t('الإشعار المسبق', 'Notice days') }}: <strong>{{ policy.noticeDaysRequired }}</strong></span>
+      </div>
+    </article>
+  </section>
+
+  <section class="z-card policy-summary-card" *ngIf="policies().length > 0">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('ملخص السياسات', 'Policy summary') }}</h2>
+        <p class="z-small">{{ t('سياسات الشركة الفعلية التي تتحكم في الطلبات والأرصدة.', 'Active company policy rules controlling requests and balances.') }}</p>
+      </div>
+    </div>
+
+    <div class="policy-grid">
+      <article class="policy-item" *ngFor="let policy of policies()">
+        <strong>{{ policyName(policy) }}</strong>
+        <div class="policy-line">{{ t('الرصيد السنوي', 'Yearly balance') }}: {{ policy.daysPerYear }}</div>
+        <div class="policy-line">{{ t('أقصى أيام للطلب', 'Max days per request') }}: {{ policy.maxConsecutiveDays ?? '—' }}</div>
+        <div class="policy-line">{{ t('إشعار مسبق', 'Notice days') }}: {{ policy.noticeDaysRequired }}</div>
+        <div class="policy-line">{{ t('اعتماد المدير', 'Manager approval') }}: {{ policy.requiresManagerApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</div>
+        <div class="policy-line">{{ t('اعتماد الموارد البشرية', 'HR approval') }}: {{ policy.requiresHrApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</div>
+        <div class="policy-line">{{ t('مرفق مطلوب', 'Attachment required') }}: {{ policy.requiresAttachment ? t('نعم', 'Yes') : t('لا', 'No') }}</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="z-card filter-card">
+    <div class="filter-row" *ngIf="!isEmployee">
+      <label class="filter-field filter-grow">
+        <span class="z-label">{{ t('بحث', 'Search') }}</span>
+        <input class="z-input" [(ngModel)]="filter.search" (ngModelChange)="applyFilters()" [placeholder]="isEmployeeSelfService ? t('ابحث في السبب أو نوع الإجازة', 'Search by reason or leave type') : t('اسم الموظف أو الكود أو الوحدة التنظيمية', 'Employee, code, or org unit')">
+      </label>
+
+      <label class="filter-field">
+        <span class="z-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
+        <select class="z-input" [(ngModel)]="filter.leaveTypeCode" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الأنواع', 'All types') }}</option>
+          <option *ngFor="let type of leaveTypes()" [value]="type.code">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="z-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" [(ngModel)]="filter.status" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
+          <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
+          <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
+          <option value="rejected">{{ t('مرفوض', 'Rejected') }}</option>
+          <option value="cancelled">{{ t('ملغي', 'Cancelled') }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field" *ngIf="!isEmployeeSelfService">
+        <span class="z-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <select class="z-input" [(ngModel)]="filter.orgUnit" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
+          <option *ngFor="let unit of orgUnits()" [value]="unit">{{ unit }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="z-label">{{ t('من تاريخ', 'From') }}</span>
+        <input class="z-input" type="date" [(ngModel)]="filter.from" (ngModelChange)="applyFilters()">
+      </label>
+
+      <label class="filter-field">
+        <span class="z-label">{{ t('إلى تاريخ', 'To') }}</span>
+        <input class="z-input" type="date" [(ngModel)]="filter.to" (ngModelChange)="applyFilters()">
+      </label>
+
+      <button class="z-btn-secondary reset-btn" type="button" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    </div>
+  </section>
+
+  <section class="z-card requests-card">
+    <div class="request-skeletons" *ngIf="loading()">
+      <app-skeleton-card />
+      <app-skeleton-card />
+      <app-skeleton-card />
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && filteredLeaveRequests().length === 0">
+      <span class="material-icons">event_busy</span>
+      <strong>{{ t('لا توجد طلبات مطابقة حتى الآن', 'No matching requests yet') }}</strong>
+      <p>{{ t('ستظهر طلبات الإجازة هنا مع حالة الاعتماد ومسار التقدم.', 'Leave requests will appear here with status and approval trail.') }}</p>
+    </div>
+
+    <div class="request-list" *ngIf="!loading() && filteredLeaveRequests().length > 0">
+      <article class="request-card" *ngFor="let request of filteredLeaveRequests()">
+        <div class="request-top">
+          <div class="request-title">
+            <strong>{{ requestTitle(request) }}</strong>
+            <small *ngIf="!isEmployeeSelfService">{{ employeeName(request) }} <span *ngIf="request.employeeCode">• {{ request.employeeCode }}</span> <span *ngIf="request.departmentAr">• {{ request.departmentAr }}</span></small>
+          </div>
+          <span class="z-badge" [class.success]="statusTone(request.status) === 'success'" [class.warning]="statusTone(request.status) === 'warning'" [class.info]="statusTone(request.status) === 'info'" [class.danger]="statusTone(request.status) === 'danger'" [class.neutral]="statusTone(request.status) === 'neutral'">
+            {{ statusLabel(request.status) }}
+          </span>
+        </div>
+
+        <div class="request-grid">
+          <div><span>{{ t('الفترة', 'Period') }}</span><strong>{{ request.startDate }} - {{ request.endDate }}</strong></div>
+          <div><span>{{ t('عدد الأيام', 'Days') }}</span><strong>{{ request.totalDays }}</strong></div>
+          <div><span>{{ t('السبب', 'Reason') }}</span><strong>{{ request.reason || '—' }}</strong></div>
+        </div>
+
+        <div class="pipeline">
+          <div class="pipeline-step" *ngFor="let step of pipelineSteps(request)" [class.done]="step.state === 'done'" [class.current]="step.state === 'current'" [class.rejected]="step.state === 'rejected'">
+            <span class="dot"></span>
+            <span>{{ lang === 'ar' ? step.labelAr : step.labelEn }}</span>
+          </div>
+        </div>
+
+        <div class="request-note" *ngIf="request.rejectionReason">
+          <span class="note-label">{{ t('سبب الرفض', 'Rejection reason') }}:</span>
+          <span>{{ request.rejectionReason }}</span>
+        </div>
+
+        <div class="request-actions">
+          <button class="z-btn-secondary" type="button" (click)="openDetails(request)">{{ t('عرض', 'View') }}</button>
+          <button class="z-btn-secondary" type="button" (click)="printRequest(request)">{{ t('طباعة', 'Print') }}</button>
+
+          <button class="z-btn-secondary" type="button" *ngIf="request.status === 'pending' && request.employeeId === auth.currentUser()?.employeeId" (click)="cancel(request.id)" [disabled]="isProcessing(request.id)">
+            {{ t('إلغاء الطلب', 'Cancel request') }}
+          </button>
+
+          <button class="z-btn-primary" type="button" *ngIf="canApprove && (request.status === 'pending' || request.status === 'manager_approved')" (click)="approve(request.id)" [disabled]="isProcessing(request.id)">
+            {{ isProcessing(request.id) ? '...' : t('موافقة', 'Approve') }}
+          </button>
+
+          <button class="z-btn-danger" type="button" *ngIf="canApprove && (request.status === 'pending' || request.status === 'manager_approved')" (click)="openReject(request.id)" [disabled]="isProcessing(request.id)">
+            {{ isProcessing(request.id) ? '...' : t('رفض', 'Reject') }}
+          </button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showCreateModal()" (click)="closeCreate()">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('طلب إجازة جديد', 'New leave request') }}</h2>
+          <p class="z-small">{{ t('سيتم التحقق من الطلب وفق سياسة الشركة قبل الإرسال.', 'The request will be validated against company policy before submission.') }}</p>
+        </div>
+        <button class="close-btn" type="button" (click)="closeCreate()"><span class="material-icons">close</span></button>
+      </header>
+
+      <div class="alert-error" *ngIf="formError()">{{ formError() }}</div>
+      <div class="alert alert-warning" *ngIf="!formError() && formPolicyWarning()">{{ formPolicyWarning() }}</div>
+
+      <div class="z-form-grid modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
+          <select class="z-input" [(ngModel)]="form.leaveTypeId">
+            <option [ngValue]="null">—</option>
+            <option *ngFor="let type of leaveTypes()" [ngValue]="type.id">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('من تاريخ', 'Start date') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="form.startDate">
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('إلى تاريخ', 'End date') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="form.endDate">
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('مرجع المرفق', 'Attachment reference') }}</span>
+          <input class="z-input" [(ngModel)]="form.attachmentUrl" [placeholder]="t('رابط أو مرجع المستند', 'Attachment link or reference')">
+        </label>
+
+        <label class="field field-full">
+          <span class="z-label">{{ t('السبب', 'Reason') }}</span>
+          <textarea class="z-input text-area" [(ngModel)]="form.reason"></textarea>
+        </label>
+      </div>
+
+      <div class="policy-preview" *ngIf="currentPolicy() as policy">
+        <div class="policy-line">{{ t('الحد الأقصى للطلب', 'Max per request') }}: <strong>{{ policy.maxConsecutiveDays ?? '—' }}</strong></div>
+        <div class="policy-line">{{ t('إشعار مسبق', 'Notice days') }}: <strong>{{ policy.noticeDaysRequired }}</strong></div>
+        <div class="policy-line">{{ t('اعتماد المدير', 'Manager approval') }}: <strong>{{ policy.requiresManagerApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</strong></div>
+        <div class="policy-line">{{ t('اعتماد الموارد البشرية', 'HR approval') }}: <strong>{{ policy.requiresHrApproval ? t('مطلوب', 'Required') : t('غير مطلوب', 'Not required') }}</strong></div>
+        <div class="policy-line">{{ t('مرفق مطلوب', 'Attachment required') }}: <strong>{{ policy.requiresAttachment ? t('نعم', 'Yes') : t('لا', 'No') }}</strong></div>
+        <div class="policy-line" *ngIf="selectedBalance() as balance">{{ t('الرصيد المتاح', 'Available balance') }}: <strong>{{ balance.remainingDays }}</strong></div>
+        <div class="policy-line" *ngIf="selectedBalance() as balance">{{ t('الرصيد السنوي', 'Annual allowance') }}: <strong>{{ balance.totalDays }}</strong></div>
+        <div class="policy-line" *ngIf="selectedBalance() as balance">{{ t('المستخدم', 'Used') }}: <strong>{{ balance.usedDays }}</strong></div>
+        <div class="policy-line" *ngIf="selectedBalance() as balance">{{ t('قيد الاعتماد', 'Pending') }}: <strong>{{ balance.pendingDays }}</strong></div>
+        <div class="policy-line">{{ t('عدد الأيام التقديري', 'Estimated days') }}: <strong>{{ calcDays() }}</strong></div>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeCreate()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="submit()" [disabled]="saving()">
+          {{ saving() ? t('جارٍ الإرسال...', 'Submitting...') : t('إرسال الطلب', 'Submit request') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showPolicyModal()" (click)="closePolicies()">
+    <section class="modal-card policy-modal z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('سياسات الإجازات', 'Leave settings') }}</h2>
+          <p class="z-small">{{ t('إعداد القواعد الخاصة بالشركة لكل نوع إجازة.', 'Configure company-specific rules for each leave type.') }}</p>
+        </div>
+        <button class="close-btn" type="button" (click)="closePolicies()"><span class="material-icons">close</span></button>
+      </header>
+
+      <div class="alert-error" *ngIf="policyError()">{{ policyError() }}</div>
+
+      <div class="policy-edit-grid">
+        <article class="policy-edit-card" *ngFor="let policy of policyForm; let i = index">
+          <strong>{{ policyName(policy) }}</strong>
+          <div class="policy-form-grid">
+            <label class="field"><span class="z-label">{{ t('الرصيد السنوي', 'Yearly balance') }}</span><input class="z-input" type="number" [(ngModel)]="policyForm[i].daysPerYear"></label>
+            <label class="field"><span class="z-label">{{ t('الحد الأقصى للترحيل', 'Carry-over') }}</span><input class="z-input" type="number" [(ngModel)]="policyForm[i].maxCarryForward"></label>
+            <label class="field"><span class="z-label">{{ t('حد الطلب', 'Max per request') }}</span><input class="z-input" type="number" [(ngModel)]="policyForm[i].maxConsecutiveDays"></label>
+            <label class="field"><span class="z-label">{{ t('الإشعار المسبق', 'Notice days') }}</span><input class="z-input" type="number" [(ngModel)]="policyForm[i].noticeDaysRequired"></label>
+            <label class="field"><span class="z-label">{{ t('الحد الأدنى للخدمة بالأشهر', 'Min service months') }}</span><input class="z-input" type="number" [(ngModel)]="policyForm[i].minServiceMonths"></label>
+            <label class="field"><span class="z-label">{{ t('الاستحقاق', 'Accrual') }}</span><select class="z-input" [(ngModel)]="policyForm[i].accrualType"><option value="annually">{{ t('سنوي', 'Annual') }}</option><option value="monthly">{{ t('شهري', 'Monthly') }}</option></select></label>
+          </div>
+          <div class="policy-toggle-row">
+            <label><input type="checkbox" [(ngModel)]="policyForm[i].requiresManagerApproval"> {{ t('يتطلب موافقة المدير', 'Requires manager approval') }}</label>
+            <label><input type="checkbox" [(ngModel)]="policyForm[i].requiresHrApproval"> {{ t('يتطلب موافقة الموارد البشرية', 'Requires HR approval') }}</label>
+            <label><input type="checkbox" [(ngModel)]="policyForm[i].isActive"> {{ t('مفعل', 'Active') }}</label>
+          </div>
+          <div class="policy-note">{{ t('المرفق المطلوب لهذا النوع', 'Attachment required for this type') }}: <strong>{{ policy.requiresAttachment ? t('نعم', 'Yes') : t('لا', 'No') }}</strong></div>
+        </article>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closePolicies()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="savePolicies()" [disabled]="policySaving()">
+          {{ policySaving() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ السياسات', 'Save policies') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showDetailsModal()" (click)="closeDetails()">
+    <section class="modal-card details-modal z-card" *ngIf="selectedRequest() as request" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ requestTitle(request) }}</h2>
+          <p class="z-small" *ngIf="!isEmployeeSelfService">{{ employeeName(request) }} <span *ngIf="request.employeeCode">• {{ request.employeeCode }}</span></p>
+        </div>
+        <div class="details-actions">
+          <button class="z-btn-secondary" type="button" (click)="printRequest(request)">{{ t('طباعة', 'Print') }}</button>
+          <button class="z-btn-secondary" type="button" (click)="closeDetails()">{{ t('إغلاق', 'Close') }}</button>
+        </div>
+      </header>
+
+      <div class="details-grid">
+        <article class="detail-card" *ngIf="!isEmployeeSelfService"><span class="detail-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span><strong>{{ request.departmentAr || request.departmentEn || '—' }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('الحالة', 'Status') }}</span><strong>{{ statusLabel(request.status) }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('من', 'From') }}</span><strong>{{ request.startDate }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('إلى', 'To') }}</span><strong>{{ request.endDate }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('عدد الأيام', 'Days') }}</span><strong>{{ request.totalDays }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('المرفق', 'Attachment') }}</span><strong>{{ request.attachmentUrl || '—' }}</strong></article>
+        <article class="detail-card field-full"><span class="detail-label">{{ t('السبب', 'Reason') }}</span><strong>{{ request.reason || '—' }}</strong></article>
+        <article class="detail-card field-full" *ngIf="request.rejectionReason"><span class="detail-label">{{ t('سبب الرفض', 'Rejection reason') }}</span><strong>{{ request.rejectionReason }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('قرار المدير', 'Manager decision') }}</span><strong>{{ request.managerApprovedAt ? formatDate(request.managerApprovedAt) : t('قيد الانتظار', 'Pending') }}</strong></article>
+        <article class="detail-card"><span class="detail-label">{{ t('قرار الموارد البشرية', 'HR decision') }}</span><strong>{{ request.hrApprovedAt ? formatDate(request.hrApprovedAt) : t('قيد الانتظار', 'Pending') }}</strong></article>
+      </div>
+
+      <div class="details-balances" *ngIf="!isEmployeeSelfService && employeeBalances().length > 0">
+        <h3 class="z-heading">{{ t('أرصدة الموظف', 'Employee balances') }}</h3>
+        <div class="balance-grid compact-balance-grid">
+          <article class="z-card balance-card compact" *ngFor="let balance of employeeBalances()">
+            <strong>{{ lang === 'ar' ? balance.leaveTypeNameAr : balance.leaveTypeNameEn }}</strong>
+            <div class="balance-metrics">
+              <div><span>{{ t('متبقٍ', 'Remaining') }}</span><strong>{{ balance.remainingDays }}</strong></div>
+              <div><span>{{ t('مستخدم', 'Used') }}</span><strong>{{ balance.usedDays }}</strong></div>
+              <div><span>{{ t('معلق', 'Pending') }}</span><strong>{{ balance.pendingDays }}</strong></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <app-reject-reason-dialog
+    [open]="showRejectModal()"
+    [title]="t('رفض طلب الإجازة', 'Reject leave request')"
+    [message]="t('يرجى إدخال سبب الرفض قبل المتابعة.', 'Please provide a rejection reason before continuing.')"
+    [placeholder]="t('سبب الرفض', 'Rejection reason')"
+    [confirmLabel]="t('رفض', 'Reject')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loading]="rejectSubmitting()"
+    [error]="formError()"
+    (confirm)="confirmReject($event)"
+    (cancel)="closeReject()"
+  />
+
+  <app-confirm-dialog
+    [open]="!!confirmAction()"
+    [title]="confirmAction()?.type === 'approve' ? t('تأكيد الموافقة', 'Confirm approval') : t('تأكيد الإلغاء', 'Confirm cancellation')"
+    [message]="confirmAction()?.type === 'approve' ? t('سيتم اعتماد الطلب وتحديث الرصيد بعد نجاح العملية.', 'The request will be approved and balances will refresh after success.') : t('سيتم إلغاء الطلب بعد التأكيد.', 'The request will be cancelled after confirmation.')"
+    [confirmLabel]="confirmAction()?.type === 'approve' ? t('موافقة', 'Approve') : t('إلغاء الطلب', 'Cancel request')"
+    [cancelLabel]="t('إغلاق', 'Close')"
+    [loading]="!!confirmAction() && isProcessing(confirmAction()!.id)"
+    [tone]="confirmAction()?.type === 'approve' ? 'primary' : 'danger'"
+    (confirm)="confirmActionSubmit()"
+    (cancel)="closeConfirmAction()"></app-confirm-dialog>
+</section>

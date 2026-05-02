@@ -1,0 +1,300 @@
+<section class="z-page users-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('إدارة الحسابات والصلاحيات', 'Identity & access management') }}</span>
+      <h1 class="z-title">{{ t('المستخدمون', 'Users') }}</h1>
+      <p class="z-body">{{ t('إدارة حسابات المستخدمين والأدوار وربط كل حساب بملف الموظف الصحيح', 'Manage user accounts, roles, and employee-linked access') }}</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-primary" type="button" (click)="openCreate()">
+        <span class="material-icons">person_add</span>
+        {{ t('مستخدم جديد', 'New User') }}
+      </button>
+    </div>
+  </header>
+
+  <app-skeleton-kpi-cards *ngIf="loading()" [count]="4" />
+
+  <section class="stats-grid" *ngIf="!loading()">
+    <article class="z-card stat-card">
+      <span class="material-icons">group</span>
+      <strong>{{ totalUsers() }}</strong>
+      <p>{{ t('إجمالي المستخدمين', 'Total users') }}</p>
+    </article>
+
+    <article class="z-card stat-card">
+      <span class="material-icons">verified_user</span>
+      <strong>{{ activeUsers() }}</strong>
+      <p>{{ t('حسابات نشطة', 'Active accounts') }}</p>
+    </article>
+
+    <article class="z-card stat-card warning">
+      <span class="material-icons">block</span>
+      <strong>{{ inactiveUsers() }}</strong>
+      <p>{{ t('حسابات موقوفة', 'Inactive accounts') }}</p>
+    </article>
+
+    <article class="z-card stat-card info">
+      <span class="material-icons">lock_reset</span>
+      <strong>{{ mustChangeCount() }}</strong>
+      <p>{{ t('مطالبون بتغيير كلمة المرور', 'Must change password') }}</p>
+    </article>
+  </section>
+
+  <section class="z-card toolbar-card">
+    <div class="toolbar-row">
+      <label class="search-field">
+        <span class="material-icons">search</span>
+        <input
+          class="z-input"
+          [value]="search()"
+          (input)="search.set($any($event.target).value)"
+          [placeholder]="t('بحث بالاسم أو اسم المستخدم أو البريد الإلكتروني', 'Search by name, username, or email')">
+      </label>
+
+      <div class="role-chips">
+        <button
+          *ngFor="let role of roleOptions"
+          type="button"
+          class="role-chip"
+          [class.active]="roleFilter() === role"
+          (click)="roleFilter.set(role)">
+          <span>{{ role === 'all' ? t('الكل', 'All') : roleBadgeLabel(role) }}</span>
+          <small>{{ roleCount(role) }}</small>
+        </button>
+      </div>
+
+      <button class="z-btn-secondary" type="button" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+        <span class="material-icons">filter_alt_off</span>
+        {{ t('إعادة التعيين', 'Reset') }}
+      </button>
+    </div>
+  </section>
+
+  <section class="z-card table-card">
+    <div class="alert-error" *ngIf="!loading() && error()">{{ error() }}</div>
+    <app-skeleton-table *ngIf="loading()" [rows]="8" [cols]="7"></app-skeleton-table>
+
+    <div class="empty-state" *ngIf="!loading() && filteredUsers().length === 0">
+      <span class="material-icons">manage_accounts</span>
+      <strong>{{ t('لا توجد نتائج مطابقة', 'No matching users') }}</strong>
+      <p>{{ t('غيّر البحث أو الفلاتر لعرض المزيد من الحسابات.', 'Adjust the search or filters to see more accounts.') }}</p>
+    </div>
+
+    <div class="z-table-container table-scroll" *ngIf="!loading() && filteredUsers().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ t('المستخدم', 'User') }}</th>
+            <th>{{ t('اسم المستخدم', 'Username') }}</th>
+            <th *ngIf="isSuperAdmin()">{{ t('الشركة', 'Company') }}</th>
+            <th>{{ t('الدور', 'Role') }}</th>
+            <th>{{ t('الموظف المرتبط', 'Linked employee') }}</th>
+            <th>{{ t('آخر دخول', 'Last login') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th>{{ t('إجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let user of filteredUsers()">
+            <td>
+              <div class="identity-cell">
+                <span class="avatar">{{ (user.username || '?').slice(0, 1).toUpperCase() }}</span>
+                <div>
+                  <strong>{{ user.email || user.username }}</strong>
+                  <small>{{ user.createdAt | date:'dd/MM/yyyy' }}</small>
+                </div>
+              </div>
+            </td>
+
+            <td>
+              <div class="stacked-cell">
+                <strong>{{ user.username }}</strong>
+                <small>{{ user.email || '--' }}</small>
+              </div>
+            </td>
+
+            <td *ngIf="isSuperAdmin()">
+              <div class="stacked-cell">
+                <strong>{{ companyName(user) }}</strong>
+                <small>{{ user.companyId || '--' }}</small>
+              </div>
+            </td>
+
+            <td><span class="z-badge purple">{{ roleBadgeLabel(user.role) }}</span></td>
+
+            <td>
+              <div class="stacked-cell">
+                <strong>{{ employeeName(user) }}</strong>
+                <small>{{ user.employeeCode || '--' }}</small>
+              </div>
+            </td>
+
+            <td>{{ user.lastLoginAt ? (user.lastLoginAt | date:'dd/MM/yyyy HH:mm') : '--' }}</td>
+
+            <td>
+              <span class="z-badge" [class.success]="user.isActive" [class.neutral]="!user.isActive">
+                {{ user.isActive ? t('نشط', 'Active') : t('موقوف', 'Inactive') }}
+              </span>
+            </td>
+
+            <td>
+              <div class="row-actions">
+                <button class="z-btn-secondary" type="button" (click)="toggle(user.id)" [disabled]="toggling() === user.id">
+                  {{ toggling() === user.id ? '...' : (user.isActive ? t('إيقاف', 'Deactivate') : t('تفعيل', 'Activate')) }}
+                </button>
+                <button class="z-btn-ghost" type="button" (click)="resetPassword(user.id)" [disabled]="resetting() === user.id">
+                  {{ resetting() === user.id ? '...' : t('إعادة تعيين المرور', 'Reset password') }}
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showModal()" (click)="closeModal()">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('إضافة مستخدم جديد', 'Create user') }}</h2>
+          <p class="z-small">{{ t('سيتم إنشاء كلمة مرور مؤقتة تلقائيًا وسيُطلب من المستخدم تغييرها عند أول دخول.', 'A temporary password will be generated automatically and must be changed on first login.') }}</p>
+        </div>
+        <button class="close-btn" type="button" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="alert-error" *ngIf="error()">{{ error() }}</div>
+
+      <div class="z-form-grid modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('اسم المستخدم', 'Username') }}</span>
+          <input class="z-input" [(ngModel)]="form.username" [class.input-error]="!!usernameError()">
+          <small class="field-hint">{{ t('٣ أحرف على الأقل. يُسمح بالحروف والأرقام و . _ -', 'At least 3 characters. Letters, numbers, dot, underscore, and dash are allowed.') }}</small>
+          <small class="field-error" *ngIf="usernameError()">{{ usernameError() }}</small>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('البريد الإلكتروني', 'Email') }}</span>
+          <input class="z-input" type="email" [(ngModel)]="form.email" [class.input-error]="!!emailError()">
+          <small class="field-error" *ngIf="emailError()">{{ emailError() }}</small>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('الدور', 'Role') }}</span>
+          <select class="z-input" [(ngModel)]="form.role" (ngModelChange)="onRoleChange()">
+            <option *ngFor="let role of creatableRoles()" [value]="role">{{ roleBadgeLabel(role) }}</option>
+          </select>
+        </label>
+
+        <label class="field" *ngIf="isSuperAdmin()">
+          <span class="z-label">{{ t('الشركة', 'Company') }}</span>
+          <select class="z-input" [(ngModel)]="form.companyId" (ngModelChange)="onCompanyChange()" [class.input-error]="!!companyError()">
+            <option [ngValue]="null">{{ t('اختر الشركة', 'Select company') }}</option>
+            <option *ngFor="let company of companies()" [ngValue]="company.id">
+              {{ lang === 'ar' ? company.nameAr : company.nameEn }}
+            </option>
+          </select>
+          <small class="field-error" *ngIf="companyError()">{{ companyError() }}</small>
+        </label>
+
+        <label class="field field-full" *ngIf="requiresEmployeeLink() || employeeOptions().length > 0">
+          <span class="z-label">{{ t('ربط بموظف', 'Link employee') }}</span>
+          <select class="z-input" [(ngModel)]="form.employeeId" (ngModelChange)="onEmployeeChange()" [class.input-error]="!!employeeError()">
+            <option [ngValue]="null">{{ t('اختر موظفًا', 'Select employee') }}</option>
+            <option *ngFor="let employee of employeeOptions()" [ngValue]="employee.id">
+              {{ employeeOptionLabel(employee) }}
+            </option>
+          </select>
+          <small class="field-hint" *ngIf="employeeOptions().length === 0">
+            {{ t('لا يوجد موظفون متاحون للربط بحساب جديد حالياً.', 'There are no eligible employees available for linking right now.') }}
+          </small>
+          <small class="field-error" *ngIf="employeeError()">{{ employeeError() }}</small>
+        </label>
+
+        <label class="field field-full" *ngIf="form.role === 'manager'">
+          <span class="z-label">{{ t('الوحدة التنظيمية المُدارة', 'Managed org unit') }}</span>
+          <ng-container *ngIf="selectedEmployee()?.departmentId; else chooseDepartment">
+            <input class="z-input" [value]="selectedDepartmentName()" disabled>
+          </ng-container>
+          <ng-template #chooseDepartment>
+            <select class="z-input" [(ngModel)]="form.departmentId" [class.input-error]="!!departmentError()">
+              <option [ngValue]="null">{{ t('اختر الوحدة التنظيمية', 'Select org unit') }}</option>
+              <option *ngFor="let department of departments()" [ngValue]="department.id">
+                {{ lang === 'ar' ? department.nameAr : department.nameEn }}
+              </option>
+            </select>
+          </ng-template>
+          <small class="field-error" *ngIf="departmentError()">{{ departmentError() }}</small>
+        </label>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeModal()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="create()" [disabled]="saving()">
+          {{ saving() ? t('جارٍ الإنشاء...', 'Creating...') : t('إنشاء المستخدم', 'Create user') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="temporaryCredential()" (click)="closeCredentialModal()">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('بيانات الدخول المؤقتة', 'Temporary account credentials') }}</h2>
+          <p class="z-small">{{ t('انسخ هذه البيانات الآن. سيُطلب من المستخدم تغيير كلمة المرور عند أول دخول.', 'Copy these details now. The user will be required to change the password on first login.') }}</p>
+        </div>
+        <button class="close-btn" type="button" (click)="closeCredentialModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="z-form-grid modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('اسم المستخدم', 'Username') }}</span>
+          <input class="z-input" [value]="temporaryCredential()?.username" readonly>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('البريد الإلكتروني', 'Email') }}</span>
+          <input class="z-input" [value]="temporaryCredential()?.email || '—'" readonly>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('الدور', 'Role') }}</span>
+          <input class="z-input" [value]="roleBadgeLabel(temporaryCredential()?.role || '')" readonly>
+        </label>
+
+        <label class="field">
+          <span class="z-label">{{ t('الموظف المرتبط', 'Linked employee') }}</span>
+          <input class="z-input" [value]="temporaryCredential()?.linkedEmployee || '—'" readonly>
+        </label>
+
+        <label class="field field-full">
+          <span class="z-label">{{ t('كلمة المرور المؤقتة', 'Temporary password') }}</span>
+          <input class="z-input" [value]="temporaryCredential()?.password" readonly>
+        </label>
+      </div>
+
+      <div class="credential-actions">
+        <button class="z-btn-secondary" type="button" (click)="copyPassword()">
+          <span class="material-icons">content_copy</span>
+          {{ t('نسخ كلمة المرور', 'Copy password') }}
+        </button>
+        <button class="z-btn-secondary" type="button" (click)="copyCredentialSummary()">
+          <span class="material-icons">assignment</span>
+          {{ t('نسخ ملخص الحساب', 'Copy account summary') }}
+        </button>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-primary" type="button" (click)="closeCredentialModal()">{{ t('إغلاق', 'Close') }}</button>
+      </footer>
+    </section>
+  </div>
+</section>

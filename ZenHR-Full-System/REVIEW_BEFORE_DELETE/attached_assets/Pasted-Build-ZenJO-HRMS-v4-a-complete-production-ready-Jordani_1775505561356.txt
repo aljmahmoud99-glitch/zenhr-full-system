@@ -1,0 +1,1244 @@
+Build ZenJO HRMS v4 — a complete, production-ready Jordanian Human Resources Management System.
+Fully compliant with Jordanian Labour Law No. 8/1996, SSC Law, and Income Tax Law.
+Jordan-ONLY system. Every rule, workflow, and form is Jordanian-specific.
+Enterprise grade — NOT a demo. Every screen and business rule must be fully implemented.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 0: SYSTEM IDENTITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Name: ZenJO HRMS
+Country: Jordan ONLY
+Currency: JOD — always 3 decimal places (1,500.000)
+Languages: Arabic (default RTL) + English (LTR toggle)
+Framework: Jordanian Labour Law No.8/1996 + SSC Law + Income Tax Law
+Working Week: Sunday–Thursday | Weekend: Friday–Saturday
+Timezone: Asia/Amman
+All configurable values live in system_configurations table (never hardcoded).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1: TECH STACK — MANDATORY, DO NOT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Backend: .NET 9 Web API (ASP.NET Core 9)
+  - C# clean architecture: Controller → Service → Repository → Entity
+  - Entity Framework Core 9 with MySQL (Pomelo provider)
+  - JWT Authentication (access 60min + refresh 7 days)
+  - AutoMapper for DTOs
+  - FluentValidation
+  - Serilog structured logging
+  - Swagger/OpenAPI
+  - BCrypt password hashing
+
+Frontend: Angular 18 (standalone components)
+  - Angular Material UI
+  - RxJS reactive state
+  - Angular Reactive Forms
+  - Chart.js via ng2-charts
+  - ngx-translate (AR + EN)
+  - date-fns
+
+Database: MySQL 8.0
+  - All tables: utf8mb4_unicode_ci
+  - Soft delete: IsDeleted, DeletedAt on all tables
+  - Base columns on ALL tables:
+      Id INT AUTO_INCREMENT PRIMARY KEY,
+      CreatedAt DATETIME DEFAULT NOW(),
+      UpdatedAt DATETIME DEFAULT NOW() ON UPDATE NOW(),
+      CreatedBy INT, UpdatedBy INT,
+      IsDeleted TINYINT(1) DEFAULT 0,
+      DeletedAt DATETIME NULL
+
+API: RESTful, /api/v1/..., response: { success, data, message, errors, pagination }
+
+Project structure:
+  /ZenJO
+  ├── /backend
+  │   ├── ZenJO.API               (Controllers, Middleware, Program.cs)
+  │   ├── ZenJO.Application       (Services, DTOs, Validators, Mappings)
+  │   ├── ZenJO.Domain            (Entities, Enums, Interfaces)
+  │   └── ZenJO.Infrastructure    (EF Core, Repositories, Migrations, DbSeeder)
+  └── /frontend
+      └── zenjo-ui/src/app/
+          ├── core/               (guards, interceptors, services, models)
+          ├── shared/             (components, pipes, directives)
+          ├── features/           (one folder per module)
+          └── layouts/            (main-layout, auth-layout)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2: RBAC — ROLES & PERMISSIONS (FIX ALL BUGS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6 Roles: superadmin | hradmin | payrolladmin | manager | employee | recruiter
+
+PERMISSION MATRIX — enforce on BOTH backend middleware AND Angular route guards:
+
+  Feature                    | super | hradmin | payroll | manager | employee | recruiter
+  ───────────────────────────────────────────────────────────────────────────────────────
+  Dashboard                  |  ✓   |   ✓     |   ✓    |   ✓    |   ✓     |   ✓
+  Employees - view list      |  ✓   |   ✓     |  ✓*   |  ✓**  |   ✗     |   ✗
+  Employees - view salary    |  ✓   |   ✓     |   ✓    |   ✗    |   ✗     |   ✗
+  Employees - create         |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |  ✓***
+  Employees - edit           |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Employees - delete/disable |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Employees - view own only  |  —   |   —     |   —    |   —    |   ✓    |   —
+  Probation workflow         |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  SSC registration tracking  |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Attendance - view all      |  ✓   |   ✓     |   ✗    |  ✓**  |   ✗     |   ✗
+  Attendance - view own      |  ✓   |   ✓     |   ✗    |   ✓    |   ✓    |   ✗
+  Leave - approve step 1     |  ✓   |   ✓     |   ✗    |   ✓    |   ✗     |   ✗
+  Leave - approve step 2     |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Overtime - approve step 1  |  ✓   |   ✓     |   ✗    |   ✓    |   ✗     |   ✗
+  Overtime - approve step 2  |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Payroll - create run       |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Payroll - approve run      |  ✓   |   ✗     |   ✓    |   ✗    |   ✗     |   ✗
+  Payroll - view payslips    |  ✓   |   ✓     |   ✓    |   ✗    |  own    |   ✗
+  Users - manage             |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Violations - manage        |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Settlements - manage       |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Documents/Forms - print    |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Compliance - view/manage   |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Health Certs - manage      |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Work Permits - manage      |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+  Settings - edit            |  ✓   |   ✓     |   ✗    |   ✗    |   ✗     |   ✗
+
+  * payrolladmin: read-only, no salary masking
+  ** manager: direct reports only (direct_manager_id = self.employeeId)
+  *** recruiter: can create employees (draft status), cannot edit/delete
+
+Backend enforcement rules:
+  - employee role: ALL queries WHERE EmployeeId = currentUser.EmployeeId
+  - manager role: Employee list WHERE DirectManagerId = currentUser.EmployeeId
+  - recruiter: GET /employees → 403 Forbidden
+  - Salary masking middleware: zero out BasicSalary, HousingAllowance, TransportAllowance,
+    MobileAllowance, MealAllowance, OtherAllowances, BankAccountNumber, IBAN
+    for roles: manager, employee, recruiter
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3: DATABASE SCHEMA (35 TABLES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- TABLE 1: Companies ---
+  NameAr, NameEn, CommercialRegNo (unique), TaxNumber,
+  SscEmployerNo (رقم تسجيل مؤسسة الضمان الاجتماعي),
+  LaborMinistryNo (رقم وزارة العمل), AddressAr, AddressEn,
+  Governorate ENUM('Amman','Irbid','Zarqa','Balqa','Madaba','Karak','Tafilah','Maan','Aqaba','Ajloun','Jerash','Mafraq'),
+  Phone, Email, Website, Logo,
+  IndustryType ENUM('technology','manufacturing','retail','healthcare','education','government','finance','hospitality','food','other'),
+  Currency DEFAULT 'JOD', FiscalYearStart TINYINT DEFAULT 1,
+  WorkWeekStart TINYINT DEFAULT 1 (Sunday=1),
+  WorkWeekEnd TINYINT DEFAULT 5 (Thursday=5),
+  IsActive
+
+--- TABLE 2: Departments ---
+  CompanyId FK, NameAr, NameEn, Code (unique per company),
+  ParentDepartmentId FK (self), ManagerEmployeeId FK,
+  CostCenterCode, IsActive
+  SEED: HR/الموارد البشرية, IT/تقنية المعلومات, Finance/المالية,
+        Operations/العمليات, Sales/المبيعات, CS/خدمة العملاء, Recruitment/التوظيف
+
+--- TABLE 3: JobTitles ---
+  CompanyId FK, TitleAr, TitleEn, Code, Grade (G1-G10),
+  MinSalary DECIMAL(12,3), MaxSalary DECIMAL(12,3), IsActive
+
+--- TABLE 4: Employees (CORE — most complex table) ---
+  CompanyId FK, EmployeeCode (auto: EMP-0001, unique)
+  
+  PERSONAL (show on employee list screen):
+    FirstNameAr, MiddleNameAr, LastNameAr,
+    FirstNameEn, MiddleNameEn, LastNameEn,
+    Gender ENUM('male','female'),
+    DateOfBirth DATE,
+    Age INT GENERATED (YEAR(NOW()) - YEAR(DateOfBirth)),  ← show on list
+    NationalId VARCHAR(10) COMMENT 'الرقم الوطني الأردني - 10 أرقام',  ← show on list
+    Nationality VARCHAR(100) DEFAULT 'أردني',
+    BloodType, Religion, MaritalStatus, NumberOfDependents,
+    EducationLevel, FieldOfStudy
+  
+  CONTACT (show on list):
+    PersonalEmail, WorkEmail (unique),
+    PersonalPhone VARCHAR(20),  ← show on list
+    WorkPhone, AddressAr,
+    Governorate (Jordanian governorate), City,  ← show on list (عنوان السكن)
+    EmergencyContactName, EmergencyContactPhone, EmergencyContactRelation
+  
+  EMPLOYMENT:
+    DepartmentId FK, JobTitleId FK, DirectManagerId FK (self-ref),
+    EmploymentType ENUM('fulltime','parttime','contract','secondment'),
+    HireDate DATE, ProbationEndDate DATE (auto: HireDate + 90 days),
+    ContractType ENUM('permanent','fixed_term','seasonal'),
+    ContractEndDate DATE,
+    EmploymentStatus ENUM('draft','probation','active','suspended','terminated','resigned','retired','on_leave'),
+    TerminationDate DATE, TerminationReason TEXT, NoticeStartDate DATE,
+    NoticeEndDate DATE (NoticeStartDate + 30 days)
+  
+  FINANCIAL (masked for non-finance roles):
+    BasicSalary DECIMAL(12,3), HousingAllowance DECIMAL(12,3) DEFAULT 0,
+    TransportAllowance DECIMAL(12,3) DEFAULT 0, MobileAllowance DECIMAL(12,3) DEFAULT 0,
+    MealAllowance DECIMAL(12,3) DEFAULT 0, OtherAllowances DECIMAL(12,3) DEFAULT 0,
+    SalaryPaymentMethod ENUM('bank','cash','check'),
+    BankId FK, BankAccountNumber, IBAN
+  
+  SSC (الضمان الاجتماعي):
+    SscNumber VARCHAR(20) COMMENT 'رقم الضمان الاجتماعي',
+    SscRegistrationDate DATE COMMENT 'تاريخ التسجيل الفعلي',
+    SscRequiredRegistrationMonth INT COMMENT 'الشهر المطلوب للتسجيل',
+    SscRequiredRegistrationYear INT,
+    IsSscRegistered BOOLEAN DEFAULT false,
+    IsSscExempt BOOLEAN DEFAULT false, SscExemptReason TEXT
+  
+  TAX:
+    IncomeTaxNumber VARCHAR(50), TaxExemptionAmount DECIMAL(12,3) DEFAULT 0,
+    FamilyTaxExemption BOOLEAN DEFAULT false
+  
+  WORK PERMIT (non-Jordanians only — show/require if Nationality != 'أردني' AND NOT IsJordanianMother):
+    IsJordanianMother BOOLEAN DEFAULT false COMMENT 'أبناء أردنيات - لا يحتاجون تصريح عمل',
+    WorkPermitNumber VARCHAR(50), WorkPermitStartDate DATE,
+    WorkPermitExpiryDate DATE, WorkPermitCategory ENUM('regular','temporary','seasonal'),
+    WorkPermitStatus ENUM('valid','expiring_soon','expired','not_required','pending'),
+    PassportNumber VARCHAR(30), PassportExpiry DATE, PassportCountry VARCHAR(100),
+    ResidencyNumber VARCHAR(50), ResidencyExpiry DATE,
+    ResidencyType ENUM('annual','multi_year')
+  
+  HEALTH CERTIFICATE (شهادة صحية):
+    HealthCertNumber VARCHAR(50), HealthCertExpiryDate DATE,
+    HealthCertIssuer VARCHAR(200) COMMENT 'المركز الصحي المصدر',
+    HealthCertStatus ENUM('valid','expiring_soon','expired','not_required','pending'),
+    HasHealthCert BOOLEAN DEFAULT false
+  
+  CRIMINAL CLEARANCE (عدم المحكومية):
+    CriminalClearanceNumber VARCHAR(50), CriminalClearanceDate DATE,
+    CriminalClearanceExpiry DATE COMMENT 'صالحة 6 أشهر',
+    CriminalClearanceStatus ENUM('valid','expiring_soon','expired','pending'),
+    HasCriminalClearance BOOLEAN DEFAULT false
+  
+  ProfilePhoto VARCHAR(500)
+
+--- TABLE 5: Users ---
+  EmployeeId FK (nullable), CompanyId FK, Username (unique),
+  PasswordHash VARCHAR, Email, Role ENUM('superadmin','hradmin','payrolladmin','manager','employee','recruiter'),
+  IsActive, LastLoginAt, MustChangePassword BOOLEAN DEFAULT true,
+  RefreshToken, RefreshTokenExpiry, FailedLoginAttempts INT DEFAULT 0, LockedUntil DATETIME
+
+--- TABLE 6: AttendanceRecords ---
+  EmployeeId FK, Date DATE, ClockIn DATETIME, ClockOut DATETIME,
+  Status ENUM('present','absent','late','on_leave','official_mission','half_day','holiday'),
+  LateMinutes INT DEFAULT 0, WorkedMinutes INT DEFAULT 0,
+  OvertimeMinutes INT DEFAULT 0, Notes TEXT
+
+--- TABLE 7: LeaveTypes ---
+  NameAr, NameEn, Code,
+  Type ENUM('annual','sick','emergency','maternity','paternity','hajj','bereavement','unpaid','compensatory','study'),
+  IsPaid BOOLEAN, DefaultDaysPerYear INT, MaxCarryForward INT DEFAULT 0,
+  MinServiceMonths INT DEFAULT 0, RequiresApproval BOOLEAN DEFAULT true,
+  GenderRestriction ENUM('all','male','female'), OnceInCareer BOOLEAN DEFAULT false,
+  RequiresMedicalCert BOOLEAN DEFAULT false, IsActive
+
+  SEED (Jordanian Labour Law):
+    Annual Leave      | إجازة سنوية       | annual      | 14 days | paid | carry 14
+    Sick Leave        | إجازة مرضية       | sick        | 14 days | paid | cert after 2 days
+    Emergency Leave   | إجازة طارئة       | emergency   | 3 days  | paid
+    Maternity Leave   | إجازة أمومة       | maternity   | 70 days | paid | female only
+    Paternity Leave   | إجازة أبوة        | paternity   | 3 days  | paid | male only
+    Hajj Leave        | إجازة حج          | hajj        | 14 days | paid | once | min 60 months
+    Bereavement Leave | إجازة وفاة        | bereavement | 3 days  | paid
+    Unpaid Leave      | إجازة بدون راتب   | unpaid      | custom  | unpaid
+    Study Leave       | إجازة دراسية      | study       | custom  | paid
+
+--- TABLE 8: LeavePolicies ---
+  LeaveTypeId FK, DaysPerYear INT, MaxCarryForward INT,
+  AccrualType ENUM('monthly','annually'), MinServiceMonths INT,
+  RequiresManagerApproval BOOLEAN, RequiresHrApproval BOOLEAN,
+  NoticeDaysRequired INT DEFAULT 0, IsActive
+
+--- TABLE 9: LeaveBalances ---
+  EmployeeId FK, LeaveTypeId FK, Year INT,
+  TotalDays DECIMAL(5,2), UsedDays DECIMAL(5,2),
+  PendingDays DECIMAL(5,2), RemainingDays DECIMAL(5,2),
+  CarriedForwardDays DECIMAL(5,2) DEFAULT 0
+
+--- TABLE 10: LeaveRequests ---
+  EmployeeId FK, LeaveTypeId FK, StartDate DATE, EndDate DATE,
+  TotalDays DECIMAL(5,2), Reason TEXT, AttachmentUrl VARCHAR,
+  Status ENUM('pending','manager_approved','approved','rejected','cancelled'),
+  ManagerApprovedById FK, ManagerApprovedAt DATETIME,
+  HrApprovedById FK, HrApprovedAt DATETIME,
+  RejectionReason TEXT, RejectionStep ENUM('manager','hr'),
+  IsMedicalCertAttached BOOLEAN DEFAULT false
+
+--- TABLE 11: OvertimeRequests ---
+  EmployeeId FK, Date DATE, StartTime TIME, EndTime TIME,
+  Hours DECIMAL(5,2), Reason TEXT,
+  OvertimeType ENUM('weekday','weekend','holiday'),
+  CompensationType ENUM('pay','compensatory_leave'),
+  Status ENUM('pending','manager_approved','approved','rejected','cancelled'),
+  ManagerApprovedById FK, ManagerApprovedAt DATETIME,
+  HrApprovedById FK, HrApprovedAt DATETIME,
+  RejectionReason TEXT, LinkedPayslipId FK
+
+--- TABLE 12: PayrollRuns ---
+  CompanyId FK, RunMonth INT, RunYear INT,
+  Status ENUM('draft','processing','approved','paid','cancelled'),
+  TotalGross DECIMAL(14,3), TotalNet DECIMAL(14,3), TotalDeductions DECIMAL(14,3),
+  TotalSscEmployee DECIMAL(14,3), TotalSscEmployer DECIMAL(14,3),
+  TotalIncomeTax DECIMAL(14,3), EmployeeCount INT,
+  Notes TEXT, CreatedById FK, ApprovedById FK,
+  ProcessedAt DATETIME, ApprovedAt DATETIME, PaidAt DATETIME
+
+--- TABLE 13: Payslips ---
+  PayrollRunId FK, EmployeeId FK, PeriodMonth INT, PeriodYear INT,
+  BasicSalary DECIMAL(12,3), HousingAllowance DECIMAL(12,3),
+  TransportAllowance DECIMAL(12,3), MobileAllowance DECIMAL(12,3),
+  MealAllowance DECIMAL(12,3), OtherAllowances DECIMAL(12,3),
+  OvertimeAmount DECIMAL(12,3) DEFAULT 0, BonusAmount DECIMAL(12,3) DEFAULT 0,
+  GrossSalary DECIMAL(12,3),
+  SscDeduction DECIMAL(12,3), IncomeTaxDeduction DECIMAL(12,3),
+  AbsenceDeduction DECIMAL(12,3) DEFAULT 0, LateDeduction DECIMAL(12,3) DEFAULT 0,
+  AdvanceDeduction DECIMAL(12,3) DEFAULT 0, OtherDeductions DECIMAL(12,3) DEFAULT 0,
+  TotalDeductions DECIMAL(12,3), NetSalary DECIMAL(12,3),
+  WorkedDays INT, AbsentDays INT, LateDays INT,
+  BankId FK, BankAccountNumber VARCHAR, IBAN VARCHAR,
+  PaymentStatus ENUM('unpaid','paid'), PaidAt DATETIME
+
+--- TABLE 14: ProbationReviews ---
+  EmployeeId FK, ReviewDate DATE,
+  Status ENUM('pending','passed','extended','failed'),
+  Decision ENUM('confirm','extend','terminate'),
+  DecisionDate DATE, ReviewedById FK,
+  Notes TEXT, NotificationSentAt DATETIME
+
+  BUSINESS RULE: When HireDate + 90 days approaches within 14 days,
+  auto-create a ProbationReview with Status='pending' and notify HR Admin.
+  HR Admin sees probation review queue on dashboard and employee list.
+  Decision:
+    'confirm' → EmploymentStatus = 'active', confirmation date set
+    'extend'  → ProbationEndDate extended (max total 6 months per law)
+    'terminate' → route to settlement/clearance workflow
+
+--- TABLE 15: SscRegistrations ---
+  EmployeeId FK, HireDate DATE,
+  RequiredRegistrationMonth INT, RequiredRegistrationYear INT,
+  ActualRegistrationDate DATE, IsRegistered BOOLEAN DEFAULT false,
+  SscNumber VARCHAR(20), RegistrationStatus ENUM('pending','registered','exempt'),
+  Notes TEXT, RegisteredById FK
+
+  SSC REGISTRATION RULE (Jordanian SSC Law):
+    IF DAY(HireDate) >= 1 AND DAY(HireDate) <= 15:
+      RequiredRegistrationMonth = MONTH(HireDate)
+      RequiredRegistrationYear  = YEAR(HireDate)
+      (تسجل في نفس الشهر)
+    IF DAY(HireDate) >= 16:
+      RequiredRegistrationMonth = MONTH(HireDate) + 1  (mod 12)
+      RequiredRegistrationYear  = YEAR(HireDate) + (if month was 12 then 1 else 0)
+      (تسجل في الشهر التالي)
+    Example: hired 5 Feb → register in Feb | hired 19 Feb → register in March
+    The system must:
+      - Auto-calculate RequiredRegistrationMonth on employee creation
+      - Show SSC registration status on employee profile
+      - Alert HR if RequiredRegistrationMonth has passed and IsRegistered = false
+      - Show link to SSC Jordan website (www.ssc.gov.jo) if not registered
+      - On probation completion (3 months): validate SSC registration done
+
+--- TABLE 16: Violations (المخالفات التأديبية) ---
+  EmployeeId FK, ViolationType VARCHAR(200), ViolationDate DATE,
+  PunishmentType ENUM(
+    'written_warning',       -- تنبيه خطي
+    'verbal_warning',        -- تنبيه شفهي (إذا أضفته)
+    'half_day_deduction',    -- خصم نص يوم
+    'one_day_deduction',     -- خصم يوم
+    'one_half_day_deduction',-- خصم يوم ونص
+    'two_day_deduction',     -- خصم يومين
+    'three_day_deduction',   -- خصم ثلاث أيام
+    'written_notice',        -- إنذار خطي
+    'final_notice'           -- إنذار نهائي
+  ),
+  Description TEXT, ActionDeadline DATE COMMENT 'ActionDate + 14 days — آخر موعد لاتخاذ الإجراء',
+  Status ENUM('draft','issued','employee_notified','closed'),
+  IssuedById FK, IssuedAt DATETIME,
+  EmployeeSignedAt DATETIME, Notes TEXT,
+  FormPrintedAt DATETIME
+
+  ACTION DEADLINE RULE:
+    ActionDeadline = ViolationDate + 14 DAYS (calendar days)
+    Show warning badge when today > ActionDeadline - 3 days
+    Note displayed on screen: "ملاحظة: أيام العطل الأسبوعية والرسمية ممنوع اتخاذ الإجراءات فيها من قبل HR"
+
+--- TABLE 17: ViolationHistory (سجل مخالفات الموظف) ---
+  EmployeeId FK, ViolationId FK, SummaryAr TEXT,
+  TotalViolations INT, LastViolationDate DATE
+
+  RULE: Auto-update on every new violation insert. When viewing
+  a violation form, always show ViolationHistory for that employee at top.
+
+--- TABLE 18: Resignations (الاستقالات) ---
+  EmployeeId FK, ResignationDate DATE,
+  LastWorkingDate DATE COMMENT 'ResignationDate + 30 days',
+  NoticePeriodDays INT DEFAULT 30,
+  Reason TEXT, Status ENUM('submitted','notice_period','completed','withdrawn'),
+  IsSettlementDone BOOLEAN DEFAULT false, SettlementDate DATE,
+  Notes TEXT
+
+  TIMER: LastWorkingDate - TODAY = days remaining on notice period
+  The resignations list shows: Employee | Resignation Date | Last Working Day | Days Remaining | Settlement Done?
+
+--- TABLE 19: Settlements (المخالصات) ---
+  EmployeeId FK, SettlementType ENUM('resignation','termination','retirement','contract_end'),
+  TerminationDate DATE, YearsOfService DECIMAL(10,2),
+  BasicSalary DECIMAL(12,3),
+  
+  -- Financial breakdown:
+  EosbAmount DECIMAL(12,3) COMMENT 'مكافأة نهاية الخدمة',
+  UnpaidLeaveDays INT, UnpaidLeaveAmount DECIMAL(12,3),
+  UnpaidSalaryDays INT, UnpaidSalaryAmount DECIMAL(12,3),
+  AdvanceDeduction DECIMAL(12,3) DEFAULT 0,
+  OtherDeductions DECIMAL(12,3) DEFAULT 0,
+  TotalOwedToEmployee DECIMAL(12,3),
+  TotalDeductedFromEmployee DECIMAL(12,3),
+  NetSettlementAmount DECIMAL(12,3),
+  
+  Status ENUM('draft','approved','paid'),
+  ApprovedById FK, ApprovedAt DATETIME,
+  PaidAt DATETIME, Notes TEXT
+
+  EOSB CALCULATION (قانون العمل الأردني المادة 87):
+    IF YearsOfService < 1: EosbAmount = 0
+    IF SettlementType = 'resignation' AND YearsOfService < 3: EosbAmount = 0
+    IF SettlementType = 'resignation' AND YearsOfService >= 3:
+      EosbAmount = BasicSalary × YearsOfService × (1/12)
+    IF SettlementType IN ('termination','retirement'):
+      EosbAmount = BasicSalary × YearsOfService × 1 (month per year)
+
+--- TABLE 20: Documents (وثائق الموظف) ---
+  EmployeeId FK, DocumentTypeId FK, Title, DocumentNumber,
+  IssuedBy, IssuedDate DATE, ExpiryDate DATE,
+  FileUrl VARCHAR, FileName VARCHAR, FileSize INT,
+  Status ENUM('valid','expiring_soon','expired','pending_upload'),
+  AlertDaysBefore INT DEFAULT 30, Notes TEXT
+
+--- TABLE 21: DocumentTypes ---
+  NameAr, NameEn, Code, IsRequired BOOLEAN,
+  ApplicableTo ENUM('all','jordanian','non_jordanian'),
+  RequiresExpiry BOOLEAN, AlertDaysBefore INT DEFAULT 30, IsActive
+  
+  SEED:
+    national_id         | هوية وطنية           | all/jordanian    | no expiry
+    passport            | جواز سفر             | all              | has expiry
+    work_permit         | تصريح عمل            | non_jordanian    | has expiry (60-day alert)
+    residency           | إقامة                | non_jordanian    | has expiry (60-day alert)
+    health_certificate  | شهادة صحية           | all (if industry)| has expiry (30-day alert)
+    criminal_clearance  | عدم المحكومية        | all              | has expiry (6 months)
+    driving_licence     | رخصة قيادة          | drivers          | has expiry
+    employment_contract | عقد العمل الموقع     | all              | no expiry (required)
+    professional_licence| ترخيص مهني          | professionals    | has expiry
+    uniform_receipt     | إيصال استلام زي رسمي | all              | no expiry
+
+--- TABLE 22: HealthCertificates (شهادات صحية — section séparé) ---
+  EmployeeId FK, CertNumber VARCHAR(50),
+  ActivationDate DATE, ExpiryDate DATE COMMENT 'مدة الشهادة سنة واحدة',
+  IssuedBy VARCHAR(200) COMMENT 'المركز الصحي الأردني المصدر',
+  Status ENUM('valid','expiring_soon','expired','not_required','pending_upload'),
+  EnteredById FK, Notes TEXT
+  
+  RULE: ExpiryDate = ActivationDate + 365 days (1 year)
+  
+  SCREEN: Dedicated /health-certificates screen showing:
+    - All employees list with: Name | NationalId/PassportNo | Nationality | Has Cert? | Activation Date | Expiry | Status
+    - Filter by: has cert / no cert / expiring / expired
+    - If employee has no cert: show link → https://moh.gov.jo (وزارة الصحة الأردنية)
+    - HR Admin can click "Add Certificate" for any employee
+    - Required for: food, healthcare, hospitality, education industries (per system config)
+    - Alert: 30 days before expiry → notify HR + employee
+
+--- TABLE 23: CriminalClearances (عدم المحكومية) ---
+  EmployeeId FK, ClearanceNumber VARCHAR(50),
+  IssueDate DATE, ExpiryDate DATE COMMENT '6 months validity',
+  IssuedBy VARCHAR(200) COMMENT 'محكمة البداية الأردنية',
+  Status ENUM('valid','expiring_soon','expired','pending_upload'),
+  EnteredById FK, Notes TEXT
+  
+  RULE: ExpiryDate = IssueDate + 180 days (6 months)
+  Same screen structure as health certificates.
+  Links to: https://portal.moj.gov.jo (وزارة العدل — استخراج وثيقة عدم محكومية)
+
+--- TABLE 24: WorkPermits (تصاريح العمل) ---
+  EmployeeId FK, PermitNumber VARCHAR(50),
+  StartDate DATE, ExpiryDate DATE,
+  Category ENUM('regular','temporary','seasonal'),
+  Status ENUM('valid','expiring_soon','expired','not_required','pending'),
+  NationalIdOrPassport VARCHAR(50) COMMENT 'رقم الهوية أو جواز السفر',
+  EnteredById FK, Notes TEXT
+  
+  RULE: Required only if: Nationality != 'أردني' AND IsJordanianMother = false
+  Jordanian mothers' children: show as 'not_required'
+  Alert: 60 days before expiry
+  
+  SCREEN: /work-permits showing:
+    Employee | Nationality | ID/Passport No. | Permit No. | Start Date | Expiry Date | Days Left | Status
+  Columns StartDate and ExpiryDate are visible and prominent.
+
+--- TABLE 25: FormTemplates (نماذج رسمية) ---
+  Code VARCHAR(50) UNIQUE, NameAr, NameEn,
+  Category ENUM('hr','legal','financial','disciplinary','recruitment','compliance'),
+  TemplateHtml LONGTEXT, IsActive,
+  RequiresEmployeeSignature BOOLEAN, RequiresManagerSignature BOOLEAN,
+  RequiresHrSignature BOOLEAN
+
+  SEED THESE 15 FORMS with HTML templates:
+    1.  leave_request_form       | نموذج طلب إجازة / مغادرة
+    2.  resignation_form         | نموذج استقالة
+    3.  employment_application   | نموذج طلب توظيف
+    4.  appointment_letter       | نموذج كتاب تعيين
+    5.  employment_contract      | نموذج عقد عمل
+    6.  salary_advance_form      | نموذج طلب سلفة
+    7.  asset_handover           | نموذج تسليم أمانة
+    8.  work_permit_receipt      | نموذج استلام تصريح عمل
+    9.  passport_inquiry         | نموذج استعلام جواز سفر من الموظف
+    10. investigation_committee  | نموذج لجنة تحقيق
+    11. termination_letter       | نموذج كتاب إنهاء خدمات
+    12. settlement_form          | نموذج مخالصة
+    13. experience_certificate   | نموذج شهادة خبرة
+    14. admin_decision           | نموذج قرارات إدارية
+    15. warning_letter           | نموذج مروس (تنبيه/إنذار)
+
+--- TABLE 26: PrintedForms ---
+  FormTemplateId FK, EmployeeId FK, PrintedById FK,
+  PrintedAt DATETIME, DataSnapshot JSON COMMENT 'Employee data at time of print'
+
+--- TABLE 27: SalaryAdvances ---
+  EmployeeId FK, Amount DECIMAL(12,3), Reason TEXT,
+  RequestDate DATE, ApprovedById FK,
+  Status ENUM('pending','approved','rejected','deducted'),
+  DeductedInRunId FK (PayrollRuns), Notes
+
+--- TABLE 28: PublicHolidays ---
+  NameAr, NameEn, Date DATE,
+  Type ENUM('national','religious','official'),
+  IsRecurring BOOLEAN, Notes
+  
+  SEED Jordanian holidays:
+    01 Jan — رأس السنة الميلادية / New Year's Day
+    01 May — عيد العمال / Labour Day
+    25 May — عيد الاستقلال / Independence Day
+    10 Jun — يوم الجيش / Army Day
+    + Manual entry for Islamic holidays (Eid Al-Fitr 3 days, Eid Al-Adha 3 days,
+      Islamic New Year, Prophet's Birthday)
+
+--- TABLE 29: SystemConfigurations ---
+  Key VARCHAR(100) UNIQUE, Value TEXT, Category, DescriptionAr, DescriptionEn,
+  DataType ENUM('string','integer','decimal','boolean','time','json'), IsEditable
+
+  SEED ALL CONFIGURATIONS:
+
+  Category: attendance
+    work_start_time            = "08:00"   وقت بداية الدوام (الأحد-الخميس)
+    work_end_time              = "17:00"   وقت نهاية الدوام
+    late_threshold_minutes     = "20"      فترة السماح قبل تسجيل التأخير
+    standard_work_hours        = "8"       ساعات العمل الأساسية
+    working_days               = "Sunday,Monday,Tuesday,Wednesday,Thursday"
+    weekend_days               = "Friday,Saturday"
+    break_duration_minutes     = "60"
+
+  Category: payroll
+    ssc_employee_rate          = "7.5"     نسبة اشتراك الموظف بالضمان الاجتماعي (%)
+    ssc_employer_rate          = "14.25"   نسبة اشتراك صاحب العمل بالضمان (%)
+    ssc_max_insurable_salary   = "3000"    الحد الأقصى للراتب الخاضع للضمان
+    income_tax_personal_exempt = "9000"    الإعفاء الشخصي السنوي (دينار)
+    income_tax_family_exempt   = "9000"    إعفاء الأسرة السنوي (دينار)
+    income_tax_brackets        = '[{"from":0,"to":5000,"rate":0},{"from":5000,"to":10000,"rate":5},{"from":10000,"to":15000,"rate":10},{"from":15000,"to":20000,"rate":15},{"from":20000,"to":9999999,"rate":20}]'
+    overtime_weekday_rate      = "1.25"    معدل العمل الإضافي في أيام العمل (1.25×)
+    overtime_weekend_rate      = "1.5"     معدل العمل الإضافي في عطلة الأسبوع (1.5×)
+    overtime_holiday_rate      = "1.5"     معدل العمل الإضافي في الأعياد (1.5×)
+    payroll_day                = "25"      يوم معالجة الرواتب شهرياً
+    min_wage_jod               = "260"     الحد الأدنى للأجور الأردني
+
+  Category: hr
+    probation_period_days      = "90"      مدة التجربة (90 يوم كحد أقصى)
+    notice_period_days         = "30"      فترة الإشعار عند الاستقالة
+    eosb_rate_per_year         = "1"       مكافأة نهاية الخدمة (شهر لكل سنة)
+    annual_leave_days_year1    = "14"      أيام الإجازة السنوية سنة 1-4
+    annual_leave_days_year5    = "21"      أيام الإجازة سنة 5+
+    action_deadline_days       = "14"      الحد الأقصى لاتخاذ الإجراء التأديبي
+    contract_alert_days        = "60"      تنبيه قبل انتهاء العقد
+
+  Category: compliance
+    health_cert_required       = "true"    هل تشترط الشهادات الصحية
+    health_cert_required_industries = '["food","healthcare","hospitality","education"]'
+    health_cert_alert_days     = "30"      تنبيه قبل انتهاء الشهادة الصحية
+    criminal_clearance_required= "true"    مطلوب لجميع الموظفين الجدد
+    criminal_clearance_months  = "6"       صلاحية وثيقة عدم المحكومية (أشهر)
+    work_permit_alert_days     = "60"      تنبيه قبل انتهاء التصريح
+    residency_alert_days       = "60"      تنبيه قبل انتهاء الإقامة
+    ssc_registration_alert     = "true"    تنبيه إذا لم يسجل بالضمان في الشهر المحدد
+
+  Category: general
+    company_name_ar            = "شركة ZenJO"
+    company_name_en            = "ZenJO Company"
+    currency                   = "JOD"
+    timezone                   = "Asia/Amman"
+    ssc_website                = "https://www.ssc.gov.jo"
+    moh_website                = "https://moh.gov.jo"
+    moj_website                = "https://portal.moj.gov.jo"
+    mol_website                = "https://mol.gov.jo"
+
+--- TABLE 30: ActivityLogs ---
+  UserId FK, EmployeeId FK, ActionType, EntityType, EntityId,
+  DescriptionAr TEXT, DescriptionEn TEXT,
+  OldValues JSON, NewValues JSON, IpAddress, UserAgent
+
+--- TABLE 31: Banks (بنوك أردنية) ---
+  NameAr, NameEn, SwiftCode, IbanPrefix, IsActive
+  SEED all 18 Jordanian banks:
+    البنك العربي/Arab Bank, بنك الأردن/Bank of Jordan,
+    البنك الأهلي الأردني/Jordan Ahli Bank,
+    بنك الإسكان/Housing Bank for Trade and Finance,
+    بنك القاهرة عمان/Cairo Amman Bank,
+    البنك الأردني الكويتي/Jordan Kuwait Bank,
+    بنك المال الأردني الإسلامي/Jordan Islamic Bank,
+    البنك الاستثماري العربي الأردني/Arab Jordan Investment Bank,
+    البنك التجاري الأردني/Jordan Commercial Bank,
+    سيتي بنك/Citibank Jordan, HSBC الأردن/HSBC Jordan,
+    بنك الاتحاد/Union Bank, كابيتال بنك/Capital Bank,
+    المصرف الإسلامي العربي الدولي/IIAB,
+    بنك صفوة الإسلامي/Safwa Islamic Bank,
+    بنك الأردن دبي الإسلامي/Jordan Dubai Islamic Bank,
+    بنك إنفست/Invest Bank, ستاندرد تشارترد/Standard Chartered
+
+--- TABLE 32: Governorates (محافظات أردنية) ---
+  NameAr, NameEn, Code, IsActive
+  SEED all 12: عمان/Amman, إربد/Irbid, الزرقاء/Zarqa, البلقاء/Balqa,
+    مادبا/Madaba, الكرك/Karak, الطفيلة/Tafilah, معان/Maán,
+    العقبة/Aqaba, عجلون/Ajloun, جرش/Jerash, المفرق/Mafraq
+
+--- TABLE 33: Notifications ---
+  UserId FK, Type ENUM('leave','overtime','probation','document_expiry',
+    'ssc_reminder','work_permit','health_cert','violation','settlement','payroll','system'),
+  TitleAr, TitleEn, BodyAr, BodyEn,
+  EntityType, EntityId, IsRead BOOLEAN DEFAULT false, ReadAt DATETIME
+
+--- TABLE 34: Nationalities ---
+  NameAr, NameEn, CountryCode (ISO-3166), IsActive
+  SEED: أردني (JO), فلسطيني (PS), مصري (EG), سوري (SY), عراقي (IQ),
+    سعودي (SA), يمني (YE), لبناني (LB), سريلانكي (LK), فلبيني (PH),
+    هندي (IN), باكستاني (PK), بنغلاديشي (BD), إندونيسي (ID),
+    أمريكي (US), بريطاني (GB), + 40 more
+
+--- TABLE 35: ViolationTypes (أنواع المخالفات — lookup with allowed punishments) ---
+  Code VARCHAR, NameAr, NameEn,
+  AllowedPunishments JSON COMMENT 'Array of punishment_type enums allowed per violation'
+  
+  SEED ALL 22 violation types (from Jordanian Labour Law):
+  1.  tardiness              | تأخير                              | ['written_warning','half_day_deduction','one_day_deduction','three_day_deduction','written_notice','final_notice']
+  2.  absence_without_excuse | غياب بدون عذر                    | ['verbal_warning','one_day_deduction','three_day_deduction','written_notice','final_notice']
+  3.  unauthorized_area      | تواجد في أماكن غير مخصصة للعمل  | ['verbal_warning','half_day_deduction','one_day_deduction','two_day_deduction','written_notice','final_notice']
+  4.  deliberate_low_output  | تعمد تخفيض الإنتاج               | ['three_day_deduction','written_notice','final_notice']
+  5.  sleeping_on_duty       | النوم المتعمد أثناء الدوام       | ['one_day_deduction','two_day_deduction','written_notice','final_notice']
+  6.  eating_wrong_place     | تناول المأكولات في غير الأماكن المحددة | ['half_day_deduction','one_day_deduction','two_day_deduction','three_day_deduction','written_notice','final_notice']
+  7.  fighting               | تشاجر                            | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  8.  safety_violation       | عدم مراعاة تعليمات السلامة       | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  9.  alcohol_drugs          | إدخال مشروبات كحولية أو مواد ممنوعة | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  10. carrying_weapon        | حمل السلاح بدون إذن              | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  11. smoking_wrong_area     | التدخين في غير الأماكن المسموحة  | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  12. tool_misuse            | إساءة استخدام الأدوات والمعدات   | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  13. false_sick_claim       | الادعاء الكاذب بالمرض            | ['half_day_deduction','one_day_deduction','one_half_day_deduction','two_day_deduction']
+  14. vehicle_speeding       | قيادة مركبة الشركة بسرعة زائدة  | ['one_day_deduction','two_day_deduction','written_notice','final_notice']
+  15. hygiene_violation      | عدم الالتزام بتعليمات النظافة    | ['verbal_warning','one_day_deduction','two_day_deduction','three_day_deduction','written_notice','final_notice']
+  16. dress_code_violation   | عدم الالتزام بالزي الرسمي        | ['written_warning','half_day_deduction','one_day_deduction','written_notice','final_notice']
+  17. unauthorized_gifts     | قبول هدايا بدون إذن الإدارة      | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  18. unauthorized_visits    | استقبال زيارات خاصة بدون إذن     | ['written_warning','half_day_deduction','one_day_deduction','written_notice','final_notice']
+  19. attendance_fraud       | التلاعب في إثبات الحضور والانصراف | ['half_day_deduction','one_day_deduction','two_day_deduction','written_notice','final_notice']
+  20. client_misconduct      | التعامل بطريقة غير لائقة مع الزبائن | ['two_day_deduction','three_day_deduction','written_notice','final_notice']
+  21. personal_use_of_tools  | استخدام أدوات العمل لأغراض شخصية | ['one_day_deduction','two_day_deduction','three_day_deduction','written_notice','final_notice']
+  22. refusing_orders        | رفض تنفيذ التعليمات والأوامر     | ['one_day_deduction','two_day_deduction','written_notice','final_notice']
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4: BUSINESS RULES & WORKFLOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4.1 PROBATION WORKFLOW (ما قبل التعيين)
+─────────────────────────────────────────
+Trigger: When Employee.EmploymentStatus = 'probation' (new employee)
+Duration: 90 days (configurable in system_configurations.probation_period_days)
+
+Timeline:
+  Day 1 (hire):     EmploymentStatus = 'probation', ProbationEndDate = HireDate + 90
+  Day 77 (14 before end): Auto-create ProbationReview notification to HR Admin
+  Day 90 (end):     HR Admin must take action from the probation review queue
+
+  HR Admin Decision Screen:
+    Shows: Employee Name | Department | Hire Date | Probation End Date | Days Remaining
+    Action buttons:
+      [✓ تثبيت — Confirm]  → status becomes 'active', generate appointment letter form
+      [↻ تمديد — Extend]   → extend ProbationEndDate (max total 6 months from hire)
+      [✗ إنهاء — Terminate] → route to settlement/clearance workflow
+
+SSC Registration check at probation end:
+  IF SscRegistrations.IsRegistered = false AND RequiredRegistrationMonth has passed:
+    Show RED alert: "لم يتم تسجيل الموظف في الضمان الاجتماعي بعد"
+    Show button: رابط موقع الضمان الاجتماعي → https://www.ssc.gov.jo
+  IF SscRegistrations.IsRegistered = true:
+    Show GREEN: "تم التسجيل في الضمان بتاريخ [date]"
+
+Post-Confirmation:
+  If decision = 'confirm':
+    Update employee status to 'active'
+    Generate/print نموذج كتاب تعيين (appointment_letter form)
+    Send notification to employee: "تهانينا! تم تثبيتك"
+  
+  If decision = 'terminate' (fail probation):
+    Route to Settlement screen
+    EmploymentStatus = 'terminated', TerminationDate = today
+    No EOSB (less than 1 year)
+    Generate إنهاء خدمات form
+
+4.2 SSC REGISTRATION LOGIC
+────────────────────────────
+On employee create (on any HireDate):
+  IF DAY(HireDate) BETWEEN 1 AND 15:
+    RequiredMonth = MONTH(HireDate), RequiredYear = YEAR(HireDate)
+  ELSE (16 to end of month):
+    IF MONTH(HireDate) = 12:
+      RequiredMonth = 1, RequiredYear = YEAR(HireDate) + 1
+    ELSE:
+      RequiredMonth = MONTH(HireDate) + 1, RequiredYear = YEAR(HireDate)
+  Save to SscRegistrations table with IsRegistered = false
+
+HR Admin can mark IsRegistered = true and enter SscNumber + ActualRegistrationDate.
+If current date > first day of RequiredRegistrationMonth + 1 month AND IsRegistered = false:
+  Send daily notification to HR Admin: "[اسم الموظف] لم يسجل بالضمان بعد"
+  Dashboard shows count of unregistered employees due for SSC.
+
+4.3 VIOLATIONS WORKFLOW (المخالفات)
+────────────────────────────────────
+Screen: /violations
+
+Step 1 — Select employee from dropdown
+Step 2 — System shows ViolationHistory for this employee (previous violations)
+Step 3 — HR selects ViolationType from ViolationTypes table (22 types)
+Step 4 — System auto-filters AllowedPunishments for selected violation type
+Step 5 — HR selects PunishmentType from filtered list
+Step 6 — Enter ViolationDate
+Step 7 — System auto-calculates ActionDeadline = ViolationDate + 14 days
+Step 8 — Show countdown: "متبقي X يوم لاتخاذ الإجراء"
+Step 9 — [طباعة النموذج] → auto-generate نموذج مروس (warning_letter form)
+          with: employee data, violation type, punishment, violation date, action deadline
+
+IMPORTANT NOTE displayed on screen:
+  ⚠️ "ملاحظة: أيام العطل الأسبوعية (الجمعة والسبت) والعطل الرسمية ممنوع
+       اتخاذ الإجراءات التأديبية فيها من قِبَل إدارة الموارد البشرية"
+
+Violation History (per employee):
+  On each violation form, always show the employee's previous violations:
+  Table: #  | نوع المخالفة | العقوبة | التاريخ | الحالة
+
+4.4 SETTLEMENT & RESIGNATION WORKFLOW (المخالصات والاستقالات)
+────────────────────────────────────────────────────────────────
+RESIGNATIONS:
+  When employee submits resignation (or HR enters it):
+    NoticeStartDate = today
+    NoticeEndDate = today + notice_period_days (default 30)
+    Status = 'submitted'
+    
+  Resignations List Screen (/resignations):
+    Columns: Employee | Department | Resignation Date | Last Working Day | Days Remaining (timer) | Settlement Done?
+    
+    Timer display: Large number showing days remaining
+      IF days_remaining > 0: show green/amber timer countdown
+      IF days_remaining = 0: show "اليوم آخر يوم" — last day today
+      IF days_remaining < 0: show "متأخر" in red — overdue
+
+    After notice period ends:
+      Button [إتمام المخالصة — Complete Settlement] → opens Settlement form
+
+SETTLEMENTS (/settlements):
+  Auto-calculate on open:
+    YearsOfService = (TerminationDate - HireDate) / 365.25
+    EosbAmount = calculate per Labour Law (section 3.19 above)
+    UnpaidLeaveAmount = remaining annual leave days × (BasicSalary / 30)
+    UnpaidSalaryAmount = (BasicSalary / working_days_in_month) × unpaid_days
+    NetSettlement = EosbAmount + UnpaidLeaveAmount + UnpaidSalaryAmount
+                    - AdvanceDeduction - OtherDeductions
+    
+  Settlement Form prints: نموذج مخالصة with all financial breakdown
+  Status flow: draft → approved (by hradmin) → paid
+
+4.5 LEAVE WORKFLOW (2-step approval)
+──────────────────────────────────────
+Employee submits → status = 'pending' → notification to manager + hradmin
+Manager approves → status = 'manager_approved' → notification to hradmin
+HR approves → status = 'approved' → update leave_balances → notify employee
+Any step rejects → status = 'rejected' → notify employee with reason
+
+Jordanian law validations:
+  - Probation period: no annual/emergency leave (block with error)
+  - Sick leave >2 days: flag RequiresMedicalCert = true (show warning)
+  - Maternity: 70 consecutive days, female only, cannot be split
+  - Hajj: once per career, min 5 years service (60 months)
+  - Annual leave: check balance before approval; if AllowLeaveWithoutBalance=false → block
+  - Overlap check: cannot have 2 approved leaves on same dates
+
+4.6 OVERTIME WORKFLOW (2-step approval)
+─────────────────────────────────────────
+Same 2-step as leave.
+After final approval:
+  IF CompensationType = 'pay':
+    OvertimeAmount = Hours × (BasicSalary / 176) × RateFromConfig
+    (176 = 22 days × 8 hours standard monthly hours)
+    Attach to next payroll run for this employee
+  IF CompensationType = 'compensatory_leave':
+    Add days to LeaveBalances.TotalDays for 'compensatory' leave type
+
+4.7 PAYROLL CALCULATION
+─────────────────────────
+Read ALL rates LIVE from SystemConfigurations (never use hardcoded values):
+
+  GrossSalary = BasicSalary + HousingAllowance + TransportAllowance
+              + MobileAllowance + MealAllowance + OtherAllowances
+              + OvertimeAmount + BonusAmount
+
+  SSC:
+    IF NOT IsSscExempt:
+      InsurableSalary = MIN(BasicSalary, ssc_max_insurable_salary)
+      SscEmployee = InsurableSalary × (ssc_employee_rate / 100)
+      SscEmployer = InsurableSalary × (ssc_employer_rate / 100)
+
+  Income Tax (progressive — Jordanian brackets from config JSON):
+    AnnualGross = GrossSalary × 12
+    Exemptions = income_tax_personal_exempt
+    IF FamilyTaxExemption: Exemptions += income_tax_family_exempt
+    Exemptions += TaxExemptionAmount (employee-specific)
+    TaxableAnnual = MAX(0, AnnualGross - Exemptions)
+    Apply brackets from income_tax_brackets JSON
+    MonthlyTax = AnnualTax / 12
+
+  NetSalary = GrossSalary - SscEmployee - MonthlyTax
+            - AbsenceDeduction - LateDeduction - AdvanceDeduction - OtherDeductions
+
+  Validate: NetSalary >= min_wage_jod (warn if below)
+
+4.8 HEALTH CERTIFICATE & CRIMINAL CLEARANCE
+─────────────────────────────────────────────
+Health Certificate (/health-certificates screen — dedicated):
+  - Table showing ALL employees
+  - Columns: الاسم | الرقم الوطني/رقم الجواز/رقم الهوية | الجنسية | عنده شهادة؟ | تاريخ التفعيل | تاريخ الانتهاء | الحالة
+  - IF no cert: show "لا يوجد" in red + link button: [رابط وزارة الصحة → https://moh.gov.jo]
+  - HR Admin can [إضافة شهادة] for any employee
+  - Expiry = ActivationDate + 365 (auto-calc)
+  - Alert 30 days before: notify HR + employee
+
+Criminal Clearance (/criminal-clearance screen — dedicated):
+  - Same structure as health certificates
+  - Columns: الاسم | الرقم الوطني | الجنسية | رقم الوثيقة | تاريخ الإصدار | تاريخ الانتهاء | الحالة
+  - IF no clearance: show link [وزارة العدل → https://portal.moj.gov.jo]
+  - Validity = 6 months (IssueDate + 180 days)
+  - Alert at 3 months old (halfway to expiry)
+
+Work Permits (/work-permits screen):
+  - Show ONLY non-Jordanian employees (Nationality != 'أردني' AND IsJordanianMother = false)
+  - Columns: الاسم | الجنسية | رقم الهوية أو جواز السفر | رقم التصريح | تاريخ بدء التصريح | تاريخ انتهاء التصريح | الأيام المتبقية | الحالة
+  - Alert 60 days before expiry
+  - Link: [وزارة العمل → https://mol.gov.jo]
+  - IsJordanianMother = true → show "أبناء أردنيات — لا يحتاجون تصريح عمل" badge
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5: FRONTEND SCREENS & ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ALL ROUTES:
+  /                     → redirect to /dashboard
+  /login                → public
+  /dashboard            → role-differentiated
+  /employees            → superadmin, hradmin, payrolladmin, manager
+  /employees/new        → superadmin, hradmin, recruiter
+  /employees/:id        → all (scoped)
+  /employees/:id/edit   → superadmin, hradmin
+  /attendance           → all except recruiter
+  /leave                → all
+  /overtime             → all
+  /payroll              → superadmin, hradmin, payrolladmin
+  /payroll/slips        → superadmin, hradmin, payrolladmin + employee (own)
+  /probation            → superadmin, hradmin        ← NEW
+  /ssc-registrations    → superadmin, hradmin        ← NEW
+  /violations           → superadmin, hradmin        ← NEW
+  /resignations         → superadmin, hradmin        ← NEW
+  /settlements          → superadmin, hradmin        ← NEW
+  /health-certificates  → superadmin, hradmin        ← NEW
+  /criminal-clearance   → superadmin, hradmin        ← NEW
+  /work-permits         → superadmin, hradmin        ← NEW
+  /forms                → superadmin, hradmin        ← NEW
+  /users                → superadmin, hradmin
+  /settings             → superadmin, hradmin
+
+SIDEBAR NAVIGATION (RTL Arabic, dark theme):
+  لوحة التحكم     /dashboard
+  الموظفون        /employees
+  الحضور والغياب  /attendance
+  الإجازات        /leave
+  العمل الإضافي   /overtime
+  الرواتب         /payroll
+  ─── الامتثال ───
+  ما قبل التعيين  /probation          ← NEW
+  تسجيل الضمان   /ssc-registrations  ← NEW
+  الشهادات الصحية /health-certificates← NEW
+  عدم المحكومية  /criminal-clearance ← NEW
+  تصاريح العمل   /work-permits       ← NEW
+  ─── الإجراءات ───
+  المخالفات       /violations         ← NEW
+  الاستقالات      /resignations       ← NEW
+  المخالصات       /settlements        ← NEW
+  النماذج         /forms              ← NEW
+  ─── الإدارة ───
+  المستخدمون      /users
+  الإعدادات       /settings
+
+EMPLOYEE LIST SCREEN (/employees):
+  Show these columns (all must be visible):
+    الرمز | الاسم | القسم | المسمى الوظيفي | نوع التوظيف
+    الراتب الأساسي* | الرقم الوطني | رقم الهاتف | عنوان السكن
+    العمر | تاريخ الميلاد | الجنسية | الجنس | الحالة | إجراءات
+  * salary masked for manager/employee/recruiter roles
+  Filters: القسم | الحالة | الجنسية | نوع التوظيف
+  Search: by name, code, national ID, phone, email
+
+EMPLOYEE PROFILE TABS:
+  1. المعلومات الشخصية  (name, DOB, NID, phone, address, etc.)
+  2. التوظيف             (dept, job, manager, hire date, contract)
+  3. الراتب والبدلات    (finance roles only)
+  4. البنك والضمان       (finance roles only — bank + SSC)
+  5. الامتثال           → NEW TAB:
+       - SSC registration status + required month
+       - Health certificate status + expiry
+       - Criminal clearance status + expiry
+       - Work permit (if non-Jordanian)
+       - Compliance checklist checkboxes
+  6. الوثائق             (documents tab)
+  7. سجل الحضور
+  8. سجل الإجازات
+  9. كشوف الرواتب
+  10. سجل المخالفات      → NEW (ViolationHistory for this employee)
+
+PROBATION SCREEN (/probation):
+  Tab 1: قيد التجربة (Active Probation)
+    Table: الموظف | القسم | تاريخ التوظيف | تاريخ انتهاء التجربة | الأيام المتبقية | حالة الضمان
+    Color coding: green (>14 days) | amber (≤14 days) | red (overdue)
+    Actions: [تثبيت] [تمديد] [إنهاء الخدمة]
+    
+  Tab 2: تم التثبيت (Confirmed)
+    History of all confirmed employees with confirmation date
+
+VIOLATIONS SCREEN (/violations):
+  Left panel — New Violation Form:
+    1. اختر الموظف (dropdown search)
+    2. سجل المخالفات السابقة للموظف (auto-loads below)
+    3. نوع المخالفة (dropdown from ViolationTypes)
+    4. نوع العقوبة (auto-filtered based on violation type)
+    5. تاريخ المخالفة (date picker)
+    6. آخر موعد للإجراء: [auto-calculated date, shown prominently]
+       Countdown: "متبقي X يوم — الموعد النهائي: DD/MM/YYYY"
+    7. ملاحظات (text)
+    [طباعة نموذج المروس] [حفظ]
+    
+    ⚠️ Note box: "أيام العطل الأسبوعية (الجمعة والسبت) والعطل الرسمية ممنوع اتخاذ الإجراءات فيها"
+
+  Right panel — Recent Violations List:
+    All violations with status and action deadline warnings
+
+RESIGNATIONS SCREEN (/resignations):
+  Table:
+    الموظف | القسم | تاريخ الاستقالة | آخر يوم دوام | الأيام المتبقية | تمت المخالصة؟
+  
+  Timer cell: Large styled countdown for each row
+    Green: > 7 days remaining
+    Amber: 1-7 days remaining
+    Red: 0 days (last day)
+    Dark Red: overdue
+
+SETTLEMENTS SCREEN (/settlements):
+  Create settlement form with auto-calculated fields:
+    المبلغ المستحق:
+      □ مكافأة نهاية الخدمة: [auto] JOD
+      □ إجازة سنوية غير مستنفذة: [auto] JOD
+      □ راتب الأيام غير المدفوعة: [auto] JOD
+    الخصومات:
+      □ سلف مستحقة: [auto from advances] JOD
+      □ خصومات أخرى: [manual] JOD
+    ══════════════════
+    صافي المخالصة: [auto] JOD
+  [طباعة نموذج المخالصة] [اعتماد] [صرف]
+
+FORMS SCREEN (/forms):
+  Grid of 15 form cards (4 per row):
+    Each card: icon + form name (AR) + form name (EN) + [فتح النموذج] button
+    On click: open modal with form template pre-filled with current user/selected employee data
+    Print button: browser print / save as PDF
+
+  Forms available:
+    📋 نموذج طلب إجازة | نموذج استقالة | نموذج طلب توظيف
+    📄 كتاب تعيين | عقد عمل | نموذج طلب سلفة
+    📦 تسليم أمانة | استلام تصريح عمل | استعلام جواز سفر
+    ⚖️ لجنة تحقيق | كتاب إنهاء خدمات | نموذج مخالصة
+    🏆 شهادة خبرة | قرارات إدارية | نموذج مروس
+
+HEALTH CERTIFICATES SCREEN (/health-certificates):
+  Header: "شهادات الصحية" + stats: total / has cert / no cert / expiring / expired
+  
+  Table (ALL employees):
+    الاسم | الرقم الوطني/رقم الجواز/رقم الإقامة | الجنسية
+    عنده شهادة؟ | تاريخ التفعيل | تاريخ الانتهاء | الحالة | إجراءات
+  
+  Status badges: ✓ ساري (green) | ⚠️ ينتهي قريباً (amber) | ✗ منتهي (red) | — لا يوجد (gray)
+  
+  IF no cert: show [🔗 وزارة الصحة] link button → https://moh.gov.jo
+  
+  Actions: [إضافة شهادة] — opens modal for HR to enter cert data
+
+CRIMINAL CLEARANCE SCREEN (/criminal-clearance):
+  Same structure as health certs.
+  IF no clearance: show [🔗 وزارة العدل] → https://portal.moj.gov.jo
+
+WORK PERMITS SCREEN (/work-permits):
+  Show only non-Jordanian employees (Nationality != 'أردني' AND IsJordanianMother = false)
+  
+  Table:
+    الاسم | الجنسية | رقم الهوية/جواز السفر | رقم التصريح
+    تاريخ بدء التصريح | تاريخ انتهاء التصريح | الأيام المتبقية | الحالة | إجراءات
+  
+  Days remaining: colored badge
+    Green: > 60 days | Amber: 30-60 days | Orange: 15-30 days | Red: < 15 days | Dark Red: Expired
+  
+  Jordanian mothers' children: separate section labeled "أبناء أردنيات — لا يشترط تصريح عمل"
+  
+  Link: [🔗 وزارة العمل] → https://mol.gov.jo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6: DASHBOARD (ROLE-DIFFERENTIATED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+superadmin / hradmin dashboard:
+  Row 1 KPIs:
+    إجمالي الموظفين | حاضرون اليوم | إجازات معلقة | عمل إضافي معلق
+  Row 2 KPIs (COMPLIANCE ALERTS — show in red/amber if > 0):
+    قيد التجربة | لم يسجلوا بالضمان | شهادات صحية منتهية | تصاريح عمل منتهية
+  Row 3:
+    توزيع الموظفين حسب القسم (bar chart) | الإجازات حسب النوع (pie chart)
+  Row 4:
+    موظفون قيد التجربة (list, with days remaining)
+    تنبيهات الامتثال (list: expired docs, unregistered SSC)
+  Row 5:
+    آخر النشاطات (activity feed)
+
+employee dashboard:
+  Clock In/Out widget (prominent)
+  رصيد إجازاتي (leave balance bars per type)
+  طلباتي المعلقة
+  آخر 3 كشوفات راتب
+  وثائقي المنتهية/المنتهية قريباً
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7: FORM TEMPLATES (15 PRINTABLE FORMS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Each form is an HTML template with mustache-style placeholders
+that get replaced with actual employee data on print.
+
+Common placeholders:
+  {{company_name}} {{company_address}} {{company_logo}}
+  {{employee_name_ar}} {{employee_name_en}} {{employee_code}}
+  {{department}} {{job_title}} {{hire_date}} {{basic_salary}}
+  {{national_id}} {{phone}} {{date_today}} {{hr_name}} {{hr_signature}}
+
+FORM 1: نموذج طلب إجازة / مغادرة (leave_request_form)
+  Fields: Employee info | Leave type | From–To dates | Total days
+  | Reason | Employee signature | Manager approval | HR approval
+
+FORM 2: نموذج استقالة (resignation_form)
+  Fields: Employee info | Resignation date | Last working day
+  | Reason | Acknowledgement of 30-day notice | Signature | Date
+
+FORM 3: نموذج طلب توظيف (employment_application)
+  Fields: Full applicant info (name, education, experience, references)
+  | Position applied for | Signature | Date
+
+FORM 4: نموذج كتاب تعيين (appointment_letter)
+  Official letter: Employee name | Position | Department | Salary
+  | Start date | Probation duration | Terms summary | Company stamp
+
+FORM 5: نموذج عقد عمل (employment_contract)
+  Full contract with: Party details | Job description | Salary breakdown
+  | Leave entitlements | Notice period | EOSB terms | Governing law (Jordan)
+  | Both party signatures
+
+FORM 6: نموذج طلب سلفة (salary_advance_form)
+  Fields: Employee | Amount requested | Reason | Repayment plan
+  | HR approval | Finance approval
+
+FORM 7: نموذج تسليم أمانة (asset_handover)
+  Asset list table: Item | Serial No. | Condition | Date
+  Received by (employee signature) | Handed by (HR/manager)
+
+FORM 8: نموذج استلام تصريح عمل (work_permit_receipt)
+  Fields: Employee | Nationality | Passport No. | Permit No.
+  | Issue Date | Expiry Date | Employee signature acknowledging receipt
+
+FORM 9: نموذج استعلام جواز سفر من الموظف (passport_inquiry)
+  Request to employee to provide/update passport details
+  Passport No. | Expiry | Country | Issuing Authority | Signature
+
+FORM 10: نموذج لجنة تحقيق (investigation_committee)
+  Committee formation: Subject of investigation | Committee members
+  | Date | Employee being investigated | Findings | Recommendations
+
+FORM 11: نموذج كتاب إنهاء خدمات (termination_letter)
+  Official letter: Employee | Position | Termination date
+  | Reason | Settlement due | Notice given
+
+FORM 12: نموذج مخالصة (settlement_form)
+  Full financial settlement table:
+  EOSB | Unpaid leave | Unpaid salary | Deductions | Net amount
+  Both signatures + official stamp
+
+FORM 13: نموذج شهادة خبرة (experience_certificate)
+  Official letter confirming employment:
+  Name | Position | Department | From–To dates | "during this time performed duties with..."
+  Company stamp + HR signature
+
+FORM 14: نموذج قرارات إدارية (admin_decision)
+  Formal administrative decision: Decision number | Date | Subject
+  | Decision text | Effective date | Authorized signatures
+
+FORM 15: نموذج مروس / تنبيه وإنذار (warning_letter)
+  Contains:
+    - Employee info (name, code, department, job title)
+    - Violation type (from ViolationTypes)
+    - Violation date
+    - Punishment type (translated to Arabic)
+    - Action deadline (ViolationDate + 14 days)
+    - Previous violations count (from ViolationHistory)
+    - Signature fields: Employee | Manager | HR
+  
+  Auto-generates when HR clicks [طباعة النموذج] on violation screen.
+  
+  Footer note: "يُلاحظ أن هذا الإجراء يُعدّ [رقم] في سلسلة الإجراءات التأديبية"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8: SEED DATA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Company (ID=1): ZenJO — شركة ZenJO | Amman | Technology industry
+
+Users (demo accounts):
+  admin    / Admin@1234    → superadmin   (Ahmed Al-Ali / أحمد العلي)
+  hr       / Hr@1234       → hradmin      (Sara Al-Hamawi / سارة الحموي)
+  payroll  / Payroll@1234  → payrolladmin (Layla Ubaydāt / ليلى عبيدات)
+  manager  / Manager@1234  → manager      (Khaled Al-Zuabi / خالد الزعبي)
+  employee / Employee@1234 → employee     (Mona Al-Shuwaihat / منى الشويهات)
+  recruiter/ Recruiter@1234→ recruiter    (Ahmad Al-Rashid / أحمد الرشيد)
+
+Employees (7 seeded):
+  EMP001 | سارة الحموي    | HR Manager       | HR Dept     | 1,000 JOD | Jordanian | active
+  EMP002 | خالد الزعبي    | Operations Mgr   | Operations  | 1,200 JOD | Jordanian | active
+  EMP003 | ليلى عبيدات   | Finance Manager  | Finance     |   950 JOD | Jordanian | active
+  EMP004 | أحمد الرشيد    | Sales Rep        | Sales       |   800 JOD | Jordanian | active
+  EMP005 | منى الشويهات  | HR Specialist    | HR Dept     |   750 JOD | Jordanian | active
+  EMP006 | محمد النمري    | IT Specialist    | IT          |   900 JOD | Egyptian  | active (needs work permit — seed permit expiring in 45 days to demo alert)
+  EMP007 | عمر الحداد     | Driver           | Operations  |   500 JOD | Jordanian | probation (hired 14 days ago — to demo probation screen)
+
+Seed for demo compliance alerts:
+  EMP006 (Egyptian): work_permit_expiry = today + 45 days → shows in work-permits as "expiring soon"
+  EMP005: health_certificate missing → shows in health-certs as "لا يوجد"
+  EMP007: probation active, SSC not yet registered → shows in probation + SSC screens
+
+Seed 1 violation for EMP002 (Khaled): tardiness violation 5 days ago, written_warning issued
+Seed 1 resignation for EMP004 (Ahmad): submitted 10 days ago, last working day = today + 20
+Seed 1 leave request pending approval
+Seed 1 overtime request pending approval
+Seed payroll run for current month (draft)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9: UI/UX DESIGN SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Design (match screenshots — dark sidebar, light content area):
+  Sidebar: dark navy/dark blue-gray (#1a2332 or similar)
+  Active nav item: bright blue (#2563EB or angular material primary)
+  Content background: light gray (#f0f2f5)
+  Cards: white with subtle shadow
+  Primary button: blue (#2563EB)
+  Success badge: green (#16a34a)
+  Warning badge: amber (#d97706)
+  Danger badge: red (#dc2626)
+  Pending badge: yellow (#ca8a04)
+
+Typography: Arabic-first, Noto Kufi Arabic for headings, system font for body
+
+Status Badge component (reusable):
+  نشط / active          → green pill
+  قيد الانتظار / pending → yellow pill
+  موافق عليه / approved  → green pill
+  مرفوض / rejected       → red pill
+  منتهي / expired        → red pill
+  ينتهي قريباً           → amber pill
+  مسودة / draft          → gray pill
+  قيد التجربة / probation→ blue pill
+
+Compliance Alert component:
+  Days remaining counter with color:
+    > 60 days: green
+    31-60 days: amber
+    15-30 days: orange
+    1-14 days: red
+    0 / expired: dark red pulsing
+
+RTL: All layouts must be RTL-first (Arabic).
+Language toggle (AR/EN) in top-left corner.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 10: COMPLIANCE RULES SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Jordanian Labour Law — values (all configurable):
+  ┌─────────────────────────────────┬──────────────────────────────────────┐
+  │ Provision                       │ Value                                │
+  ├─────────────────────────────────┼──────────────────────────────────────┤
+  │ Annual leave (< 5 years)        │ 14 days/year                         │
+  │ Annual leave (≥ 5 years)        │ 21 days/year                         │
+  │ Sick leave                      │ 14 days/year (paid)                  │
+  │ Maternity leave                 │ 70 consecutive days                  │
+  │ Paternity leave                 │ 3 days                               │
+  │ Hajj leave                      │ 14 days, once in career, 5yr min    │
+  │ Bereavement leave               │ 3 days, immediate family             │
+  │ Emergency leave                 │ 3 days/year                          │
+  │ Probation period max            │ 90 days (extendable to 6 months)     │
+  │ Notice period (resignation)     │ 30 days minimum                      │
+  │ EOSB                            │ 1 month/year (Art. 87)               │
+  │ SSC employee rate               │ 7.5% of basic salary                 │
+  │ SSC employer rate               │ 14.25% of basic salary               │
+  │ SSC max insurable salary        │ 3,000 JOD/month                      │
+  │ Minimum wage                    │ 260 JOD/month                        │
+  │ Overtime weekday                │ 1.25× (Art. 59)                      │
+  │ Overtime weekend/holiday        │ 1.50× (Art. 59)                      │
+  │ Disciplinary action deadline    │ 14 days from violation               │
+  │ Health cert validity            │ 1 year                               │
+  │ Criminal clearance validity     │ 6 months                             │
+  │ Work permit alert               │ 60 days before expiry               │
+  │ SSC reg: hire day 1-15          │ Same month                           │
+  │ SSC reg: hire day 16+           │ Next month                           │
+  │ Income tax personal exemption   │ 9,000 JOD/year                       │
+  │ Income tax family exemption     │ 9,000 JOD/year                       │
+  │ Income tax brackets             │ 0%/5%/10%/15%/20% progressive       │
+  └─────────────────────────────────┴──────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 11: RUNNING THE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Two Replit workflows:
+
+1. ZenJO API (start MySQL + .NET):
+   bash artifacts/zenjo-api/start.sh
+
+2. ZenJO Web (Angular):
+   cd artifacts/zenjo-ng
+   NG_CLI_ANALYTICS=false npx ng serve --host 0.0.0.0 --port 20256 --proxy-config proxy.conf.json
+
+Access at: http://localhost:20256
+API proxy: /api → http://localhost:5000

@@ -1,0 +1,21 @@
+.z-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  
+  &.success { background: #DCFCE7; color: #15803D; .dot { background: #16A34A; } }
+  &.warning { background: #FEF3C7; color: #B45309; .dot { background: #D97706; } }
+  &.danger  { background: #FEE2E2; color: #B91C1C; .dot { background: #DC2626; } }
+  &.info    { background: #DBEAFE; color: #1D4ED8; .dot { background: #2563EB; } }
+  &.purple  { background: #EDE9FE; color: #6D28D9; .dot { background: #7C3AED; } }
+  &.neutral { background: #F1F5F9; color: #475569; .dot { background: #94A3B8; } }
+  &.gold    { background: #FEF3C7; color: #92400E; .dot { background: #D97706; } }
+}
+.z-badge.pending .dot {
+  animation: badge-pulse 1.5s ease infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}

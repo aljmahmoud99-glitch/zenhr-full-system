@@ -1,0 +1,371 @@
+<section class="z-page pre-employment-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('رحلة الانضمام', 'Joining Journey') }}</span>
+      <h1 class="z-title">{{ t('ما قبل التوظيف وفترة التجربة', 'Pre-Employment & Probation') }}</h1>
+      <p class="z-body">
+        {{ t('تابع سجلات التجربة، التقييمات الشهرية، والضمان الاجتماعي من مساحة واحدة واضحة.', 'Manage probation records, monthly evaluations, and social security from one structured workspace.') }}
+      </p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-primary" type="button" (click)="openAddModal()">
+        <span class="material-icons">person_add</span>
+        {{ t('إضافة سجل', 'Add Record') }}
+      </button>
+    </div>
+  </header>
+
+  <section class="z-card info-card">
+    <div class="info-icon">
+      <span class="material-icons">info</span>
+    </div>
+    <div>
+      <h2 class="z-heading">{{ t('قاعدة تسجيل الضمان الاجتماعي', 'Social Security Rule') }}</h2>
+      <p class="z-small">
+        {{ t('إذا كان التعيين بين 1 و16 من الشهر، يتم التسجيل في نفس الشهر. وإذا كان في 17 أو بعده، ينتقل التسجيل إلى الشهر التالي.', 'If the hire date is between the 1st and 16th, registration is due in the same month. If it starts on or after the 17th, registration moves to the following month.') }}
+      </p>
+    </div>
+  </section>
+
+  <section class="z-card filters-card">
+    <div class="filters-head">
+      <div>
+        <h2 class="z-heading">{{ t('البحث والتصفية', 'Search & Filters') }}</h2>
+        <p class="z-small">{{ t('ابحث بالاسم أو القسم أو حالة التجربة الحالية.', 'Filter by employee, department, or current probation status.') }}</p>
+      </div>
+      <button class="z-btn-ghost" type="button" *ngIf="hasActiveFilters" (click)="clearFilters()">
+        {{ t('مسح الفلاتر', 'Clear Filters') }}
+      </button>
+    </div>
+
+    <div class="filter-grid">
+      <label class="field search-field">
+        <span class="field-label">{{ t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input
+            class="z-input"
+            type="text"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="applyFilters()"
+            [placeholder]="t('اسم الموظف أو الرمز أو القسم', 'Employee name, code, or department')" />
+        </div>
+      </label>
+
+      <label class="field">
+        <span class="field-label">{{ t('حالة التجربة', 'Probation Status') }}</span>
+        <select class="z-input" [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All Statuses') }}</option>
+          <option value="pending">{{ t('قيد التجربة', 'In Probation') }}</option>
+          <option value="passed">{{ t('تم التثبيت', 'Confirmed') }}</option>
+          <option value="extended">{{ t('تمديد', 'Extended') }}</option>
+          <option value="failed">{{ t('مرفوض', 'Rejected') }}</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section class="z-table-container records-shell">
+    <div class="table-toolbar">
+      <div>
+        <h2 class="z-heading">{{ t('سجلات المتابعة', 'Probation Records') }}</h2>
+        <p class="z-small">{{ t(visibleRecords.length + ' سجل ظاهر', visibleRecords.length + ' records shown') }}</p>
+      </div>
+    </div>
+
+    <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+    <div class="loading-wrap" *ngIf="loading()">
+      <div class="spinner"></div>
+      <div class="z-small">{{ t('جارٍ تحميل سجلات ما قبل التوظيف...', 'Loading pre-employment records...') }}</div>
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && visibleRecords.length === 0">
+      <div class="empty-icon">
+        <span class="material-icons">assignment_ind</span>
+      </div>
+      <div class="empty-title">{{ t('لا توجد سجلات مطابقة للفلاتر الحالية.', 'No records match the current filters.') }}</div>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && visibleRecords.length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('القسم', 'Department') }}</th>
+            <th>{{ t('المسمى الوظيفي', 'Job Title') }}</th>
+            <th>{{ t('بداية التجربة', 'Start Date') }}</th>
+            <th>{{ t('نهاية التجربة', 'End Date') }}</th>
+            <th>{{ t('استحقاق الضمان', 'SSC Due') }}</th>
+            <th>{{ t('حالة الضمان', 'SSC Status') }}</th>
+            <th>{{ t('حالة التقييم', 'Evaluation') }}</th>
+            <th>{{ t('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let record of visibleRecords; trackBy: trackByRecord">
+            <td class="employee-cell">
+              <div class="employee-summary">
+                <span class="avatar">{{ employeeName(record).slice(0, 1) }}</span>
+                <div class="employee-meta">
+                  <strong>{{ employeeName(record) }}</strong>
+                  <small>{{ record.employeeCode }}</small>
+                </div>
+              </div>
+            </td>
+            <td>{{ lang === 'ar' ? (record.departmentAr || '—') : (record.departmentEn || record.departmentAr || '—') }}</td>
+            <td>{{ lang === 'ar' ? (record.jobTitleAr || '—') : (record.jobTitleEn || record.jobTitleAr || '—') }}</td>
+            <td>{{ record.probationStartDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ record.probationEndDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ monthLabel(record.sscRegistrationRequiredMonth, record.sscRegistrationRequiredYear) }}</td>
+            <td>
+              <span class="z-badge" [class.success]="record.sscRegistered" [class.warning]="!record.sscRegistered">
+                {{ sscStatusLabel(record.sscStatus, record.sscRegistered) }}
+              </span>
+            </td>
+            <td>
+              <span class="z-badge" [class]="statusClass(record.evaluationStatus)">
+                {{ statusLabel(record.evaluationStatus) }}
+              </span>
+            </td>
+            <td>
+              <div class="action-row">
+                <button class="icon-btn primary" type="button" (click)="openEvaluation(record)" [title]="t('التقييم', 'Evaluate')">
+                  <span class="material-icons">assignment</span>
+                </button>
+                <button class="icon-btn" type="button" (click)="openDocumentsModal(record)" [title]="t('مستندات الموظف', 'Employee documents')">
+                  <span class="material-icons">folder_open</span>
+                </button>
+                <button class="icon-btn" type="button" (click)="openSscModal(record)" [title]="t('الضمان الاجتماعي', 'Social Security')">
+                  <span class="material-icons">verified_user</span>
+                </button>
+                <button class="icon-btn danger" type="button" (click)="requestDelete(record)" [title]="t('حذف', 'Delete')">
+                  <span class="material-icons">delete</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showAddModal()" (click)="closeAddModal()">
+    <section class="modal-card z-card probation-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('إضافة سجل فترة تجربة', 'Add Probation Record') }}</h2>
+          <p class="z-small">{{ t('أدخل تاريخ بداية التجربة وسيتم احتساب تاريخ النهاية تلقائياً بعد 3 أشهر.', 'Enter the probation start date and the end date will be calculated automatically after 3 months.') }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeAddModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="alert alert-error" *ngIf="formError()">{{ formError() }}</div>
+
+        <div class="z-form-grid two-col">
+          <label class="field col-span-2">
+            <span class="field-label">{{ t('الموظف', 'Employee') }}</span>
+            <select class="z-input" [(ngModel)]="addForm.employeeId">
+              <option [ngValue]="0">{{ t('اختر الموظف', 'Select employee') }}</option>
+              <option *ngFor="let employee of allEmployees" [ngValue]="employee.id">
+                {{ employeeName(employee) }} · {{ employee.employeeCode }}
+              </option>
+            </select>
+            <div class="field-error" *ngIf="formAttempted() && !addForm.employeeId">{{ t('يرجى اختيار الموظف.', 'Please select an employee.') }}</div>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('بداية فترة التجربة', 'Probation Start Date') }}</span>
+            <input class="z-input" type="date" [(ngModel)]="addForm.probationStartDate" />
+            <div class="field-error" *ngIf="formAttempted() && !addForm.probationStartDate">{{ t('يرجى إدخال تاريخ البداية.', 'Please enter the start date.') }}</div>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('نهاية فترة التجربة', 'Probation End Date') }}</span>
+            <input class="z-input" type="date" [ngModel]="probationEndDate" disabled />
+          </label>
+        </div>
+
+        <div class="alert alert-warning" *ngIf="hasDuplicateActiveProbation">
+          {{ t('الموظف لديه فترة تجربة نشطة حالياً ولا يمكن إضافة سجل جديد.', 'This employee already has an active probation period and cannot receive a new one.') }}
+        </div>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeAddModal()" [disabled]="submitting()">
+          {{ t('إلغاء', 'Cancel') }}
+        </button>
+        <button class="z-btn-primary" type="button" (click)="createRecord()" [disabled]="submitting() || hasDuplicateActiveProbation">
+          {{ submitting() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ السجل', 'Save Record') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showSscModal()" (click)="closeSscModal()">
+    <section class="modal-card z-card probation-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('بيانات الضمان الاجتماعي', 'Social Security Details') }}</h2>
+          <p class="z-small">
+            {{ selectedSscRecord() ? employeeName(selectedSscRecord()!) : '' }}
+            <span *ngIf="selectedSscRecord()"> · {{ monthLabel(selectedSscRecord()?.sscRegistrationRequiredMonth, selectedSscRecord()?.sscRegistrationRequiredYear) }}</span>
+          </p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeSscModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="alert alert-error" *ngIf="sscError()">{{ sscError() }}</div>
+
+        <div class="z-form-grid two-col">
+          <label class="field">
+            <span class="field-label">{{ t('تاريخ التسجيل', 'Registration Date') }}</span>
+            <input class="z-input" type="date" [(ngModel)]="sscForm.registrationDate" />
+            <div class="field-error" *ngIf="sscAttempted() && !sscForm.registrationDate">{{ t('يرجى إدخال تاريخ التسجيل.', 'Please enter the registration date.') }}</div>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('رقم الضمان الاجتماعي', 'Social Security Number') }}</span>
+            <input class="z-input" type="text" [(ngModel)]="sscForm.sscNumber" />
+            <div class="field-error" *ngIf="sscAttempted() && !sscForm.sscNumber.trim()">{{ t('يرجى إدخال رقم الضمان.', 'Please enter the social security number.') }}</div>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+            <select class="z-input" [(ngModel)]="sscForm.status">
+              <option value="registered">{{ t('مسجل', 'Registered') }}</option>
+              <option value="pending">{{ t('بانتظار التسجيل', 'Pending Registration') }}</option>
+              <option value="delayed">{{ t('متأخر', 'Delayed') }}</option>
+            </select>
+          </label>
+
+          <label class="field col-span-2">
+            <span class="field-label">{{ t('ملاحظات', 'Notes') }}</span>
+            <textarea class="z-input" rows="4" [(ngModel)]="sscForm.notes"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeSscModal()" [disabled]="sscSubmitting()">
+          {{ t('إلغاء', 'Cancel') }}
+        </button>
+        <button class="z-btn-primary" type="button" (click)="submitSsc()" [disabled]="sscSubmitting()">
+          {{ sscSubmitting() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ بيانات الضمان', 'Save SSC Details') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showDocumentsModal()" (click)="closeDocumentsModal()">
+    <section class="modal-card z-card probation-modal documents-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('مستندات ما قبل التوظيف', 'Pre-employment documents') }}</h2>
+          <p class="z-small">
+            {{ selectedDocumentRecord() ? employeeName(selectedDocumentRecord()!) : '' }}
+            <span *ngIf="selectedDocumentRecord()"> · {{ selectedDocumentRecord()?.employeeCode }}</span>
+          </p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeDocumentsModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="modal-body documents-modal-body">
+        <div class="alert alert-error" *ngIf="documentsError()">{{ documentsError() }}</div>
+
+        <div class="loading-wrap" *ngIf="loadingDocuments()">
+          <div class="spinner"></div>
+          <div class="z-small">{{ t('جارٍ تحميل المستندات المطلوبة...', 'Loading required documents...') }}</div>
+        </div>
+
+        <ng-container *ngIf="!loadingDocuments()">
+          <section class="documents-section">
+            <div class="section-head">
+              <div>
+                <h3 class="z-heading">{{ t('المستندات المتوفرة', 'Available documents') }}</h3>
+                <p class="z-small">{{ t('الملفات المرفوعة والمرتبطة بالتوظيف المسبق أو الامتثال.', 'Uploaded files linked to pre-employment or compliance.') }}</p>
+              </div>
+              <span class="z-badge neutral">{{ employeeDocuments().length }}</span>
+            </div>
+
+            <div class="empty-state compact" *ngIf="employeeDocuments().length === 0">
+              <div class="empty-title">{{ t('لا توجد مستندات مرفوعة حتى الآن.', 'No uploaded documents yet.') }}</div>
+            </div>
+
+            <div class="checklist-grid" *ngIf="employeeDocuments().length > 0">
+              <article class="checklist-card" *ngFor="let item of employeeDocuments()">
+                <div class="checklist-head">
+                  <strong>{{ documentTypeLabel(item) }}</strong>
+                  <span class="z-badge" [class]="documentStatusClass(item.status)">{{ documentStatusLabel(item.status) }}</span>
+                </div>
+                <div class="checklist-meta">
+                  <span>{{ t('الإصدار', 'Issued') }}: {{ item.issuedDate ? (item.issuedDate | date:'dd/MM/yyyy') : '—' }}</span>
+                  <span>{{ t('الانتهاء', 'Expiry') }}: {{ item.expiryDate ? (item.expiryDate | date:'dd/MM/yyyy') : '—' }}</span>
+                  <span>{{ t('المتبقي', 'Remaining') }}: {{ daysLabel(item.daysUntilExpiry) }}</span>
+                </div>
+                <div class="checklist-actions" *ngIf="item.fileUrl">
+                  <a class="inline-link" [href]="item.fileUrl" target="_blank" rel="noopener">{{ t('فتح المستند', 'Open document') }}</a>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="documents-section">
+            <div class="section-head">
+              <div>
+                <h3 class="z-heading">{{ t('المستندات المطلوبة والمفقودة', 'Missing required documents') }}</h3>
+                <p class="z-small">{{ t('العناصر التي ما زال يجب رفعها لإكمال الجاهزية.', 'Items still required to complete readiness.') }}</p>
+              </div>
+              <span class="z-badge danger" *ngIf="missingDocuments().length > 0">{{ missingDocuments().length }}</span>
+            </div>
+
+            <div class="empty-state compact" *ngIf="missingDocuments().length === 0">
+              <div class="empty-title">{{ t('لا توجد مستندات مفقودة حالياً.', 'There are no missing documents right now.') }}</div>
+            </div>
+
+            <div class="missing-list" *ngIf="missingDocuments().length > 0">
+              <div class="missing-item" *ngFor="let item of missingDocuments()">
+                <div>
+                  <strong>{{ documentTypeLabel(item) }}</strong>
+                  <div class="z-small">{{ item.complianceRelated ? t('مرتبط بالامتثال', 'Compliance-linked') : t('مرتبط بالتوظيف المسبق', 'Pre-employment linked') }}</div>
+                </div>
+                <span class="z-badge danger">{{ documentStatusLabel(item.status) }}</span>
+              </div>
+            </div>
+          </section>
+        </ng-container>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeDocumentsModal()">
+          {{ t('إغلاق', 'Close') }}
+        </button>
+        <button class="z-btn-primary" type="button" *ngIf="selectedDocumentRecord()" (click)="openDocumentCenter(selectedDocumentRecord()!)">
+          {{ t('فتح مركز الوثائق', 'Open document center') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <app-confirm-dialog
+    [open]="!!pendingDeleteRecord()"
+    [title]="t('حذف السجل', 'Delete Record')"
+    [message]="t('سيتم حذف سجل فترة التجربة المحدد نهائياً بعد التأكيد.', 'The selected probation record will be permanently deleted after confirmation.')"
+    [confirmLabel]="t('تأكيد الحذف', 'Confirm Delete')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loadingLabel]="t('جارٍ الحذف...', 'Deleting...')"
+    [loading]="deleting()"
+    tone="danger"
+    (cancel)="closeDeleteDialog()"
+    (confirm)="confirmDelete()" />
+</section>

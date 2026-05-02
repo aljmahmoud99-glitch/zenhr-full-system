@@ -1,0 +1,250 @@
+You are continuing development of an enterprise HRMS system called "ZenJO".
+
+This system is already partially implemented.
+You MUST extend it to a FULL production-ready HR platform.
+
+IMPORTANT:
+
+* DO NOT rewrite existing architecture
+* DO NOT break current functionality
+* STRICTLY follow existing RBAC, business rules, and structure
+* EXTEND only, do not simplify
+
+═══════════════════════════════════════════════════════════════
+PRIMARY OBJECTIVE
+═══════════════════════════════════════════════════════════════
+
+Upgrade the system to enterprise-level by completing:
+
+1. Full RBAC enforcement (no scope leaks)
+2. Complete workflows (attendance, overtime, onboarding, offboarding, documents)
+3. Advanced dashboards & reporting
+4. Mobile-first ESS experience
+5. Configurable compliance engine (NOT hardcoded)
+6. Arabic-first bilingual system (Arabic = primary)
+
+═══════════════════════════════════════════════════════════════
+SECTION 1: RBAC COMPLETION (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+You MUST audit and enforce RBAC across ALL layers:
+
+Backend:
+
+* Ensure ALL routes use role guards
+* Enforce company-level isolation
+* Enforce data scoping:
+
+  * Employee → own record only
+  * Manager → direct reports only
+  * Recruiter → no employee core access
+* Enforce salary masking everywhere
+
+Frontend:
+
+* All routes must define allowedRoles
+* Sidebar must be dynamically filtered
+* Prevent rendering of unauthorized components
+* Block access EVEN if user manually navigates
+
+Add:
+
+* Central RBAC validator (single source of truth)
+* Logging for RBAC violations (security audit)
+
+═══════════════════════════════════════════════════════════════
+SECTION 2: FULL WORKFLOWS IMPLEMENTATION
+═══════════════════════════════════════════════════════════════
+
+Implement COMPLETE workflows with state management:
+
+1. ATTENDANCE WORKFLOW
+
+* Check-in / Check-out (manual + future-ready GPS)
+* Late calculation (grace period configurable)
+* Missing punch request:
+  Employee → Manager → HR
+* Attendance status auto-calculated
+
+2. OVERTIME WORKFLOW
+
+* Employee submits overtime
+* Manager approves/rejects
+* HR final approval
+* Auto-link to payroll
+
+3. ONBOARDING WORKFLOW
+   States:
+
+* Draft → Offer → Accepted → Onboarding → Active
+
+Features:
+
+* Checklist (tasks)
+* Document upload
+* Auto account creation
+* Auto employee record creation
+
+4. OFFBOARDING WORKFLOW
+   States:
+
+* Resignation Submitted → Notice Period → Clearance → Final Exit
+
+Features:
+
+* Clearance checklist (IT, Assets, HR)
+* EOSB calculation trigger
+* Final payroll
+
+5. DOCUMENT WORKFLOW
+
+* Upload documents (passport, contract, etc.)
+* Expiry tracking
+* Alert system:
+
+  * <30 days warning
+  * <7 days critical
+* HR renewal action
+
+═══════════════════════════════════════════════════════════════
+SECTION 3: DASHBOARDS & REPORTING
+═══════════════════════════════════════════════════════════════
+
+Implement role-based dashboards:
+
+HR ADMIN DASHBOARD:
+
+* Total employees
+* Attendance stats
+* Pending approvals
+* Expiring documents
+* Department distribution chart
+
+PAYROLL DASHBOARD:
+
+* Payroll runs
+* Salary distribution
+* Deductions summary
+* Loan tracking
+
+MANAGER DASHBOARD:
+
+* Team attendance
+* Leave calendar
+* Pending approvals
+* Team performance summary
+
+EMPLOYEE DASHBOARD:
+
+* Personal summary
+* Leave balance
+* Payslips
+* Requests status
+
+Reports (ALL exportable):
+
+* Attendance report
+* Payroll report
+* Leave report
+* Employee report
+
+═══════════════════════════════════════════════════════════════
+SECTION 4: MOBILE-FIRST ESS (IMPORTANT)
+═══════════════════════════════════════════════════════════════
+
+Implement a responsive, mobile-first Employee Self-Service:
+
+Features:
+
+* Clean mobile UI
+* Quick actions:
+
+  * Clock in/out
+  * Request leave
+  * View payslip
+* Bottom navigation (mobile)
+* Touch-friendly UI
+* Optimize for small screens
+
+═══════════════════════════════════════════════════════════════
+SECTION 5: COMPLIANCE ENGINE (ADVANCED)
+═══════════════════════════════════════════════════════════════
+
+REMOVE hardcoded rules.
+
+Create a configurable system:
+
+Table: system_configurations
+
+Examples:
+
+* payroll_day
+* late_threshold_minutes
+* overtime_rate
+* probation_period
+* leave_accrual_type
+
+ALL business rules must:
+
+* Read from DB
+* Be editable by HR Admin / Super Admin
+* Apply dynamically
+
+═══════════════════════════════════════════════════════════════
+SECTION 6: ARABIC-FIRST SYSTEM (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+Arabic MUST be primary language.
+
+Requirements:
+
+1. UI:
+
+* Default language = Arabic
+* RTL layout everywhere
+* Proper Arabic typography
+* No broken mixed text
+
+2. i18n:
+
+* Use translation files (ar.json / en.json)
+* All text must be translatable
+* No hardcoded English strings
+
+3. Data:
+
+* Support Arabic + English fields
+* Preserve ordering (important for mixed text)
+
+4. UX:
+
+* Dates formatted correctly
+* Currency: JOD
+* Arabic-friendly UI labels
+
+═══════════════════════════════════════════════════════════════
+SECTION 7: QUALITY & VALIDATION
+═══════════════════════════════════════════════════════════════
+
+* No duplicated logic
+* No role leaks
+* No hardcoded business rules
+* Strong typing everywhere
+* Clean, maintainable code
+
+═══════════════════════════════════════════════════════════════
+FINAL REQUIREMENT
+═══════════════════════════════════════════════════════════════
+
+This must behave like a REAL HR SYSTEM (ZenHR-level).
+
+NOT a demo.
+NOT a simplified version.
+
+Handle:
+
+* Edge cases
+* Security
+* Real-world constraints
+
+Think like a production system.

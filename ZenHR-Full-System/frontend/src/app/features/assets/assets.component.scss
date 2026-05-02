@@ -1,0 +1,156 @@
+.assets-page {
+  display: grid;
+  gap: 24px;
+}
+
+.header-actions,
+.row-actions,
+.modal-actions,
+.stack-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summary-grid,
+.filter-grid,
+.form-grid,
+.detail-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.summary-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.filter-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.form-grid.two-col,
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field,
+.summary-card,
+.detail-card {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-card {
+  padding: 18px;
+}
+
+.summary-card strong {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.summary-card.info strong {
+  color: var(--z-info);
+}
+
+.summary-card.warning strong {
+  color: #b86e1d;
+}
+
+.summary-card.danger strong {
+  color: var(--z-danger);
+}
+
+.table-toolbar,
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table-subline,
+.detail-copy {
+  color: var(--z-text-muted);
+  font-size: 13px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  padding: 24px;
+  background: rgba(8, 18, 14, 0.34);
+  display: grid;
+  place-items: center;
+  z-index: 90;
+}
+
+.modal-panel {
+  width: min(100%, 980px);
+  max-height: min(90vh, 920px);
+  overflow: auto;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(206, 217, 210, 0.9);
+  box-shadow: 0 32px 80px rgba(12, 29, 22, 0.16);
+}
+
+.modal-panel.slim {
+  width: min(100%, 720px);
+}
+
+.detail-card {
+  padding: 18px;
+  border: 1px solid var(--z-border);
+  border-radius: 18px;
+  background: rgba(247, 250, 248, 0.88);
+}
+
+.toggle-card {
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--z-border);
+  background: rgba(255, 255, 255, 0.96);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--z-text-secondary);
+}
+
+.empty-state {
+  padding: 24px;
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  text-align: center;
+  color: var(--z-text-secondary);
+}
+
+@media (max-width: 1200px) {
+  .summary-grid,
+  .filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .summary-grid,
+  .filter-grid,
+  .form-grid.two-col,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-toolbar,
+  .modal-head {
+    flex-direction: column;
+  }
+}

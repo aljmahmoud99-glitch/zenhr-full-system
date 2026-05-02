@@ -1,0 +1,406 @@
+<section class="z-page attendance-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <h1 class="z-title">{{ t('الحضور والانصراف', 'Attendance') }}</h1>
+      <p class="z-body">{{ t('متابعة الحضور وطلبات التصحيح ومواقع العمل من شاشة واحدة.', 'Track attendance, correction requests, and work locations from one screen.') }}</p>
+    </div>
+
+    <div class="view-tabs">
+      <button class="view-tab" type="button" [class.active]="view() === 'dashboard'" (click)="setView('dashboard')">
+        <span class="material-icons">dashboard</span>
+        {{ isEmployee ? t('الملخص', 'Summary') : t('الملخص', 'Summary') }}
+      </button>
+      <button class="view-tab" type="button" [class.active]="view() === 'log'" (click)="setView('log')">
+        <span class="material-icons">fact_check</span>
+        {{ isEmployee ? t('سجلاتي', 'My Records') : t('السجلات', 'Records') }}
+      </button>
+      <button class="view-tab" type="button" [class.active]="view() === 'requests'" (click)="setView('requests')">
+        <span class="material-icons">pending_actions</span>
+        {{ isEmployee ? t('طلباتي التصحيحية', 'My Correction Requests') : t('الطلبات', 'Requests') }}
+        <span class="tab-badge" *ngIf="pendingRequests()">{{ pendingRequests() }}</span>
+      </button>
+      <button class="view-tab" type="button" *ngIf="isHrOrManager" [class.active]="view() === 'map'" (click)="setView('map')">
+        <span class="material-icons">location_on</span>
+        {{ t('الخريطة', 'Map') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+  <div class="alert alert-success" *ngIf="feedback()">{{ feedback() }}</div>
+
+  <section class="z-card" *ngIf="view() === 'dashboard'">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('ملخص اليوم', 'Today summary') }}</h2>
+        <p class="z-small">{{ t('نظرة مباشرة على حالة اليوم وسجلات الحضور الحالية.', 'A direct view of today status and live attendance records.') }}</p>
+      </div>
+
+      <div class="clock-actions" *ngIf="isEmployee">
+        <button class="z-btn-primary" type="button" (click)="clockIn()" [disabled]="!canClockIn">
+          {{ clockLoading() && canClockIn ? t('جارٍ...', 'Working...') : t('تسجيل الحضور', 'Clock in') }}
+        </button>
+        <button class="z-btn-secondary" type="button" (click)="clockOut()" [disabled]="!canClockOut">
+          {{ clockLoading() && canClockOut ? t('جارٍ...', 'Working...') : t('تسجيل الانصراف', 'Clock out') }}
+        </button>
+        <button class="z-btn-secondary" type="button" (click)="openRequestModal()">{{ t('طلب تصحيح', 'Request correction') }}</button>
+      </div>
+    </div>
+
+    <app-skeleton-kpi-cards *ngIf="loading()" [count]="6" />
+
+    <div class="summary-card-grid" *ngIf="!loading()">
+      <article class="summary-card z-card" *ngFor="let card of todaySummaryCards()">
+        <span class="summary-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+        <strong class="summary-value">{{ card.value }}</strong>
+        <span class="z-badge"
+          *ngIf="card.labelEn === 'Status'"
+          [class.success]="card.tone === 'success'"
+          [class.warning]="card.tone === 'warning'"
+          [class.danger]="card.tone === 'danger'"
+          [class.info]="card.tone === 'info'">
+          {{ card.value }}
+        </span>
+      </article>
+    </div>
+
+    <div class="summary-card-grid monthly-grid" *ngIf="!loading() && monthlySummaryCards().length > 0">
+      <article class="summary-card z-card compact" *ngFor="let card of monthlySummaryCards()">
+        <span class="summary-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+        <strong class="summary-value">{{ card.value }}</strong>
+      </article>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'log'">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ isEmployee ? t('سجلاتي', 'My attendance records') : t('سجل الحضور', 'Attendance records') }}</h2>
+        <p class="z-small">{{ t('جميع سجلات الحضور من نفس مصدر البيانات المعتمد.', 'All attendance records from the same trusted data source.') }}</p>
+      </div>
+    </div>
+
+    <div class="filter-row" *ngIf="!isEmployee">
+      <input class="z-input" [(ngModel)]="logFilter.search" (ngModelChange)="applyFilters()" [placeholder]="isEmployee ? t('بحث في سجلاتي', 'Search my records') : t('بحث بالاسم أو الكود أو الوحدة', 'Search by name, code, or org unit')">
+      <input class="z-input" type="date" [(ngModel)]="logFilter.from" (ngModelChange)="applyFilters()">
+      <input class="z-input" type="date" [(ngModel)]="logFilter.to" (ngModelChange)="applyFilters()">
+      <select class="z-input" [(ngModel)]="logFilter.status" (ngModelChange)="applyFilters()">
+        <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+        <option value="present">{{ t('حاضر', 'Present') }}</option>
+        <option value="late">{{ t('متأخر', 'Late') }}</option>
+        <option value="absent">{{ t('غائب', 'Absent') }}</option>
+        <option value="on_leave">{{ t('في إجازة', 'On leave') }}</option>
+      </select>
+      <select class="z-input" *ngIf="!isEmployee" [(ngModel)]="logFilter.orgUnit" (ngModelChange)="applyFilters()">
+        <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
+        <option *ngFor="let orgUnit of orgUnitOptions()" [value]="orgUnit">{{ orgUnit }}</option>
+      </select>
+      <select class="z-input" [(ngModel)]="logFilter.attendanceState" (ngModelChange)="applyFilters()">
+        <option value="">{{ t('كل الأنواع', 'All states') }}</option>
+        <option value="present">{{ t('حاضر', 'Present') }}</option>
+        <option value="late">{{ t('متأخر', 'Late') }}</option>
+        <option value="absent">{{ t('غائب', 'Absent') }}</option>
+      </select>
+      <button class="z-btn-secondary" type="button" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    </div>
+
+    <app-skeleton-table *ngIf="logLoading()" [rows]="8" [cols]="8" />
+
+    <div class="empty-state" *ngIf="!logLoading() && logError()">
+      <span class="material-icons empty-icon">error</span>
+      <div class="empty-title">{{ logError() }}</div>
+      <button class="z-btn-secondary" type="button" (click)="loadLog()">{{ t('إعادة المحاولة', 'Retry') }}</button>
+    </div>
+
+    <div class="z-table-container" *ngIf="!logLoading() && !logError() && filteredRecords().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th *ngIf="!isEmployee">{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('التاريخ', 'Date') }}</th>
+            <th>{{ t('الحضور', 'Clock in') }}</th>
+            <th>{{ t('الانصراف', 'Clock out') }}</th>
+            <th>{{ t('ساعات العمل', 'Worked hours') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th>{{ t('التأخير', 'Late') }}</th>
+            <th>{{ t('النوع', 'Type') }}</th>
+            <th>{{ t('حالة التصحيح', 'Correction status') }}</th>
+            <th *ngIf="!isEmployee">{{ t('الوحدة', 'Org Unit') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of filteredRecords()">
+            <td *ngIf="!isEmployee">
+              <strong>{{ employeeName(row) }}</strong>
+              <div class="row-subtext">{{ row.employeeCode || '—' }}</div>
+            </td>
+            <td>{{ row.date | date:'dd/MM/yyyy' }}</td>
+            <td>{{ fmtTime(row.clockIn) }}</td>
+            <td>{{ fmtTime(row.clockOut) }}</td>
+            <td>{{ formatWorkedHours(row.workedMinutes) }}</td>
+            <td>
+              <span class="z-badge"
+                [class.success]="statusTone(row.status) === 'success'"
+                [class.warning]="statusTone(row.status) === 'warning'"
+                [class.danger]="statusTone(row.status) === 'danger'"
+                [class.info]="statusTone(row.status) === 'info'">
+                {{ attendanceStatusLabel(row.status) }}
+              </span>
+            </td>
+            <td>{{ row.lateMinutes > 0 ? formatLateMinutes(row.lateMinutes) : t('لا', 'No') }}</td>
+            <td>{{ attendanceTypeLabel(row.attendanceType || 'office') }}</td>
+            <td>{{ correctionStatusFor(row) }}</td>
+            <td *ngIf="!isEmployee">{{ orgUnitLabel(row) || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" *ngIf="!logLoading() && !logError() && filteredRecords().length === 0">
+      <span class="material-icons empty-icon">fact_check</span>
+      <div class="empty-title">{{ t('لا توجد سجلات مطابقة للفلاتر الحالية.', 'No attendance records match the current filters.') }}</div>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'requests'">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ isEmployee ? t('طلباتي التصحيحية', 'My correction requests') : t('طلبات التصحيح', 'Correction requests') }}</h2>
+        <p class="z-small">{{ t('إدارة طلبات التصحيح وتحديث سجلات الحضور بعد الاعتماد فقط.', 'Manage correction requests and update attendance records only after approval.') }}</p>
+      </div>
+      <button class="z-btn-primary" type="button" *ngIf="canCreateCorrection" (click)="openRequestModal()">{{ t('طلب جديد', 'New request') }}</button>
+    </div>
+
+    <div class="filter-row" *ngIf="!isEmployee">
+      <input class="z-input" [(ngModel)]="requestFilter.search" (ngModelChange)="applyRequestFilters()" [placeholder]="isEmployee ? t('بحث بالسبب أو النوع', 'Search by reason or type') : t('بحث بالاسم أو السبب أو النوع', 'Search by employee, reason, or type')">
+      <select class="z-input" [(ngModel)]="requestFilter.status" (ngModelChange)="applyRequestFilters()">
+        <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+        <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
+        <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
+        <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
+        <option value="rejected">{{ t('مرفوض', 'Rejected') }}</option>
+      </select>
+      <button class="z-btn-secondary" type="button" (click)="resetRequestFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    </div>
+
+    <div class="request-skeletons" *ngIf="requestsLoading()">
+      <app-skeleton-card />
+      <app-skeleton-card />
+      <app-skeleton-card />
+    </div>
+
+    <div class="empty-state" *ngIf="!requestsLoading() && requestsError()">
+      <span class="material-icons empty-icon">error</span>
+      <div class="empty-title">{{ requestsError() }}</div>
+      <button class="z-btn-secondary" type="button" (click)="loadRequests()">{{ t('إعادة المحاولة', 'Retry') }}</button>
+    </div>
+
+    <div class="request-list" *ngIf="!requestsLoading() && !requestsError()">
+      <article class="request-card" *ngFor="let request of filteredRequests()">
+        <div class="request-top">
+          <div *ngIf="!isEmployee; else ownRequestHeader">
+            <strong>{{ employeeName(request) }}</strong>
+            <div class="row-subtext">{{ request.employeeCode || '—' }}</div>
+          </div>
+          <ng-template #ownRequestHeader>
+            <div>
+              <strong>{{ requestTypeLabel(request.requestType) }}</strong>
+              <div class="row-subtext">{{ request.requestDate | date:'dd/MM/yyyy' }}</div>
+            </div>
+          </ng-template>
+          <span class="z-badge"
+            [class.warning]="request.status === 'pending'"
+            [class.info]="request.status === 'manager_approved'"
+            [class.success]="request.status === 'approved'"
+            [class.danger]="request.status === 'rejected'">
+            {{ attendanceStatusLabel(request.status) }}
+          </span>
+        </div>
+
+        <div class="request-meta">
+          <span>{{ request.requestDate | date:'dd/MM/yyyy' }}</span>
+          <span>{{ requestTypeLabel(request.requestType) }}</span>
+          <span>{{ request.reason || '—' }}</span>
+        </div>
+
+        <div class="request-meta">
+          <span>{{ t('حضور مطلوب:', 'Requested in:') }} {{ fmtTime(request.requestedClockIn) }}</span>
+          <span>{{ t('انصراف مطلوب:', 'Requested out:') }} {{ fmtTime(request.requestedClockOut) }}</span>
+        </div>
+
+        <div class="request-actions" *ngIf="isHrOrManager && (request.status === 'pending' || request.status === 'manager_approved')">
+          <button class="z-btn-primary" type="button" (click)="approveRequest(request.id)" [disabled]="isRequestActionLoading(request.id)">
+            {{ isRequestActionLoading(request.id) ? t('جارٍ...', 'Working...') : t('موافقة', 'Approve') }}
+          </button>
+          <button class="z-btn-danger" type="button" (click)="rejectRequest(request.id)" [disabled]="isRequestActionLoading(request.id)">
+            {{ isRequestActionLoading(request.id) ? t('جارٍ...', 'Working...') : t('رفض', 'Reject') }}
+          </button>
+        </div>
+      </article>
+
+      <div class="empty-state" *ngIf="filteredRequests().length === 0">
+        <span class="material-icons empty-icon">pending_actions</span>
+        <div class="empty-title">{{ t('لا توجد طلبات مطابقة.', 'No matching requests.') }}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="z-card" *ngIf="view() === 'map' && isHrOrManager">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ t('الخريطة ومواقع العمل', 'Map & work locations') }}</h2>
+      </div>
+      <button class="z-btn-primary" type="button" *ngIf="isHr" (click)="openLocationModal()">{{ t('إضافة موقع', 'Add location') }}</button>
+    </div>
+
+    <div class="loading-wrap" *ngIf="mapLoading()"><div class="spinner"></div></div>
+
+    <div class="empty-state" *ngIf="!mapLoading() && mapError()">
+      <span class="material-icons empty-icon">error</span>
+      <div class="empty-title">{{ mapError() }}</div>
+      <button class="z-btn-secondary" type="button" (click)="loadMap()">{{ t('إعادة المحاولة', 'Retry') }}</button>
+    </div>
+
+    <div class="map-grid" *ngIf="!mapLoading() && !mapError()">
+      <section class="map-panel">
+        <h3>{{ t('المواقع المعتمدة', 'Approved locations') }}</h3>
+        <div class="location-list" *ngIf="workLocations().length > 0; else noLocations">
+          <article class="location-card" *ngFor="let location of workLocations()">
+            <strong>{{ locationName(location) }}</strong>
+            <span>{{ location.radiusMeters }}m</span>
+            <span>{{ location.address || '—' }}</span>
+            <a [href]="mapsUrl(location.latitude, location.longitude)" target="_blank">{{ t('فتح الخريطة', 'Open map') }}</a>
+            <button class="z-btn-danger" type="button" *ngIf="isHr" (click)="deleteLocation(location.id)" [disabled]="isRequestActionLoading(location.id)">
+              {{ isRequestActionLoading(location.id) ? t('جارٍ...', 'Working...') : t('حذف', 'Delete') }}
+            </button>
+          </article>
+        </div>
+        <ng-template #noLocations>
+          <div class="empty-state compact-empty">
+            <div class="empty-title">{{ t('لا توجد مواقع عمل حالياً.', 'No work locations yet.') }}</div>
+          </div>
+        </ng-template>
+      </section>
+
+      <section class="map-panel">
+        <h3>{{ t('سجلات الحضور الميدانية', 'Today field records') }}</h3>
+        <div class="location-list" *ngIf="mapRecords().length > 0; else noMapRecords">
+          <article class="location-card" *ngFor="let record of mapRecords()">
+            <strong>{{ employeeName(record) }}</strong>
+            <span>{{ fmtTime(record.clockIn) }}</span>
+            <a [href]="mapsUrl(record.latitude, record.longitude)" target="_blank">{{ t('موقع تسجيل الحضور', 'Check-in map') }}</a>
+          </article>
+        </div>
+        <ng-template #noMapRecords>
+          <div class="empty-state compact-empty">
+            <div class="empty-title">{{ t('لا توجد سجلات ميدانية اليوم.', 'No field records today.') }}</div>
+          </div>
+        </ng-template>
+      </section>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showRequestModal()" (click)="showRequestModal.set(false)">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div><h2 class="z-heading">{{ t('طلب تصحيح حضور', 'Attendance correction request') }}</h2></div>
+      </header>
+      <div class="modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('نوع الطلب', 'Request type') }}</span>
+          <select class="z-input" [(ngModel)]="requestForm.requestType">
+            <option value="correction">{{ t('تصحيح وقت', 'Time correction') }}</option>
+            <option value="missing_punch">{{ t('بصمة مفقودة', 'Missing punch') }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('التاريخ', 'Date') }}</span>
+          <input class="z-input" type="date" [(ngModel)]="requestForm.requestDate">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('وقت الحضور المطلوب', 'Requested in') }}</span>
+          <input class="z-input" type="time" [(ngModel)]="requestForm.requestedClockIn">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('وقت الانصراف المطلوب', 'Requested out') }}</span>
+          <input class="z-input" type="time" [(ngModel)]="requestForm.requestedClockOut">
+        </label>
+        <label class="field field-full">
+          <span class="z-label">{{ t('السبب', 'Reason') }}</span>
+          <textarea class="z-input text-area" [(ngModel)]="requestForm.reason"></textarea>
+        </label>
+      </div>
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="showRequestModal.set(false)">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="submitRequest()" [disabled]="requestSubmitting()">
+          {{ requestSubmitting() ? t('جارٍ الإرسال...', 'Submitting...') : t('إرسال', 'Submit') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showLocationModal()" (click)="showLocationModal.set(false)">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()">
+      <header class="modal-head">
+        <div><h2 class="z-heading">{{ t('إضافة موقع عمل', 'Add work location') }}</h2></div>
+      </header>
+      <div class="modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('الاسم بالعربية', 'Arabic name') }}</span>
+          <input class="z-input" [(ngModel)]="locationForm.nameAr">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('الاسم بالإنجليزية', 'English name') }}</span>
+          <input class="z-input" [(ngModel)]="locationForm.nameEn">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('العنوان', 'Address') }}</span>
+          <input class="z-input" [(ngModel)]="locationForm.address">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('خط العرض', 'Latitude') }}</span>
+          <input class="z-input" type="number" [(ngModel)]="locationForm.latitude">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('خط الطول', 'Longitude') }}</span>
+          <input class="z-input" type="number" [(ngModel)]="locationForm.longitude">
+        </label>
+        <label class="field field-full">
+          <span class="z-label">{{ t('نطاق الموقع بالمتر', 'Radius (m)') }}</span>
+          <input class="z-input" type="number" [(ngModel)]="locationForm.radiusMeters">
+        </label>
+      </div>
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="showLocationModal.set(false)">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" type="button" (click)="saveLocation()" [disabled]="locationSaving()">
+          {{ locationSaving() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ', 'Save') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <app-confirm-dialog
+    [open]="confirmAction() !== null"
+    [title]="confirmAction()?.type === 'approve-request' ? t('اعتماد الطلب', 'Approve request') : t('حذف الموقع', 'Delete location')"
+    [message]="confirmAction()?.type === 'approve-request' ? t('هل تريد الموافقة على هذا الطلب؟', 'Do you want to approve this request?') : t('هل تريد حذف هذا الموقع؟', 'Do you want to delete this location?')"
+    [confirmLabel]="confirmAction()?.type === 'approve-request' ? t('موافقة', 'Approve') : t('حذف', 'Delete')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loading]="confirmAction() !== null && isRequestActionLoading(confirmAction()!.id)"
+    [tone]="confirmAction()?.type === 'approve-request' ? 'primary' : 'danger'"
+    (confirm)="submitConfirmAction()"
+    (cancel)="closeConfirmDialog()"
+  />
+
+  <app-reject-reason-dialog
+    [open]="rejectDialogOpen()"
+    [title]="t('رفض الطلب', 'Reject request')"
+    [message]="t('يرجى إدخال سبب الرفض قبل المتابعة.', 'Please provide a rejection reason before continuing.')"
+    [placeholder]="t('سبب الرفض', 'Rejection reason')"
+    [confirmLabel]="t('رفض', 'Reject')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loading]="rejectTargetId() !== null && isRequestActionLoading(rejectTargetId()!)"
+    [error]="rejectDialogError()"
+    (confirm)="submitRejectReason($event)"
+    (cancel)="closeRejectDialog()"
+  />
+</section>

@@ -1,0 +1,279 @@
+<div class="page-header">
+  <div>
+    <h1>{{ lang.t('المسميات الوظيفية', 'Job Descriptions') }}</h1>
+    <p class="text-muted">{{ lang.t('تعريف المسميات والمتطلبات', 'Define job titles and requirements') }}</p>
+  </div>
+  <button class="btn btn-primary" (click)="openAdd()" *ngIf="canCreate">
+    + {{ lang.t('إضافة مسمى', 'Add Job') }}
+  </button>
+</div>
+
+<div class="tabs">
+  <div class="tab" [class.on]="activeTab==='jobs'" (click)="activeTab='jobs'">
+    {{ lang.t('المسميات','Jobs') }}
+  </div>
+  <div class="tab" [class.on]="activeTab==='paths'" (click)="activeTab='paths'">
+    {{ lang.t('مسارات المسيرة','Career Paths') }}
+  </div>
+</div>
+
+<ng-container *ngIf="activeTab==='jobs'">
+<div *ngIf="loading" class="table-wrapper">
+  <div *ngFor="let i of [1,2,3,4,5]" class="skeleton skeleton-row" style="margin-bottom:1px"></div>
+</div>
+
+<div *ngIf="!loading" class="table-wrapper">
+  <div class="table-toolbar">
+    <input class="form-input" style="width:220px"
+           [placeholder]="lang.t('بحث...','Search...')"
+           [(ngModel)]="searchTerm" (input)="applyFilter()">
+    <select class="form-select" style="width:140px" [(ngModel)]="filterGrade" (change)="applyFilter()">
+      <option value="">{{ lang.t('كل الدرجات','All Grades') }}</option>
+      <option *ngFor="let g of grades" [value]="g">{{ g }}</option>
+    </select>
+  </div>
+  <table class="z-table">
+    <thead>
+      <tr>
+        <th>{{ lang.t('المسمى','Title') }}</th>
+        <th>{{ lang.t('الوحدة التنظيمية','Org Unit') }}</th>
+        <th>{{ lang.t('الدرجة','Grade') }}</th>
+        <th>{{ lang.t('نطاق الراتب','Salary Range') }}</th>
+        <th>{{ lang.t('الحالة','Status') }}</th>
+        <th class="col-actions">{{ lang.t('إجراءات','Actions') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let job of filteredJobs">
+        <td>
+          <div style="font-weight:600">{{ lang.isAr ? job.titleAr : job.titleEn }}</div>
+          <div class="text-muted fs-12">{{ lang.isAr ? job.titleEn : job.titleAr }}</div>
+        </td>
+        <td>{{ getNodeName(job.orgNodeId) }}</td>
+        <td><span class="badge badge-neutral">{{ job.grade || '—' }}</span></td>
+        <td class="mono">
+          <span *ngIf="job.minSalary || job.maxSalary">
+            {{ job.minSalary | number:'1.0-0' }} – {{ job.maxSalary | number:'1.0-0' }} JOD
+          </span>
+          <span *ngIf="!job.minSalary && !job.maxSalary" class="text-muted">—</span>
+        </td>
+        <td>
+          <span class="badge" [ngClass]="job.isActive ? 'badge-success' : 'badge-neutral'">
+            <span class="b-dot"></span>
+            {{ job.isActive ? lang.t('نشط','Active') : lang.t('موقوف','Inactive') }}
+          </span>
+        </td>
+        <td>
+          <div class="act-c">
+            <button class="btn-icon" (click)="openView(job)" [title]="lang.t('عرض','View')">👁️</button>
+            <button class="btn-icon" (click)="openEdit(job)" [title]="lang.t('تعديل','Edit')">✏️</button>
+            <button class="btn-icon" (click)="delete(job.id)" [title]="lang.t('حذف','Delete')"
+                    style="color:var(--c-danger)">🗑</button>
+          </div>
+        </td>
+      </tr>
+      <tr *ngIf="filteredJobs.length === 0">
+        <td colspan="6" class="table-empty">
+          <div class="empty-icon">📋</div>
+          {{ lang.t('لا توجد مسميات وظيفية','No job descriptions found') }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</ng-container>
+
+<ng-container *ngIf="activeTab==='paths'">
+  <div class="page-header" style="margin-top:16px">
+    <span></span>
+    <button class="btn btn-primary" (click)="showPathModal=true">
+      + {{ lang.t('إضافة مسار','Add Path') }}
+    </button>
+  </div>
+  <div class="table-wrapper">
+    <table class="z-table">
+      <thead><tr>
+        <th>{{ lang.t('من مسمى','From Job') }}</th>
+        <th>→</th>
+        <th>{{ lang.t('إلى مسمى','To Job') }}</th>
+        <th>{{ lang.t('الحد الأدنى (شهور)','Min Months') }}</th>
+        <th>{{ lang.t('ملاحظات','Notes') }}</th>
+        <th class="col-actions"></th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let p of paths">
+          <td style="font-weight:600">{{ getJobLabel(p.fromJobDescriptionId) }}</td>
+          <td><span style="color:var(--c-accent);font-size:18px">→</span></td>
+          <td style="font-weight:600">{{ getJobLabel(p.toJobDescriptionId) }}</td>
+          <td class="mono">{{ p.minMonthsRequired }}</td>
+          <td class="text-muted">{{ p.notes || '—' }}</td>
+          <td>
+            <button class="btn-icon" (click)="deletePath(p.id)"
+                    style="color:var(--c-danger)">🗑</button>
+          </td>
+        </tr>
+        <tr *ngIf="paths.length===0">
+          <td colspan="6" class="table-empty">
+            {{ lang.t('لا توجد مسارات محددة','No career paths defined') }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="showPathModal" class="modal-overlay" (click)="showPathModal=false">
+    <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:480px">
+      <div class="modal-header">
+        <h3>{{ lang.t('مسار مسيرة جديد','New Career Path') }}</h3>
+        <button class="btn-icon" (click)="showPathModal=false">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label required">{{ lang.t('من مسمى','From Job') }}</label>
+          <select class="form-select" [(ngModel)]="pathForm.fromJobId">
+            <option [value]="null">{{ lang.t('اختر...','Select...') }}</option>
+            <option *ngFor="let j of jobs" [value]="j.id">{{ lang.isAr ? j.titleAr : j.titleEn }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label required">{{ lang.t('إلى مسمى','To Job') }}</label>
+          <select class="form-select" [(ngModel)]="pathForm.toJobId">
+            <option [value]="null">{{ lang.t('اختر...','Select...') }}</option>
+            <option *ngFor="let j of jobs" [value]="j.id">{{ lang.isAr ? j.titleAr : j.titleEn }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('الحد الأدنى بالشهور','Min Months Required') }}</label>
+          <input class="form-input" type="number" [(ngModel)]="pathForm.minMonthsRequired" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('ملاحظات','Notes') }}</label>
+          <textarea class="form-textarea" rows="2" [(ngModel)]="pathForm.notes"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="showPathModal=false">{{ lang.t('إلغاء','Cancel') }}</button>
+        <button class="btn btn-primary" (click)="savePath()">{{ lang.t('حفظ','Save') }}</button>
+      </div>
+    </div>
+  </div>
+</ng-container>
+
+<div *ngIf="showModal" class="modal-overlay" (click)="closeModal()">
+  <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:640px">
+    <div class="modal-header">
+      <h3>{{ editingJob ? lang.t('تعديل المسمى','Edit Job') : lang.t('مسمى جديد','New Job') }}</h3>
+      <button class="btn-icon" (click)="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label required">{{ lang.t('الاسم بالعربية','Name (Arabic)') }}</label>
+          <input class="form-input" [(ngModel)]="form.titleAr">
+        </div>
+        <div class="form-group">
+          <label class="form-label required">{{ lang.t('الاسم بالإنجليزية','Name (English)') }}</label>
+          <input class="form-input" [(ngModel)]="form.titleEn">
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('الوحدة التنظيمية','Org Unit') }}</label>
+          <select class="form-select" [(ngModel)]="form.orgNodeId">
+            <option [ngValue]="null">—</option>
+            <option *ngFor="let n of orgNodes" [ngValue]="n.id">
+              {{ lang.isAr ? n.nameAr : n.nameEn }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('الدرجة الوظيفية','Grade') }}</label>
+          <select class="form-select" [(ngModel)]="form.grade">
+            <option value="">—</option>
+            <option *ngFor="let g of ['G1','G2','G3','G4','G5','G6','G7','G8','G9','G10']">{{ g }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('الحد الأدنى للراتب','Min Salary (JOD)') }}</label>
+          <input class="form-input" type="number" [(ngModel)]="form.minSalary">
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang.t('الحد الأقصى للراتب','Max Salary (JOD)') }}</label>
+          <input class="form-input" type="number" [(ngModel)]="form.maxSalary">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">{{ lang.t('المسؤوليات (سطر لكل بند)','Responsibilities (one per line)') }}</label>
+        <textarea class="form-textarea" rows="3" [(ngModel)]="responsibilitiesText"
+                  [placeholder]="lang.t('إدارة الفريق...','Manage the team...')"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ lang.t('المتطلبات','Requirements') }}</label>
+        <textarea class="form-textarea" rows="3" [(ngModel)]="requirementsText"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ lang.t('المهارات','Skills') }}</label>
+        <textarea class="form-textarea" rows="2" [(ngModel)]="skillsText"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ lang.t('المؤهلات','Qualifications') }}</label>
+        <textarea class="form-textarea" rows="2" [(ngModel)]="qualificationsText"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" [(ngModel)]="form.isActive">
+          {{ lang.t('نشط','Active') }}
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeModal()">{{ lang.t('إلغاء','Cancel') }}</button>
+      <button class="btn btn-primary" (click)="save()" [disabled]="saving">
+        <span class="btn-spinner" *ngIf="saving"></span>
+        {{ saving ? lang.t('جارٍ الحفظ...','Saving...') : lang.t('حفظ','Save') }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Side Drawer -->
+<div *ngIf="showDrawer" class="drawer-overlay" (click)="closeDrawer()">
+  <div class="drawer-panel" (click)="$event.stopPropagation()">
+    <div class="drawer-header">
+      <div>
+        <h3>{{ lang.isAr ? viewingJob?.titleAr : viewingJob?.titleEn }}</h3>
+        <p class="text-muted fs-12">{{ lang.isAr ? viewingJob?.titleEn : viewingJob?.titleAr }}</p>
+      </div>
+      <button class="btn-icon" (click)="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-meta">
+        <span class="badge badge-neutral">{{ viewingJob?.grade || '—' }}</span>
+        <span class="text-muted fs-12">
+          {{ lang.t('نطاق الراتب:','Salary:') }}
+          {{ viewingJob?.minSalary | number:'1.0-0' }} –
+          {{ viewingJob?.maxSalary | number:'1.0-0' }} JOD
+        </span>
+        <span class="badge" [ngClass]="viewingJob?.isActive ? 'badge-success':'badge-neutral'">
+          {{ viewingJob?.isActive ? lang.t('نشط','Active') : lang.t('موقوف','Inactive') }}
+        </span>
+      </div>
+
+      <ng-container *ngFor="let section of drawerSections">
+        <div class="section-title" style="margin-top:20px">{{ section.label | tr }}</div>
+        <ul style="padding-inline-start:20px;margin-top:8px">
+          <li *ngFor="let item of parseJson(viewingJob?.[section.field])"
+              style="margin-bottom:4px;font-size:13.5px">{{ item }}</li>
+          <li *ngIf="parseJson(viewingJob?.[section.field]).length===0"
+              class="text-muted fs-12">{{ lang.t('لا يوجد','None') }}</li>
+        </ul>
+      </ng-container>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" (click)="closeDrawer()">{{ lang.t('إغلاق','Close') }}</button>
+      <button class="btn btn-primary" (click)="openEdit(viewingJob); closeDrawer()">
+        {{ lang.t('تعديل','Edit') }}
+      </button>
+    </div>
+  </div>
+</div>

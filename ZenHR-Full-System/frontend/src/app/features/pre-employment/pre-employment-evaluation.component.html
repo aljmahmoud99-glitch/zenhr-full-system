@@ -1,0 +1,138 @@
+<section class="z-page pre-evaluation-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('تقييم التجربة', 'Probation Evaluation') }}</span>
+      <h1 class="z-title">{{ t('صفحة تقييم الموظف الجديد', 'New Hire Evaluation') }}</h1>
+      <p class="z-body">{{ t('قيّم الأشهر الثلاثة، راجع متطلبات الموارد البشرية، ثم احفظ القرار النهائي.', 'Review the three probation months, HR requirements, and final decision in one place.') }}</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" (click)="goBack()">
+        <span class="material-icons">arrow_back</span>
+        {{ t('العودة للسجلات', 'Back to Records') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="loading-wrap" *ngIf="loading()">
+    <div class="spinner"></div>
+    <div class="z-small">{{ t('جارٍ تحميل بيانات التقييم...', 'Loading evaluation data...') }}</div>
+  </div>
+
+  <section class="z-card alert alert-error" *ngIf="!loading() && error()">
+    <div>{{ error() }}</div>
+    <button class="z-btn-secondary" type="button" (click)="load()">{{ t('إعادة المحاولة', 'Retry') }}</button>
+  </section>
+
+  <ng-container *ngIf="!loading() && record() as current">
+    <section class="z-card employee-hero">
+      <div class="employee-summary">
+        <span class="avatar">{{ employeeName().slice(0, 1) }}</span>
+        <div class="identity">
+          <h2 class="z-heading">{{ employeeName() }}</h2>
+          <p class="z-small">{{ current.employeeCode }}</p>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="field-label">{{ t('المسمى الوظيفي', 'Job Title') }}</span>
+          <strong>{{ jobTitle() }}</strong>
+        </div>
+        <div class="meta-item">
+          <span class="field-label">{{ t('القسم', 'Department') }}</span>
+          <strong>{{ departmentName() }}</strong>
+        </div>
+        <div class="meta-item">
+          <span class="field-label">{{ t('حالة التجربة', 'Probation Status') }}</span>
+          <span class="z-badge" [class]="statusClass(current.evaluationStatus)">{{ statusLabel(current.evaluationStatus) }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="field-label">{{ t('نهاية التجربة', 'Probation End Date') }}</span>
+          <strong>{{ current.probationEndDate | date:'dd/MM/yyyy' }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="month-grid">
+      <article class="z-card month-card" *ngFor="let section of sections; let i = index">
+        <div class="card-head">
+          <div>
+            <h3 class="z-heading">{{ sectionLabel(section) }}</h3>
+            <p class="z-small">{{ t('سجّل تقييم الشهر وملاحظاتك الرئيسية.', 'Record the month rating and your main notes.') }}</p>
+          </div>
+          <span class="month-pill">{{ i + 1 }}/3</span>
+        </div>
+
+        <div class="field">
+          <span class="field-label">{{ t('التقييم (1 - 5)', 'Rating (1 - 5)') }}</span>
+          <select class="z-input" [(ngModel)]="section.rating">
+            <option [ngValue]="null">{{ t('اختر التقييم', 'Select rating') }}</option>
+            <option [ngValue]="1">1</option>
+            <option [ngValue]="2">2</option>
+            <option [ngValue]="3">3</option>
+            <option [ngValue]="4">4</option>
+            <option [ngValue]="5">5</option>
+          </select>
+          <div class="field-error" *ngIf="attempted() && !section.rating">{{ t('يرجى اختيار تقييم لهذا الشهر.', 'Please select a rating for this month.') }}</div>
+        </div>
+
+        <label class="field">
+          <span class="field-label">{{ t('ملاحظات الشهر', 'Month Notes') }}</span>
+          <textarea class="z-input" rows="5" [(ngModel)]="section.notes" [placeholder]="t('دوّن أبرز النقاط المتعلقة بالأداء والتعلم والسلوك.', 'Capture the key notes about performance, learning, and behavior.')"></textarea>
+        </label>
+      </article>
+    </section>
+
+    <section class="z-card checklist-card">
+      <h2 class="z-heading">{{ t('متطلبات الموارد البشرية', 'HR Requirements') }}</h2>
+      <p class="z-small">{{ t('احفظ حالة المتطلبات الأساسية قبل اعتماد القرار النهائي.', 'Confirm the essential HR requirements before saving the final decision.') }}</p>
+
+      <div class="checklist-grid">
+        <label class="check-item">
+          <input type="checkbox" [(ngModel)]="requirements.policeClearance" />
+          <span>{{ t('عدم محكومية', 'Police Clearance') }}</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" [(ngModel)]="requirements.medicalCertificate" />
+          <span>{{ t('شهادة صحية', 'Medical Certificate') }}</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" [(ngModel)]="requirements.socialSecurityRegistered" />
+          <span>{{ t('الضمان الاجتماعي مسجل', 'Social Security Registered') }}</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="z-card decision-card">
+      <div class="decision-grid">
+        <label class="field">
+          <span class="field-label">{{ t('القرار النهائي', 'Final Decision') }}</span>
+          <select class="z-input" [(ngModel)]="finalDecision">
+            <option value="">{{ t('اختر القرار النهائي', 'Select final decision') }}</option>
+            <option value="confirm">{{ t('تثبيت', 'Confirm') }}</option>
+            <option value="extend">{{ t('تمديد', 'Extend') }}</option>
+            <option value="reject">{{ t('رفض', 'Reject') }}</option>
+          </select>
+          <div class="field-error" *ngIf="attempted() && !finalDecision">{{ t('يرجى اختيار القرار النهائي.', 'Please choose the final decision.') }}</div>
+        </label>
+
+        <label class="field field-full">
+          <span class="field-label">{{ t('ملاحظات ختامية', 'Final Notes') }}</span>
+          <textarea class="z-input" rows="5" [(ngModel)]="summaryNotes" [placeholder]="t('أضف خلاصة قرارك أو أي ملاحظات داعمة.', 'Add your overall summary or supporting remarks.')"></textarea>
+        </label>
+      </div>
+
+      <div class="alert alert-error" *ngIf="formError()">{{ formError() }}</div>
+
+      <div class="decision-actions">
+        <button class="z-btn-secondary" type="button" (click)="goBack()" [disabled]="saving()">
+          {{ t('إلغاء', 'Cancel') }}
+        </button>
+        <button class="z-btn-primary" type="button" (click)="save()" [disabled]="saving()">
+          {{ saving() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ التقييم', 'Save Evaluation') }}
+        </button>
+      </div>
+    </section>
+  </ng-container>
+</section>

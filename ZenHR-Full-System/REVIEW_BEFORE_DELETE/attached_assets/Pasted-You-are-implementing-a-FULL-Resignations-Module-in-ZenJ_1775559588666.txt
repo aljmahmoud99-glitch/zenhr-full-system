@@ -1,0 +1,345 @@
+You are implementing a FULL Resignations Module in ZenJO HRMS.
+
+This is a core HR lifecycle module.
+It must handle resignation requests, approvals, notice period, exit workflow, final settlement, and archiving.
+
+Do NOT build a simple table or form.
+Build a complete resignation management workflow.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Create a Resignations module where the system can:
+
+* track resignation requests
+* manage approvals
+* calculate notice period
+* handle exit interview
+* manage clearance / handover
+* support final settlement
+* archive the full resignation journey
+
+═══════════════════════════════════════════════════════
+
+1. MAIN MODULE ROUTE
+   ═══════════════════════════════════════════════════════
+
+/app/resignations
+
+Sub routes:
+
+/app/resignations/list
+/app/resignations/create
+/app/resignations/:id
+/app/resignations/settings
+
+═══════════════════════════════════════════════════════
+2) RESIGNATION LIST (MAIN SCREEN)
+═══════════════════════════════════════════════════════
+
+Display a table with:
+
+* Employee Name
+* Department
+* Job Title
+* Resignation Submission Date
+* Last Working Day
+* Status (Pending / Approved / Rejected / Completed)
+
+Features:
+
+* Search by employee
+* Filter by status
+* Filter by department
+* Filter by resignation date
+* Click row → open resignation details
+
+═══════════════════════════════════════════════════════
+3) SUBMIT RESIGNATION
+═══════════════════════════════════════════════════════
+
+Support 2 ways:
+
+1. Employee submits their own resignation through self-service
+2. HR creates resignation manually on behalf of employee
+
+Form fields:
+
+* Employee
+* Reason for resignation (optional or required based on config)
+* Last Working Day
+* Notes
+
+Optional:
+
+* Attachment upload
+* Resignation letter file
+
+═══════════════════════════════════════════════════════
+4) APPROVAL WORKFLOW
+═══════════════════════════════════════════════════════
+
+Implement configurable approval workflow.
+
+Default flow:
+
+1. Direct Manager
+2. HR
+3. Senior Management (optional)
+
+Each approver can:
+
+* Approve
+* Reject
+* Request changes / send back
+
+System must:
+
+* track who approved
+* track approval dates
+* show current workflow step
+* show full approval history
+
+═══════════════════════════════════════════════════════
+5) NOTICE PERIOD
+═══════════════════════════════════════════════════════
+
+Implement notice period logic.
+
+Requirements:
+
+* calculate notice period automatically (example: 30 days)
+* compare resignation date vs last working day
+* alert if employee does not complete notice period
+
+Support these cases:
+
+* employee serves full notice
+* employee leaves early
+* company waives notice
+* payment in lieu of notice
+
+Store:
+
+* resignation date
+* notice end date
+* actual last working day
+* notice compliance status
+
+═══════════════════════════════════════════════════════
+6) EXIT INTERVIEW
+═══════════════════════════════════════════════════════
+
+Add a dedicated Exit Interview section.
+
+Fields:
+
+* Why are you leaving?
+* Employee feedback about the company
+* Problems faced
+* Suggestions for improvement
+
+This can be:
+
+* filled by employee
+* reviewed by HR
+
+Store responses in DB.
+
+═══════════════════════════════════════════════════════
+7) CLEARANCE / HANDOVER
+═══════════════════════════════════════════════════════
+
+Before resignation is completed, employee must pass clearance process.
+
+Create checklist sections such as:
+
+* IT
+* Administration
+* Finance
+
+Checklist examples:
+
+* laptop returned
+* access card returned
+* files handed over
+* equipment returned
+* outstanding loans checked
+* financial clearance completed
+
+Each checklist item should have:
+
+* status
+* completed by
+* completion date
+* notes
+
+═══════════════════════════════════════════════════════
+8) FINAL SETTLEMENT
+═══════════════════════════════════════════════════════
+
+System must calculate final settlement including:
+
+* remaining salary
+* unused leave balance
+* deductions (if any)
+* end of service benefit (if applicable)
+* notice compensation if needed
+
+Integrate with payroll when possible.
+
+This section should clearly show:
+
+* earnings
+* deductions
+* final payable amount
+
+═══════════════════════════════════════════════════════
+9) EMPLOYEE STATUS UPDATE
+═══════════════════════════════════════════════════════
+
+After resignation is completed:
+
+* employee status changes from Active → Resigned
+* system account is disabled or deactivated
+* employee becomes archived in active staff views
+
+Do NOT delete employee.
+Keep historical record.
+
+═══════════════════════════════════════════════════════
+10) FULL ARCHIVING
+═══════════════════════════════════════════════════════
+
+Archive the full resignation record including:
+
+* resignation request
+* approval history
+* exit interview
+* clearance checklist
+* final settlement
+* attachments / resignation letter
+
+Everything must remain accessible to HR for future reference.
+
+═══════════════════════════════════════════════════════
+11) DATA MODEL (EXAMPLE)
+═══════════════════════════════════════════════════════
+
+resignations:
+
+* Id
+* CompanyId
+* EmployeeId
+* SubmissionDate
+* LastWorkingDay
+* Reason
+* Notes
+* Status
+* CreatedBy
+* CreatedAt
+
+resignation_approvals:
+
+* Id
+* ResignationId
+* ApprovalStep
+* ApproverId
+* Decision
+* DecisionDate
+* Notes
+
+exit_interviews:
+
+* Id
+* ResignationId
+* LeavingReason
+* CompanyFeedback
+* ProblemsFaced
+* Suggestions
+
+clearance_checklist:
+
+* Id
+* ResignationId
+* Department
+* ItemName
+* Status
+* CompletedBy
+* CompletedAt
+* Notes
+
+final_settlements:
+
+* Id
+* ResignationId
+* RemainingSalary
+* LeavePayout
+* Deductions
+* EndOfServiceBenefit
+* NoticeCompensation
+* FinalAmount
+
+═══════════════════════════════════════════════════════
+12) ROLE ACCESS
+═══════════════════════════════════════════════════════
+
+Employee:
+
+* can submit own resignation
+* can view own resignation status
+
+Manager:
+
+* can review/approve direct reports resignations
+
+HR Admin / HR Staff:
+
+* full access to resignation processing
+* manage clearance and finalization
+
+Payroll Admin:
+
+* access final settlement / payroll-related section only
+
+SuperAdmin:
+
+* not part of daily operational resignation workflow in main UI
+
+═══════════════════════════════════════════════════════
+13) UI REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+* Arabic-first (RTL)
+* clean resignation table
+* workflow timeline inside resignation details
+* clear notice period status
+* structured sections:
+  Request → Approvals → Exit Interview → Clearance → Final Settlement
+
+Recommended UI:
+
+* list page
+* detail page with tabs or timeline
+* badges for status
+* warning alerts for incomplete notice or pending clearance
+
+═══════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════
+
+The resignations module must behave like a real enterprise HR offboarding system.
+
+NOT a simple resignation form.
+
+It must:
+
+* manage approvals
+* calculate notice period
+* support exit interview
+* handle clearance
+* support final settlement
+* archive everything
+
+Build it as a complete employee exit workflow.

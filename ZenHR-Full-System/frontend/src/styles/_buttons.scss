@@ -1,0 +1,44 @@
+.z-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; border-radius: var(--z-radius-sm);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  border: none; transition: all 150ms ease; white-space: nowrap;
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  
+  .btn-icon { font-size: 16px; }
+  .btn-spinner { width: 16px; height: 16px; border: 2px solid transparent;
+                 border-top-color: currentColor; border-radius: 50%;
+                 animation: spin 0.6s linear infinite; }
+}
+.z-btn-primary {
+  @extend .z-btn;
+  background: var(--z-emerald); color: white;
+  &:hover:not(:disabled) { background: #259058; box-shadow: 0 4px 12px rgba(45,158,107,0.35); }
+  &:active:not(:disabled) { transform: translateY(1px); }
+}
+.z-btn-secondary {
+  @extend .z-btn;
+  background: var(--z-white); color: var(--z-text-primary);
+  border: 1px solid var(--z-border);
+  &:hover:not(:disabled) { background: var(--z-cream); }
+}
+.z-btn-danger {
+  @extend .z-btn;
+  background: var(--z-danger); color: white;
+  &:hover:not(:disabled) { background: #B91C1C; }
+}
+.z-btn-ghost {
+  @extend .z-btn;
+  background: transparent; color: var(--z-text-secondary);
+  &:hover:not(:disabled) { background: var(--z-cream); color: var(--z-text-primary); }
+}
+.z-btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--z-radius-sm);
+  background: transparent; border: 1px solid var(--z-border);
+  cursor: pointer; transition: all 150ms ease; color: var(--z-text-secondary);
+  &:hover { background: var(--z-cream); color: var(--z-text-primary); }
+}
+@keyframes spin { 
+  to { transform: rotate(360deg); } 
+}

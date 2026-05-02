@@ -1,0 +1,308 @@
+You are refactoring the Employee Documents + Compliance architecture in ZenJO HRMS.
+
+IMPORTANT:
+Do NOT treat Documents and Compliance as the same module.
+
+They must be separated clearly:
+
+1. Employees = input source
+2. Documents = operational document checklist + uploads
+3. Compliance = smart monitoring and status calculation layer
+
+This is a system architecture task, not just a UI task.
+
+═══════════════════════════════════════════════════════
+PRIMARY GOAL
+═══════════════════════════════════════════════════════
+
+Implement this data flow:
+
+Employees (Input)
+↓
+Documents (Auto-generated checklist + upload)
+↓
+Compliance (Analysis + status monitoring)
+
+The system must automatically create document requirements based on employee data,
+then calculate compliance status automatically.
+
+═══════════════════════════════════════════════════════
+
+1. DOCUMENTS TAB — DIRECT OPERATIONAL LAYER
+   ═══════════════════════════════════════════════════════
+
+When a new employee is added, the system must automatically create a document checklist.
+
+This checklist is per employee.
+
+Each row in the checklist should include:
+
+* Document Type
+* Requirement Status (Required / Optional)
+* Upload Status
+* Approval Status
+* Expiry Date if applicable
+
+Example:
+
+Document           Status
+Residence Permit   Required
+Work Permit        Required
+Medical Certificate Required
+National ID        Required
+Academic Certificate Optional
+
+This checklist must be generated automatically from employee data.
+
+═══════════════════════════════════════════════════════
+2) AUTO-GENERATION RULES
+═══════════════════════════════════════════════════════
+
+Document requirements must depend on employee type and nationality.
+
+Example rules:
+
+If employee is non-Jordanian:
+
+* require Work Permit
+* require Residence Permit
+* require Passport
+* require Medical Certificate
+
+If employee is Jordanian:
+
+* do NOT require Work Permit
+* do NOT require Residence Permit
+* keep National ID required
+* keep other company-required documents as configured
+
+This logic must be dynamic and rule-based.
+Do NOT hardcode UI-only conditions.
+
+═══════════════════════════════════════════════════════
+3) DOCUMENTS MODULE BEHAVIOR
+═══════════════════════════════════════════════════════
+
+Documents tab is the operational layer.
+
+HR must be able to:
+
+* see employee document checklist
+* upload document
+* replace document
+* approve / reject document if workflow exists
+* see issue date
+* see expiry date
+* see document notes
+
+This tab is where actual document data is managed.
+
+═══════════════════════════════════════════════════════
+4) COMPLIANCE TAB — SMART VIEW ONLY
+═══════════════════════════════════════════════════════
+
+Compliance tab must NOT be a manual data entry screen.
+
+It should behave as:
+
+* dashboard
+* monitoring layer
+* analysis layer
+
+It reads data from:
+
+* Documents
+* document expiry dates
+* employee type / nationality
+* required vs optional rules
+
+Then calculates:
+
+If all required documents exist and are valid:
+Compliant = true
+
+If any required document is missing or expired:
+Compliant = false
+
+Show statuses such as:
+
+* Compliant
+* Non-Compliant
+* Missing Documents
+* Expiring Soon
+* Expired
+
+═══════════════════════════════════════════════════════
+5) COMPLIANCE DASHBOARD CONTENT
+═══════════════════════════════════════════════════════
+
+Compliance tab should show:
+
+* employees with missing documents
+* employees with expired documents
+* employees with documents expiring soon
+* compliance status per employee
+* compliance summary by department if possible
+
+This is a smart monitoring screen, not a CRUD form.
+
+═══════════════════════════════════════════════════════
+6) PRACTICAL EXAMPLE
+═══════════════════════════════════════════════════════
+
+If HR adds a new employee with:
+
+* Nationality = Egyptian
+* Requires Work Permit = Yes
+
+Then the system must automatically do:
+
+Documents Tab:
+
+* add Work Permit
+* add Residence Permit
+* add Passport
+* add Medical Certificate
+
+Compliance Tab:
+
+* if these documents are not uploaded yet:
+  show:
+  Missing Work Permit
+  Missing Medical Certificate
+  Non-Compliant
+
+When HR uploads a valid Work Permit:
+
+* Documents updates immediately
+* Compliance recalculates immediately
+
+═══════════════════════════════════════════════════════
+7) AUTOMATION RULES
+═══════════════════════════════════════════════════════
+
+Implement the following automation:
+
+* create document checklist automatically when employee is created
+* update checklist when employee nationality/type changes
+* recalculate compliance automatically after:
+
+  * upload
+  * replacement
+  * approval
+  * expiry date changes
+  * employee data changes
+
+Create alerts for:
+
+* missing required documents
+* expired required documents
+* documents expiring soon
+
+═══════════════════════════════════════════════════════
+8) SUGGESTED DATA MODEL
+═══════════════════════════════════════════════════════
+
+Create or refactor structure like this:
+
+document_requirements
+
+* Id
+* CompanyId
+* EmployeeId
+* DocumentTypeId
+* IsRequired
+* IsApplicable
+* Status (missing / uploaded / approved / expired)
+* CreatedAt
+
+documents
+
+* Id
+* CompanyId
+* EmployeeId
+* DocumentTypeId
+* FileUrl
+* IssueDate
+* ExpiryDate
+* ApprovalStatus
+* Notes
+* UploadedBy
+* CreatedAt
+
+compliance_statuses
+
+* Id
+* CompanyId
+* EmployeeId
+* IsCompliant
+* MissingRequiredCount
+* ExpiredRequiredCount
+* ExpiringSoonCount
+* LastEvaluatedAt
+
+If possible, compliance_status can also be computed dynamically instead of stored,
+but the architecture must remain clearly separated.
+
+═══════════════════════════════════════════════════════
+9) UI / UX REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+Documents tab:
+
+* operational table/checklist
+* upload actions
+* replace actions
+* expiry and approval details
+
+Compliance tab:
+
+* dashboard style
+* warning cards
+* employee compliance badges
+* no unnecessary manual input
+
+Arabic-first:
+
+* RTL
+* clear status badges
+* clear labels such as:
+
+  * مطلوب
+  * اختياري
+  * منتهي
+  * ناقص
+  * متوافق
+  * غير متوافق
+
+═══════════════════════════════════════════════════════
+10) SYSTEM INTEGRATION
+═══════════════════════════════════════════════════════
+
+Compliance must integrate with:
+
+* Employee Profile
+* Attendance
+* Payroll
+* Notifications
+
+Examples:
+
+* expired work permit → block attendance if policy requires
+* expired required document → block payroll if policy requires
+* employee profile shows compliance badge
+
+═══════════════════════════════════════════════════════
+FINAL DELIVERABLE
+═══════════════════════════════════════════════════════
+
+Refactor the system so that:
+
+* Employees feed document requirements
+* Documents manage actual files and statuses
+* Compliance only monitors and calculates
+
+Do NOT merge Documents and Compliance into one messy screen.
+Keep the separation clean and enterprise-grade.
+
+This must behave like a real HR compliance architecture.

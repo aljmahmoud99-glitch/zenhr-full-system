@@ -1,0 +1,637 @@
+<section class="z-page employee-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('إدارة الموظفين', 'Workforce Management') }}</span>
+      <h1 class="z-title">{{ t('الموظفون', 'Employees') }}</h1>
+      <p class="z-body">
+        {{ t(activeEmployees + ' موظف نشط ضمن قاعدة البيانات الحالية', activeEmployees + ' active employees in the current workforce directory') }}
+      </p>
+    </div>
+
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" (click)="exportCsv()">
+        <span class="material-icons">download</span>
+        {{ t('تصدير Excel', 'Export Excel') }}
+      </button>
+      <button class="z-btn-primary" type="button" *ngIf="canManage" (click)="openCreate()">
+        <span class="material-icons">person_add</span>
+        {{ t('إضافة موظف', 'Add Employee') }}
+      </button>
+    </div>
+  </header>
+
+  <section class="stats-grid">
+    <article class="z-card z-kpi-card">
+      <div class="metric-label">{{ t('إجمالي الموظفين', 'Total Employees') }}</div>
+      <div class="metric-value">{{ filtered.length }}</div>
+      <div class="metric-subtle">{{ t('يشمل كل الحالات الحالية', 'Across all active statuses') }}</div>
+    </article>
+
+    <article class="z-card z-kpi-card accent-emerald">
+      <div class="metric-label">{{ t('الموظفون النشطون', 'Active Employees') }}</div>
+      <div class="metric-value">{{ activeEmployees }}</div>
+      <div class="metric-subtle">{{ t('جاهزون للتشغيل اليومي', 'Currently available in operations') }}</div>
+    </article>
+
+    <article class="z-card z-kpi-card accent-amber">
+      <div class="metric-label">{{ t('تحت التجربة', 'On Probation') }}</div>
+      <div class="metric-value">{{ probationEmployees }}</div>
+      <div class="metric-subtle">{{ t('تحتاج متابعة أقرب', 'Require closer HR follow-up') }}</div>
+    </article>
+
+    <article class="z-card z-kpi-card accent-purple">
+      <div class="metric-label">{{ t('غير الأردنيين', 'Non-Jordanian Staff') }}</div>
+      <div class="metric-value">{{ nonJordanianEmployees }}</div>
+      <div class="metric-subtle">{{ t('غالباً لديهم متطلبات امتثال إضافية', 'Typically carry extra compliance obligations') }}</div>
+    </article>
+  </section>
+
+  <section class="z-card filters-card">
+    <div class="filters-head">
+      <div>
+        <h2 class="z-heading">{{ t('بحث وفلاتر', 'Search & Filters') }}</h2>
+        <p class="z-small">{{ t('فلترة بالاسم أو الوحدة التنظيمية أو الحالة', 'Filter by name, org unit, and employee status') }}</p>
+      </div>
+      <button class="z-btn-ghost" type="button" *ngIf="hasActiveFilters" (click)="clearFilters()">
+        {{ t('مسح الفلاتر', 'Clear Filters') }}
+      </button>
+    </div>
+
+    <div class="filter-grid">
+      <label class="filter-field filter-search">
+        <span class="field-label">{{ t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input
+            class="z-input"
+            type="text"
+            [(ngModel)]="searchQ"
+            (ngModelChange)="applyFilters()"
+            [placeholder]="t('الاسم أو الرمز أو البريد الإلكتروني', 'Name, code, or work email')">
+        </div>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <select class="z-input" [(ngModel)]="filterOrgNode" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الوحدات', 'All Org Units') }}</option>
+          <option *ngFor="let node of assignableOrgNodes()" [value]="node.id">{{ node.breadcrumb || (lang === 'ar' ? node.nameAr : node.nameEn) }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" [(ngModel)]="filterStatus" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All Statuses') }}</option>
+          <option value="active">{{ t('نشط', 'Active') }}</option>
+          <option value="probation">{{ t('تحت التجربة', 'Probation') }}</option>
+          <option value="suspended">{{ t('موقوف', 'Suspended') }}</option>
+          <option value="terminated">{{ t('منتهي الخدمة', 'Terminated') }}</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="filter-chips" *ngIf="hasActiveFilters">
+      <span class="chip" *ngIf="searchQ">{{ t('بحث:', 'Search:') }} {{ searchQ }}</span>
+      <span class="chip" *ngIf="filterOrgNode">{{ t('وحدة:', 'Org:') }} {{ orgNodeName(+filterOrgNode) }}</span>
+      <span class="chip" *ngIf="filterStatus">{{ t('حالة:', 'Status:') }} {{ empStatus(filterStatus) }}</span>
+    </div>
+  </section>
+
+  <section class="z-table-container employee-table-shell">
+    <div class="table-toolbar">
+      <div>
+        <h2 class="z-heading">{{ t('دليل الموظفين', 'Employee Directory') }}</h2>
+        <p class="z-small">{{ t(filtered.length + ' نتيجة معروضة', filtered.length + ' results shown') }}</p>
+      </div>
+    </div>
+
+    <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+    <app-skeleton-table *ngIf="loading()" [rows]="8" [cols]="8" />
+
+    <div class="empty-state" *ngIf="!loading() && filtered.length === 0">
+      <div class="empty-icon">
+        <span class="material-icons">groups</span>
+      </div>
+      <div class="empty-title">{{ t('لا يوجد موظفون مطابقون للفلاتر الحالية', 'No employees match the current filters') }}</div>
+    </div>
+
+    <div class="table-scroll" *ngIf="!loading() && filtered.length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ t('الرمز', 'Code') }}</th>
+            <th>{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('الوحدة التنظيمية', 'Org Unit') }}</th>
+            <th>{{ t('المسمى الوظيفي', 'Job Title') }}</th>
+            <th>{{ t('الهوية / الجواز', 'ID / Passport') }}</th>
+            <th>{{ t('الجنسية', 'Nationality') }}</th>
+            <th>{{ t('الميلاد / العمر', 'Birth / Age') }}</th>
+            <th>{{ t('الجنس', 'Gender') }}</th>
+            <th>{{ t('الهاتف', 'Phone') }}</th>
+            <th>{{ t('العنوان', 'Address') }}</th>
+            <th *ngIf="canViewSalary">{{ t('الراتب الأساسي', 'Basic Salary') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th>{{ t('الامتثال', 'Compliance') }}</th>
+            <th>{{ t('إجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let emp of filtered; trackBy: trackByEmployee">
+            <td><code class="employee-code">{{ emp.employeeCode }}</code></td>
+
+            <td class="employee-cell">
+              <button class="employee-link" type="button" (click)="openDetails(emp)">
+                <span class="avatar">{{ (lang === 'ar' ? emp.fullNameAr : emp.fullNameEn).slice(0, 1) }}</span>
+                <span class="identity">
+                  <strong>{{ lang === 'ar' ? emp.fullNameAr : emp.fullNameEn }}</strong>
+                  <small>{{ emp.workEmail || '—' }}</small>
+                </span>
+              </button>
+
+              <ng-container *ngIf="emp.employmentStatus === 'probation' && probationInfo(emp) as pInfo">
+                <div class="probation-mini-bar">
+                  <div class="probation-mini-track">
+                    <div class="probation-mini-fill" [class]="'fill-' + pInfo.alertLevel" [style.width.%]="pInfo.pct"></div>
+                  </div>
+                  <div class="probation-mini-label">
+                    <span *ngIf="pInfo.alertLevel !== 'overdue'" [class]="'prob-text-' + pInfo.alertLevel">
+                      {{ t('متبقي ' + pInfo.daysLeft + ' يوم', pInfo.daysLeft + ' days left') }}
+                    </span>
+                    <span *ngIf="pInfo.alertLevel === 'overdue'" class="prob-text-overdue">
+                      {{ t('منتهية', 'Overdue') }}
+                    </span>
+                  </div>
+                </div>
+              </ng-container>
+            </td>
+
+            <td>{{ (lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) || '—' }}</td>
+            <td>{{ (lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) || '—' }}</td>
+
+            <td>
+              <div class="meta-stack">
+                <span class="meta-label">{{ employeeIdLabel(emp) }}</span>
+                <span>{{ employeeIdValue(emp) }}</span>
+              </div>
+            </td>
+
+            <td>{{ emp.nationality || '—' }}</td>
+
+            <td>
+              <div class="meta-stack">
+                <span>{{ emp.dateOfBirth ? (emp.dateOfBirth | date:'dd/MM/yyyy') : '—' }}</span>
+                <span class="meta-label">{{ age(emp) === '—' ? '—' : t(age(emp) + ' سنة', age(emp) + ' yrs') }}</span>
+              </div>
+            </td>
+
+            <td>{{ emp.gender === 'female' ? t('أنثى', 'Female') : t('ذكر', 'Male') }}</td>
+            <td>{{ emp.personalPhone || '—' }}</td>
+            <td class="address-cell">{{ emp.addressAr || '—' }}</td>
+
+            <td *ngIf="canViewSalary" class="salary-cell">
+              <div class="meta-stack">
+                <strong>{{ money(emp.basicSalary) }}</strong>
+                <span class="meta-label">{{ t('إجمالي الحزمة ', 'Package ') }}{{ money(salaryTotal(emp)) }}</span>
+              </div>
+            </td>
+
+            <td>
+              <span
+                class="z-badge"
+                [class.success]="emp.employmentStatus === 'active'"
+                [class.warning]="emp.employmentStatus === 'probation'"
+                [class.danger]="emp.employmentStatus === 'terminated' || emp.employmentStatus === 'suspended'"
+                [class.neutral]="emp.employmentStatus !== 'active' && emp.employmentStatus !== 'probation' && emp.employmentStatus !== 'terminated' && emp.employmentStatus !== 'suspended'">
+                {{ empStatus(emp.employmentStatus) }}
+              </span>
+            </td>
+
+            <td>
+              <ng-container *ngIf="complianceBadge(emp.id) as cb; else noCompliance">
+                <span class="z-badge" [class.success]="cb.overallStatus === 'compliant'" [class.warning]="cb.overallStatus === 'warning'" [class.danger]="cb.overallStatus === 'critical'">
+                  {{ complianceBadgeLabel(cb.overallStatus) }}
+                  <span *ngIf="cb.alertCount > 0">({{ cb.alertCount }})</span>
+                </span>
+              </ng-container>
+              <ng-template #noCompliance>
+                <span class="meta-label">—</span>
+              </ng-template>
+            </td>
+
+            <td>
+              <div class="action-row">
+                <button class="icon-btn primary" type="button" (click)="openDetails(emp)" [title]="t('عرض', 'View')">
+                  <span class="material-icons">visibility</span>
+                </button>
+                <button class="icon-btn" type="button" *ngIf="canManage" (click)="openEdit(emp)" [title]="t('تعديل', 'Edit')">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="icon-btn danger" type="button" *ngIf="canManage" (click)="requestDelete(emp)" [title]="t('حذف', 'Delete')">
+                  <span class="material-icons">delete</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="modal-overlay" *ngIf="showFormModal()" (click)="closeFormModal()">
+    <section class="modal-card z-card employee-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head employee-modal-head">
+        <div>
+          <h2 class="z-heading">{{ modalTitle() }}</h2>
+          <p class="z-small">
+            {{ editMode() ? t('راجع بيانات الموظف ثم احفظ التغييرات.', 'Review the employee record and save your changes.') : t('أدخل البيانات الأساسية للموظف الجديد.', 'Enter the core information for the new employee.') }}
+          </p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeFormModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="employee-modal-body">
+        <div class="loading-wrap" *ngIf="formLoading()">
+          <div class="spinner"></div>
+          <div class="z-small">{{ t('جارٍ تحميل بيانات الموظف...', 'Loading employee data...') }}</div>
+        </div>
+
+        <ng-container *ngIf="!formLoading()">
+          <div class="alert alert-error" *ngIf="formError()">{{ formError() }}</div>
+
+          <div class="employee-form-grid">
+            <section class="z-card form-section">
+              <div class="section-head">
+                <h3 class="z-heading">{{ t('البيانات الأساسية', 'Core information') }}</h3>
+              </div>
+
+              <div class="z-form-grid two-col">
+                <div class="form-group">
+                  <label class="z-label">{{ t('رمز الموظف', 'Employee Code') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['employeeCode']" [disabled]="editMode()">
+                  <div class="field-error" *ngIf="fieldError('employeeCode')">{{ fieldError('employeeCode') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('الجنس', 'Gender') }}</label>
+                  <select class="z-input" [(ngModel)]="form['gender']">
+                    <option value="male">{{ t('ذكر', 'Male') }}</option>
+                    <option value="female">{{ t('أنثى', 'Female') }}</option>
+                  </select>
+                  <div class="field-error" *ngIf="fieldError('gender')">{{ fieldError('gender') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('الاسم الأول بالعربية', 'First Name (AR)') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['firstNameAr']">
+                  <div class="field-error" *ngIf="fieldError('firstNameAr')">{{ fieldError('firstNameAr') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('اسم العائلة بالعربية', 'Last Name (AR)') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['lastNameAr']">
+                  <div class="field-error" *ngIf="fieldError('lastNameAr')">{{ fieldError('lastNameAr') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('الاسم الأول بالإنجليزية', 'First Name (EN)') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['firstNameEn']">
+                  <div class="field-error" *ngIf="fieldError('firstNameEn')">{{ fieldError('firstNameEn') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('اسم العائلة بالإنجليزية', 'Last Name (EN)') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['lastNameEn']">
+                  <div class="field-error" *ngIf="fieldError('lastNameEn')">{{ fieldError('lastNameEn') }}</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="z-card form-section">
+              <div class="section-head">
+                <h3 class="z-heading">{{ t('البيانات الوظيفية', 'Job information') }}</h3>
+              </div>
+
+              <div class="z-form-grid two-col">
+                <div class="form-group">
+                  <label class="z-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</label>
+                  <select class="z-input" [(ngModel)]="form['orgNodeId']" (ngModelChange)="onOrgNodeChange($event)">
+                    <option [ngValue]="null">{{ t('اختر الوحدة التنظيمية', 'Select org unit') }}</option>
+                    <option *ngFor="let node of assignableOrgNodes()" [ngValue]="node.id">{{ node.breadcrumb || (lang === 'ar' ? node.nameAr : node.nameEn) }}</option>
+                  </select>
+                  <div class="field-error" *ngIf="fieldError('orgNodeId')">{{ fieldError('orgNodeId') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('المسمى الوظيفي', 'Job Title') }}</label>
+                  <select class="z-input" [(ngModel)]="form['jobTitleId']">
+                    <option [ngValue]="null">{{ t('اختر المسمى الوظيفي', 'Select job title') }}</option>
+                    <option *ngFor="let j of jobTitles()" [ngValue]="j.id">{{ lang === 'ar' ? j.titleAr : j.titleEn }}</option>
+                  </select>
+                  <div class="field-error" *ngIf="fieldError('jobTitleId')">{{ fieldError('jobTitleId') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('تاريخ التعيين', 'Hire Date') }}</label>
+                  <input type="date" class="z-input" [(ngModel)]="form['hireDate']">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('نوع التوظيف', 'Employment Type') }}</label>
+                  <select class="z-input" [(ngModel)]="form['employmentType']">
+                    <option value="fulltime">{{ t('دوام كامل', 'Full Time') }}</option>
+                    <option value="parttime">{{ t('دوام جزئي', 'Part Time') }}</option>
+                    <option value="contract">{{ t('عقد', 'Contract') }}</option>
+                  </select>
+                  <div class="field-error" *ngIf="fieldError('employmentType')">{{ fieldError('employmentType') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('الحالة الوظيفية', 'Status') }}</label>
+                  <select class="z-input" [(ngModel)]="form['employmentStatus']">
+                    <option value="active">{{ t('نشط', 'Active') }}</option>
+                    <option value="probation">{{ t('تحت التجربة', 'Probation') }}</option>
+                    <option value="suspended">{{ t('موقوف', 'Suspended') }}</option>
+                    <option value="terminated">{{ t('منتهي الخدمة', 'Terminated') }}</option>
+                  </select>
+                  <div class="field-error" *ngIf="fieldError('employmentStatus')">{{ fieldError('employmentStatus') }}</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="z-card form-section">
+              <div class="section-head">
+                <h3 class="z-heading">{{ t('التواصل والهوية', 'Contact and identity') }}</h3>
+              </div>
+
+              <div class="z-form-grid two-col">
+                <div class="form-group">
+                  <label class="z-label">{{ t('البريد الإلكتروني', 'Work Email') }}</label>
+                  <input type="email" class="z-input" [(ngModel)]="form['workEmail']">
+                  <div class="field-error" *ngIf="fieldError('workEmail')">{{ fieldError('workEmail') }}</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('رقم الهاتف', 'Phone') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['personalPhone']">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('رقم الهوية الوطنية', 'National ID') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['nationalId']">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('الجنسية', 'Nationality') }}</label>
+                  <input type="text" class="z-input" [(ngModel)]="form['nationality']">
+                </div>
+              </div>
+            </section>
+
+            <section class="z-card form-section">
+              <div class="section-head">
+                <h3 class="z-heading">{{ t('الراتب والبدلات', 'Salary and allowances') }}</h3>
+              </div>
+
+              <div class="z-form-grid two-col">
+                <div class="form-group">
+                  <label class="z-label">{{ t('الراتب الأساسي (JOD)', 'Basic Salary (JOD)') }}</label>
+                  <input type="number" class="z-input" [(ngModel)]="form['basicSalary']" min="0">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('بدل السكن (JOD)', 'Housing (JOD)') }}</label>
+                  <input type="number" class="z-input" [(ngModel)]="form['housingAllowance']" min="0">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('بدل المواصلات (JOD)', 'Transport (JOD)') }}</label>
+                  <input type="number" class="z-input" [(ngModel)]="form['transportAllowance']" min="0">
+                </div>
+
+                <div class="form-group">
+                  <label class="z-label">{{ t('بدلات أخرى (JOD)', 'Other Allowances (JOD)') }}</label>
+                  <input type="number" class="z-input" [(ngModel)]="form['otherAllowances']" min="0">
+                </div>
+              </div>
+            </section>
+          </div>
+        </ng-container>
+      </div>
+
+      <footer class="modal-actions employee-modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeFormModal()" [disabled]="saving()">
+          {{ t('إلغاء', 'Cancel') }}
+        </button>
+        <button class="z-btn-primary" type="button" (click)="save()" [disabled]="saving() || formLoading()">
+          {{ saving() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ', 'Save') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showDetailsModal()" (click)="closeDetailsModal()">
+    <section class="modal-card z-card employee-details-modal" (click)="$event.stopPropagation()">
+      <header class="modal-head employee-modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('تفاصيل الموظف', 'Employee details') }}</h2>
+          <p class="z-small">{{ t('عرض منظم لجميع بيانات الموظف الأساسية.', 'A clean summary of the employee record.') }}</p>
+        </div>
+        <button class="icon-btn" type="button" (click)="closeDetailsModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+
+      <div class="employee-modal-body">
+        <div class="loading-wrap" *ngIf="detailsLoading()">
+          <div class="spinner"></div>
+          <div class="z-small">{{ t('جارٍ تحميل التفاصيل...', 'Loading details...') }}</div>
+        </div>
+
+        <div class="alert alert-error" *ngIf="!detailsLoading() && detailsError()">{{ detailsError() }}</div>
+
+        <ng-container *ngIf="!detailsLoading() && selectedEmployee() as emp">
+          <section class="employee-details-hero">
+            <div class="details-avatar">{{ (lang === 'ar' ? emp.fullNameAr : emp.fullNameEn).slice(0, 1) }}</div>
+            <div class="details-hero-copy">
+              <div class="details-name-row">
+                <h3 class="details-name">{{ lang === 'ar' ? emp.fullNameAr : emp.fullNameEn }}</h3>
+                <span
+                  class="z-badge"
+                  [class.success]="emp.employmentStatus === 'active'"
+                  [class.warning]="emp.employmentStatus === 'probation'"
+                  [class.danger]="emp.employmentStatus === 'terminated' || emp.employmentStatus === 'suspended'">
+                  {{ empStatus(emp.employmentStatus) }}
+                </span>
+              </div>
+              <div class="details-meta-grid">
+                <span>{{ emp.employeeCode }}</span>
+                <span>{{ (lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) || '—' }}</span>
+                <span>{{ (lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) || '—' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <z-accordion>
+            <z-accordion-panel
+              [title]="t('المعلومات الشخصية', 'Personal Information')"
+              icon="👤"
+              [openByDefault]="true">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الاسم بالعربية', 'Arabic name') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.fullNameAr) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الاسم بالإنجليزية', 'English name') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.fullNameEn) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الجنسية', 'Nationality') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.nationality) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ employeeIdLabel(emp) }}</span>
+                  <strong class="detail-value">{{ employeeIdValue(emp) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('تاريخ الميلاد', 'Date of birth') }}</span>
+                  <strong class="detail-value">{{ formatDate(emp.dateOfBirth) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('العمر', 'Age') }}</span>
+                  <strong class="detail-value">{{ age(emp) === '—' ? '—' : t(age(emp) + ' سنة', age(emp) + ' years') }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('البريد الإلكتروني', 'Work email') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.workEmail) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الهاتف الشخصي', 'Personal phone') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.personalPhone) }}</strong>
+                </div>
+                <div class="detail-item detail-item-wide">
+                  <span class="detail-label">{{ t('العنوان', 'Address') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.addressAr) }}</strong>
+                </div>
+              </div>
+            </z-accordion-panel>
+
+            <z-accordion-panel
+              [title]="t('المعلومات الوظيفية', 'Employment Information')"
+              icon="💼">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+                  <strong class="detail-value">{{ displayValue(lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('المسمى الوظيفي', 'Job title') }}</span>
+                  <strong class="detail-value">{{ displayValue(lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('تاريخ التعيين', 'Hire date') }}</span>
+                  <strong class="detail-value">{{ formatDate(emp.hireDate) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('نوع التوظيف', 'Employment type') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.employmentType) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('نهاية التجربة', 'Probation end') }}</span>
+                  <strong class="detail-value">{{ formatDate(emp.probationEndDate) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الحالة الوظيفية', 'Employment status') }}</span>
+                  <strong class="detail-value">{{ empStatus(emp.employmentStatus) }}</strong>
+                </div>
+              </div>
+            </z-accordion-panel>
+
+            <z-accordion-panel
+              *ngIf="canViewSalary"
+              [title]="t('الراتب والبنك', 'Salary & Bank')"
+              icon="💰">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('الراتب الأساسي', 'Basic salary') }}</span>
+                  <strong class="detail-value">{{ money(emp.basicSalary) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('إجمالي الحزمة', 'Package total') }}</span>
+                  <strong class="detail-value">{{ money(salaryTotal(emp)) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('البنك', 'Bank') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.bankName) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('رقم الحساب', 'Account number') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.bankAccountNumber) }}</strong>
+                </div>
+                <div class="detail-item detail-item-wide">
+                  <span class="detail-label">{{ t('IBAN', 'IBAN') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.iban) }}</strong>
+                </div>
+              </div>
+            </z-accordion-panel>
+
+            <z-accordion-panel
+              [title]="t('الوثائق والامتثال', 'Documents & Compliance')"
+              icon="📄">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('حالة الامتثال', 'Compliance status') }}</span>
+                  <strong class="detail-value">
+                    <ng-container *ngIf="complianceBadge(emp.id) as cb; else noDetailCompliance">
+                      {{ complianceBadgeLabel(cb.overallStatus) }}<span *ngIf="cb.alertCount > 0"> ({{ cb.alertCount }})</span>
+                    </ng-container>
+                    <ng-template #noDetailCompliance>—</ng-template>
+                  </strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('رقم الضمان', 'SSC number') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.sscNumber) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('رقم تصريح العمل', 'Work permit number') }}</span>
+                  <strong class="detail-value">{{ displayValue(emp.workPermitNumber) }}</strong>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">{{ t('انتهاء تصريح العمل', 'Work permit expiry') }}</span>
+                  <strong class="detail-value">{{ formatDate(emp.workPermitExpiry) }}</strong>
+                </div>
+              </div>
+            </z-accordion-panel>
+          </z-accordion>
+        </ng-container>
+      </div>
+
+      <footer class="modal-actions employee-modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="closeDetailsModal()">
+          {{ t('إغلاق', 'Close') }}
+        </button>
+        <button class="z-btn-primary" type="button" *ngIf="canManage && selectedEmployee()" (click)="editSelectedEmployee()">
+          {{ t('تعديل', 'Edit') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <app-confirm-dialog
+    [open]="!!pendingDeleteEmployee()"
+    [title]="t('حذف الموظف', 'Delete employee')"
+    [message]="pendingDeleteMessage()"
+    [confirmLabel]="t('حذف', 'Delete')"
+    [cancelLabel]="t('إلغاء', 'Cancel')"
+    [loadingLabel]="t('جارٍ الحذف...', 'Deleting...')"
+    [loading]="deleting()"
+    tone="danger"
+    (confirm)="confirmDelete()"
+    (cancel)="closeDeleteDialog()">
+  </app-confirm-dialog>
+</section>

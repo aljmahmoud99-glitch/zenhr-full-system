@@ -1,0 +1,17 @@
+<section class="toast-stack" *ngIf="items().length">
+  <article class="toast-card" *ngFor="let item of items()" [attr.data-type]="item.type">
+    <div class="toast-accent"></div>
+    <div class="toast-icon" [attr.data-type]="item.type">
+      <span class="material-icons">{{ iconFor(item.type) }}</span>
+    </div>
+    <div class="toast-body">
+      <div class="toast-copy">{{ item.text }}</div>
+      <div class="toast-progress">
+        <span class="toast-progress-bar" [ngStyle]="progressStyle(item.duration)"></span>
+      </div>
+    </div>
+    <button class="toast-close" type="button" (click)="toast.dismiss(item.id)">
+      <span class="material-icons">close</span>
+    </button>
+  </article>
+</section>

@@ -1,0 +1,85 @@
+.toast-stack {
+  position: fixed;
+  inset-block-end: 24px;
+  inset-inline-start: 24px;
+  z-index: 120;
+  display: grid; gap: 12px;
+  width: min(380px, calc(100vw - 48px));
+}
+
+.toast-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5px auto 1fr auto;
+  align-items: center; gap: 14px;
+  overflow: hidden;
+  border-radius: var(--z-radius-lg);
+  border: 1px solid var(--z-border);
+  background: var(--z-white);
+  box-shadow: var(--z-shadow-lg);
+  
+  .toast-accent {
+    align-self: stretch;
+    border-radius: var(--z-radius-lg) 0 0 var(--z-radius-lg);
+  }
+  
+  &.success .toast-accent { background: var(--z-success); }
+  &.error .toast-accent { background: var(--z-danger); }
+  &.info .toast-accent { background: var(--z-info); }
+  &.warning .toast-accent { background: var(--z-warning); }
+  
+  .toast-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    
+    &.success { background: #DCFCE7; color: var(--z-success); }
+    &.error { background: #FEE2E2; color: var(--z-danger); }
+    &.info { background: #DBEAFE; color: var(--z-info); }
+    &.warning { background: #FEF3C7; color: var(--z-warning); }
+  }
+  
+  .toast-message {
+    font-size: 14px; font-weight: 500;
+    color: var(--z-text-primary);
+    padding: 16px 0;
+  }
+  
+  .toast-close {
+    width: 32px; height: 32px;
+    border: none; border-radius: 50%;
+    background: transparent;
+    color: var(--z-text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    &:hover { background: var(--z-cream); color: var(--z-text-primary); }
+  }
+  
+  .toast-progress {
+    position: absolute; bottom: 0; inset-inline-start: 0; right: 0;
+    height: 3px;
+    background: rgba(0,0,0,0.08);
+    
+    .toast-progress-bar {
+      height: 100%;
+      animation: toast-shrink linear forwards;
+    }
+    
+    &.success .toast-progress-bar { background: var(--z-success); }
+    &.error .toast-progress-bar { background: var(--z-danger); }
+    &.info .toast-progress-bar { background: var(--z-info); }
+    &.warning .toast-progress-bar { background: var(--z-warning); }
+  }
+}
+
+@keyframes toast-shrink {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 768px) {
+  .toast-stack {
+    inset: 16px; width: auto;
+  }
+}
