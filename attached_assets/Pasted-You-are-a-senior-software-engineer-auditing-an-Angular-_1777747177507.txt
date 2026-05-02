@@ -1,0 +1,86 @@
+You are a senior software engineer auditing an Angular + backend RBAC system.
+
+The system is functionally working, but needs cleanup, hardening, and consistency fixes.
+
+DO NOT add new features.
+DO NOT redesign architecture.
+FOCUS ONLY on stabilization, cleanup, and correctness.
+
+Tasks:
+
+1. Remove Hardcoded Role Logic
+- Find any checks like:
+  role === 'admin'
+  role === 'employee'
+- Replace them with permission-based checks:
+  hasPermission('employees.view')
+- Ensure frontend never relies directly on role names.
+
+2. Centralize Permission System
+- Create or enforce a single source of truth:
+  AuthService or PermissionService
+- Add methods:
+  hasPermission(permission: string): boolean
+  hasAnyPermission(permissions: string[]): boolean
+- All components must use this service only.
+
+3. Sidebar Security Fix
+- Sidebar items must be controlled by permissions, NOT roles.
+- Hide items if user does not have permission.
+- Prevent access manually via URL (guard must block).
+
+4. Route Guards Hardening
+- Ensure all protected routes use a guard.
+- Guard must:
+  - Validate token
+  - Validate permissions
+  - Redirect unauthorized users cleanly
+
+5. API Error Handling (Frontend)
+- Handle:
+  401 → redirect to login
+  403 → show "unauthorized"
+  500 → show fallback message
+- Remove raw console errors in UI flow.
+
+6. API Response Consistency Check
+- Ensure all endpoints return consistent shape:
+  {
+    success: boolean,
+    data: any,
+    message?: string
+  }
+- Fix any endpoint returning raw arrays or inconsistent formats.
+
+7. Remove Dead Code
+- Delete:
+  unused services
+  unused components
+  commented blocks
+- Clean imports
+
+8. Logging Cleanup
+- Remove unnecessary console.log
+- Keep only:
+  console.error for real failures
+
+9. Basic UX Stabilization
+- Add loading states where missing
+- Prevent empty UI flicker
+- Disable buttons during API calls
+
+10. Final Verification
+- Run through:
+  dashboard
+  employees
+  roles
+  permissions
+- Ensure:
+  no console errors
+  no unauthorized leaks
+  no broken navigation
+
+Output:
+- List of files changed
+- Summary of fixes
+- Any remaining risks
