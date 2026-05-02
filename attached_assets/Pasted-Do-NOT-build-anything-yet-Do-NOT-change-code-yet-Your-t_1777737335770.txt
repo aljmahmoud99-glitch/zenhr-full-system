@@ -1,0 +1,134 @@
+Do NOT build anything yet.
+Do NOT change code yet.
+
+Your task is ONLY to audit the FRONTEND and verify if the UI truly reflects the multi-tenant org structure and role-based data.
+
+════════════════════════════
+GOAL
+════════════════════════════
+
+We already have:
+- Multi-tenant backend ✅
+- Org structure (company → branch → department) ✅
+- Role-based data scoping ✅
+
+But we suspect:
+Frontend is NOT fully reflecting this structure across screens.
+
+Your job:
+Find EXACTLY where the UI is not reflecting backend reality.
+
+════════════════════════════
+WHAT TO AUDIT
+════════════════════════════
+
+Audit ALL major screens:
+
+1. System Admin
+- /admin/companies
+- Can admin create company with branches?
+- Is form complete or partial?
+- Is data real or static?
+- After creation → does UI update?
+
+2. HR Admin
+- Dashboard
+- Employees
+- Documents
+- Attendance
+- Leaves
+- Reports
+
+Check:
+- Is company name shown?
+- Are branches visible?
+- Can user filter by branch/department?
+- Is data actually filtered from API?
+
+3. Payroll Admin
+- Payroll screens
+
+Check:
+- Is payroll grouped by branch?
+- Can user select branch?
+- Is data dynamic or static?
+
+4. Manager
+- Dashboard
+- Team view
+
+Check:
+- Does manager see ONLY team?
+- Is branch/department shown?
+- Are team stats correct?
+
+5. Employee
+- Dashboard / Profile
+
+Check:
+- Does employee see:
+  - company
+  - branch
+  - department
+  - manager
+- Or is UI generic?
+
+════════════════════════════
+CRITICAL CHECKS
+════════════════════════════
+
+For EACH screen, answer:
+
+- Does it call a real API?
+- Which endpoint?
+- Is the data scoped correctly?
+- Does UI show org structure (company/branch/department)?
+- Is anything still static/mock?
+
+════════════════════════════
+OUTPUT FORMAT (IMPORTANT)
+════════════════════════════
+
+Return a structured report like this:
+
+SCREEN: Employees Page
+- API used: GET /api/employees
+- Scoped correctly: YES/NO
+- Shows branch/department: YES/NO
+- Issues:
+  - No org filter
+  - UI does not display branch
+  - Data looks static
+
+SCREEN: Payroll Dashboard
+- API used: ...
+- Issues:
+  - Not grouped by branch
+  - Missing totals per org
+
+SCREEN: Employee Dashboard
+- Issues:
+  - Missing company/branch info
+  - Only generic widgets
+
+════════════════════════════
+DO NOT FIX ANYTHING
+════════════════════════════
+
+- Do NOT write code
+- Do NOT refactor
+- Do NOT create endpoints
+
+ONLY:
+Audit → analyze → report gaps
+
+════════════════════════════
+END GOAL
+════════════════════════════
+
+We want a FULL LIST of:
+- what works ✅
+- what is missing ❌
+- what is fake/static ⚠️
+
+After that, we will give you the implementation prompt.
