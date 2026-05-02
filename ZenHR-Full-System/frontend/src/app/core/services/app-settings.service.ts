@@ -61,13 +61,23 @@ export class AppSettingsService {
   }
 
   private async fetchSettings(): Promise<void> {
-    const response = await firstValueFrom(this.api.get<any>('/api/config'));
-    const items: SettingItem[] = response?.data ?? [];
-    const nextMap = items.reduce<Record<string, string>>((acc, item) => {
-      acc[item.key] = item.value ?? '';
-      return acc;
-    }, {});
-    this.settingsMap.set(nextMap);
-    this.loaded.set(true);
+    const token = localStorage.getItem('zenjo_token');
+    if (!token) {
+      this.loaded.set(true);
+      return;
+    }
+    try {
+      const response = await firstValueFrom(this.api.get<any>('/api/config'));
+      const items: SettingItem[] = response?.data ?? [];
+      const nextMap = items.reduce<Record<string, string>>((acc, item) => {
+        acc[item.key] = item.value ?? '';
+        return acc;
+      }, {});
+      this.settingsMap.set(nextMap);
+    } catch {
+      // Settings unavailable — use defaults silently
+    } finally {
+      this.loaded.set(true);
+    }
   }
 }

@@ -984,13 +984,42 @@ app.get("/api/payroll/slips", auth, async (req, res) => {
   }
 });
 
+// ── /my routes must be registered BEFORE /:id to avoid "my" being caught as an id param ──
+app.get("/api/payroll/slips/my", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
+    res.json({ success: true, data: slips });
+  } catch (e) {
+    console.error("[/api/payroll/slips/my]", e);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: { totalNetYTD: 0, lastPayslip: null } }); return; }
+    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
+    const ytd = slips.reduce((s, p) => s + parseFloat(p.netSalary), 0);
+    res.json({ success: true, data: { totalNetYTD: ytd, lastPayslip: slips[0] ?? null } });
+  } catch (e) {
+    console.error("[/api/payroll/slips/my/summary]", e);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 app.get("/api/payroll/slips/:id", auth, async (req, res) => {
   try {
-    const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, parseInt(req.params["id"]!)));
-    if (!slip) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    res.json(slip);
+    const idVal = parseInt(req.params["id"]!);
+    if (isNaN(idVal)) { res.status(400).json({ success: false, error: "Invalid slip ID" }); return; }
+    const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, idVal));
+    if (!slip) { res.status(404).json({ success: false, error: "Not found" }); return; }
+    res.json({ success: true, data: slip });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("[/api/payroll/slips/:id]", e);
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -2447,29 +2476,6 @@ app.get("/api/leave/types", auth, async (_req, res) => {
   try {
     const rows = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.isActive, true));
     res.json({ success: true, data: rows });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
-
-app.get("/api/payroll/slips/my", auth, async (req, res) => {
-  try {
-    const user = (req as AuthReq).user;
-    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
-    res.json({ success: true, data: slips });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
-
-app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
-  try {
-    const user = (req as AuthReq).user;
-    if (!user.employeeId) { res.json({ success: true, data: { totalNetYTD: 0, lastPayslip: null } }); return; }
-    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
-    const ytd = slips.reduce((s, p) => s + parseFloat(p.netSalary), 0);
-    res.json({ success: true, data: { totalNetYTD: ytd, lastPayslip: slips[0] ?? null } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }

@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { RoleAccessService } from '../../../core/services/role-access.service';
+import { AppSettingsService } from '../../../core/services/app-settings.service';
 
 @Component({
   selector: 'app-login',
@@ -32,6 +33,7 @@ export class LoginComponent {
     private router: Router,
     private route: ActivatedRoute,
     private roleAccess: RoleAccessService,
+    private settings: AppSettingsService,
   ) {
     this.lang.set(auth.lang);
   }
@@ -58,6 +60,7 @@ export class LoginComponent {
         // Explicitly refresh permissions after login — belt-and-suspenders
         // alongside the effect() in RoleAccessService.
         this.roleAccess.refreshPermissions();
+        void this.settings.refresh();
         const returnUrl = this.route.snapshot.queryParams['returnUrl'] || this.auth.defaultHomeUrl();
         this.router.navigateByUrl(returnUrl);
       },
