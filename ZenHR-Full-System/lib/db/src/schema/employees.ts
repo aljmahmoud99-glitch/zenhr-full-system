@@ -43,6 +43,7 @@ export const employeesTable = pgTable("employees", {
   departmentId: integer("department_id").references(() => departmentsTable.id),
   orgNodeId: integer("org_node_id"), // Phase 1: nullable FK to org_nodes, alongside departmentId
   jobTitleId: integer("job_title_id").references(() => jobTitlesTable.id),
+  jobDescriptionId: integer("job_description_id"), // Phase 2: nullable FK to job_descriptions; UI assignment is out of scope for this phase
   directManagerId: integer("direct_manager_id"),
   employmentType: varchar("employment_type", { length: 20 }).default("fulltime").notNull(),
   hireDate: date("hire_date").notNull(),

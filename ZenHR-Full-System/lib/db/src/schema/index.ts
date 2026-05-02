@@ -15,3 +15,5 @@ export * from "./configurations";
 export * from "./overtime";
 export * from "./org-nodes";
 export * from "./roles";
+export * from "./job-descriptions";
+export * from "./career-paths";
