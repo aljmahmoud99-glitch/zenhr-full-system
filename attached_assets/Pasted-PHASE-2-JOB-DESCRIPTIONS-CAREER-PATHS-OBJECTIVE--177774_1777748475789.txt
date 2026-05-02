@@ -1,0 +1,174 @@
+PHASE 2 — JOB DESCRIPTIONS & CAREER PATHS
+
+═══════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════
+Fix the broken job descriptions feature end-to-end.
+The UI exists but the backend may be missing or returning 404.
+After this phase, HR admins can define job roles, requirements, and career progressions.
+This data will later link to employee promotions and salary bands.
+
+═══════════════════════════════════
+STEP 1 — ANALYZE WHAT EXISTS
+═══════════════════════════════════
+Examine the current state systematically:
+
+1. Backend:
+   - Run GET /api/job-descriptions — what happens? 404, 500, or 200?
+   - Run GET /api/career-paths — same.
+   - Search codebase: is there a JobDescriptionsController? A CareerPathsController?
+   - Is there a job_descriptions table in the database? What columns?
+   - Is there a career_paths table?
+
+2. Frontend:
+   - Is there a job-descriptions component/page?
+   - Does it actually call the API? What URL does it call?
+   - Does it handle errors gracefully (loading state, error message)?
+   - What does the current UI look like — table? form? modal?
+   - Is there a career paths tab or section?
+
+3. Integration:
+   - Are job descriptions linked to employees? (employee.job_description_id or employee.job_title_id?)
+   - Are they linked to salary grades?
+   - Are they linked to org nodes?
+
+Document all findings before writing code.
+
+═══════════════════════════════════
+STEP 2 — DATABASE
+═══════════════════════════════════
+Ensure these tables exist (create via migration if missing, do not recreate if already there):
+
+job_descriptions:
+  id, company_id (FK), org_node_id (nullable FK → org_nodes),
+  title_ar (NOT NULL), title_en (NOT NULL), grade (varchar, e.g. G1–G10),
+  min_salary (decimal, nullable), max_salary (decimal, nullable),
+  responsibilities (TEXT — store as JSON array of strings),
+  requirements (TEXT — JSON array),
+  skills (TEXT — JSON array),
+  qualifications (TEXT — JSON array),
+  is_active (bool, default true),
+  created_at, updated_at
+
+career_paths:
+  id, company_id (FK),
+  from_job_description_id (FK → job_descriptions, RESTRICT delete),
+  to_job_description_id (FK → job_descriptions, RESTRICT delete),
+  min_months_required (int, default 12),
+  notes (TEXT, nullable)
+  UNIQUE constraint on (from_job_description_id, to_job_description_id)
+
+Validation:
+  Before creating career_path: verify both job_descriptions belong to the same company_id.
+  Before deleting job_description: check no career_paths reference it AND no employees reference it.
+  Return 409 Conflict with clear Arabic + English message if blocked.
+
+═══════════════════════════════════
+STEP 3 — BACKEND: API Endpoints
+═══════════════════════════════════
+Implement all endpoints. If they exist but are broken, fix them:
+
+Job Descriptions:
+  GET    /api/job-descriptions           → all for company, optional ?is_active=true filter
+  GET    /api/job-descriptions/:id       → single record, 404 if not found or different company
+  POST   /api/job-descriptions           → create [hradmin] — validate title_ar + title_en required
+  PUT    /api/job-descriptions/:id       → update [hradmin] — partial update allowed
+  DELETE /api/job-descriptions/:id       → [hradmin] — check constraints before delete
+
+Career Paths:
+  GET    /api/career-paths               → all for company, include job title data for both ends
+  POST   /api/career-paths               → create [hradmin] — validate uniqueness and company match
+  DELETE /api/career-paths/:id           → [hradmin] — hard delete allowed
+
+Response format for all endpoints must be consistent:
+  Success: { success: true, data: {...} }
+  Error:   { success: false, message: "..." }
+  List:    { success: true, data: [...] }
+
+All list endpoints must support:
+  - Pagination: ?page=1&pageSize=20
+  - Search: ?q=search_term (searches title_ar + title_en)
+  - Sort: ?sortBy=grade&sortDir=asc
+
+═══════════════════════════════════
+STEP 4 — FRONTEND: Fix and Improve Job Descriptions Screen
+═══════════════════════════════════
+The screen must be professional, functional, and fully Arabic-supported.
+
+Layout structure:
+  ┌─ Page Header ────────────────────────────────────────────────────┐
+  │  المسميات الوظيفية / Job Descriptions          [+ إضافة مسمى]  │
+  │  عدد المسميات: X                                                 │
+  └───────────────────────────────────────────────────────────────────┘
+  ┌─ Toolbar ─────────────────────────────────────────────────────────┐
+  │  [🔍 بحث...]  [الوحدة ▼]  [الدرجة ▼]  [الحالة ▼]  [تصدير Excel]│
+  └───────────────────────────────────────────────────────────────────┘
+  ┌─ Table ───────────────────────────────────────────────────────────┐
+  │  المسمى | الوحدة التنظيمية | الدرجة | نطاق الراتب | الحالة | ⚙ │
+  └───────────────────────────────────────────────────────────────────┘
+
+Table behavior:
+  - Clicking a row opens the detail side-drawer (not a new page)
+  - Edit and Delete buttons in the Actions column
+  - Delete shows confirmation with warning if job is assigned to employees
+  - Empty state: illustrated message in Arabic + English
+
+Add / Edit modal:
+  - Title in both Arabic and English (required)
+  - Org unit dropdown (from /api/org-nodes)
+  - Grade selector (G1–G10)
+  - Min/Max salary range inputs (JOD, numeric only, always western digits)
+  - Four expandable sections: Responsibilities | Requirements | Skills | Qualifications
+    Each section: multi-line textarea where each line becomes one array item
+  - Active/Inactive toggle
+  - Save button with loading state — disabled on submit, re-enabled on error
+  - Validation: show inline error per field, not browser alert()
+
+Career Paths Tab:
+  - Second tab on the same page: مسارات المسيرة / Career Paths
+  - Visual flow: [From Job] → [N months min] → [To Job]
+  - Cards layout (not table) showing progression arrows
+  - Add Path: select From Job → select To Job (prevent same-to-same) → months → notes
+  - Delete path: confirmation dialog
+
+Detail Side Drawer:
+  - Opens from right (RTL: opens from left)
+  - Shows all job description fields read-only
+  - Lists all employees currently in this role (from /api/employees?jobDescriptionId=X)
+  - Shows career paths leading TO and FROM this role
+  - Edit button opens the edit modal
+
+RTL requirements:
+  - All text right-aligned in Arabic mode
+  - Modal opens centered and properly contained on mobile
+  - Drawer animation slides from correct direction based on language
+  - Filter dropdowns align correctly in RTL
+
+Error handling:
+  - Every API call has loading state (skeleton or spinner)
+  - Every API call has error state with message and retry button
+  - 401: redirect to login
+  - 403: show "غير مصرح / Not Authorized" message
+  - 409: show the conflict message from backend in a dismissible alert
+  - 500: show generic error with support message
+
+═══════════════════════════════════
+CONSTRAINTS
+═══════════════════════════════════
+- Do not touch the existing employee form or employee list — they link to job titles separately.
+- Do not change the existing JobTitle entity if it exists — job descriptions are a separate, richer concept.
+- All new API routes must have proper authentication guards.
+- The page must work fully in both Arabic and English — no hardcoded text in templates.
+
+═══════════════════════════════════
+EXPECTED OUTCOME
+═══════════════════════════════════
+After this phase:
+  ✓ GET /api/job-descriptions returns 200 with data (not 404)
+  ✓ GET /api/career-paths returns 200 with data (not 404)
+  ✓ Full CRUD works — create, edit, delete all function correctly
+  ✓ Career paths can be added and visualized
+  ✓ UI is professional — no broken modals, proper RTL, clean layout
+  ✓ Filters and search work — results update without page reload
+  ✓ Arabic and English switch correctly throughout
+  ✓ Deleting a job assigned to employees shows a proper warning
