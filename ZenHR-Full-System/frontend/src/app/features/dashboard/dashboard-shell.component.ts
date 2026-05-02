@@ -21,7 +21,7 @@ import { EmployeeDashboardComponent } from './employee-dashboard.component';
     <app-payroll-dashboard *ngIf="role === 'payrolladmin'"></app-payroll-dashboard>
     <app-manager-dashboard *ngIf="role === 'manager'"></app-manager-dashboard>
     <app-employee-dashboard *ngIf="role === 'employee'"></app-employee-dashboard>
-    <app-hr-dashboard *ngIf="!role || role === 'superadmin'"></app-hr-dashboard>
+    <app-hr-dashboard *ngIf="role === 'superadmin'"></app-hr-dashboard>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })

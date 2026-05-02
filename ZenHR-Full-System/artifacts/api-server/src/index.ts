@@ -2414,6 +2414,32 @@ app.patch("/api/admin/companies/:id", auth, async (req, res) => {
   }
 });
 
+// ─── Company Registrations (self-service signup queue) ────────────────────────
+// No registrations table exists yet — return empty list so the UI renders cleanly.
+app.get("/api/admin/registrations", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (user.role !== "superadmin") {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
+  res.json({ success: true, data: [] });
+});
+
+app.post("/api/admin/registrations/:id/approve", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (user.role !== "superadmin") {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
+  res.status(404).json({ success: false, message: "Registration not found" });
+});
+
+app.post("/api/admin/registrations/:id/reject", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (user.role !== "superadmin") {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
+  res.status(404).json({ success: false, message: "Registration not found" });
+});
+
 app.post("/api/admin/impersonate/end", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (user.role !== "superadmin") {
