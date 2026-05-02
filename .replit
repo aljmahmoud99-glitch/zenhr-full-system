@@ -7,6 +7,10 @@ stack = "BEST_EFFORT_FALLBACK"
 channel = "stable-25_05"
 
 [[ports]]
+localPort = 3000
+externalPort = 3003
+
+[[ports]]
 localPort = 3001
 externalPort = 3001
 
@@ -50,13 +54,13 @@ waitForPort = 3001
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd /home/runner/workspace/ZenHR-Full-System/frontend && node_modules/.bin/ng serve --configuration=development"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/ZenHR-Full-System/frontend && bash start-dev.sh"
+waitForPort = 5000
 
 [deployment]
 deploymentTarget = "autoscale"
