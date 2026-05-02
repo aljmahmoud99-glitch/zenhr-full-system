@@ -1,0 +1,87 @@
+We need to fix Phase 1 UX and access model properly.
+
+Current issue:
+The backend/database permission foundation may exist, but HR Admin screens are not clearly visible or usable. The system currently mixes HR user screens with HR Admin configuration screens.
+
+Required product decision:
+Create a clear HR Admin / System Administration area separate from normal HR operations.
+
+Definitions:
+1. HR Admin:
+   - Can manage system configuration
+   - Can manage org structure
+   - Can manage roles and permissions
+   - Can manage users and assign roles
+   - Can see all company data
+   - Can configure screens, data scopes, reports, salary components, and workflows
+
+2. HR User / normal HR:
+   - Can use HR operational screens only according to permissions
+   - Cannot manage global system permissions unless explicitly allowed
+   - Data visibility depends on org structure/data scope
+
+Tasks:
+1. Audit current user roles:
+   - What users exist?
+   - What roles exist?
+   - Which user is currently logged in?
+   - Is there a true hradmin/system admin role?
+   - Is the current HR user mapped to hradmin or only normal HR?
+
+2. Create/ensure HR Admin navigation section:
+   Add a visible sidebar/admin section for hradmin only:
+   - System Administration / إدارة النظام
+   - Organizational Structure / الهيكل التنظيمي
+   - Roles & Permissions / الأدوار والصلاحيات
+   - User Role Assignment / ربط المستخدمين بالأدوار
+   - Data Access Scope / نطاق الوصول للبيانات
+
+3. If these pages/components do not exist, create clean functional pages:
+   - Org Structure page:
+     tree/list view of company → branch → department → section → unit
+     add/edit/soft delete nodes
+   - Roles & Permissions page:
+     list roles
+     role permission matrix: screens × actions
+     data scope selector: own / department / org_node / branch / company
+   - User Role Assignment page:
+     users list
+     assign role_id
+     assign org_node/data scope
+   Keep UI simple but professional. Do not overbuild.
+
+4. Permission visibility:
+   - HR Admin must ALWAYS see the admin section and all admin screens.
+   - Normal HR should not see admin screens unless permission says so.
+   - Do not hide these screens from hradmin due to missing permission seed.
+   - Add a safe isHrAdmin check based on existing role string and/or role_id.
+   - Ensure hradmin has full permissions in /api/permissions/my.
+
+5. Data reflection across system:
+   - Org structure must replace/augment department filters across HR screens.
+   - User role/data scope must affect employee lists and related screens.
+   - Do not just create isolated admin pages; changes must be reusable by the rest of the system.
+   - Keep existing department_id for compatibility, but start using org_node_id where available.
+
+6. Auth/permissions issue:
+   - Fix /api/permissions/my integration using the same auth middleware/interceptor as the rest of the app.
+   - Do not rely on localStorage key "token" unless it is the real key.
+   - If endpoint requires auth, call it through Angular HttpClient so interceptor attaches token.
+   - If current session token is missing, ensure app redirects to login or re-authenticates cleanly.
+
+7. Safety:
+   - Do not break existing HR screens.
+   - Do not remove old role string logic yet.
+   - Do not delete existing departments.
+   - Do not rewrite login.
+   - Prefer additive changes and backward compatibility.
+
+8. Testing:
+   - Login as hradmin and confirm sidebar shows:
+     Organizational Structure
+     Roles & Permissions
+     User Role Assignment
+   - Login as normal HR and confirm admin screens are hidden unless allowed.
+   - Confirm employee list respects data scope.
+   - Confirm existing dashboard, employees, job descriptions, attendance still open.
+   - Summarize changed files and exact tests performed.
