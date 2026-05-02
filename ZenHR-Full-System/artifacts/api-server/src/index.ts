@@ -11,6 +11,7 @@ import {
   companiesTable, activityLogsTable, systemConfigurationsTable,
   overtimeRequestsTable,
   orgNodesTable, rolesTable, permissionsTable, rolePermissionsTable,
+  jobDescriptionsTable, careerPathsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
 import {
@@ -2676,20 +2677,111 @@ app.post("/api/probation/evaluations", auth, async (req, res) => {
 });
 
 // ─── Career paths ─────────────────────────────────────────────────────────────
-app.get("/api/career-paths", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+
+app.get("/api/career-paths", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const fromJd = jobDescriptionsTable;
+    const toJd = jobDescriptionsTable;
+
+    const rows = await db
+      .select({
+        id: careerPathsTable.id,
+        companyId: careerPathsTable.companyId,
+        fromJobDescriptionId: careerPathsTable.fromJobDescriptionId,
+        toJobDescriptionId: careerPathsTable.toJobDescriptionId,
+        minMonthsRequired: careerPathsTable.minMonthsRequired,
+        notes: careerPathsTable.notes,
+        createdAt: careerPathsTable.createdAt,
+      })
+      .from(careerPathsTable)
+      .where(eq(careerPathsTable.companyId, user.companyId))
+      .orderBy(asc(careerPathsTable.id));
+
+    const jdIds = Array.from(new Set(rows.flatMap(r => [r.fromJobDescriptionId, r.toJobDescriptionId])));
+    let jdMap: Record<number, { titleAr: string; titleEn: string; grade: string | null }> = {};
+    if (jdIds.length > 0) {
+      const jds = await db
+        .select({ id: jobDescriptionsTable.id, titleAr: jobDescriptionsTable.titleAr, titleEn: jobDescriptionsTable.titleEn, grade: jobDescriptionsTable.grade })
+        .from(jobDescriptionsTable)
+        .where(inArray(jobDescriptionsTable.id, jdIds));
+      jdMap = Object.fromEntries(jds.map(j => [j.id, j]));
+    }
+
+    const enriched = rows.map(r => ({
+      ...r,
+      fromJob: jdMap[r.fromJobDescriptionId] ?? null,
+      toJob: jdMap[r.toJobDescriptionId] ?? null,
+    }));
+
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.post("/api/career-paths", auth, async (req, res) => {
-  res.status(201).json({ success: true, data: { id: 1, ...req.body } });
-});
-
-app.put("/api/career-paths/:id", auth, async (req, res) => {
-  res.json({ success: true, data: { id: parseInt(req.params["id"]!), ...req.body } });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { fromJobDescriptionId, toJobDescriptionId, minMonthsRequired, notes } = req.body as {
+      fromJobDescriptionId: number; toJobDescriptionId: number; minMonthsRequired?: number; notes?: string;
+    };
+    if (!fromJobDescriptionId || !toJobDescriptionId) {
+      res.status(400).json({ success: false, message: "fromJobDescriptionId and toJobDescriptionId are required" }); return;
+    }
+    if (fromJobDescriptionId === toJobDescriptionId) {
+      res.status(400).json({ success: false, message: "لا يمكن أن يكون المسار من وإلى نفس المسمى / Cannot create a path from and to the same job" }); return;
+    }
+    const jds = await db
+      .select({ id: jobDescriptionsTable.id, companyId: jobDescriptionsTable.companyId })
+      .from(jobDescriptionsTable)
+      .where(inArray(jobDescriptionsTable.id, [fromJobDescriptionId, toJobDescriptionId]));
+    if (jds.length !== 2) {
+      res.status(404).json({ success: false, message: "One or both job descriptions not found" }); return;
+    }
+    if (jds.some(j => j.companyId !== user.companyId)) {
+      res.status(403).json({ success: false, message: "Job descriptions must belong to your company" }); return;
+    }
+    const existing = await db
+      .select({ id: careerPathsTable.id })
+      .from(careerPathsTable)
+      .where(and(eq(careerPathsTable.fromJobDescriptionId, fromJobDescriptionId), eq(careerPathsTable.toJobDescriptionId, toJobDescriptionId)));
+    if (existing.length > 0) {
+      res.status(409).json({ success: false, message: "هذا المسار موجود مسبقاً / This career path already exists" }); return;
+    }
+    const [created] = await db.insert(careerPathsTable).values({
+      companyId: user.companyId,
+      fromJobDescriptionId,
+      toJobDescriptionId,
+      minMonthsRequired: minMonthsRequired ?? 12,
+      notes: notes ?? null,
+    }).returning();
+    res.status(201).json({ success: true, data: created });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.delete("/api/career-paths/:id", auth, async (req, res) => {
-  res.status(204).send();
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(careerPathsTable).where(and(eq(careerPathsTable.id, id), eq(careerPathsTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Career path not found" }); return; }
+    await db.delete(careerPathsTable).where(eq(careerPathsTable.id, id));
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
@@ -2758,12 +2850,160 @@ app.get("/api/user-roles", auth, async (req, res) => {
 });
 
 // ─── Job descriptions ─────────────────────────────────────────────────────────
-app.get("/api/job-descriptions", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+
+app.get("/api/job-descriptions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { is_active, q, page, pageSize, sortBy, sortDir } = req.query as Record<string, string>;
+
+    const conditions = [eq(jobDescriptionsTable.companyId, user.companyId)];
+    if (is_active === "true") conditions.push(eq(jobDescriptionsTable.isActive, true));
+    if (is_active === "false") conditions.push(eq(jobDescriptionsTable.isActive, false));
+    if (q?.trim()) {
+      conditions.push(
+        sql`(${jobDescriptionsTable.titleAr} ilike ${"%" + q.trim() + "%"} OR ${jobDescriptionsTable.titleEn} ilike ${"%" + q.trim() + "%"})`
+      );
+    }
+
+    const validSortCols: Record<string, unknown> = {
+      grade: jobDescriptionsTable.grade,
+      title_ar: jobDescriptionsTable.titleAr,
+      title_en: jobDescriptionsTable.titleEn,
+      created_at: jobDescriptionsTable.createdAt,
+    };
+    const sortCol = validSortCols[sortBy ?? ""] ?? jobDescriptionsTable.titleAr;
+    const orderFn = sortDir === "desc" ? desc : asc;
+
+    const limit = Math.min(parseInt(pageSize ?? "100") || 100, 200);
+    const offset = ((parseInt(page ?? "1") || 1) - 1) * limit;
+
+    const rows = await db
+      .select()
+      .from(jobDescriptionsTable)
+      .where(and(...conditions))
+      .orderBy(orderFn(sortCol as Parameters<typeof asc>[0]))
+      .limit(limit)
+      .offset(offset);
+
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/job-descriptions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const [row] = await db.select().from(jobDescriptionsTable)
+      .where(and(eq(jobDescriptionsTable.id, id), eq(jobDescriptionsTable.companyId, user.companyId)));
+    if (!row) { res.status(404).json({ success: false, message: "Job description not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.post("/api/job-descriptions", auth, async (req, res) => {
-  res.status(201).json({ success: true, data: { id: 1, ...req.body } });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { titleAr, titleEn, grade, minSalary, maxSalary, orgNodeId, responsibilities, requirements, skills, qualifications, isActive } = req.body as Record<string, unknown>;
+    if (!titleAr || !titleEn) {
+      res.status(400).json({ success: false, message: "title_ar و title_en مطلوبان / title_ar and title_en are required" }); return;
+    }
+    const [created] = await db.insert(jobDescriptionsTable).values({
+      companyId: user.companyId,
+      titleAr: titleAr as string,
+      titleEn: titleEn as string,
+      grade: (grade as string) || null,
+      minSalary: minSalary != null ? String(minSalary) : null,
+      maxSalary: maxSalary != null ? String(maxSalary) : null,
+      orgNodeId: orgNodeId ? Number(orgNodeId) : null,
+      responsibilities: (responsibilities as string) || null,
+      requirements: (requirements as string) || null,
+      skills: (skills as string) || null,
+      qualifications: (qualifications as string) || null,
+      isActive: isActive !== false,
+    }).returning();
+    await logActivity(user.companyId, "job_description_created", `تم إنشاء المسمى الوظيفي: ${titleEn}`, null);
+    res.status(201).json({ success: true, data: created });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/job-descriptions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(jobDescriptionsTable)
+      .where(and(eq(jobDescriptionsTable.id, id), eq(jobDescriptionsTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Job description not found" }); return; }
+
+    const { titleAr, titleEn, grade, minSalary, maxSalary, orgNodeId, responsibilities, requirements, skills, qualifications, isActive } = req.body as Record<string, unknown>;
+    const updates: Partial<typeof jobDescriptionsTable.$inferInsert> = {};
+    if (titleAr !== undefined) updates.titleAr = titleAr as string;
+    if (titleEn !== undefined) updates.titleEn = titleEn as string;
+    if (grade !== undefined) updates.grade = (grade as string) || null;
+    if (minSalary !== undefined) updates.minSalary = minSalary != null ? String(minSalary) : null;
+    if (maxSalary !== undefined) updates.maxSalary = maxSalary != null ? String(maxSalary) : null;
+    if (orgNodeId !== undefined) updates.orgNodeId = orgNodeId ? Number(orgNodeId) : null;
+    if (responsibilities !== undefined) updates.responsibilities = (responsibilities as string) || null;
+    if (requirements !== undefined) updates.requirements = (requirements as string) || null;
+    if (skills !== undefined) updates.skills = (skills as string) || null;
+    if (qualifications !== undefined) updates.qualifications = (qualifications as string) || null;
+    if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+    const [updated] = await db.update(jobDescriptionsTable).set(updates).where(eq(jobDescriptionsTable.id, id)).returning();
+    await logActivity(user.companyId, "job_description_updated", `تم تعديل المسمى الوظيفي: ${updated.titleEn}`, null);
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/job-descriptions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(jobDescriptionsTable)
+      .where(and(eq(jobDescriptionsTable.id, id), eq(jobDescriptionsTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Job description not found" }); return; }
+
+    const [pathRef] = await db.select({ id: careerPathsTable.id }).from(careerPathsTable)
+      .where(sql`${careerPathsTable.fromJobDescriptionId} = ${id} OR ${careerPathsTable.toJobDescriptionId} = ${id}`)
+      .limit(1);
+    if (pathRef) {
+      res.status(409).json({ success: false, message: "لا يمكن حذف هذا المسمى لأنه مرتبط بمسار مسيرة وظيفية / Cannot delete — this job description is referenced by a career path" }); return;
+    }
+
+    const [empRef] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.jobDescriptionId as any, id), eq(employeesTable.isDeleted, false)))
+      .limit(1);
+    if (empRef) {
+      res.status(409).json({ success: false, message: "لا يمكن حذف هذا المسمى لأنه مرتبط بموظف أو أكثر / Cannot delete — one or more employees are assigned to this job description" }); return;
+    }
+
+    await db.delete(jobDescriptionsTable).where(eq(jobDescriptionsTable.id, id));
+    await logActivity(user.companyId, "job_description_deleted", `تم حذف المسمى الوظيفي: ${existing.titleEn}`, null);
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Pre-employment ───────────────────────────────────────────────────────────
