@@ -422,7 +422,7 @@ function enrichEmployee(emp: any, maps: { deptMap: Record<number, any>; jtMap: R
 app.get("/api/employees", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { search, departmentId, orgNodeId, branchId, status, page = "1", pageSize = "20" } = req.query as Record<string, string>;
+    const { search, departmentId, orgNodeId, branchId, status, jobDescriptionId, page = "1", pageSize = "20" } = req.query as Record<string, string>;
     const pageNum = parseInt(page);
     const size = parseInt(pageSize);
     const offset = (pageNum - 1) * size;
@@ -432,6 +432,7 @@ app.get("/api/employees", auth, async (req, res) => {
     const conditions = [...scopeConditions, eq(employeesTable.isDeleted, false)];
 
     if (status) conditions.push(eq(employeesTable.employmentStatus, status));
+    if (jobDescriptionId) conditions.push(eq(employeesTable.jobDescriptionId as any, parseInt(jobDescriptionId)));
     if (departmentId) conditions.push(eq(employeesTable.departmentId, parseInt(departmentId)));
     if (orgNodeId) {
       const nodeIds = await getDescendantNodeIds(parseInt(orgNodeId));
