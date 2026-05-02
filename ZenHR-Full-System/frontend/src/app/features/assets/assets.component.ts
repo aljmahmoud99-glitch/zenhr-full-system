@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
@@ -68,6 +69,7 @@ export class AssetsComponent implements OnInit {
 
   constructor(
     public auth: AuthService,
+    private access: RoleAccessService,
     private api: ApiService,
     private toast: ToastService,
     private router: Router
@@ -78,15 +80,15 @@ export class AssetsComponent implements OnInit {
   }
 
   get canManage() {
-    return this.auth.hasRole('hradmin', 'superadmin');
+    return this.access.isAny('hradmin', 'superadmin');
   }
 
   get isEmployee() {
-    return this.auth.hasRole('employee');
+    return this.access.isEmployee();
   }
 
   get canViewScopedAssets() {
-    return this.auth.hasRole('manager', 'employee', 'payrolladmin');
+    return this.access.isAny('manager', 'employee', 'payrolladmin');
   }
 
   ngOnInit() {

@@ -282,9 +282,7 @@ export class FormsComponent implements OnInit {
       this.categories = this.normalizeCategories(rawCats);
       this.allForms = this.normalizeForms(rawForms);
       this.catalogLoaded = true;
-      // Temporary debug
-      // eslint-disable-next-line no-console
-      console.log('[FormsCatalog]', { categories: this.categories, forms: this.allForms });
+      
     };
 
     this.api.get<any>('/api/forms-catalog').subscribe({

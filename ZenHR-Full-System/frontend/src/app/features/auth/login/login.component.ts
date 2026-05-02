@@ -16,7 +16,8 @@ import { AppSettingsService } from '../../../core/services/app-settings.service'
 })
 export class LoginComponent {
   username = ''; password = '';
-  error = signal(''); loading = signal(false);
+  error = signal('');
+  loading = signal(false);
   showPassword = signal(false);
   lang = signal('ar');
 

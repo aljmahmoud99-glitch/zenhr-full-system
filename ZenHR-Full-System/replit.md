@@ -78,6 +78,17 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - **employee**: Own data (ESS portal)
 - **recruiter**: Pre-employment + own ESS
 
+### RBAC Audit Pass (completed)
+- `RoleAccessService` is the **single source of truth** for all role checks in the frontend
+  - `isHrAdmin()`, `isEmployee()`, `isManager()`, `isAny(...roles)` — direct role checks
+  - `canDoAction('resource:action')` — fine-grained action-level checks via `ACTION_ACCESS` map
+  - `hasPermission(screen, action)` and `hasAnyPermission(items[])` — screen-level permission helpers
+- All 12 feature components (employees, assets, attendance, compliance, documents, employee-profile, holidays, leave, overtime, payroll, reports, job-descriptions) now use `RoleAccessService` exclusively — no direct `auth.hasRole()` calls remain in any component
+- Auth interceptor handles 403 — shows a toast warning and rethrows the error
+- `status.service.ts` dead code deleted
+- All `console.log/warn/debug` calls removed from production component code
+- Backend: all ~45 API endpoints return `{ success: boolean, data: T }` consistently; frontend uses `response.data ?? fallback` pattern throughout
+
 ## Jordan-Specific Rules
 - SSC: insurable salary = MIN(basic, 3000 JOD). Employee 7.5% + Employer 14.25%
 - EOSB: resignation <3yr = 0, ≥3yr = basic×years/12. Termination = basic×years

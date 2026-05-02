@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ApiResponse, MONTHS_AR, MONTHS_EN, PayrollRun, Payslip } from '../../core/models';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
@@ -64,7 +65,8 @@ export class PayrollComponent implements OnInit {
     public auth: AuthService,
     private api: ApiService,
     private toast: ToastService,
-    private settings: AppSettingsService
+    private settings: AppSettingsService,
+    private access: RoleAccessService
   ) {}
 
   ngOnInit() {
@@ -77,15 +79,15 @@ export class PayrollComponent implements OnInit {
   }
 
   get isAdmin() {
-    return this.auth.hasRole('hradmin', 'payrolladmin');
+    return this.access.isAny('hradmin', 'payrolladmin');
   }
 
   get isPayrollAdmin() {
-    return this.auth.hasRole('payrolladmin');
+    return this.access.isAny('payrolladmin');
   }
 
   get isEmployee() {
-    return this.auth.hasRole('employee');
+    return this.access.isEmployee();
   }
 
   readonly selectedRun = computed(() => this.allPayrollRuns().find(run => run.id === this.selectedRunId()) ?? null);

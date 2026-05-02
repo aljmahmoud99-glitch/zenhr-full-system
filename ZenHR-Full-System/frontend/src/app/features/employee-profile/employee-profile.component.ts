@@ -100,11 +100,11 @@ export class EmployeeProfileComponent implements OnInit {
   }
 
   get canManage() {
-    return this.auth.hasRole('hradmin');
+    return this.access.isHrAdmin();
   }
 
   get canEvaluate() {
-    return this.auth.hasRole('hradmin', 'manager');
+    return this.access.isAny('hradmin', 'manager');
   }
 
   ngOnInit() {
@@ -113,7 +113,7 @@ export class EmployeeProfileComponent implements OnInit {
     if (id) {
       const targetId = +id;
       this.employeeId = targetId;
-      if (this.auth.hasRole('employee') && this.auth.currentUser()?.employeeId && this.auth.currentUser()?.employeeId !== targetId) {
+      if (this.access.isEmployee() && this.auth.currentUser()?.employeeId && this.auth.currentUser()?.employeeId !== targetId) {
         this.error.set(this.lang === 'ar' ? 'لا يمكنك عرض ملف موظف آخر.' : 'You cannot view another employee profile.');
         return;
       }
@@ -185,16 +185,16 @@ export class EmployeeProfileComponent implements OnInit {
 
   canSeeTab(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'bank-ssc' | 'salary' | 'payslips' | 'disciplinary' | 'qualifications') {
     if (tab === 'personal' || tab === 'employment' || tab === 'probation') return true;
-    if (tab === 'attendance') return this.auth.hasRole('hradmin', 'manager', 'employee');
-    if (tab === 'leave') return this.auth.hasRole('hradmin', 'manager', 'employee');
-    if (tab === 'advances') return this.auth.hasRole('hradmin', 'employee', 'payrolladmin', 'manager');
-    if (tab === 'compliance') return this.auth.hasRole('hradmin', 'manager', 'employee', 'payrolladmin');
-    if (tab === 'documents') return this.auth.hasRole('hradmin', 'manager', 'employee', 'payrolladmin');
-    if (tab === 'assets') return this.auth.hasRole('hradmin', 'manager', 'employee', 'payrolladmin');
-    if (tab === 'bank-ssc' || tab === 'salary') return this.auth.hasRole('hradmin', 'payrolladmin');
-    if (tab === 'payslips') return this.auth.hasRole('hradmin', 'payrolladmin', 'employee');
-    if (tab === 'disciplinary') return this.auth.hasRole('hradmin', 'manager', 'employee');
-    if (tab === 'qualifications') return this.auth.hasRole('hradmin', 'manager', 'employee');
+    if (tab === 'attendance') return this.access.isAny('hradmin', 'manager', 'employee');
+    if (tab === 'leave') return this.access.isAny('hradmin', 'manager', 'employee');
+    if (tab === 'advances') return this.access.isAny('hradmin', 'employee', 'payrolladmin', 'manager');
+    if (tab === 'compliance') return this.access.isAny('hradmin', 'manager', 'employee', 'payrolladmin');
+    if (tab === 'documents') return this.access.isAny('hradmin', 'manager', 'employee', 'payrolladmin');
+    if (tab === 'assets') return this.access.isAny('hradmin', 'manager', 'employee', 'payrolladmin');
+    if (tab === 'bank-ssc' || tab === 'salary') return this.access.isAny('hradmin', 'payrolladmin');
+    if (tab === 'payslips') return this.access.isAny('hradmin', 'payrolladmin', 'employee');
+    if (tab === 'disciplinary') return this.access.isAny('hradmin', 'manager', 'employee');
+    if (tab === 'qualifications') return this.access.isAny('hradmin', 'manager', 'employee');
     return false;
   }
 
@@ -232,11 +232,11 @@ export class EmployeeProfileComponent implements OnInit {
   }
 
   canDo(screen: string, action: string) {
-    return screen === 'employees' && action === 'update' && this.auth.hasRole('hradmin');
+    return screen === 'employees' && action === 'update' && this.access.isHrAdmin();
   }
 
   get canEdit() {
-    return this.auth.currentUser()?.role === 'hradmin';
+    return this.access.isHrAdmin();
   }
 
   getQuals(type: string): any[] {
@@ -388,7 +388,7 @@ export class EmployeeProfileComponent implements OnInit {
       }
     });
 
-    const balancesRequest = this.auth.hasRole('employee') && this.auth.currentUser()?.employeeId === empId
+    const balancesRequest = this.access.isEmployee() && this.auth.currentUser()?.employeeId === empId
       ? this.api.get<ApiResponse<LeaveBalance[]>>('/api/leave/balances')
       : this.api.get<ApiResponse<LeaveBalance[]>>(`/api/leave/balances/${empId}`);
 

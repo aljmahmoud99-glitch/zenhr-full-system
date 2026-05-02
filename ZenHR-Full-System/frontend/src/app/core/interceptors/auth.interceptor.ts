@@ -2,6 +2,7 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { ToastService } from '../services/toast.service';
 import { throwError, catchError, switchMap, from, of } from 'rxjs';
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -57,6 +58,7 @@ function getValidToken(): Promise<string | null> {
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
+  const toast = inject(ToastService);
 
   const isAuthEndpoint = req.url.includes('/auth/login') || req.url.includes('/auth/refresh') || req.url.includes('/auth/register');
   const silentOn401 = ['/api/permissions', '/api/config'];
@@ -83,6 +85,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
           }
           if (err.status === 402) {
             router.navigate(['/subscription-expired']);
+          }
+          if (err.status === 403) {
+            toast.warning('You do not have permission to perform this action.');
           }
           return throwError(() => err);
         })

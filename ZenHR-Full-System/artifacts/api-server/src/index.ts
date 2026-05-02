@@ -83,7 +83,7 @@ app.get("/api/auth/me", auth, async (req, res) => {
     const user = (req as AuthReq).user;
     const [u] = await db.select().from(usersTable).where(eq(usersTable.id, user.userId));
     if (!u) { res.status(404).json({ success: false, message: "User not found" }); return; }
-    res.json({ id: u.id, username: u.username, email: u.email, role: u.role, companyId: u.companyId, employeeId: u.employeeId });
+    res.json({ success: true, data: { id: u.id, username: u.username, email: u.email, role: u.role, companyId: u.companyId, employeeId: u.employeeId } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -308,7 +308,7 @@ app.get("/api/dashboard/recent-activity", auth, async (req, res) => {
 });
 
 app.get("/api/dashboard/leave-stats", auth, async (_req, res) => {
-  res.json({ annual: 0, sick: 0, emergency: 0, maternity: 0, paternity: 0, other: 0 });
+  res.json({ success: true, data: { annual: 0, sick: 0, emergency: 0, maternity: 0, paternity: 0, other: 0 } });
 });
 
 app.get("/api/dashboard/headcount-by-department", auth, async (req, res) => {
@@ -346,7 +346,7 @@ app.get("/api/dashboard/headcount-by-department", auth, async (req, res) => {
 });
 
 app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
-  res.json([]);
+  res.json({ success: true, data: [] });
 });
 
 // ─── Employee enrichment helper ───────────────────────────────────────────────
@@ -461,7 +461,7 @@ app.get("/api/employees", auth, async (req, res) => {
 
     const enriched = filtered.map(e => enrichEmployee(e, maps, managerMap));
 
-    res.json({ data: enriched, total: total?.count ?? 0, page: pageNum, pageSize: size });
+    res.json({ success: true, data: enriched, total: total?.count ?? 0, page: pageNum, pageSize: size });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -474,7 +474,7 @@ app.post("/api/employees", auth, async (req, res) => {
     const body = req.body;
     const [emp] = await db.insert(employeesTable).values({ ...body, companyId: user.companyId }).returning();
     await logActivity(user.companyId, "employee_created", `New employee added: ${emp.firstNameEn} ${emp.lastNameEn}`, `${emp.firstNameEn} ${emp.lastNameEn}`);
-    res.status(201).json(emp);
+    res.status(201).json({ success: true, data: emp });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -492,7 +492,7 @@ app.get("/api/employees/:id", auth, async (req, res) => {
       const [mgr] = await db.select().from(employeesTable).where(eq(employeesTable.id, emp.directManagerId));
       if (mgr) managerMap[mgr.id] = mgr;
     }
-    res.json(enrichEmployee(emp, maps, managerMap));
+    res.json({ success: true, data: enrichEmployee(emp, maps, managerMap) });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -502,7 +502,7 @@ app.patch("/api/employees/:id", auth, async (req, res) => {
   try {
     const [emp] = await db.update(employeesTable).set(req.body).where(eq(employeesTable.id, parseInt(req.params["id"]!))).returning();
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
-    res.json(emp);
+    res.json({ success: true, data: emp });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -518,7 +518,7 @@ app.delete("/api/employees/:id", auth, async (req, res) => {
       isDeleted: true,
     }).where(eq(employeesTable.id, parseInt(req.params["id"]!))).returning();
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
-    res.json(emp);
+    res.json({ success: true, data: emp });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -528,7 +528,7 @@ app.get("/api/employees/:id/documents", auth, async (req, res) => {
   try {
     const docs = await db.select().from(documentsTable)
       .where(and(eq(documentsTable.employeeId, parseInt(req.params["id"]!)), eq(documentsTable.isDeleted, false)));
-    res.json(docs);
+    res.json({ success: true, data: docs });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -538,7 +538,7 @@ app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
   try {
     const balances = await db.select().from(leaveBalancesTable)
       .where(eq(leaveBalancesTable.employeeId, parseInt(req.params["id"]!)));
-    res.json(balances);
+    res.json({ success: true, data: balances });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -699,7 +699,7 @@ app.get("/api/departments", auth, async (req, res) => {
     const depts = await db.select().from(departmentsTable)
       .where(and(eq(departmentsTable.companyId, user.companyId), eq(departmentsTable.isDeleted, false)))
       .orderBy(asc(departmentsTable.nameEn));
-    res.json(depts);
+    res.json({ success: true, data: depts });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -709,7 +709,7 @@ app.post("/api/departments", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const [dept] = await db.insert(departmentsTable).values({ ...req.body, companyId: user.companyId }).returning();
-    res.status(201).json(dept);
+    res.status(201).json({ success: true, data: dept });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -719,7 +719,7 @@ app.get("/api/departments/:id", auth, async (req, res) => {
   try {
     const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, parseInt(req.params["id"]!)));
     if (!dept) { res.status(404).json({ success: false, message: "Department not found" }); return; }
-    res.json(dept);
+    res.json({ success: true, data: dept });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -728,7 +728,7 @@ app.get("/api/departments/:id", auth, async (req, res) => {
 app.patch("/api/departments/:id", auth, async (req, res) => {
   try {
     const [dept] = await db.update(departmentsTable).set(req.body).where(eq(departmentsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(dept);
+    res.json({ success: true, data: dept });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -750,7 +750,7 @@ app.get("/api/job-titles", auth, async (req, res) => {
     const titles = await db.select().from(jobTitlesTable)
       .where(and(eq(jobTitlesTable.companyId, user.companyId), eq(jobTitlesTable.isDeleted, false)))
       .orderBy(asc(jobTitlesTable.titleEn));
-    res.json(titles);
+    res.json({ success: true, data: titles });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -760,7 +760,7 @@ app.post("/api/job-titles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const [title] = await db.insert(jobTitlesTable).values({ ...req.body, companyId: user.companyId }).returning();
-    res.status(201).json(title);
+    res.status(201).json({ success: true, data: title });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -769,7 +769,7 @@ app.post("/api/job-titles", auth, async (req, res) => {
 app.patch("/api/job-titles/:id", auth, async (req, res) => {
   try {
     const [title] = await db.update(jobTitlesTable).set(req.body).where(eq(jobTitlesTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(title);
+    res.json({ success: true, data: title });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -792,7 +792,7 @@ app.get("/api/leave/requests", auth, async (req, res) => {
     if (employeeId) conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId)));
     if (status) conditions.push(eq(leaveRequestsTable.status, status));
     const rows = await db.select().from(leaveRequestsTable).where(and(...conditions)).orderBy(desc(leaveRequestsTable.createdAt));
-    res.json(rows);
+    res.json({ success: true, data: rows });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -804,7 +804,7 @@ app.post("/api/leave/requests", auth, async (req, res) => {
     const body = req.body;
     const [req2] = await db.insert(leaveRequestsTable).values({ ...body, status: "pending" }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
-    res.status(201).json(req2);
+    res.status(201).json({ success: true, data: req2 });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -814,7 +814,7 @@ app.get("/api/leave/requests/:id", auth, async (req, res) => {
   try {
     const [lr] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!)));
     if (!lr) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    res.json(lr);
+    res.json({ success: true, data: lr });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -826,7 +826,7 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
     const [lr] = await db.update(leaveRequestsTable).set({
       status: "approved", approvedById: user.userId, approvedAt: new Date(),
     }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(lr);
+    res.json({ success: true, data: lr });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -838,7 +838,7 @@ app.post("/api/leave/requests/:id/reject", auth, async (req, res) => {
     const [lr] = await db.update(leaveRequestsTable).set({
       status: "rejected", rejectionReason: reason,
     }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(lr);
+    res.json({ success: true, data: lr });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -850,7 +850,7 @@ app.get("/api/leave/policies", auth, async (req, res) => {
     const user = (req as AuthReq).user;
     const policies = await db.select().from(leavePoliciesTable)
       .where(and(eq(leavePoliciesTable.companyId, user.companyId), eq(leavePoliciesTable.isDeleted, false)));
-    res.json(policies);
+    res.json({ success: true, data: policies });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -860,7 +860,7 @@ app.post("/api/leave/policies", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const [policy] = await db.insert(leavePoliciesTable).values({ ...req.body, companyId: user.companyId }).returning();
-    res.status(201).json(policy);
+    res.status(201).json({ success: true, data: policy });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -869,7 +869,7 @@ app.post("/api/leave/policies", auth, async (req, res) => {
 app.patch("/api/leave/policies/:id", auth, async (req, res) => {
   try {
     const [policy] = await db.update(leavePoliciesTable).set(req.body).where(eq(leavePoliciesTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(policy);
+    res.json({ success: true, data: policy });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -884,7 +884,7 @@ app.get("/api/payroll/runs", auth, async (req, res) => {
     if (year) conditions.push(eq(payrollRunsTable.runYear, parseInt(year)));
     if (month) conditions.push(eq(payrollRunsTable.runMonth, parseInt(month)));
     const runs = await db.select().from(payrollRunsTable).where(and(...conditions)).orderBy(desc(payrollRunsTable.createdAt));
-    res.json(runs);
+    res.json({ success: true, data: runs });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -938,7 +938,7 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
         await db.insert(payslipsTable).values(ps);
       }
     }
-    res.status(201).json(run);
+    res.status(201).json({ success: true, data: run });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -950,7 +950,7 @@ app.get("/api/payroll/runs/:id", auth, async (req, res) => {
     const [run] = await db.select().from(payrollRunsTable).where(eq(payrollRunsTable.id, parseInt(req.params["id"]!)));
     if (!run) { res.status(404).json({ success: false, message: "Not found" }); return; }
     const payslips = await db.select().from(payslipsTable).where(eq(payslipsTable.payrollRunId, run.id));
-    res.json({ ...run, payslips });
+    res.json({ success: true, data: { ...run, payslips } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -962,7 +962,7 @@ app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
     const [run] = await db.update(payrollRunsTable).set({
       status: "approved", approvedAt: new Date(), approvedById: user.userId,
     }).where(eq(payrollRunsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(run);
+    res.json({ success: true, data: run });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -978,7 +978,7 @@ app.get("/api/payroll/slips", auth, async (req, res) => {
     const slips = conditions.length > 0
       ? await db.select().from(payslipsTable).where(and(...conditions)).orderBy(desc(payslipsTable.createdAt))
       : await db.select().from(payslipsTable).orderBy(desc(payslipsTable.createdAt));
-    res.json(slips);
+    res.json({ success: true, data: slips });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1034,7 +1034,7 @@ app.get("/api/attendance", auth, async (req, res) => {
     const rows = conditions.length > 0
       ? await db.select().from(attendanceRecordsTable).where(and(...conditions)).orderBy(desc(attendanceRecordsTable.date))
       : await db.select().from(attendanceRecordsTable).orderBy(desc(attendanceRecordsTable.date)).limit(100);
-    res.json(rows);
+    res.json({ success: true, data: rows });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1049,7 +1049,7 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
       employeeId: employeeId ?? user.employeeId ?? 0,
       date: today, clockIn: new Date(), status: "present", notes,
     }).returning();
-    res.status(201).json(record);
+    res.status(201).json({ success: true, data: record });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1067,7 +1067,7 @@ app.post("/api/attendance/clock-out", auth, async (req, res) => {
     const workedMs = existing.clockIn ? now.getTime() - existing.clockIn.getTime() : 0;
     const workedMinutes = Math.floor(workedMs / 60000);
     const [record] = await db.update(attendanceRecordsTable).set({ clockOut: now, workedMinutes }).where(eq(attendanceRecordsTable.id, existing.id)).returning();
-    res.json(record);
+    res.json({ success: true, data: record });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1087,7 +1087,7 @@ app.get("/api/attendance/summary", auth, async (req, res) => {
     const absent = rows.filter(r => r.status === "absent").length;
     const late = rows.filter(r => (r.lateMinutes ?? 0) > 0).length;
     const totalWorked = rows.reduce((sum, r) => sum + (r.workedMinutes ?? 0), 0);
-    res.json({ present, absent, late, totalWorkedMinutes: totalWorked, month: m, year: y });
+    res.json({ success: true, data: { present, absent, late, totalWorkedMinutes: totalWorked, month: m, year: y } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1100,7 +1100,7 @@ app.get("/api/documents", auth, async (req, res) => {
     const conditions = [eq(documentsTable.isDeleted, false)];
     if (employeeId) conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
     const docs = await db.select().from(documentsTable).where(and(...conditions)).orderBy(desc(documentsTable.createdAt));
-    res.json(docs);
+    res.json({ success: true, data: docs });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1109,7 +1109,7 @@ app.get("/api/documents", auth, async (req, res) => {
 app.post("/api/documents", auth, async (req, res) => {
   try {
     const [doc] = await db.insert(documentsTable).values(req.body).returning();
-    res.status(201).json(doc);
+    res.status(201).json({ success: true, data: doc });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1118,7 +1118,7 @@ app.post("/api/documents", auth, async (req, res) => {
 app.patch("/api/documents/:id", auth, async (req, res) => {
   try {
     const [doc] = await db.update(documentsTable).set(req.body).where(eq(documentsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(doc);
+    res.json({ success: true, data: doc });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1143,12 +1143,12 @@ app.get("/api/assets", auth, async (req, res) => {
     if (status) conditions.push(eq(assetsTable.currentStatus, status));
     const assets = await db.select().from(assetsTable).where(and(...conditions)).orderBy(desc(assetsTable.createdAt));
     const emps = await db.select({ id: employeesTable.id, firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn }).from(employeesTable);
-    res.json(assets.map(a => ({
+    res.json({ success: true, data: assets.map(a => ({
       ...a,
       assignedToEmployeeName: a.assignedToEmployeeId
         ? (() => { const e = emps.find(e => e.id === a.assignedToEmployeeId); return e ? `${e.firstNameEn} ${e.lastNameEn}` : null; })()
         : null,
-    })));
+    })) });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1158,7 +1158,7 @@ app.post("/api/assets", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const [asset] = await db.insert(assetsTable).values({ ...req.body, companyId: user.companyId }).returning();
-    res.status(201).json(asset);
+    res.status(201).json({ success: true, data: asset });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1168,7 +1168,7 @@ app.get("/api/assets/:id", auth, async (req, res) => {
   try {
     const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, parseInt(req.params["id"]!)));
     if (!asset) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    res.json(asset);
+    res.json({ success: true, data: asset });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1177,7 +1177,7 @@ app.get("/api/assets/:id", auth, async (req, res) => {
 app.patch("/api/assets/:id", auth, async (req, res) => {
   try {
     const [asset] = await db.update(assetsTable).set(req.body).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(asset);
+    res.json({ success: true, data: asset });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1199,7 +1199,7 @@ app.post("/api/assets/:id/assign", auth, async (req, res) => {
     const [asset] = await db.update(assetsTable).set({
       assignedToEmployeeId: employeeId, currentStatus: "assigned", assignedDate: today,
     }).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(asset);
+    res.json({ success: true, data: asset });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1211,7 +1211,7 @@ app.post("/api/assets/:id/return", auth, async (req, res) => {
     const [asset] = await db.update(assetsTable).set({
       assignedToEmployeeId: null, currentStatus: "available", returnedDate: today,
     }).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json(asset);
+    res.json({ success: true, data: asset });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1220,36 +1220,36 @@ app.post("/api/assets/:id/return", auth, async (req, res) => {
 // ─── Lookups ──────────────────────────────────────────────────────────────────
 app.get("/api/lookups/nationalities", async (_req, res) => {
   const rows = await db.select().from(nationalitiesTable).where(eq(nationalitiesTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/cities", async (_req, res) => {
   const rows = await db.select().from(citiesTable).where(eq(citiesTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/banks", async (_req, res) => {
   const rows = await db.select().from(banksTable).where(eq(banksTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/document-types", async (_req, res) => {
   const rows = await db.select().from(documentTypesTable).where(eq(documentTypesTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/leave-types", async (_req, res) => {
   const rows = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/asset-categories", async (_req, res) => {
   const rows = await db.select().from(assetCategoriesTable).where(eq(assetCategoriesTable.isActive, true));
-  res.json(rows);
+  res.json({ success: true, data: rows });
 });
 app.get("/api/lookups/violation-types", async (_req, res) => {
-  res.json([
+  res.json({ success: true, data: [
     { id: 1, nameAr: "التغيب عن العمل", nameEn: "Absence", code: "absence" },
     { id: 2, nameAr: "التأخر عن العمل", nameEn: "Tardiness", code: "tardiness" },
     { id: 3, nameAr: "سوء السلوك", nameEn: "Misconduct", code: "misconduct" },
     { id: 4, nameAr: "الإهمال في العمل", nameEn: "Negligence", code: "negligence" },
     { id: 5, nameAr: "مخالفة السياسات", nameEn: "Policy Violation", code: "policy_violation" },
-  ]);
+  ] });
 });
 
 // ─── Config / System Settings ─────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { ToastService } from '../../core/services/toast.service';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
@@ -174,7 +175,8 @@ export class OvertimeComponent implements OnInit {
   constructor(
     public auth: AuthService,
     private api: ApiService,
-    private toast: ToastService
+    private toast: ToastService,
+    private access: RoleAccessService
   ) {}
 
   get lang() {
@@ -182,23 +184,23 @@ export class OvertimeComponent implements OnInit {
   }
 
   get isEmployee() {
-    return this.auth.hasRole('employee');
+    return this.access.isEmployee();
   }
 
   get isHr() {
-    return this.auth.hasRole('hradmin');
+    return this.access.isHrAdmin();
   }
 
   get isHrOrManager() {
-    return this.auth.hasRole('hradmin', 'manager');
+    return this.access.isAny('hradmin', 'manager');
   }
 
   get canSeeReports() {
-    return this.auth.hasRole('hradmin', 'payrolladmin');
+    return this.access.isAny('hradmin', 'payrolladmin');
   }
 
   get canSeeLog() {
-    return this.auth.hasRole('employee', 'hradmin', 'payrolladmin');
+    return this.access.isAny('employee', 'hradmin', 'payrolladmin');
   }
 
   get hasRequestFilters() {

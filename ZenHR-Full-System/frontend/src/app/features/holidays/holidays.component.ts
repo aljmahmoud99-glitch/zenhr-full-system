@@ -3,6 +3,7 @@ import { CommonModule, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
 import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleton-table.component';
@@ -609,11 +610,11 @@ export class HolidaysComponent implements OnInit {
   });
   totalDays = computed(() => this.holidays().reduce((sum, h) => sum + (h.days || 1), 0));
 
-  constructor(public auth: AuthService, private api: ApiService) {}
+  constructor(public auth: AuthService, private api: ApiService, private access: RoleAccessService) {}
   get lang() { return this.auth.lang; }
 
-  get isHR()          { return this.auth.hasRole('hradmin'); }
-  get isHROrPayroll() { return this.auth.hasRole('hradmin', 'payrolladmin', 'manager'); }
+  get isHR()          { return this.access.isHrAdmin(); }
+  get isHROrPayroll() { return this.access.isAny('hradmin', 'payrolladmin', 'manager'); }
 
   ngOnInit() {
     this.loadHolidays();

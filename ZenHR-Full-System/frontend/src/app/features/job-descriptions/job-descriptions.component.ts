@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { LangService } from '../../core/services/lang.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslatePipe } from '../../core/pipes/translate.pipe';
@@ -46,11 +47,12 @@ export class JobDescriptionsComponent implements OnInit {
     public lang: LangService,
     private http: HttpClient,
     private auth: AuthService,
-    private toast: ToastService
+    private toast: ToastService,
+    private access: RoleAccessService
   ) {}
 
   get canCreate(): boolean {
-    return this.auth.hasRole('hradmin');
+    return this.access.isHrAdmin();
   }
 
   get grades(): string[] {

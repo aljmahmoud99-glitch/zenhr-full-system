@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { Employee, Department, JobTitle, ApiResponse, STATUS_LABELS } from '../../core/models';
 import { ToastService } from '../../core/services/toast.service';
 import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleton-table.component';
@@ -61,6 +62,7 @@ export class EmployeesComponent implements OnInit {
 
   constructor(
     public auth: AuthService,
+    private access: RoleAccessService,
     private api: ApiService,
     private toast: ToastService,
     private settings: AppSettingsService,
@@ -72,11 +74,11 @@ export class EmployeesComponent implements OnInit {
   }
 
   get canManage() {
-    return this.auth.hasRole('hradmin');
+    return this.access.canDoAction('employee:create');
   }
 
   get canViewSalary() {
-    return this.auth.hasRole('hradmin', 'payrolladmin');
+    return this.access.canDoAction('employee:viewSalary');
   }
 
   get filtered() {
@@ -204,7 +206,8 @@ export class EmployeesComponent implements OnInit {
           map[item.employeeId] = item;
         });
         this.complianceBadgeMap.set(map);
-      }
+      },
+      error: () => {}
     });
   }
 

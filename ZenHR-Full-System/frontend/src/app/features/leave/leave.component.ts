@@ -3,6 +3,7 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { LeaveBalance, LeavePolicy, LeaveRequest, LeaveType, ApiResponse } from '../../core/models';
 import { ToastService } from '../../core/services/toast.service';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
@@ -90,14 +91,14 @@ export class LeaveComponent implements OnInit {
     return this.balances().find(item => item.leaveTypeId === leaveTypeId) ?? null;
   });
 
-  constructor(public auth: AuthService, private api: ApiService, private toast: ToastService) {}
+  constructor(public auth: AuthService, private api: ApiService, private toast: ToastService, private access: RoleAccessService) {}
 
   get lang() { return this.auth.lang; }
-  get canManagePolicies() { return this.auth.hasRole('hradmin'); }
-  get canApprove() { return this.auth.hasRole('hradmin', 'manager'); }
-  get isEmployee() { return this.auth.hasRole('employee'); }
-  get isEmployeeSelfService() { return this.auth.hasRole('employee'); }
-  get isManagerOnly() { return this.auth.hasRole('manager') && !this.auth.hasRole('hradmin'); }
+  get canManagePolicies() { return this.access.isHrAdmin(); }
+  get canApprove() { return this.access.isAny('hradmin', 'manager'); }
+  get isEmployee() { return this.access.isEmployee(); }
+  get isEmployeeSelfService() { return this.access.isEmployee(); }
+  get isManagerOnly() { return this.access.isManager() && !this.access.isHrAdmin(); }
 
   ngOnInit() {
     this.loadTypes();

@@ -440,6 +440,22 @@ export class RoleAccessService {
     return this.role === 'employee';
   }
 
+  /**
+   * Unified permission check — wraps canDoSync for external consumers.
+   * Usage: access.hasPermission('employees', 'create')
+   */
+  hasPermission(screen: string, action: string): boolean {
+    return this.canDoSync(screen, action);
+  }
+
+  /**
+   * Returns true if the user has at least one of the given [screen, action] pairs.
+   * Usage: access.hasAnyPermission([['employees','view'],['payroll','view']])
+   */
+  hasAnyPermission(items: Array<[string, string]>): boolean {
+    return items.some(([screen, action]) => this.canDoSync(screen, action));
+  }
+
   canSeeWidget(widget: string): boolean {
     const widgetMap: Record<string, string[]> = {
       workforce: ['hradmin'],

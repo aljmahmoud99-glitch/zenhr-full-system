@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { getErrorMessage } from '../../core/utils/error-message';
@@ -125,6 +126,7 @@ export class DocumentsComponent implements OnInit {
 
   constructor(
     public auth: AuthService,
+    private access: RoleAccessService,
     private api: ApiService,
     private toast: ToastService,
     private route: ActivatedRoute
@@ -135,11 +137,11 @@ export class DocumentsComponent implements OnInit {
   }
 
   get canManage() {
-    return this.auth.hasRole('hradmin', 'superadmin', 'employee');
+    return this.access.isAny('hradmin', 'superadmin', 'employee');
   }
 
   get canExport() {
-    return this.auth.hasRole('hradmin', 'superadmin');
+    return this.access.isAny('hradmin', 'superadmin');
   }
 
   ngOnInit() {
@@ -153,7 +155,7 @@ export class DocumentsComponent implements OnInit {
   }
 
   get isEmployee() {
-    return this.auth.hasRole('employee');
+    return this.access.isEmployee();
   }
 
   get myEmployeeId() {

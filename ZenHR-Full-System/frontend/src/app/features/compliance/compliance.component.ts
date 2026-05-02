@@ -3,6 +3,7 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 import { ToastService } from '../../core/services/toast.service';
 import { getErrorMessage } from '../../core/utils/error-message';
 
@@ -150,6 +151,7 @@ export class ComplianceComponent implements OnInit {
 
   constructor(
     public auth: AuthService,
+    private access: RoleAccessService,
     private api: ApiService,
     private toast: ToastService
   ) {}
@@ -159,7 +161,7 @@ export class ComplianceComponent implements OnInit {
   }
 
   get isHr() {
-    return this.auth.hasRole('hradmin', 'superadmin');
+    return this.access.isAny('hradmin', 'superadmin');
   }
 
   ngOnInit() {

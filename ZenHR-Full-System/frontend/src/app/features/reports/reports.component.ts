@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
 
 type ReportCard = {
   key: string;
@@ -47,10 +48,10 @@ export class ReportsComponent implements OnInit {
     { key: 'turnover', labelAr: 'الدوران الوظيفي', labelEn: 'Turnover', descriptionAr: 'التعيينات والمغادرون ومعدل الدوران', descriptionEn: 'Hires, exits, and turnover rate', icon: 'trending_down', group: 'hr' }
   ];
 
-  constructor(public auth: AuthService, private api: ApiService) {}
+  constructor(public auth: AuthService, private api: ApiService, private access: RoleAccessService) {}
 
   get lang() { return this.auth.lang; }
-  get isPayrollViewer() { return this.auth.hasRole('payrolladmin'); }
+  get isPayrollViewer() { return this.access.isAny('payrolladmin'); }
 
   get visibleReports() {
     return this.isPayrollViewer

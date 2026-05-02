@@ -221,14 +221,11 @@ export class FormViewerComponent implements OnInit, OnDestroy {
     const formId = this.formId ?? '';
     this.recordId = Number(this.route.snapshot.queryParamMap.get('recordId')) || null;
 
-    // Debug (temporary)
-    // eslint-disable-next-line no-console
-    console.log('FORM ID:', formId);
+    
 
     const handle = (r: any) => {
       const data = r?.data ?? r;
-      // eslint-disable-next-line no-console
-      console.log('FORMS (single):', data);
+      
       this.formDef = data;
       this.bootstrapForRole();
       this.loadCompanyInfo();
