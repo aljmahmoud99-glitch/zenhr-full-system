@@ -24,7 +24,10 @@ export class AccordionComponent {}
     <div class="acc-panel" [class.acc-open]="isOpen">
       <button class="acc-header" (click)="toggle()">
         <span class="acc-icon-wrap">
-          <span *ngIf="icon" class="acc-icon">{{ icon }}</span>
+          <ng-container *ngIf="icon">
+            <span *ngIf="isMaterialIcon" class="material-icons acc-icon-material">{{ icon }}</span>
+            <span *ngIf="!isMaterialIcon" class="acc-icon">{{ icon }}</span>
+          </ng-container>
         </span>
         <span class="acc-title">{{ title }}</span>
         <span class="acc-count" *ngIf="count !== undefined && count !== null">{{ count }}</span>
@@ -54,6 +57,10 @@ export class AccordionPanelComponent implements OnInit {
   @Input() count?: number;
   @Input() openByDefault = false;
   isOpen = false;
+
+  get isMaterialIcon(): boolean {
+    return !!this.icon && /^[a-z][a-z0-9_]*$/.test(this.icon);
+  }
 
   ngOnInit() {
     this.isOpen = this.openByDefault;

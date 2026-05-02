@@ -104,3 +104,38 @@
 .eval-comments-group {
   margin-top: 16px;
 }
+
+.profile-avatar--initials {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--z-emerald); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.profile-avatar-initials {
+  font-size: 18px; font-weight: 700; color: #fff; line-height: 1;
+}
+.profile-header-text { flex: 1; min-width: 0; }
+.profile-meta-stats {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;
+}
+.profile-stat-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--z-text-muted);
+  background: var(--z-surface); border: 1px solid var(--z-border);
+  border-radius: 999px; padding: 2px 10px;
+  .material-icons { font-size: 13px; }
+}
+.profile-header-actions {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+
+.leave-balances-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 4px;
+}
+.leave-balance-card {
+  background: var(--z-page-bg); border: 1px solid var(--z-border); border-radius: 10px; padding: 14px 16px;
+}
+.leave-bal-name { font-size: 12px; color: var(--z-text-muted); margin-bottom: 6px; }
+.leave-bal-numbers { display: flex; align-items: baseline; gap: 5px; }
+.leave-bal-val { font-size: 28px; font-weight: 800; color: var(--z-emerald); line-height: 1; }
+.leave-bal-label { font-size: 12px; color: var(--z-text-muted); }
+.leave-bal-sub { font-size: 11px; color: var(--z-text-muted); margin-top: 4px; }

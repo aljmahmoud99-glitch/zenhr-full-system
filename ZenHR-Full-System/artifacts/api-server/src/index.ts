@@ -12,6 +12,7 @@ import {
   overtimeRequestsTable,
   orgNodesTable, rolesTable, permissionsTable, rolePermissionsTable,
   jobDescriptionsTable, careerPathsTable,
+  employeeQualificationsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
 import {
@@ -531,6 +532,44 @@ app.get("/api/employees/:id/documents", auth, async (req, res) => {
     const docs = await db.select().from(documentsTable)
       .where(and(eq(documentsTable.employeeId, parseInt(req.params["id"]!)), eq(documentsTable.isDeleted, false)));
     res.json({ success: true, data: docs });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/employees/:id/qualifications", auth, async (req, res) => {
+  try {
+    const empId = parseInt(req.params["id"]!);
+    const rows = await db.select().from(employeeQualificationsTable)
+      .where(eq(employeeQualificationsTable.employeeId, empId))
+      .orderBy(asc(employeeQualificationsTable.createdAt));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/employees/:id/qualifications", auth, async (req, res) => {
+  try {
+    const empId = parseInt(req.params["id"]!);
+    const { qualificationType, dataJson } = req.body as { qualificationType: string; dataJson: string };
+    if (!qualificationType) { res.status(400).json({ success: false, message: "qualificationType required" }); return; }
+    const [row] = await db.insert(employeeQualificationsTable).values({
+      employeeId: empId,
+      qualificationType,
+      dataJson: typeof dataJson === "string" ? dataJson : JSON.stringify(dataJson ?? {}),
+    }).returning();
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
+  try {
+    await db.delete(employeeQualificationsTable)
+      .where(eq(employeeQualificationsTable.id, parseInt(req.params["qualId"]!)));
+    res.status(204).send();
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }

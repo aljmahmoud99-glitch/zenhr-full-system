@@ -17,3 +17,4 @@ export * from "./org-nodes";
 export * from "./roles";
 export * from "./job-descriptions";
 export * from "./career-paths";
+export * from "./employee-qualifications";

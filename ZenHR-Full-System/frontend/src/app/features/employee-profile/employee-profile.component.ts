@@ -342,8 +342,42 @@ export class EmployeeProfileComponent implements OnInit {
   }
 
   deleteQualification(qualId: number) {
-    this.http.delete<any>(`/api/employees/${this.employeeId}/qualifications/${qualId}`)
+    if (!confirm(this.lang === 'ar' ? 'هل تريد حذف هذا العنصر؟' : 'Delete this item?')) return;
+    this.api.delete<any>(`/api/employees/${this.employeeId}/qualifications/${qualId}`)
       .subscribe(() => this.loadQualifications(this.employeeId));
+  }
+
+  getInitials(): string {
+    const emp = this.employee();
+    if (!emp) return '';
+    const f = (emp.firstNameEn || emp.firstNameAr || '')[0] ?? '';
+    const l = (emp.lastNameEn || emp.lastNameAr || '')[0] ?? '';
+    return (f + l).toUpperCase();
+  }
+
+  getTenure(): string {
+    const emp = this.employee();
+    if (!emp?.hireDate) return '—';
+    const hire = new Date(emp.hireDate);
+    const now = new Date();
+    const months = (now.getFullYear() - hire.getFullYear()) * 12 + (now.getMonth() - hire.getMonth());
+    const years = Math.floor(months / 12);
+    const rem = months % 12;
+    if (years === 0) return this.lang === 'ar' ? `${rem} شهر` : `${rem} mo`;
+    if (rem === 0) return this.lang === 'ar' ? `${years} سنة` : `${years} yr${years > 1 ? 's' : ''}`;
+    return this.lang === 'ar' ? `${years} سنة ${rem} شهر` : `${years}y ${rem}m`;
+  }
+
+  contractTypeLabel(type: string | null | undefined): string {
+    const map: Record<string, { ar: string; en: string }> = {
+      permanent: { ar: 'دائم', en: 'Permanent' },
+      fixed_term: { ar: 'محدد المدة', en: 'Fixed Term' },
+      part_time: { ar: 'دوام جزئي', en: 'Part-Time' },
+      freelance: { ar: 'مستقل', en: 'Freelance' },
+    };
+    const key = type ?? 'permanent';
+    const l = map[key];
+    return l ? (this.lang === 'ar' ? l.ar : l.en) : (type || '—');
   }
 
   loadDisciplinary(empId: number) {

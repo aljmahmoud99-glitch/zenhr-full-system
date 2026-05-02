@@ -33,18 +33,25 @@ export interface CompanyRegistration {
 export interface Employee {
   id: number; employeeCode: string; companyId: number;
   firstNameAr: string; lastNameAr: string; firstNameEn: string; lastNameEn: string;
+  middleNameAr?: string; middleNameEn?: string;
   fullNameAr: string; fullNameEn: string;
   gender: string; dateOfBirth?: string; nationalId?: string;
   nationality?: string; nationalityCode?: string; maritalStatus?: string;
-  workEmail?: string; personalPhone?: string; addressAr?: string; governorate?: string;
+  religion?: string; numberOfDependents?: number;
+  workEmail?: string; personalEmail?: string;
+  personalPhone?: string; workPhone?: string;
+  emergencyContactName?: string; emergencyContactPhone?: string; emergencyContactRelation?: string;
+  addressAr?: string; city?: string; governorate?: string;
   departmentId?: number; departmentNameAr?: string; departmentNameEn?: string;
   orgNodeId?: number; orgNodeNameAr?: string; orgNodeNameEn?: string; orgNodeType?: string;
   branchId?: number; branchNameAr?: string; branchNameEn?: string;
   orgBreadcrumb?: string;
   jobTitleId?: number; jobTitleAr?: string; jobTitleEn?: string;
   directManagerId?: number; directManagerName?: string; directManagerNameAr?: string;
-  employmentType: string; hireDate?: string; probationEndDate?: string;
+  employmentType: string; contractType?: string; contractEndDate?: string;
+  hireDate?: string; probationEndDate?: string;
   employmentStatus: string;
+  terminationDate?: string; terminationReason?: string;
   basicSalary: number; housingAllowance: number; transportAllowance: number;
   mobileAllowance: number; mealAllowance: number; otherAllowances: number; grossSalary: number;
   sscNumber?: string; isSscEnrolled?: boolean; isSscExempt?: boolean;
@@ -57,6 +64,12 @@ export interface Employee {
   educationLevel?: string; yearsOfExperience?: number;
   profilePhoto?: string;
   createdAt: string; updatedAt: string;
+}
+
+export interface EmployeeQualification {
+  id: number; employeeId: number;
+  qualificationType: string; dataJson: string;
+  createdAt: string;
 }
 
 export interface ProbationEvaluation {

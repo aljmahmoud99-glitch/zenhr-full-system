@@ -15,10 +15,11 @@
       {{ lang==='ar' ? 'رجوع' : 'Back' }}
     </button>
     <div class="profile-header-info">
-      <div class="profile-avatar">
-        <span class="material-icons profile-avatar-icon">person</span>
+      <div class="profile-avatar profile-avatar--initials">
+        <span *ngIf="getInitials()" class="profile-avatar-initials">{{ getInitials() }}</span>
+        <span *ngIf="!getInitials()" class="material-icons profile-avatar-icon">person</span>
       </div>
-      <div>
+      <div class="profile-header-text">
         <h1 class="profile-name">{{ lang==='ar' ? employee()!.fullNameAr : employee()!.fullNameEn }}</h1>
         <div class="profile-meta-row">
           <code class="emp-code">{{ employee()!.employeeCode }}</code>
@@ -47,7 +48,23 @@
             </span>
           </span>
         </div>
+        <div class="profile-meta-stats" *ngIf="employee()!.hireDate">
+          <span class="profile-stat-chip">
+            <span class="material-icons">calendar_today</span>
+            {{ employee()!.hireDate | date:'dd/MM/yyyy' }}
+          </span>
+          <span class="profile-stat-chip">
+            <span class="material-icons">hourglass_empty</span>
+            {{ getTenure() }}
+          </span>
+        </div>
       </div>
+    </div>
+    <div class="profile-header-actions" *ngIf="canManage">
+      <button class="btn btn-primary btn-sm" (click)="onTabChange('employment')">
+        <span class="material-icons">edit</span>
+        {{ lang==='ar' ? 'تعديل' : 'Edit' }}
+      </button>
     </div>
   </div>
 
@@ -87,6 +104,10 @@
     <button class="profile-tab" *ngIf="canSeeTab('attendance')" [class.active]="activeTab()==='attendance'" (click)="onTabChange('attendance')">
       <span class="material-icons">schedule</span>
       {{ lang==='ar' ? 'الحضور' : 'Attendance' }}
+    </button>
+    <button class="profile-tab" *ngIf="canSeeTab('leave')" [class.active]="activeTab()==='leave'" (click)="onTabChange('leave')">
+      <span class="material-icons">event_available</span>
+      {{ lang==='ar' ? 'الإجازات' : 'Leave' }}
     </button>
     <button class="profile-tab" *ngIf="canSeeTab('compliance')" [class.active]="activeTab()==='compliance'" (click)="onTabChange('compliance')">
       <span class="material-icons">policy</span>
@@ -129,7 +150,7 @@
     <z-accordion>
       <z-accordion-panel
         [title]="lang==='ar' ? 'البيانات الشخصية' : 'Personal Information'"
-        icon="👤"
+        icon="person"
         [openByDefault]="true">
         <div class="profile-grid-2">
 
@@ -145,10 +166,12 @@
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ الميلاد' : 'Date of Birth' }}</span><span class="info-val">{{ employee()!.dateOfBirth ? (employee()!.dateOfBirth | date:'dd/MM/yyyy') : '-' }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجنسية' : 'Nationality' }}</span><span class="info-val">{{ employee()!.nationality || '-' }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الحالة الاجتماعية' : 'Marital Status' }}</span><span class="info-val">{{ employee()!.maritalStatus || '-' }}</span></div>
+          <div class="info-row" *ngIf="employee()!.religion"><span class="info-label">{{ lang==='ar' ? 'الديانة' : 'Religion' }}</span><span class="info-val">{{ employee()!.religion }}</span></div>
+          <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'عدد التابعين' : 'Dependents' }}</span><span class="info-val">{{ employee()!.numberOfDependents ?? 0 }}</span></div>
         </div>
       </div>
 
-      <div class="profile-section-card" *ngIf="employee()!.basicSalary != null">
+      <div class="profile-section-card" *ngIf="employee()!.basicSalary != null && canSeeTab('bank-ssc')">
         <div class="profile-section-title">
           <span class="material-icons">payments</span>
           {{ lang==='ar' ? 'الراتب والبدلات' : 'Salary & Allowances' }}
@@ -166,38 +189,80 @@
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'معلومات التواصل' : 'Contact Information'"
-        icon="📞">
-        <div class="profile-section-card">
+        icon="phone">
+        <div class="profile-grid-2">
+          <div class="profile-section-card">
+            <div class="profile-section-title">
+              <span class="material-icons">work</span>
+              {{ lang==='ar' ? 'بيانات العمل' : 'Work Contact' }}
+            </div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'البريد الرسمي' : 'Work Email' }}</span><span class="info-val">{{ employee()!.workEmail || '—' }}</span></div>
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'هاتف العمل' : 'Work Phone' }}</span><span class="info-val">{{ employee()!.workPhone || '—' }}</span></div>
+            </div>
+          </div>
+          <div class="profile-section-card">
+            <div class="profile-section-title">
+              <span class="material-icons">smartphone</span>
+              {{ lang==='ar' ? 'بيانات شخصية' : 'Personal Contact' }}
+            </div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجوال' : 'Mobile' }}</span><span class="info-val">{{ employee()!.personalPhone || '—' }}</span></div>
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'البريد الشخصي' : 'Personal Email' }}</span><span class="info-val">{{ employee()!.personalEmail || '—' }}</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="profile-section-card" style="margin-top:12px" *ngIf="employee()!.emergencyContactName">
           <div class="profile-section-title">
-            <span class="material-icons">contact_phone</span>
-            {{ lang==='ar' ? 'معلومات التواصل' : 'Contact' }}
+            <span class="material-icons">emergency</span>
+            {{ lang==='ar' ? 'جهة الاتصال في الطوارئ' : 'Emergency Contact' }}
           </div>
           <div class="info-grid">
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'البريد الرسمي' : 'Work Email' }}</span><span class="info-val">{{ employee()!.workEmail || '-' }}</span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الهاتف' : 'Phone' }}</span><span class="info-val">{{ employee()!.personalPhone || '-' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الاسم' : 'Name' }}</span><span class="info-val">{{ employee()!.emergencyContactName }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الهاتف' : 'Phone' }}</span><span class="info-val">{{ employee()!.emergencyContactPhone || '—' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'العلاقة' : 'Relation' }}</span><span class="info-val">{{ employee()!.emergencyContactRelation || '—' }}</span></div>
           </div>
         </div>
       </z-accordion-panel>
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'العنوان' : 'Address'"
-        icon="📍">
-        <div class="empty-state">
-          <div class="empty-icon">📍</div>
-          {{ lang==='ar' ? 'لا توجد حقول عنوان حالياً' : 'No address fields are currently shown in this section' }}
+        icon="place">
+        <div class="profile-section-card">
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'العنوان' : 'Address' }}</span><span class="info-val">{{ employee()!.addressAr || '—' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المدينة' : 'City' }}</span><span class="info-val">{{ employee()!.city || '—' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'المحافظة' : 'Governorate' }}</span><span class="info-val">{{ employee()!.governorate || '—' }}</span></div>
+          </div>
         </div>
       </z-accordion-panel>
 
       <z-accordion-panel
-        [title]="lang==='ar' ? 'الهوية والتأمين' : 'Identity & Insurance'"
-        icon="🪪">
-        <div class="profile-section-card">
-          <div class="profile-section-title">
-            <span class="material-icons">badge</span>
-            {{ lang==='ar' ? 'الهوية والتأمين' : 'Identity & Insurance' }}
+        [title]="lang==='ar' ? 'الهوية والمعلومات الإضافية' : 'Identity & Additional Info'"
+        icon="badge">
+        <div class="profile-grid-2">
+          <div class="profile-section-card">
+            <div class="profile-section-title">
+              <span class="material-icons">badge</span>
+              {{ lang==='ar' ? 'الهوية' : 'Identity' }}
+            </div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الهوية' : 'National ID' }}</span><span class="info-val">{{ employee()!.nationalId || '—' }}</span></div>
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رمز الجنسية' : 'Nationality Code' }}</span><span class="info-val">{{ employee()!.nationalityCode || '—' }}</span></div>
+              <div class="info-row" *ngIf="employee()!.educationLevel"><span class="info-label">{{ lang==='ar' ? 'المستوى التعليمي' : 'Education Level' }}</span><span class="info-val">{{ employee()!.educationLevel }}</span></div>
+              <div class="info-row" *ngIf="employee()!.yearsOfExperience != null"><span class="info-label">{{ lang==='ar' ? 'سنوات الخبرة' : 'Years of Experience' }}</span><span class="info-val">{{ employee()!.yearsOfExperience }}</span></div>
+            </div>
           </div>
-          <div class="info-grid">
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الهوية' : 'National ID' }}</span><span class="info-val">{{ employee()!.nationalId || '-' }}</span></div>
+          <div class="profile-section-card" *ngIf="canSeeTab('bank-ssc')">
+            <div class="profile-section-title">
+              <span class="material-icons">security</span>
+              {{ lang==='ar' ? 'الضمان الاجتماعي' : 'Social Security' }}
+            </div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'رقم الضمان' : 'SSC Number' }}</span><span class="info-val">{{ employee()!.sscNumber || '—' }}</span></div>
+              <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'مسجل' : 'Enrolled' }}</span><span class="info-val">{{ employee()!.isSscEnrolled ? (lang==='ar' ? 'نعم' : 'Yes') : (lang==='ar' ? 'لا' : 'No') }}</span></div>
+              <div class="info-row" *ngIf="employee()!.isSscExempt"><span class="info-label">{{ lang==='ar' ? 'معفى' : 'Exempt' }}</span><span class="info-val">{{ lang==='ar' ? 'نعم' : 'Yes' }}</span></div>
+            </div>
           </div>
         </div>
       </z-accordion-panel>
@@ -210,7 +275,7 @@
     <z-accordion>
       <z-accordion-panel
         [title]="lang==='ar' ? 'بيانات التوظيف' : 'Employment Details'"
-        icon="💼"
+        icon="work"
         [openByDefault]="true">
         <div class="profile-section-card">
           <div class="profile-section-title">
@@ -235,30 +300,41 @@
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'عقد العمل' : 'Contract'"
-        icon="📄">
+        icon="description">
         <div class="profile-section-card">
           <div class="profile-section-title">
             <span class="material-icons">description</span>
             {{ lang==='ar' ? 'عقد العمل' : 'Contract' }}
           </div>
           <div class="info-grid">
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع العقد' : 'Contract Type' }}</span><span class="info-val">{{ employee()!.employmentType || '-' }}</span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ نهاية العقد' : 'Contract End Date' }}</span><span class="info-val">-</span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نهاية التجربة' : 'Probation End Date' }}</span><span class="info-val">{{ employee()!.probationEndDate ? (employee()!.probationEndDate | date:'dd/MM/yyyy') : '-' }}</span></div>
-            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'فترة الإشعار' : 'Notice Period' }}</span><span class="info-val">-</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع العقد' : 'Contract Type' }}</span><span class="info-val">{{ contractTypeLabel(employee()!.contractType) }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نوع التوظيف' : 'Employment Type' }}</span><span class="info-val">{{ empTypeLabel(employee()!.employmentType) }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ نهاية العقد' : 'Contract End Date' }}</span><span class="info-val">{{ employee()!.contractEndDate ? (employee()!.contractEndDate | date:'dd/MM/yyyy') : '—' }}</span></div>
+            <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'نهاية التجربة' : 'Probation End Date' }}</span><span class="info-val">{{ employee()!.probationEndDate ? (employee()!.probationEndDate | date:'dd/MM/yyyy') : '—' }}</span></div>
+            <div class="info-row" *ngIf="employee()!.terminationDate"><span class="info-label">{{ lang==='ar' ? 'تاريخ إنهاء الخدمة' : 'Termination Date' }}</span><span class="info-val">{{ employee()!.terminationDate | date:'dd/MM/yyyy' }}</span></div>
+            <div class="info-row" *ngIf="employee()!.terminationReason"><span class="info-label">{{ lang==='ar' ? 'سبب الإنهاء' : 'Termination Reason' }}</span><span class="info-val">{{ employee()!.terminationReason }}</span></div>
           </div>
         </div>
       </z-accordion-panel>
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'الوحدة التنظيمية' : 'Org Structure'"
-        icon="🏢">
-        <p *ngIf="employee()!.orgNodeId || employee()!.orgNodeNameAr || employee()!.orgNodeNameEn" class="text-muted fs-13">
-          {{ getOrgBreadcrumb(employee()!) }}
-        </p>
-        <p *ngIf="!employee()!.orgNodeId && !employee()!.orgNodeNameAr && !employee()!.orgNodeNameEn" class="text-muted fs-13">
-          {{ lang==='ar' ? 'غير محدد' : 'Not assigned' }}
-        </p>
+        icon="account_tree">
+        <div class="profile-section-card">
+          <div class="info-grid">
+            <div class="info-row" *ngIf="employee()!.orgNodeNameAr || employee()!.orgNodeNameEn">
+              <span class="info-label">{{ lang==='ar' ? 'الوحدة التنظيمية' : 'Org Unit' }}</span>
+              <span class="info-val">{{ lang==='ar' ? (employee()!.orgNodeNameAr || employee()!.orgNodeNameEn) : (employee()!.orgNodeNameEn || employee()!.orgNodeNameAr) }}</span>
+            </div>
+            <div class="info-row" *ngIf="employee()!.orgNodeId">
+              <span class="info-label">{{ lang==='ar' ? 'المسار التنظيمي' : 'Org Path' }}</span>
+              <span class="info-val">{{ employee()!.orgBreadcrumb || getOrgBreadcrumb(employee()!) }}</span>
+            </div>
+          </div>
+          <div *ngIf="!employee()!.orgNodeId" class="text-muted fs-13" style="padding:4px 0">
+            {{ lang==='ar' ? 'غير محدد' : 'Not assigned' }}
+          </div>
+        </div>
       </z-accordion-panel>
     </z-accordion>
   </div>
@@ -268,7 +344,7 @@
   <div *ngIf="activeTab()==='probation'" class="profile-tab-body">
 
     <div *ngIf="!probationProgress" class="empty-state">
-      <div class="empty-icon">📋</div>
+      <div class="empty-icon"><span class="material-icons">assignment</span></div>
       <div class="empty-title">{{ lang==='ar' ? 'لا توجد فترة تجربة مسجلة' : 'No probation period recorded' }}</div>
     </div>
 
@@ -586,7 +662,7 @@
     <z-accordion>
       <z-accordion-panel
         [title]="lang==='ar' ? 'المؤهلات العلمية' : 'Education'"
-        icon="🎓"
+        icon="school"
         [count]="getQualCount('education')">
         <div *ngFor="let item of getQuals('education')" class="qual-item">
           <div class="qual-row">
@@ -609,7 +685,7 @@
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience'"
-        icon="💼"
+        icon="business_center"
         [count]="getQualCount('experience')">
         <div *ngFor="let item of getQuals('experience')" class="qual-item">
           <div class="qual-row">
@@ -635,14 +711,14 @@
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'المهارات' : 'Skills'"
-        icon="⚡"
+        icon="bolt"
         [count]="getQualCount('skill')">
         <div style="display:flex;flex-wrap:wrap;gap:8px">
           <span *ngFor="let item of getQuals('skill')"
                 class="badge badge-info" style="font-size:12px">
             {{ item.data?.name }}
             <span *ngIf="item.data?.level" class="text-muted">· {{ item.data.level }}/5</span>
-            <button class="btn-icon" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">×</button>
+            <button class="icon-btn danger" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)" [title]="lang==='ar' ? 'حذف' : 'Delete'"><span class="material-icons" style="font-size:14px">close</span></button>
           </span>
           <span *ngIf="getQuals('skill').length===0" class="text-muted fs-13">
             {{ lang==='ar' ? 'لا يوجد' : 'None' }}
@@ -656,7 +732,7 @@
 
       <z-accordion-panel
         [title]="lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications'"
-        icon="📜"
+        icon="workspace_premium"
         [count]="getQualCount('course')">
         <div *ngFor="let item of getQuals('course')" class="qual-item">
           <div class="qual-row">
@@ -910,6 +986,67 @@
         <div class="info-row"><span class="info-label">IBAN</span><span class="info-val">{{ employee()!.iban || '-' }}</span></div>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <!-- TAB: Leave -->
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <div *ngIf="activeTab()==='leave'" class="profile-tab-body">
+    <div class="loading-wrap" *ngIf="loadingLeave()">
+      <div class="spinner"></div>
+      <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل بيانات الإجازات...' : 'Loading leave data...' }}</div>
+    </div>
+    <ng-container *ngIf="!loadingLeave()">
+      <div class="profile-section-card" *ngIf="leaveBalances().length > 0" style="margin-bottom:16px">
+        <div class="profile-section-title">
+          <span class="material-icons">account_balance_wallet</span>
+          {{ lang==='ar' ? 'أرصدة الإجازات' : 'Leave Balances' }}
+        </div>
+        <div class="leave-balances-grid">
+          <div class="leave-balance-card" *ngFor="let bal of leaveBalances()">
+            <div class="leave-bal-name">{{ lang==='ar' ? (bal.leaveTypeNameAr || bal.leaveTypeCode) : (bal.leaveTypeNameEn || bal.leaveTypeCode) }}</div>
+            <div class="leave-bal-numbers">
+              <span class="leave-bal-val">{{ bal.remainingDays }}</span>
+              <span class="leave-bal-label">{{ lang==='ar' ? 'يوم متبقي' : 'days left' }}</span>
+            </div>
+            <div class="leave-bal-sub">{{ lang==='ar' ? 'مستخدم:' : 'Used:' }} {{ bal.usedDays }} / {{ bal.totalDays }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-section-card">
+        <div class="profile-section-title">
+          <span class="material-icons">event_available</span>
+          {{ lang==='ar' ? 'طلبات الإجازة' : 'Leave Requests' }}
+        </div>
+        <div class="empty-state" *ngIf="leaveRequests().length === 0">
+          <div class="empty-icon"><span class="material-icons">event_busy</span></div>
+          <div class="empty-title">{{ lang==='ar' ? 'لا توجد طلبات إجازة.' : 'No leave requests.' }}</div>
+        </div>
+        <div class="table-scroll" *ngIf="leaveRequests().length > 0">
+          <table class="z-table">
+            <thead>
+              <tr>
+                <th>{{ lang==='ar' ? 'نوع الإجازة' : 'Type' }}</th>
+                <th>{{ lang==='ar' ? 'من' : 'From' }}</th>
+                <th>{{ lang==='ar' ? 'إلى' : 'To' }}</th>
+                <th>{{ lang==='ar' ? 'الأيام' : 'Days' }}</th>
+                <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of leaveRequests()">
+                <td>{{ lang==='ar' ? item.leaveTypeNameAr : (item.leaveTypeNameEn || item.leaveTypeNameAr) }}</td>
+                <td>{{ item.startDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ item.endDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ item.totalDays }}</td>
+                <td><span class="badge" [class]="leaveBadgeClass(item.status)">{{ leaveStatusLabel(item.status) }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </ng-container>
   </div>
 
   <div *ngIf="activeTab()==='disciplinary'" class="profile-tab-body">
