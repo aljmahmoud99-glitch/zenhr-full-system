@@ -1037,30 +1037,23 @@ export class EmployeeProfileComponent implements OnInit {
 
   toggleActionDropdown() { this.showActionDropdown.update(v => !v); }
 
+  private readonly CAREER_TYPES = ['transfer', 'promotion', 'demotion'];
+  private readonly SALARY_TYPES = ['salary_change'];
+  private readonly STATUS_TYPES = ['suspension', 'suspension_lift', 'termination', 'resignation', 'contract_renewal', 'leave_of_absence', 'return_from_leave', 'warning_issued'];
+
   openActionType(type: string) {
     this.showActionDropdown.set(false);
-    this.confirmStep.set(false);
-    const emp = this.employee();
-    this.actionForm = {
-      actionType: type,
-      effectiveDate: new Date().toISOString().slice(0, 10),
-      notes: '',
-      orgNodeId: emp?.orgNodeId ?? null,
-      departmentId: (emp as any)?.departmentId ?? null,
-      jobTitleId: (emp as any)?.jobTitleId ?? null,
-      changeSalary: false,
-      basicSalary: emp?.basicSalary ? +emp.basicSalary : null,
-      housingAllowance: emp?.housingAllowance ? +emp.housingAllowance : null,
-      transportAllowance: emp?.transportAllowance ? +emp.transportAllowance : null,
-      mobileAllowance: emp?.mobileAllowance ? +emp.mobileAllowance : null,
-      mealAllowance: emp?.mealAllowance ? +emp.mealAllowance : null,
-      otherAllowances: emp?.otherAllowances ? +emp.otherAllowances : null,
-    };
-    if (['transfer', 'promotion', 'demotion'].includes(type)) {
-      this.loadDepartmentsForActions();
-      this.loadJobTitlesForActions();
+    const empId = this.employee()?.id;
+    if (!empId) return;
+    if (this.CAREER_TYPES.includes(type)) {
+      this.router.navigate(['/app/employee-actions/career-movements'], { queryParams: { employeeId: empId, actionType: type } });
+    } else if (this.SALARY_TYPES.includes(type)) {
+      this.router.navigate(['/app/employee-actions/salary-changes'], { queryParams: { employeeId: empId } });
+    } else if (this.STATUS_TYPES.includes(type)) {
+      this.router.navigate(['/app/employee-actions/status-changes'], { queryParams: { employeeId: empId, actionType: type } });
+    } else {
+      this.router.navigate(['/app/employee-actions/career-movements'], { queryParams: { employeeId: empId, actionType: type } });
     }
-    this.showActionModal.set(true);
   }
 
   openActionModal() { this.openActionType('transfer'); }

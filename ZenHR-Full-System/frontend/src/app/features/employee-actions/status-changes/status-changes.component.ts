@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -126,18 +127,37 @@ export class StatusChangesComponent implements OnInit {
     private api: ApiService,
     private auth: AuthService,
     private toast: ToastService,
+    private route: ActivatedRoute,
+    private router: Router,
   ) {}
 
   ngOnInit() {
     const u = this.auth.currentUser();
     if (u) { this.role = u.role; this.userId = u.id; this.username = u.username; }
     this.lang = localStorage.getItem('lang') || 'ar';
-    this.loadAll();
+    this.loadAll().then(() => {
+      const params = this.route.snapshot.queryParamMap;
+      const empId = params.get('employeeId');
+      const actionType = params.get('actionType') || 'suspension';
+      if (empId) {
+        this.form = {
+          employeeId: +empId,
+          actionType,
+          effectiveDate: new Date().toISOString().slice(0, 10),
+          terminationReason: '',
+          notes: '',
+        };
+        this.formError = '';
+        this.showCreateModal = true;
+        this.selectedAction = null;
+        this.router.navigate([], { replaceUrl: true, queryParams: {} });
+      }
+    });
   }
 
-  loadAll() {
+  loadAll(): Promise<void> {
     this.loading.set(true);
-    Promise.all([
+    return Promise.all([
       this.api.get<any>('/workflow/status-changes').toPromise(),
       this.api.get<any>('/workflow/employee-list').toPromise(),
     ]).then(([actRes, empRes]) => {
