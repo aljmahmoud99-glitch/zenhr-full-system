@@ -97,7 +97,12 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - **POST /api/employee-actions** — hradmin only; captures before/after snapshots; runs in DB transaction with immediate side effects (employee status, salary, title, org-node, department updated atomically)
 - **GET /api/employee-actions/types** — returns all types with AR+EN labels for frontend dropdowns
 - **Side effects per action**: transfer→orgNodeId+departmentId, promotion/demotion→jobTitleId+salary, salary_change→all salary fields, suspension/suspension_lift/termination/resignation/probation_complete/probation_fail→employmentStatus+terminationDate
-- **Frontend**: Actions Timeline tab on every employee profile — vertical timeline with color-coded icon per type, effective date, notes, recorded-by attribution. HR admins see "Record Action" button with modal (type dropdown + effective date + notes). Employees see read-only timeline of their own actions.
+- **Frontend (Phase 4 Step 4 — COMPLETED)**: Rich Actions tab + "اتخاذ إجراء" header dropdown:
+  - **Grouped header dropdown** on every employee profile for HR admins: bolt button opens a grouped menu (التوظيف: نقل/ترقية/خفض; الراتب: تعديل الراتب; الحالة: إيقاف/رفع/إنهاء; الإجراءات: إنذار/تجديد عقد)
+  - **Type-specific modal fields**: Transfer shows org-unit + department dropdowns; Promotion/Demotion shows job-title dropdown + optional salary toggle; Salary Change shows all 6 salary component inputs with current values displayed
+  - **Two-step confirm**: "Review & Confirm" button opens a summary step showing exactly what will change (from → to) before the final "Confirm & Save"
+  - **Rich timeline**: Before/after JSON diffs rendered as color-coded rows (red strikethrough from, green bold to); `createdByName` attribution fixed; action-type color chips with icons
+  - **Department/job-title lazy loading**: fetched once on first action requiring them
 
 ### Self-Service Data Isolation (8 endpoints hardened)
 All 8 endpoints now enforce role-based scoping at the DB query level — the frontend cannot bypass by crafting API calls:

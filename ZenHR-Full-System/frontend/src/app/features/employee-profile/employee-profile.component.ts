@@ -74,15 +74,27 @@ export class EmployeeProfileComponent implements OnInit {
   activeTab = signal<'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions'>('personal');
   loadedTabs = signal<string[]>(['personal']);
 
+  showActionDropdown = signal(false);
+  confirmStep = signal(false);
+  departments: any[] = [];
+  jobTitles: any[] = [];
+
   employeeActions = signal<any[]>([]);
   loadingActions = signal(false);
   showActionModal = signal(false);
   actionSaving = signal(false);
-  actionForm: { actionType: string; effectiveDate: string; notes: string; metadata: Record<string, any> } = {
-    actionType: 'TRANSFER',
-    effectiveDate: new Date().toISOString().slice(0, 10),
-    notes: '',
-    metadata: {}
+  actionForm: {
+    actionType: string; effectiveDate: string; notes: string;
+    orgNodeId: number | null; departmentId: number | null;
+    jobTitleId: number | null; changeSalary: boolean;
+    basicSalary: number | null; housingAllowance: number | null;
+    transportAllowance: number | null; mobileAllowance: number | null;
+    mealAllowance: number | null; otherAllowances: number | null;
+  } = {
+    actionType: 'transfer', effectiveDate: new Date().toISOString().slice(0, 10), notes: '',
+    orgNodeId: null, departmentId: null, jobTitleId: null, changeSalary: false,
+    basicSalary: null, housingAllowance: null, transportAllowance: null,
+    mobileAllowance: null, mealAllowance: null, otherAllowances: null,
   };
 
   constructor(
@@ -977,51 +989,211 @@ export class EmployeeProfileComponent implements OnInit {
     });
   }
 
+  loadDepartmentsForActions() {
+    if (this.departments.length) return;
+    this.api.get<any>('/api/departments').subscribe({
+      next: r => this.departments = r.data ?? [],
+      error: () => {}
+    });
+  }
+
+  loadJobTitlesForActions() {
+    if (this.jobTitles.length) return;
+    this.api.get<any>('/api/job-titles').subscribe({
+      next: r => this.jobTitles = r.data ?? [],
+      error: () => {}
+    });
+  }
+
   actionTypeLabel(type: string): { en: string; ar: string; icon: string; cls: string } {
     const map: Record<string, { en: string; ar: string; icon: string; cls: string }> = {
-      hire:               { en: 'Hired',                   ar: 'تعيين',             icon: 'person_add',    cls: 'action-hire' },
-      probation_start:    { en: 'Probation Started',       ar: 'بدء التجربة',       icon: 'timer',         cls: 'action-probation' },
-      probation_complete: { en: 'Probation Completed',     ar: 'اجتياز التجربة',    icon: 'verified',      cls: 'action-confirm' },
-      probation_fail:     { en: 'Probation Failed',        ar: 'فشل التجربة',       icon: 'cancel',        cls: 'action-demotion' },
-      transfer:           { en: 'Transfer',                ar: 'نقل',               icon: 'swap_horiz',    cls: 'action-transfer' },
-      promotion:          { en: 'Promotion',               ar: 'ترقية',             icon: 'trending_up',   cls: 'action-promotion' },
-      demotion:           { en: 'Demotion',                ar: 'خفض درجة',          icon: 'trending_down', cls: 'action-demotion' },
-      salary_change:      { en: 'Salary Change',           ar: 'تعديل الراتب',      icon: 'payments',      cls: 'action-salary' },
-      suspension:         { en: 'Suspension',              ar: 'إيقاف',             icon: 'pause_circle',  cls: 'action-suspension' },
-      suspension_lift:    { en: 'Suspension Lifted',       ar: 'رفع الإيقاف',       icon: 'play_circle',   cls: 'action-return' },
-      termination:        { en: 'Termination',             ar: 'إنهاء خدمة',        icon: 'person_remove', cls: 'action-termination' },
-      resignation:        { en: 'Resignation',             ar: 'استقالة',           icon: 'exit_to_app',   cls: 'action-resignation' },
-      leave_of_absence:   { en: 'Leave of Absence',        ar: 'إجازة بدون راتب',   icon: 'beach_access',  cls: 'action-leave' },
-      return_from_leave:  { en: 'Returned from Leave',     ar: 'عودة من الإجازة',   icon: 'login',         cls: 'action-return' },
-      warning_issued:     { en: 'Warning Issued',          ar: 'إنذار',             icon: 'warning',       cls: 'action-warning' },
-      document_expired:   { en: 'Document Expired',        ar: 'وثيقة منتهية',      icon: 'description',   cls: 'action-warning' },
-      contract_renewal:   { en: 'Contract Renewal',        ar: 'تجديد عقد',         icon: 'autorenew',     cls: 'action-hire' },
+      hire:               { en: 'Hired',               ar: 'تعيين',           icon: 'person_add',    cls: 'action-hire' },
+      probation_start:    { en: 'Probation Started',   ar: 'بدء التجربة',     icon: 'timer',         cls: 'action-probation' },
+      probation_complete: { en: 'Probation Completed', ar: 'اجتياز التجربة',  icon: 'verified',      cls: 'action-confirm' },
+      probation_fail:     { en: 'Probation Failed',    ar: 'فشل التجربة',     icon: 'cancel',        cls: 'action-demotion' },
+      transfer:           { en: 'Transfer',            ar: 'نقل',             icon: 'swap_horiz',    cls: 'action-transfer' },
+      promotion:          { en: 'Promotion',           ar: 'ترقية',           icon: 'trending_up',   cls: 'action-promotion' },
+      demotion:           { en: 'Demotion',            ar: 'خفض درجة',        icon: 'trending_down', cls: 'action-demotion' },
+      salary_change:      { en: 'Salary Change',       ar: 'تعديل الراتب',    icon: 'payments',      cls: 'action-salary' },
+      suspension:         { en: 'Suspension',          ar: 'إيقاف',           icon: 'pause_circle',  cls: 'action-suspension' },
+      suspension_lift:    { en: 'Suspension Lifted',   ar: 'رفع الإيقاف',     icon: 'play_circle',   cls: 'action-return' },
+      termination:        { en: 'Termination',         ar: 'إنهاء خدمة',      icon: 'person_remove', cls: 'action-termination' },
+      resignation:        { en: 'Resignation',         ar: 'استقالة',         icon: 'exit_to_app',   cls: 'action-resignation' },
+      leave_of_absence:   { en: 'Leave of Absence',   ar: 'إجازة بدون راتب', icon: 'beach_access',  cls: 'action-leave' },
+      return_from_leave:  { en: 'Returned from Leave', ar: 'عودة من الإجازة', icon: 'login',         cls: 'action-return' },
+      warning_issued:     { en: 'Warning Issued',      ar: 'إنذار',           icon: 'warning',       cls: 'action-warning' },
+      document_expired:   { en: 'Document Expired',    ar: 'وثيقة منتهية',    icon: 'description',   cls: 'action-warning' },
+      contract_renewal:   { en: 'Contract Renewal',    ar: 'تجديد عقد',       icon: 'autorenew',     cls: 'action-hire' },
     };
     return map[type] ?? { en: type, ar: type, icon: 'history', cls: 'action-custom' };
   }
 
-  openActionModal() {
+  ACTION_TYPE_GROUPS = [
+    { labelAr: 'التوظيف',  labelEn: 'Employment', types: ['transfer', 'promotion', 'demotion'] },
+    { labelAr: 'الراتب',   labelEn: 'Salary',      types: ['salary_change'] },
+    { labelAr: 'الحالة',   labelEn: 'Status',      types: ['suspension', 'suspension_lift', 'termination'] },
+    { labelAr: 'الإجراءات', labelEn: 'Actions',    types: ['warning_issued', 'contract_renewal'] },
+  ];
+
+  toggleActionDropdown() { this.showActionDropdown.update(v => !v); }
+
+  openActionType(type: string) {
+    this.showActionDropdown.set(false);
+    this.confirmStep.set(false);
+    const emp = this.employee();
     this.actionForm = {
-      actionType: 'transfer',
+      actionType: type,
       effectiveDate: new Date().toISOString().slice(0, 10),
       notes: '',
-      metadata: {}
+      orgNodeId: emp?.orgNodeId ?? null,
+      departmentId: (emp as any)?.departmentId ?? null,
+      jobTitleId: (emp as any)?.jobTitleId ?? null,
+      changeSalary: false,
+      basicSalary: emp?.basicSalary ? +emp.basicSalary : null,
+      housingAllowance: emp?.housingAllowance ? +emp.housingAllowance : null,
+      transportAllowance: emp?.transportAllowance ? +emp.transportAllowance : null,
+      mobileAllowance: emp?.mobileAllowance ? +emp.mobileAllowance : null,
+      mealAllowance: emp?.mealAllowance ? +emp.mealAllowance : null,
+      otherAllowances: emp?.otherAllowances ? +emp.otherAllowances : null,
     };
+    if (['transfer', 'promotion', 'demotion'].includes(type)) {
+      this.loadDepartmentsForActions();
+      this.loadJobTitlesForActions();
+    }
     this.showActionModal.set(true);
   }
 
-  closeActionModal() { this.showActionModal.set(false); }
+  openActionModal() { this.openActionType('transfer'); }
+
+  closeActionModal() { this.showActionModal.set(false); this.confirmStep.set(false); }
+
+  requestConfirm() {
+    const f = this.actionForm;
+    if (!f.actionType || !f.effectiveDate) return;
+    this.confirmStep.set(true);
+  }
+
+  buildConfirmSummary(): { labelAr: string; labelEn: string; from?: string; to: string }[] {
+    const f = this.actionForm;
+    const emp = this.employee();
+    const items: { labelAr: string; labelEn: string; from?: string; to: string }[] = [];
+
+    if (f.actionType === 'transfer') {
+      const newOrg = this.orgNodesFlat.find((n: any) => n.id === +f.orgNodeId!);
+      const newDept = this.departments.find((d: any) => d.id === +f.departmentId!);
+      if (newOrg) items.push({ labelAr: 'الوحدة التنظيمية', labelEn: 'Org Unit',
+        from: emp?.orgNodeNameAr ?? undefined,
+        to: this.lang === 'ar' ? (newOrg.nameAr || newOrg.nameEn) : (newOrg.nameEn || newOrg.nameAr) });
+      if (newDept) items.push({ labelAr: 'القسم', labelEn: 'Department',
+        from: this.lang === 'ar' ? (emp?.departmentNameAr ?? undefined) : (emp?.departmentNameEn ?? undefined),
+        to: this.lang === 'ar' ? (newDept.nameAr || newDept.nameEn) : (newDept.nameEn || newDept.nameAr) });
+    } else if (f.actionType === 'promotion' || f.actionType === 'demotion') {
+      const newTitle = this.jobTitles.find((t: any) => t.id === +f.jobTitleId!);
+      if (newTitle) items.push({ labelAr: 'المسمى الوظيفي', labelEn: 'Job Title',
+        from: this.lang === 'ar' ? (emp?.jobTitleAr ?? undefined) : (emp?.jobTitleEn ?? undefined),
+        to: this.lang === 'ar' ? (newTitle.titleAr || newTitle.nameAr || newTitle.title) : (newTitle.titleEn || newTitle.nameEn || newTitle.title) });
+      if (f.changeSalary && f.basicSalary != null)
+        items.push({ labelAr: 'الراتب الأساسي', labelEn: 'Basic Salary', from: `${emp?.basicSalary} JOD`, to: `${f.basicSalary} JOD` });
+    } else if (f.actionType === 'salary_change') {
+      if (f.basicSalary != null) items.push({ labelAr: 'الراتب الأساسي', labelEn: 'Basic Salary', from: `${emp?.basicSalary} JOD`, to: `${f.basicSalary} JOD` });
+      if (f.housingAllowance != null) items.push({ labelAr: 'بدل السكن', labelEn: 'Housing', from: `${emp?.housingAllowance} JOD`, to: `${f.housingAllowance} JOD` });
+      if (f.transportAllowance != null) items.push({ labelAr: 'بدل المواصلات', labelEn: 'Transport', from: `${emp?.transportAllowance} JOD`, to: `${f.transportAllowance} JOD` });
+      if (f.mobileAllowance != null) items.push({ labelAr: 'بدل الجوال', labelEn: 'Mobile', from: `${emp?.mobileAllowance} JOD`, to: `${f.mobileAllowance} JOD` });
+      if (f.mealAllowance != null) items.push({ labelAr: 'بدل الوجبات', labelEn: 'Meal', from: `${emp?.mealAllowance} JOD`, to: `${f.mealAllowance} JOD` });
+      if (f.otherAllowances != null) items.push({ labelAr: 'بدلات أخرى', labelEn: 'Other', from: `${emp?.otherAllowances} JOD`, to: `${f.otherAllowances} JOD` });
+    } else if (f.actionType === 'suspension') {
+      items.push({ labelAr: 'الحالة الوظيفية', labelEn: 'Status',
+        from: this.statusLabel(emp?.employmentStatus ?? ''), to: this.lang === 'ar' ? 'موقوف' : 'Suspended' });
+    } else if (f.actionType === 'suspension_lift') {
+      items.push({ labelAr: 'الحالة الوظيفية', labelEn: 'Status',
+        from: this.statusLabel(emp?.employmentStatus ?? ''), to: this.lang === 'ar' ? 'نشط' : 'Active' });
+    } else if (f.actionType === 'termination') {
+      items.push({ labelAr: 'الحالة الوظيفية', labelEn: 'Status',
+        from: this.statusLabel(emp?.employmentStatus ?? ''), to: this.lang === 'ar' ? 'منتهي الخدمة' : 'Terminated' });
+      items.push({ labelAr: 'تاريخ الإنهاء', labelEn: 'Termination Date', to: f.effectiveDate });
+    } else if (f.actionType === 'warning_issued') {
+      items.push({ labelAr: 'الإجراء', labelEn: 'Action', to: this.lang === 'ar' ? 'إصدار إنذار رسمي' : 'Official warning issued' });
+    } else if (f.actionType === 'contract_renewal') {
+      items.push({ labelAr: 'الإجراء', labelEn: 'Action', to: this.lang === 'ar' ? 'تجديد عقد العمل' : 'Employment contract renewed' });
+    }
+    return items;
+  }
+
+  parseJsonChanges(json: string | null | undefined): { key: string; fromVal: string; toVal: string }[] {
+    if (!json) return [];
+    try {
+      const obj = JSON.parse(json);
+      return Object.entries(obj ?? {}).map(([key, value]) => ({ key, fromVal: '', toVal: String(value) }));
+    } catch { return []; }
+  }
+
+  parseBeforeAfter(before: string | null, after: string | null): { key: string; from: string; to: string }[] {
+    if (!before && !after) return [];
+    try {
+      const b = before ? JSON.parse(before) : {};
+      const a = after ? JSON.parse(after) : {};
+      const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+      const result: { key: string; from: string; to: string }[] = [];
+      keys.forEach(k => {
+        const fromV = b[k] != null ? String(b[k]) : '—';
+        const toV = a[k] != null ? String(a[k]) : '—';
+        if (fromV !== toV) result.push({ key: k, from: fromV, to: toV });
+      });
+      return result;
+    } catch { return []; }
+  }
+
+  formatChangeKey(key: string): string {
+    const map: Record<string, { ar: string; en: string }> = {
+      orgNodeId:           { ar: 'الوحدة التنظيمية', en: 'Org Unit' },
+      departmentId:        { ar: 'القسم',             en: 'Department' },
+      jobTitleId:          { ar: 'المسمى الوظيفي',   en: 'Job Title' },
+      basicSalary:         { ar: 'الراتب الأساسي',    en: 'Basic Salary' },
+      housingAllowance:    { ar: 'بدل السكن',         en: 'Housing' },
+      transportAllowance:  { ar: 'بدل المواصلات',     en: 'Transport' },
+      mobileAllowance:     { ar: 'بدل الجوال',        en: 'Mobile' },
+      mealAllowance:       { ar: 'بدل الوجبات',       en: 'Meal' },
+      otherAllowances:     { ar: 'بدلات أخرى',        en: 'Other' },
+      employmentStatus:    { ar: 'الحالة الوظيفية',   en: 'Status' },
+      terminationDate:     { ar: 'تاريخ الإنهاء',     en: 'Termination Date' },
+    };
+    const l = map[key];
+    return l ? (this.lang === 'ar' ? l.ar : l.en) : key;
+  }
 
   saveAction() {
     const emp = this.employee();
-    if (!emp || !this.actionForm.actionType || !this.actionForm.effectiveDate) return;
+    if (!emp) return;
     this.actionSaving.set(true);
-    this.api.post<any>('/api/employee-actions', {
+    const f = this.actionForm;
+    const payload: Record<string, any> = {
       employeeId: emp.id,
-      actionType: this.actionForm.actionType,
-      effectiveDate: this.actionForm.effectiveDate,
-      notes: this.actionForm.notes || null,
-    }).subscribe({
+      actionType: f.actionType,
+      effectiveDate: f.effectiveDate,
+      notes: f.notes || null,
+    };
+    if (f.actionType === 'transfer') {
+      if (f.orgNodeId) payload['orgNodeId'] = f.orgNodeId;
+      if (f.departmentId) payload['departmentId'] = f.departmentId;
+    } else if (f.actionType === 'promotion' || f.actionType === 'demotion') {
+      if (f.jobTitleId) payload['jobTitleId'] = f.jobTitleId;
+      if (f.changeSalary) {
+        if (f.basicSalary != null) payload['basicSalary'] = f.basicSalary;
+        if (f.housingAllowance != null) payload['housingAllowance'] = f.housingAllowance;
+        if (f.transportAllowance != null) payload['transportAllowance'] = f.transportAllowance;
+        if (f.mobileAllowance != null) payload['mobileAllowance'] = f.mobileAllowance;
+        if (f.mealAllowance != null) payload['mealAllowance'] = f.mealAllowance;
+        if (f.otherAllowances != null) payload['otherAllowances'] = f.otherAllowances;
+      }
+    } else if (f.actionType === 'salary_change') {
+      if (f.basicSalary != null) payload['basicSalary'] = f.basicSalary;
+      if (f.housingAllowance != null) payload['housingAllowance'] = f.housingAllowance;
+      if (f.transportAllowance != null) payload['transportAllowance'] = f.transportAllowance;
+      if (f.mobileAllowance != null) payload['mobileAllowance'] = f.mobileAllowance;
+      if (f.mealAllowance != null) payload['mealAllowance'] = f.mealAllowance;
+      if (f.otherAllowances != null) payload['otherAllowances'] = f.otherAllowances;
+    }
+    this.api.post<any>('/api/employee-actions', payload).subscribe({
       next: () => {
         this.actionSaving.set(false);
         this.closeActionModal();
@@ -1031,6 +1203,7 @@ export class EmployeeProfileComponent implements OnInit {
       },
       error: e => {
         this.actionSaving.set(false);
+        this.confirmStep.set(false);
         this.toast.error(getErrorMessage(e, this.lang === 'ar' ? 'حدث خطأ أثناء حفظ الإجراء.' : 'Failed to save action.'));
       }
     });

@@ -320,3 +320,106 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
   font-size: 11px; color: var(--z-text-muted);
   .material-icons { font-size: 13px; }
 }
+.action-dot {
+  &.action-leave { background: #8b5cf6; }
+  &.action-probation { background: #6366f1; }
+}
+.action-type-chip {
+  &.action-leave { background: #8b5cf6; }
+  &.action-probation { background: #6366f1; }
+}
+
+/* ── Before/After Changes in Timeline ───────────────────────── */
+.action-changes {
+  display: flex; flex-direction: column; gap: 4px; margin-top: 8px;
+  padding-top: 8px; border-top: 1px solid var(--z-border);
+}
+.action-change-row {
+  display: grid; grid-template-columns: minmax(90px, auto) 16px 1fr 16px 1fr; align-items: center;
+  gap: 4px; font-size: 12px;
+}
+.action-change-key { color: var(--z-text-muted); font-weight: 500; }
+.action-change-from { color: #ef4444; font-size: 12px; }
+.action-change-to   { color: #16a34a; font-weight: 600; font-size: 12px; }
+.action-change-arrow { color: var(--z-text-muted); font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.action-change-arrow .material-icons { font-size: 14px; }
+
+/* ── Header Action Dropdown ──────────────────────────────────── */
+.action-dropdown-wrap { position: relative; }
+.action-dropdown-menu {
+  position: absolute; top: calc(100% + 6px); inset-inline-end: 0;
+  min-width: 210px; background: var(--z-surface);
+  border: 1px solid var(--z-border); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.14); z-index: 400;
+  padding: 6px 0; animation: aDropIn .15s ease;
+}
+@keyframes aDropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.action-dropdown-group-label {
+  font-size: 10px; font-weight: 700; color: var(--z-text-muted);
+  text-transform: uppercase; letter-spacing: .6px; padding: 8px 14px 3px;
+}
+.action-dropdown-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px;
+  cursor: pointer; font-size: 13px; color: var(--z-text);
+  border: 0; background: transparent; width: 100%; text-align: start;
+  transition: background .1s;
+  .material-icons { font-size: 16px; color: var(--z-text-muted); }
+  &:hover { background: var(--z-page-bg); color: var(--z-emerald);
+    .material-icons { color: var(--z-emerald); } }
+}
+.action-dropdown-divider { height: 1px; background: var(--z-border); margin: 3px 0; }
+
+/* ── Confirm Step Inside Modal ───────────────────────────────── */
+.confirm-action-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 16px; border-radius: 999px; color: #fff;
+  font-size: 14px; font-weight: 700; margin-bottom: 18px;
+  .material-icons { font-size: 18px; }
+}
+.confirm-summary {
+  background: var(--z-page-bg); border: 1px solid var(--z-border);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+}
+.confirm-summary-title {
+  font-size: 11px; font-weight: 700; color: var(--z-text-muted);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+}
+.confirm-change-row {
+  display: grid; grid-template-columns: minmax(110px,auto) 20px 1fr; align-items: center;
+  gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--z-border); font-size: 13px;
+  &:last-child { border-bottom: 0; }
+}
+.confirm-change-label { color: var(--z-text-muted); font-weight: 500; font-size: 12px; }
+.confirm-change-arrow { color: var(--z-emerald); display: flex; align-items: center; .material-icons { font-size: 15px; } }
+.confirm-change-to { font-weight: 700; color: var(--z-text); }
+.confirm-change-from { font-size: 11px; color: var(--z-text-muted); text-decoration: line-through; }
+.confirm-notes-box {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--z-border);
+  font-size: 12px; color: var(--z-text-muted);
+  span { color: var(--z-text); }
+}
+
+/* ── Type-specific modal fields ───────────────────────────────── */
+.salary-components-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;
+}
+.salary-current-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; background: var(--z-page-bg); border-radius: 6px;
+  font-size: 12px; margin-bottom: 10px; border: 1px solid var(--z-border);
+}
+.salary-current-val { font-weight: 600; color: var(--z-emerald); }
+.change-salary-toggle {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--z-border);
+  font-size: 13px; margin-bottom: 10px; background: var(--z-surface);
+  input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+  &.active { border-color: var(--z-emerald); background: rgba(47,157,105,.06); }
+}
+.modal-dialog {
+  max-height: min(92vh, 680px); display: flex; flex-direction: column;
+  .modal-body { flex: 1; overflow-y: auto; }
+}
