@@ -1,0 +1,55 @@
+STEP 2 — DATABASE: Employee Actions
+═══════════════════════════════════
+Create or fix employee_actions table:
+  id, company_id (FK), employee_id (FK, RESTRICT), action_type (enum below),
+  effective_date (date, NOT NULL), created_by_user_id (FK users, SET NULL),
+  previous_value_json (TEXT — snapshot of changed fields before),
+  new_value_json (TEXT — snapshot of changed fields after),
+  notes (TEXT, nullable), status (applied|reversed), created_at
+
+Action types enum:
+  hire | probation_start | probation_complete | probation_fail |
+  transfer | promotion | demotion | salary_change |
+  suspension | suspension_lift | termination | resignation |
+  leave_of_absence | return_from_leave | warning_issued |
+  document_expired | contract_renewal
+
+Each action automatically triggers side effects when created (see Step 3).
+
+═══════════════════════════════════
+STEP 3 — BACKEND: Employee Actions API
+═══════════════════════════════════
+Build the Actions API as a clean, side-effect-aware system:
+
+GET /api/employee-actions?employeeId=X
+  Auth: [hradmin] for others, [any] for own employeeId
+  Returns: timeline of actions ordered by effective_date DESC
+  Includes: action_type label in AR+EN, created_by name, before/after summary
+
+POST /api/employee-actions
+  Auth: [hradmin only]
+  Body: { employeeId, actionType, effectiveDate, notes, ...action-specific fields }
+  
+  Side effects by action type (apply IMMEDIATELY when action is created):
+    transfer:
+      → update employee.org_node_id = newValueJson.orgNodeId
+      → update employee.department_id = newValueJson.departmentId
+    promotion:
+      → update employee.job_title_id = newValueJson.jobTitleId
+      → if salary changed: end-date current salary components, create new ones
+    demotion: same as promotion but downward
+    salary_change:
+      → end-date ALL current employee_salary_components (set effective_to = effectiveDate - 1 day)
+      → create new employee_salary_components with new values from effectiveDate
+    suspension:
+      → update employee.employment_status = 'suspended'
+    suspension_lift:
+      → update employee.employment_status = 'active'
+    termination:
+      → update employee.employment_status = 'terminated'
+      → update employee.termination_date = effectiveDate
+
+  After every action: create an entry in activity_logs for audit trail.
+
+GET /api/employee-actions/types
+  Returns: all action types with labels in AR + EN (for frontend dropdowns)

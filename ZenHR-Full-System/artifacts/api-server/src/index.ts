@@ -14,8 +14,10 @@ import {
   jobDescriptionsTable, careerPathsTable,
   employeeQualificationsTable,
   employeeActionsTable,
+  employeeSalaryComponentsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   getPermissionMap,
   hasPermission,
@@ -751,6 +753,59 @@ const ACTION_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
   contract_renewal:    { en: "Contract Renewal",        ar: "تجديد عقد" },
 };
 
+// Shared: join-based query returning actions enriched with creator name
+const creatorEmpAlias = alias(employeesTable, "creator_emp");
+
+async function queryActionsWithCreator(where: Parameters<typeof db.select>[0] extends never ? never : any) {
+  return db
+    .select({
+      id: employeeActionsTable.id,
+      companyId: employeeActionsTable.companyId,
+      employeeId: employeeActionsTable.employeeId,
+      actionType: employeeActionsTable.actionType,
+      effectiveDate: employeeActionsTable.effectiveDate,
+      createdByUserId: employeeActionsTable.createdByUserId,
+      previousValueJson: employeeActionsTable.previousValueJson,
+      newValueJson: employeeActionsTable.newValueJson,
+      notes: employeeActionsTable.notes,
+      status: employeeActionsTable.status,
+      createdAt: employeeActionsTable.createdAt,
+      createdByUsername: usersTable.username,
+      createdByFirstName: creatorEmpAlias.firstNameEn,
+      createdByLastName: creatorEmpAlias.lastNameEn,
+    })
+    .from(employeeActionsTable)
+    .leftJoin(usersTable, eq(employeeActionsTable.createdByUserId, usersTable.id))
+    .leftJoin(creatorEmpAlias, eq(usersTable.employeeId, creatorEmpAlias.id))
+    .where(where)
+    .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
+}
+
+function enrichActions(actions: any[]) {
+  return actions.map(a => {
+    const createdByName =
+      a.createdByFirstName && a.createdByLastName
+        ? `${a.createdByFirstName} ${a.createdByLastName}`
+        : (a.createdByUsername ?? null);
+    return {
+      id: a.id,
+      companyId: a.companyId,
+      employeeId: a.employeeId,
+      actionType: a.actionType,
+      effectiveDate: a.effectiveDate,
+      createdByUserId: a.createdByUserId,
+      createdByName,
+      previousValueJson: a.previousValueJson,
+      newValueJson: a.newValueJson,
+      notes: a.notes,
+      status: a.status,
+      createdAt: a.createdAt,
+      labelEn: ACTION_TYPE_LABELS[a.actionType]?.en ?? a.actionType,
+      labelAr: ACTION_TYPE_LABELS[a.actionType]?.ar ?? a.actionType,
+    };
+  });
+}
+
 // GET /api/employee-actions/types — dropdown labels
 app.get("/api/employee-actions/types", auth, (_req, res) => {
   const types = Object.entries(ACTION_TYPE_LABELS).map(([value, labels]) => ({
@@ -773,9 +828,9 @@ app.get("/api/employee-actions", auth, async (req, res) => {
       if (employeeId && parseInt(employeeId) !== user.employeeId) {
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
-      const actions = await db.select().from(employeeActionsTable)
-        .where(eq(employeeActionsTable.employeeId, user.employeeId))
-        .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
+      const actions = await queryActionsWithCreator(
+        eq(employeeActionsTable.employeeId, user.employeeId)
+      );
       return res.json({ success: true, data: enrichActions(actions) });
     }
 
@@ -789,9 +844,9 @@ app.get("/api/employee-actions", auth, async (req, res) => {
     if (!emp || emp.companyId !== user.companyId) {
       res.status(404).json({ success: false, message: "Employee not found" }); return;
     }
-    const actions = await db.select().from(employeeActionsTable)
-      .where(eq(employeeActionsTable.employeeId, empId))
-      .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
+    const actions = await queryActionsWithCreator(
+      eq(employeeActionsTable.employeeId, empId)
+    );
     res.json({ success: true, data: enrichActions(actions) });
   } catch (e) {
     console.error("[GET /api/employee-actions]", e);
@@ -799,12 +854,11 @@ app.get("/api/employee-actions", auth, async (req, res) => {
   }
 });
 
-function enrichActions(actions: any[]) {
-  return actions.map(a => ({
-    ...a,
-    labelEn: ACTION_TYPE_LABELS[a.actionType]?.en ?? a.actionType,
-    labelAr: ACTION_TYPE_LABELS[a.actionType]?.ar ?? a.actionType,
-  }));
+// Helper: compute "one day before" a YYYY-MM-DD date string
+function dayBefore(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().split("T")[0];
 }
 
 // POST /api/employee-actions
@@ -831,23 +885,36 @@ app.post("/api/employee-actions", auth, async (req, res) => {
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
 
     const action = await db.transaction(async (tx) => {
-      // ── Capture "before" snapshot ────────────────────────────────────────────
       const beforeFields: Record<string, any> = {};
       const empUpdate: Record<string, any> = {};
+      let insertSalaryComponent = false;
 
-      // ── Per-action side effects + before/after capture ────────────────────────
+      // ── Per-action side effects + before/after capture ────────────────────
       if (actionType === "transfer") {
         beforeFields.orgNodeId = emp.orgNodeId;
         beforeFields.departmentId = emp.departmentId;
         if (extra.orgNodeId != null) empUpdate.orgNodeId = extra.orgNodeId;
         if (extra.departmentId != null) empUpdate.departmentId = extra.departmentId;
+
       } else if (actionType === "promotion" || actionType === "demotion") {
         beforeFields.jobTitleId = emp.jobTitleId;
         if (extra.jobTitleId != null) empUpdate.jobTitleId = extra.jobTitleId;
         if (extra.basicSalary != null) {
           beforeFields.basicSalary = emp.basicSalary;
+          beforeFields.housingAllowance = emp.housingAllowance;
+          beforeFields.transportAllowance = emp.transportAllowance;
+          beforeFields.mobileAllowance = emp.mobileAllowance;
+          beforeFields.mealAllowance = emp.mealAllowance;
+          beforeFields.otherAllowances = emp.otherAllowances;
           empUpdate.basicSalary = String(extra.basicSalary);
+          if (extra.housingAllowance != null) empUpdate.housingAllowance = String(extra.housingAllowance);
+          if (extra.transportAllowance != null) empUpdate.transportAllowance = String(extra.transportAllowance);
+          if (extra.mobileAllowance != null) empUpdate.mobileAllowance = String(extra.mobileAllowance);
+          if (extra.mealAllowance != null) empUpdate.mealAllowance = String(extra.mealAllowance);
+          if (extra.otherAllowances != null) empUpdate.otherAllowances = String(extra.otherAllowances);
+          insertSalaryComponent = true;
         }
+
       } else if (actionType === "salary_change") {
         beforeFields.basicSalary = emp.basicSalary;
         beforeFields.housingAllowance = emp.housingAllowance;
@@ -861,6 +928,8 @@ app.post("/api/employee-actions", auth, async (req, res) => {
         if (extra.mobileAllowance != null) empUpdate.mobileAllowance = String(extra.mobileAllowance);
         if (extra.mealAllowance != null) empUpdate.mealAllowance = String(extra.mealAllowance);
         if (extra.otherAllowances != null) empUpdate.otherAllowances = String(extra.otherAllowances);
+        insertSalaryComponent = true;
+
       } else if (actionType === "suspension") {
         beforeFields.employmentStatus = emp.employmentStatus;
         empUpdate.employmentStatus = "suspended";
@@ -894,12 +963,22 @@ app.post("/api/employee-actions", auth, async (req, res) => {
       const afterFields: Record<string, any> = { ...beforeFields };
       for (const [k, v] of Object.entries(empUpdate)) afterFields[k] = v;
 
-      // Apply employee update
+      // ── 1. End-date current salary components if needed ───────────────────
+      if (insertSalaryComponent) {
+        await tx.update(employeeSalaryComponentsTable)
+          .set({ effectiveTo: dayBefore(effectiveDate) })
+          .where(and(
+            eq(employeeSalaryComponentsTable.employeeId, employeeId),
+            isNull(employeeSalaryComponentsTable.effectiveTo)
+          ));
+      }
+
+      // ── 2. Apply employee field updates ───────────────────────────────────
       if (Object.keys(empUpdate).length > 0) {
         await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, employeeId));
       }
 
-      // Insert action record
+      // ── 3. Insert action record ───────────────────────────────────────────
       const [inserted] = await tx.insert(employeeActionsTable).values({
         companyId: user.companyId,
         employeeId,
@@ -911,11 +990,42 @@ app.post("/api/employee-actions", auth, async (req, res) => {
         notes: notes ?? null,
         status: "applied",
       }).returning();
+
+      // ── 4. Insert new salary component row ───────────────────────────────
+      if (insertSalaryComponent) {
+        const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? "0";
+        const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? "0";
+        const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? "0";
+        const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? "0";
+        const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? "0";
+        const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? "0";
+        await tx.insert(employeeSalaryComponentsTable).values({
+          companyId: user.companyId,
+          employeeId,
+          basicSalary: String(newBasic),
+          housingAllowance: String(newHousing),
+          transportAllowance: String(newTransport),
+          mobileAllowance: String(newMobile),
+          mealAllowance: String(newMeal),
+          otherAllowances: String(newOther),
+          effectiveFrom: effectiveDate,
+          effectiveTo: null,
+          sourceActionId: inserted.id,
+        });
+      }
+
       return inserted;
     });
 
     await logActivity(user.companyId, "employee_action", `${actionType} recorded for employee #${employeeId}`, null);
-    res.status(201).json({ success: true, data: { ...action, labelEn: ACTION_TYPE_LABELS[actionType]?.en, labelAr: ACTION_TYPE_LABELS[actionType]?.ar } });
+    res.status(201).json({
+      success: true,
+      data: {
+        ...action,
+        labelEn: ACTION_TYPE_LABELS[actionType]?.en,
+        labelAr: ACTION_TYPE_LABELS[actionType]?.ar,
+      },
+    });
   } catch (e) {
     console.error("[POST /api/employee-actions]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
