@@ -2240,15 +2240,38 @@ const advancesStore: any[] = [];
 let advanceIdSeq = 1;
 
 app.get("/api/salary-advances", auth, async (req, res) => {
-  const user = (req as AuthReq).user;
-  const { employeeId } = req.query as Record<string, string>;
-  let result: any[] = advancesStore;
-  if (user.role === "employee") {
-    result = result.filter((a: any) => a.employeeId === user.employeeId);
-  } else if (employeeId) {
-    result = result.filter((a: any) => String(a.employeeId) === employeeId);
+  try {
+    const user = (req as AuthReq).user;
+    const { employeeId } = req.query as Record<string, string>;
+    let result: any[] = advancesStore;
+
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      if (employeeId && parseInt(employeeId) !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
+      result = result.filter((a: any) => a.employeeId === user.employeeId);
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = new Set(teamEmps.map(e => e.id));
+      if (ids.size === 0) { res.json({ success: true, data: [] }); return; }
+      if (employeeId) {
+        const reqId = parseInt(employeeId);
+        if (!ids.has(reqId)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+        result = result.filter((a: any) => a.employeeId === reqId);
+      } else {
+        result = result.filter((a: any) => ids.has(a.employeeId));
+      }
+    } else {
+      if (employeeId) result = result.filter((a: any) => String(a.employeeId) === employeeId);
+    }
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
-  res.json({ success: true, data: result });
 });
 
 app.post("/api/salary-advances", auth, async (req, res) => {
@@ -3251,8 +3274,32 @@ app.get("/api/overtime/log", auth, async (req, res) => {
 
 app.get("/api/overtime/requests", auth, async (req, res) => {
   try {
-    const { status } = req.query as Record<string, string>;
-    const conditions = [eq(overtimeRequestsTable.isDeleted, false)];
+    const user = (req as AuthReq).user;
+    const { status, employeeId } = req.query as Record<string, string>;
+    const conditions: any[] = [eq(overtimeRequestsTable.isDeleted, false)];
+
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      if (employeeId && parseInt(employeeId) !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
+      conditions.push(eq(overtimeRequestsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = teamEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(overtimeRequestsTable.employeeId, ids));
+      if (employeeId) {
+        const reqId = parseInt(employeeId);
+        if (!ids.includes(reqId)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+        conditions.push(eq(overtimeRequestsTable.employeeId, reqId));
+      }
+    } else {
+      if (employeeId) conditions.push(eq(overtimeRequestsTable.employeeId, parseInt(employeeId)));
+    }
+
     if (status) conditions.push(eq(overtimeRequestsTable.status, status));
     const rows = await db.select().from(overtimeRequestsTable).where(and(...conditions)).orderBy(desc(overtimeRequestsTable.date));
     res.json({ success: true, data: rows });

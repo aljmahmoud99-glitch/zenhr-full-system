@@ -1,0 +1,51 @@
+TEP 5 — STRICT SELF-SERVICE ISOLATION
+═══════════════════════════════════
+This is a SECURITY requirement, not just a UX requirement.
+The backend MUST enforce these rules — frontend hiding alone is NOT sufficient.
+
+Backend enforcement — add to EVERY list endpoint that returns employee data:
+  Extract current user's role and employeeId from JWT claims.
+  
+  if role === 'employee':
+    force filter: WHERE employee_id = currentUserEmployeeId
+    IGNORE any employeeId or departmentId query parameters from the request
+    return 403 if request has employeeId param != own id
+  
+  if role === 'manager':
+    force filter: WHERE employee_id IN (employees WHERE direct_manager_id = currentUserEmployeeId)
+    OR using org scope: WHERE org_node_id IN (manager's subtree node ids)
+
+Endpoints that MUST have this enforcement (fix each one):
+  GET /api/leave/requests
+  GET /api/overtime/requests
+  GET /api/attendance
+  GET /api/salary-advances
+  GET /api/documents
+  GET /api/assets
+  GET /api/payroll/slips
+  GET /api/employee-actions
+
+Frontend — employee-facing screens:
+  When user is employee role: hide these UI elements completely:
+    - Department/org unit filter dropdown
+    - Employee selector dropdown
+    - "All Employees" options
+    - Export all button (if it exports all employees' data)
+  
+  When employee opens any list screen: they see their own data with no filter controls.
+  The page title changes: "إجازاتي / My Leaves" not "الإجازات / Leaves"
+
+Employee Self-Service Dashboard (build if missing, fix if broken):
+  Show only personal summary cards:
+    - Today's attendance status (present/absent/late)
+    - Leave balance summary (remaining days per type)
+    - Upcoming leaves (approved, next 30 days)
+    - Pending requests count (leave, overtime, advances)
+    - Latest payslip (month + net amount)
+    - Document expiry alerts (own documents)
+  
+  Quick action buttons:
+    - طلب إجازة / Request Leave
+    - طلب عمل إضافي / Request Overtime
+    - طلب سلفة / Request Advance
+    - عرض كشف الراتب / View Payslip
