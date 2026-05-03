@@ -1,0 +1,99 @@
+Fix GLOBAL RTL alignment + GLOBAL number formatting.
+
+Do not change backend.
+Do not redesign features.
+Do not touch business logic.
+
+Current issue:
+In Arabic mode, multiple pages still have main content aligned left.
+Examples:
+- Dashboard welcome block: "مرحبا hr"
+- page headings
+- subtitles
+- quick action blocks
+- cards/toolbars
+
+Arabic UI must be RTL globally, not per screen.
+
+Tasks:
+
+1. Global RTL layout fix
+- Find the app layout root / shell / main content wrapper.
+- Ensure Arabic mode sets:
+  document.documentElement.dir = 'rtl'
+  document.documentElement.lang = 'ar'
+- English mode sets:
+  dir = 'ltr'
+  lang = 'en'
+- Ensure the main content container respects direction.
+- Use CSS logical properties where possible:
+  margin-inline-start/end
+  padding-inline-start/end
+  text-align: start/end
+- Avoid hardcoded left/right unless necessary.
+
+2. Global text alignment
+In RTL mode:
+- page titles align right
+- subtitles align right
+- section headers align right
+- card content aligns right
+- toolbar labels align right
+- quick action groups start from the right
+
+In LTR mode:
+- keep English left aligned.
+
+3. Fix common layout containers
+Audit and fix shared/global styles for:
+- dashboard hero/header blocks
+- page headers
+- cards
+- section headers
+- toolbar/search/filter blocks
+- profile headers
+- form labels
+- modal headers
+
+Prefer global CSS classes instead of patching every page manually.
+
+4. Global number formatting
+All numbers must always render using Western/English digits:
+0 1 2 3 4 5 6 7 8 9
+
+This applies in Arabic and English mode:
+- counters
+- dates
+- badges
+- employee codes
+- salaries
+- years
+- pagination
+- notification counts
+
+Implement a shared helper/pipe if needed:
+- format numbers with en-US
+- avoid ar locale number formatting
+- do not output Arabic-Indic digits
+
+5. Verify across roles/pages
+Test Arabic mode on:
+- HR dashboard
+- Manager dashboard
+- Employee dashboard
+- Employees list
+- Job descriptions
+- Org structure
+- Roles/permissions
+
+Expected:
+- Arabic content starts from the right
+- English content stays left aligned
+- numbers remain English digits everywhere
+- no Console errors
+
+Return:
+- files changed
+- global RTL strategy used
+- global number formatting strategy used
+- pages verified

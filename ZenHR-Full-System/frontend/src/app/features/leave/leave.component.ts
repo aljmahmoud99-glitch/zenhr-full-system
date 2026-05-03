@@ -577,7 +577,7 @@ export class LeaveComponent implements OnInit {
 
   formatDate(value?: string) {
     if (!value) return '—';
-    return new Date(value).toLocaleDateString(this.lang === 'ar' ? 'ar-JO' : 'en-US');
+    return new Date(value).toLocaleDateString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US');
   }
 
   private runApprove(id: number) {

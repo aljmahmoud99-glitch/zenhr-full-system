@@ -203,14 +203,14 @@ export class LayoutComponent implements OnInit {
   }
 
   get todayDayLabel() {
-    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       weekday: 'long',
       day: 'numeric'
     }).format(this.today());
   }
 
   get todayMonthLabel() {
-    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       month: 'long',
       year: 'numeric'
     }).format(this.today());
@@ -346,7 +346,7 @@ export class LayoutComponent implements OnInit {
       return this.label('الآن', 'Now');
     }
 
-    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',

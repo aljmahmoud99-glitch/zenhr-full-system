@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZoneChangeDetection, importProvidersFrom, APP_INITIALIZER } from '@angular/core';
+import { ApplicationConfig, provideZoneChangeDetection, importProvidersFrom, APP_INITIALIZER, LOCALE_ID } from '@angular/core';
 import { provideRouter, withHashLocation } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
@@ -40,6 +40,7 @@ export const appConfig: ApplicationConfig = {
       deps: [RoleAccessService],
       multi: true,
     },
+    { provide: LOCALE_ID, useValue: 'en-US' },
     importProvidersFrom(
       TranslateModule.forRoot({
         defaultLanguage: 'ar',

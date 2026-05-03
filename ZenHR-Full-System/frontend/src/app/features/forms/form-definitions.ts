@@ -36,7 +36,7 @@ export interface FormDefinition {
 // SHARED: document header / footer builders
 // ───────────────────────────────────────────
 function docHeader(company: any, titleAr: string, refNumber?: string): string {
-  const today = new Date().toLocaleDateString('ar-JO', { year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString('ar-JO-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' });
   return `
     <div class="doc-header">
       <div class="company-logo-area">
@@ -876,8 +876,8 @@ export const FORM_DEFINITIONS: FormDefinition[] = [
       { id: 'additionalText', labelAr: 'نص إضافي (اختياري)', labelEn: 'Additional Text', type: 'textarea', rows: 3 },
     ],
     getTemplate: (v, emp, company) => {
-      const from = emp?.hireDate ? new Date(emp.hireDate).toLocaleDateString('ar-JO') : '........................';
-      const to = v['endDate'] ? new Date(v['endDate']).toLocaleDateString('ar-JO') : 'تاريخه';
+      const from = emp?.hireDate ? new Date(emp.hireDate).toLocaleDateString('ar-JO-u-nu-latn') : '........................';
+      const to = v['endDate'] ? new Date(v['endDate']).toLocaleDateString('ar-JO-u-nu-latn') : 'تاريخه';
       return `
         ${docHeader(company, 'شهادة خبرة')}
         ${v['addressedTo'] ? `<div class="letter-intro">إلى: ${v['addressedTo']}</div>` : ''}

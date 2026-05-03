@@ -881,6 +881,6 @@ export class ShiftsComponent implements OnInit {
   }
 
   formatDate(d: Date) {
-    return d.toLocaleDateString('ar-JO', { day: '2-digit', month: '2-digit' });
+    return d.toLocaleDateString('ar-JO-u-nu-latn', { day: '2-digit', month: '2-digit' });
   }
 }

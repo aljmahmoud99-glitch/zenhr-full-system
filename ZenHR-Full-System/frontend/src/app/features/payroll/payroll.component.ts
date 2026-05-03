@@ -220,7 +220,7 @@ export class PayrollComponent implements OnInit {
 
   money(value: number | undefined | null) {
     const currency = this.settings.currencyCode();
-    return new Intl.NumberFormat(this.lang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.NumberFormat(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       style: 'currency',
       currency,
       minimumFractionDigits: 3,

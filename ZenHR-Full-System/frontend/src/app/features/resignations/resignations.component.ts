@@ -945,7 +945,7 @@ export class ResignationsComponent implements OnInit {
   }
 
   formatDate(value: string) {
-    return value ? new Date(value).toLocaleDateString(this.lang === 'ar' ? 'ar-JO' : 'en-US') : '—';
+    return value ? new Date(value).toLocaleDateString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US') : '—';
   }
 
   emptyForm() {

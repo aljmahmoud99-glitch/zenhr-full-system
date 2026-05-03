@@ -93,6 +93,12 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - All `console.log/warn/debug` calls removed from production component code
 - Backend: all ~45 API endpoints return `{ success: boolean, data: T }` consistently; frontend uses `response.data ?? fallback` pattern throughout
 
+## Phase 3 — Employee Profile (Step 6: Global RTL + Number Formatting — Completed)
+- **Number formatting**: All `ar-JO` locale strings replaced with `ar-JO-u-nu-latn` across 10 files (layout, dashboard, employees, attendance, employee-profile, leave, payroll, resignations, shifts, form-definitions) — forces Latin numerals (0-9) even when Arabic locale is active
+- **LOCALE_ID**: Explicitly provided as `'en-US'` in `app.config.ts` — ensures Angular `| number`, `| date` pipes always use Western digits
+- **Dashboard hero RTL**: Fixed `margin-inline-start: auto` → `margin-inline-end: auto` in all RTL hero blocks (both `.rtl-layout` class and `[dir='rtl']` selectors); fixed `justify-content: flex-end` → `justify-content: flex-start` in RTL hero containers so welcome text correctly aligns to the right side
+- **Global RTL CSS** added to `styles.scss`: KPI card accent bar border-radius flipped for RTL (`0 22px 22px 0`); modal-actions `justify-content: flex-start` in RTL; notification panel text `text-align: end`; table cells `text-align: start`; direction explicit on page headers, filter bars, badges, eyebrow chips
+
 ## Jordan-Specific Rules
 - SSC: insurable salary = MIN(basic, 3000 JOD). Employee 7.5% + Employer 14.25%
 - EOSB: resignation <3yr = 0, ≥3yr = basic×years/12. Termination = basic×years

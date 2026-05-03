@@ -513,7 +513,7 @@ export class EmployeesComponent implements OnInit {
       return '—';
     }
 
-    return new Intl.DateTimeFormat(this.lang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.DateTimeFormat(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       day: '2-digit',
       month: 'short',
       year: 'numeric'
@@ -525,7 +525,7 @@ export class EmployeesComponent implements OnInit {
       return '—';
     }
 
-    return `${value.toLocaleString(this.lang === 'ar' ? 'ar-JO' : 'en-US', {
+    return `${value.toLocaleString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3
     })} JOD`;

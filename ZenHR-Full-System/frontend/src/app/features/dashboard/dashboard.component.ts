@@ -334,7 +334,7 @@ export class DashboardComponent implements OnInit {
     }
 
     const date = new Date(value);
-    return new Intl.DateTimeFormat(this.lang === 'ar' ? 'ar-JO' : 'en-US', {
+    return new Intl.DateTimeFormat(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
       day: '2-digit',
       month: 'short',
       hour: '2-digit',

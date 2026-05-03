@@ -761,3 +761,56 @@ textarea.form-control,
     grid-template-columns: 1fr;
   }
 }
+
+[dir='rtl'] .z-kpi-card::before,
+[dir='rtl'] .dashboard-stat-card::before {
+  border-radius: 0 22px 22px 0;
+}
+
+[dir='rtl'] .z-page-header,
+[dir='rtl'] .page-header {
+  direction: rtl;
+}
+
+[dir='rtl'] .filter-bar,
+[dir='rtl'] .search-bar,
+[dir='rtl'] .toolbar-row,
+[dir='rtl'] .filter-row {
+  direction: rtl;
+}
+
+[dir='rtl'] .modal-head,
+[dir='rtl'] .modal-header {
+  direction: rtl;
+}
+
+[dir='rtl'] .modal-actions,
+[dir='rtl'] .modal-footer {
+  direction: rtl;
+  justify-content: flex-start;
+}
+
+[dir='rtl'] .notification-panel-title,
+[dir='rtl'] .notification-item-title,
+[dir='rtl'] .notification-item-meta,
+[dir='rtl'] .notification-empty-state {
+  text-align: end;
+}
+
+[dir='rtl'] .z-table th,
+[dir='rtl'] .z-table td {
+  text-align: start;
+}
+
+[dir='rtl'] .badge,
+[dir='rtl'] .z-badge {
+  direction: rtl;
+}
+
+[dir='rtl'] .page-title-block {
+  text-align: start;
+}
+
+[dir='rtl'] .eyebrow {
+  direction: rtl;
+}

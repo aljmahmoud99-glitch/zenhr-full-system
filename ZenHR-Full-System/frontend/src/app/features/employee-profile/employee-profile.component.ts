@@ -541,7 +541,7 @@ export class EmployeeProfileComponent implements OnInit {
 
   formatAttendanceTime(value?: string | null) {
     if (!value) return '—';
-    return new Date(value).toLocaleTimeString(this.lang === 'ar' ? 'ar-JO' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+    return new Date(value).toLocaleTimeString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   formatWorkedHours(minutes?: number | null) {
