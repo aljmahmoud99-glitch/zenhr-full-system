@@ -10,17 +10,18 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
+    "cors": "^2.8.5",
     "drizzle-orm": "catalog:",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "cors": "^2.8.5",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.9",
-    "@types/cors": "^2.8.17",
+    "@types/node": "catalog:",
     "tsx": "catalog:"
   }
 }

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import ExcelJS from "exceljs";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
 import { applyBrackets, calculateComponentValueM } from "./salary-calculation.service.js";
@@ -4279,19 +4280,603 @@ app.get("/api/org-nodes/flat", auth, async (req, res) => {
 });
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
+function rptSafeDate(v: unknown, fallback: string): string {
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  return fallback;
+}
+function rptSafeInt(v: unknown, fallback: number): number {
+  const n = parseInt(String(v ?? ""), 10);
+  return isNaN(n) ? fallback : n;
+}
+
 app.get("/api/reports/headcount", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [count] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
-    res.json({ success: true, data: { totalHeadcount: count?.count ?? 0, asOf: new Date().toISOString() } });
+    const cid = user.companyId;
+    const byStatus = await db
+      .select({ status: employeesTable.employmentStatus, count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.companyId, cid), eq(employeesTable.isDeleted, false)))
+      .groupBy(employeesTable.employmentStatus)
+      .orderBy(desc(sql`count(*)`));
+    const totalHeadcount = byStatus.find(r => r.status === "active")?.count ?? 0;
+    const byDept = await db
+      .select({
+        orgNodeNameAr: orgNodesTable.nameAr,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        count: sql<number>`count(${employeesTable.id})::int`,
+      })
+      .from(employeesTable)
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, cid), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+      .groupBy(orgNodesTable.nameAr, orgNodesTable.nameEn)
+      .orderBy(desc(sql`count(${employeesTable.id})`));
+    res.json({ success: true, data: { totalHeadcount, byStatus, byDept, asOf: new Date().toISOString() } });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/reports/compliance-summary", auth, async (_req, res) => {
-  res.json({ success: true, data: { score: 92, items: 24, compliant: 22, nonCompliant: 2 } });
+app.get("/api/reports/leave-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const year = rptSafeInt(req.query["year"], new Date().getFullYear());
+    const month = rptSafeInt(req.query["month"], new Date().getMonth() + 1);
+    const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
+    const empIds = (await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))).map(e => e.id);
+    if (empIds.length === 0) { res.json({ success: true, data: [] }); return; }
+    const rows = await db
+      .select({
+        typeEn: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'unknown')`,
+        typeAr: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'غير محدد')`,
+        status: leaveRequestsTable.status,
+        count: sql<number>`count(*)::int`,
+        totalDays: sql<number>`coalesce(sum(${leaveRequestsTable.totalDays}), 0)::numeric(10,2)`,
+      })
+      .from(leaveRequestsTable)
+      .where(and(inArray(leaveRequestsTable.employeeId, empIds), eq(leaveRequestsTable.isDeleted, false),
+        gte(leaveRequestsTable.startDate, startOfMonth), lte(leaveRequestsTable.startDate, endOfMonth)))
+      .groupBy(leaveRequestsTable.leaveType, leaveRequestsTable.status)
+      .orderBy(desc(sql`count(*)`));
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/attendance-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const year = rptSafeInt(req.query["year"], new Date().getFullYear());
+    const month = rptSafeInt(req.query["month"], new Date().getMonth() + 1);
+    const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
+    const rows = await db
+      .select({
+        employeeId: employeesTable.id,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        orgNodeNameAr: orgNodesTable.nameAr,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        presentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'present' then 1 end)::int`,
+        absentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'absent' then 1 end)::int`,
+        totalLateMinutes: sql<number>`coalesce(sum(${attendanceRecordsTable.lateMinutes}), 0)::int`,
+      })
+      .from(employeesTable)
+      .leftJoin(attendanceRecordsTable, and(eq(attendanceRecordsTable.employeeId, employeesTable.id),
+        gte(attendanceRecordsTable.date, startOfMonth), lte(attendanceRecordsTable.date, endOfMonth)))
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, orgNodesTable.nameAr, orgNodesTable.nameEn)
+      .orderBy(asc(employeesTable.firstNameEn));
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/overtime-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const from = rptSafeDate(req.query["from"], `${new Date().getFullYear()}-01-01`);
+    const to = rptSafeDate(req.query["to"], new Date().toISOString().slice(0, 10));
+    const rows = await db
+      .select({
+        employeeId: employeesTable.id,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        orgNodeNameAr: orgNodesTable.nameAr,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        totalHours: sql<number>`coalesce(sum(${overtimeRequestsTable.hours}), 0)::numeric(10,2)`,
+        approvedHours: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours} end), 0)::numeric(10,2)`,
+        totalCost: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours}::numeric * (${employeesTable.basicSalary}::numeric / 176) * 1.5 end), 0)::numeric(12,3)`,
+      })
+      .from(employeesTable)
+      .leftJoin(overtimeRequestsTable, and(eq(overtimeRequestsTable.employeeId, employeesTable.id),
+        gte(overtimeRequestsTable.date, from), lte(overtimeRequestsTable.date, to), eq(overtimeRequestsTable.isDeleted, false)))
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.basicSalary, orgNodesTable.nameAr, orgNodesTable.nameEn)
+      .orderBy(desc(sql`coalesce(sum(${overtimeRequestsTable.hours}), 0)`));
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/disciplinary-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const from = rptSafeDate(req.query["from"], `${new Date().getFullYear()}-01-01`);
+    const to = rptSafeDate(req.query["to"], new Date().toISOString().slice(0, 10));
+    const disciplinaryTypes = ["warning_issued", "suspension", "suspension_lift", "termination"];
+    const rows = await db
+      .select({ typeEn: employeeActionsTable.actionType, status: employeeActionsTable.status, count: sql<number>`count(*)::int` })
+      .from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, disciplinaryTypes),
+        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)))
+      .groupBy(employeeActionsTable.actionType, employeeActionsTable.status)
+      .orderBy(desc(sql`count(*)`));
+    const typeArMap: Record<string, string> = { warning_issued: "إنذار", suspension: "إيقاف", suspension_lift: "رفع الإيقاف", termination: "إنهاء خدمة" };
+    res.json({ success: true, data: rows.map(r => ({ ...r, typeAr: typeArMap[r.typeEn] ?? r.typeEn })) });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/payroll-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const year = rptSafeInt(req.query["year"], new Date().getFullYear());
+    const month = rptSafeInt(req.query["month"], 0);
+    const conditions: Parameters<typeof and>[0][] = [eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false), eq(payrollRunsTable.runYear, year)];
+    if (month > 0) conditions.push(eq(payrollRunsTable.runMonth, month));
+    const rows = await db.select().from(payrollRunsTable).where(and(...conditions)).orderBy(desc(payrollRunsTable.runMonth));
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/ssc-contributions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const year = rptSafeInt(req.query["year"], new Date().getFullYear());
+    const month = rptSafeInt(req.query["month"], new Date().getMonth() + 1);
+    const runs = await db.select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runMonth, month),
+        eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false))).limit(1);
+    if (runs.length > 0) {
+      const rows = await db
+        .select({
+          employeeId: employeesTable.id,
+          nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          sscNumber: employeesTable.sscNumber,
+          orgNodeNameAr: orgNodesTable.nameAr,
+          orgNodeNameEn: orgNodesTable.nameEn,
+          basicSalary: payslipsTable.basicSalary,
+          sscDeduction: payslipsTable.sscDeduction,
+          sscEmployerContribution: payslipsTable.sscEmployerContribution,
+        })
+        .from(payslipsTable)
+        .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(payslipsTable.payrollRunId, runs[0]!.id), eq(employeesTable.companyId, user.companyId)))
+        .orderBy(asc(employeesTable.firstNameEn));
+      res.json({ success: true, data: rows });
+    } else {
+      const rows = await db
+        .select({
+          employeeId: employeesTable.id,
+          nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          sscNumber: employeesTable.sscNumber,
+          orgNodeNameAr: orgNodesTable.nameAr,
+          orgNodeNameEn: orgNodesTable.nameEn,
+          basicSalary: employeesTable.basicSalary,
+          sscDeduction: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.075, 3)`,
+          sscEmployerContribution: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.1425, 3)`,
+        })
+        .from(employeesTable)
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false),
+          eq(employeesTable.employmentStatus, "active"), eq(employeesTable.isSSCExempt, false)))
+        .orderBy(asc(employeesTable.firstNameEn));
+      res.json({ success: true, data: rows });
+    }
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/income-tax-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const year = rptSafeInt(req.query["year"], new Date().getFullYear());
+    const checkPayslips = await db.select({ id: payslipsTable.id })
+      .from(payslipsTable)
+      .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false)))
+      .limit(1);
+    if (checkPayslips.length > 0) {
+      const rows = await db
+        .select({
+          employeeId: employeesTable.id,
+          nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          orgNodeNameAr: orgNodesTable.nameAr,
+          orgNodeNameEn: orgNodesTable.nameEn,
+          annualGross: sql<number>`coalesce(sum(${payslipsTable.grossSalary}), 0)::numeric(14,3)`,
+          totalTax: sql<number>`coalesce(sum(${payslipsTable.incomeTaxDeduction}), 0)::numeric(14,3)`,
+          extraExemption: employeesTable.taxExemptionAmount,
+        })
+        .from(payslipsTable)
+        .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+        .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false)))
+        .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.taxExemptionAmount, orgNodesTable.nameAr, orgNodesTable.nameEn)
+        .orderBy(desc(sql`coalesce(sum(${payslipsTable.grossSalary}), 0)`));
+      res.json({ success: true, data: rows });
+    } else {
+      const rows = await db
+        .select({
+          employeeId: employeesTable.id,
+          nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          orgNodeNameAr: orgNodesTable.nameAr,
+          orgNodeNameEn: orgNodesTable.nameEn,
+          annualGross: sql<number>`round((${employeesTable.basicSalary}::numeric + coalesce(${employeesTable.housingAllowance}::numeric, 0) + coalesce(${employeesTable.transportAllowance}::numeric, 0)) * 12, 3)`,
+          totalTax: sql<number>`0::numeric`,
+          extraExemption: employeesTable.taxExemptionAmount,
+        })
+        .from(employeesTable)
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+        .orderBy(desc(sql`${employeesTable.basicSalary}`));
+      res.json({ success: true, data: rows });
+    }
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/turnover", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const from = rptSafeDate(req.query["from"], `${new Date().getFullYear()}-01-01`);
+    const to = rptSafeDate(req.query["to"], new Date().toISOString().slice(0, 10));
+    const [hireRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false),
+        gte(employeesTable.hireDate, from), lte(employeesTable.hireDate, to)));
+    const [exitRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.companyId, user.companyId),
+        inArray(employeeActionsTable.actionType, ["termination", "resignation"]),
+        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)));
+    const [totalActive] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    const hires = hireRow?.count ?? 0;
+    const exits = exitRow?.count ?? 0;
+    const avgHeadcount = totalActive?.count ?? 1;
+    const turnoverRate = avgHeadcount > 0 ? parseFloat(((exits / avgHeadcount) * 100).toFixed(2)) : 0;
+    res.json({ success: true, data: { hires, exits, turnoverRate, from, to } });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+app.get("/api/reports/compliance-summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const today = new Date().toISOString().slice(0, 10);
+    const soonDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const [totalActiveRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    const [sscEnrolledRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.sscNumber)));
+    const [nonJordRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
+    const [expiredRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
+    const [expiringSoonRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        isNotNull(employeesTable.workPermitExpiry), gte(sql`${employeesTable.workPermitExpiry}::date`, today), lte(sql`${employeesTable.workPermitExpiry}::date`, soonDate)));
+    const totalActive = totalActiveRow?.count ?? 0;
+    const sscEnrolled = sscEnrolledRow?.count ?? 0;
+    res.json({
+      success: true, data: {
+        totalActive, sscEnrolled, sscNotEnrolled: totalActive - sscEnrolled,
+        nonJordanians: nonJordRow?.count ?? 0, workPermitsExpired: expiredRow?.count ?? 0,
+        workPermitsExpiringSoon: expiringSoonRow?.count ?? 0,
+      }
+    });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
+});
+
+// ─── Excel Export ──────────────────────────────────────────────────────────────
+async function buildReportData(reportType: string, user: AuthReq["user"], query: Record<string, string>): Promise<{ headers: string[]; rows: (string | number | null)[][] }> {
+  const year = rptSafeInt(query["year"], new Date().getFullYear());
+  const month = rptSafeInt(query["month"], new Date().getMonth() + 1);
+  const from = rptSafeDate(query["from"], `${year}-01-01`);
+  const to = rptSafeDate(query["to"], new Date().toISOString().slice(0, 10));
+
+  if (reportType === "headcount") {
+    const byStatus = await db.select({ status: employeesTable.employmentStatus, count: sql<number>`count(*)::int` })
+      .from(employeesTable).where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+      .groupBy(employeesTable.employmentStatus);
+    return { headers: ["Status", "Count"], rows: byStatus.map(r => [r.status, r.count]) };
+  }
+  if (reportType === "leave") {
+    const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
+    const empIds = (await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))).map(e => e.id);
+    if (empIds.length === 0) return { headers: ["Leave Type", "Status", "Requests", "Total Days"], rows: [] };
+    const rows = await db.select({
+      typeEn: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'unknown')`,
+      status: leaveRequestsTable.status,
+      count: sql<number>`count(*)::int`,
+      totalDays: sql<number>`coalesce(sum(${leaveRequestsTable.totalDays}), 0)::numeric(10,2)`,
+    }).from(leaveRequestsTable)
+      .where(and(inArray(leaveRequestsTable.employeeId, empIds), eq(leaveRequestsTable.isDeleted, false),
+        gte(leaveRequestsTable.startDate, startOfMonth), lte(leaveRequestsTable.startDate, endOfMonth)))
+      .groupBy(leaveRequestsTable.leaveType, leaveRequestsTable.status)
+      .orderBy(desc(sql`count(*)`));
+    return { headers: ["Leave Type", "Status", "Requests", "Total Days"], rows: rows.map(r => [r.typeEn, r.status, r.count, Number(r.totalDays)]) };
+  }
+  if (reportType === "attendance") {
+    const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
+    const rows = await db.select({
+      nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+      nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+      orgNodeNameEn: orgNodesTable.nameEn,
+      presentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'present' then 1 end)::int`,
+      absentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'absent' then 1 end)::int`,
+      totalLateMinutes: sql<number>`coalesce(sum(${attendanceRecordsTable.lateMinutes}), 0)::int`,
+    }).from(employeesTable)
+      .leftJoin(attendanceRecordsTable, and(eq(attendanceRecordsTable.employeeId, employeesTable.id),
+        gte(attendanceRecordsTable.date, startOfMonth), lte(attendanceRecordsTable.date, endOfMonth)))
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, orgNodesTable.nameAr, orgNodesTable.nameEn)
+      .orderBy(asc(employeesTable.firstNameEn));
+    return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Present Days", "Absent Days", "Late Minutes"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", r.presentDays, r.absentDays, r.totalLateMinutes]) };
+  }
+  if (reportType === "overtime") {
+    const rows = await db.select({
+      nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+      nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+      orgNodeNameEn: orgNodesTable.nameEn,
+      totalHours: sql<number>`coalesce(sum(${overtimeRequestsTable.hours}), 0)::numeric(10,2)`,
+      approvedHours: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours} end), 0)::numeric(10,2)`,
+      totalCost: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours}::numeric * (${employeesTable.basicSalary}::numeric / 176) * 1.5 end), 0)::numeric(12,3)`,
+    }).from(employeesTable)
+      .leftJoin(overtimeRequestsTable, and(eq(overtimeRequestsTable.employeeId, employeesTable.id),
+        gte(overtimeRequestsTable.date, from), lte(overtimeRequestsTable.date, to), eq(overtimeRequestsTable.isDeleted, false)))
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
+      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.basicSalary, orgNodesTable.nameAr, orgNodesTable.nameEn);
+    return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Total Hours", "Approved Hours", "Cost (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.totalHours), Number(r.approvedHours), Number(r.totalCost)]) };
+  }
+  if (reportType === "disciplinary") {
+    const disciplinaryTypes = ["warning_issued", "suspension", "suspension_lift", "termination"];
+    const typeArMap: Record<string, string> = { warning_issued: "إنذار", suspension: "إيقاف", suspension_lift: "رفع الإيقاف", termination: "إنهاء خدمة" };
+    const rows = await db.select({ typeEn: employeeActionsTable.actionType, status: employeeActionsTable.status, count: sql<number>`count(*)::int` })
+      .from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, disciplinaryTypes),
+        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)))
+      .groupBy(employeeActionsTable.actionType, employeeActionsTable.status);
+    return { headers: ["Violation Type (EN)", "Violation Type (AR)", "Status", "Count"], rows: rows.map(r => [r.typeEn, typeArMap[r.typeEn] ?? r.typeEn, r.status, r.count]) };
+  }
+  if (reportType === "payroll") {
+    const conditions: Parameters<typeof and>[0][] = [eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false), eq(payrollRunsTable.runYear, year)];
+    if (month > 0) conditions.push(eq(payrollRunsTable.runMonth, month));
+    const rows = await db.select().from(payrollRunsTable).where(and(...conditions)).orderBy(desc(payrollRunsTable.runMonth));
+    return { headers: ["Year", "Month", "Employees", "Gross (JOD)", "Net (JOD)", "Deductions (JOD)", "SSC Employee", "SSC Employer", "Income Tax", "Status"], rows: rows.map(r => [r.runYear, r.runMonth, r.employeeCount, Number(r.totalGross), Number(r.totalNet), Number(r.totalDeductions), Number(r.totalSscEmployee), Number(r.totalSscEmployer), Number(r.totalIncomeTax), r.status]) };
+  }
+  if (reportType === "ssc") {
+    const runs = await db.select({ id: payrollRunsTable.id }).from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runMonth, month), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false))).limit(1);
+    if (runs.length > 0) {
+      const rows = await db.select({
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        sscNumber: employeesTable.sscNumber,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        basicSalary: payslipsTable.basicSalary,
+        sscDeduction: payslipsTable.sscDeduction,
+        sscEmployerContribution: payslipsTable.sscEmployerContribution,
+      }).from(payslipsTable)
+        .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(payslipsTable.payrollRunId, runs[0]!.id), eq(employeesTable.companyId, user.companyId)))
+        .orderBy(asc(employeesTable.firstNameEn));
+      return { headers: ["Name (EN)", "Name (AR)", "SSC Number", "Org Unit", "Basic Salary (JOD)", "Employee SSC (7.5%)", "Employer SSC (14.25%)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.sscNumber ?? "", r.orgNodeNameEn ?? "", Number(r.basicSalary), Number(r.sscDeduction), Number(r.sscEmployerContribution)]) };
+    } else {
+      const rows = await db.select({
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        sscNumber: employeesTable.sscNumber,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        basicSalary: employeesTable.basicSalary,
+        sscDeduction: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.075, 3)`,
+        sscEmployerContribution: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.1425, 3)`,
+      }).from(employeesTable)
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), eq(employeesTable.isSSCExempt, false)))
+        .orderBy(asc(employeesTable.firstNameEn));
+      return { headers: ["Name (EN)", "Name (AR)", "SSC Number", "Org Unit", "Basic Salary (JOD)", "Employee SSC (7.5%)", "Employer SSC (14.25%)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.sscNumber ?? "", r.orgNodeNameEn ?? "", Number(r.basicSalary), Number(r.sscDeduction), Number(r.sscEmployerContribution)]) };
+    }
+  }
+  if (reportType === "income-tax") {
+    const checkPayslips = await db.select({ id: payslipsTable.id })
+      .from(payslipsTable).innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false))).limit(1);
+    if (checkPayslips.length > 0) {
+      const rows = await db.select({
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        annualGross: sql<number>`coalesce(sum(${payslipsTable.grossSalary}), 0)::numeric(14,3)`,
+        totalTax: sql<number>`coalesce(sum(${payslipsTable.incomeTaxDeduction}), 0)::numeric(14,3)`,
+        extraExemption: employeesTable.taxExemptionAmount,
+      }).from(payslipsTable)
+        .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+        .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false)))
+        .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.taxExemptionAmount, orgNodesTable.nameAr, orgNodesTable.nameEn)
+        .orderBy(desc(sql`coalesce(sum(${payslipsTable.grossSalary}), 0)`));
+      return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Annual Gross (JOD)", "Income Tax (JOD)", "Extra Exemption (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.annualGross), Number(r.totalTax), Number(r.extraExemption ?? 0)]) };
+    } else {
+      const rows = await db.select({
+        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        annualGross: sql<number>`round((${employeesTable.basicSalary}::numeric + coalesce(${employeesTable.housingAllowance}::numeric, 0) + coalesce(${employeesTable.transportAllowance}::numeric, 0)) * 12, 3)`,
+        extraExemption: employeesTable.taxExemptionAmount,
+      }).from(employeesTable)
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+      return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Est. Annual Gross (JOD)", "Income Tax (JOD)", "Extra Exemption (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.annualGross), 0, Number(r.extraExemption ?? 0)]) };
+    }
+  }
+  if (reportType === "turnover") {
+    const [hireRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), gte(employeesTable.hireDate, from), lte(employeesTable.hireDate, to)));
+    const [exitRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, ["termination", "resignation"]),
+        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)));
+    const [totalActive] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    const avgHeadcount = totalActive?.count ?? 1;
+    const exits = exitRow?.count ?? 0;
+    const turnoverRate = avgHeadcount > 0 ? parseFloat(((exits / avgHeadcount) * 100).toFixed(2)) : 0;
+    return { headers: ["Metric", "Value"], rows: [["Hires", hireRow?.count ?? 0], ["Exits", exits], ["Turnover Rate %", turnoverRate], ["Period From", from], ["Period To", to]] };
+  }
+  if (reportType === "compliance") {
+    const today = new Date().toISOString().slice(0, 10);
+    const soonDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const [totalActiveRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    const [sscEnrolledRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.sscNumber)));
+    const [nonJordRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
+    const [expiredRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
+    const [expiringSoonRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
+        isNotNull(employeesTable.workPermitExpiry), gte(sql`${employeesTable.workPermitExpiry}::date`, today), lte(sql`${employeesTable.workPermitExpiry}::date`, soonDate)));
+    const totalActive = totalActiveRow?.count ?? 0;
+    const sscEnrolled = sscEnrolledRow?.count ?? 0;
+    return { headers: ["Metric", "Value"], rows: [["Active Employees", totalActive], ["SSC Enrolled", sscEnrolled], ["SSC Not Enrolled", totalActive - sscEnrolled], ["Non-Jordanians", nonJordRow?.count ?? 0], ["Work Permits Expired", expiredRow?.count ?? 0], ["Work Permits Expiring (30d)", expiringSoonRow?.count ?? 0]] };
+  }
+  return { headers: [], rows: [] };
+}
+
+app.get("/api/export/:reportType", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const reportType = req.params["reportType"]!;
+
+    // ── Employee directory export ──────────────────────────────────────────
+    if (reportType === "employees") {
+      const emps = await db.select({
+        employeeCode: employeesTable.employeeCode,
+        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+        gender: employeesTable.gender, nationality: employeesTable.nationality,
+        hireDate: employeesTable.hireDate, employmentStatus: employeesTable.employmentStatus,
+        basicSalary: employeesTable.basicSalary, sscNumber: employeesTable.sscNumber,
+        personalPhone: employeesTable.personalPhone,
+        orgNodeNameEn: orgNodesTable.nameEn, orgNodeNameAr: orgNodesTable.nameAr,
+      }).from(employeesTable)
+        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+        .orderBy(asc(employeesTable.firstNameEn));
+      const wb2 = new ExcelJS.Workbook();
+      wb2.creator = "ZenJO HRMS";
+      const ws2 = wb2.addWorksheet("Employees");
+      const empHeaders = ["Employee Code", "Name (EN)", "Name (AR)", "Org Unit", "Gender", "Nationality", "Hire Date", "Status", "Basic Salary (JOD)", "SSC Number", "Phone"];
+      const empHeaderRow = ws2.addRow(empHeaders);
+      empHeaderRow.eachCell(cell => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A6B4A" } };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+      empHeaderRow.height = 22;
+      emps.forEach((emp, idx) => {
+        const r = ws2.addRow([emp.employeeCode, `${emp.firstNameEn} ${emp.lastNameEn}`, `${emp.firstNameAr} ${emp.lastNameAr}`, emp.orgNodeNameEn ?? emp.orgNodeNameAr ?? "", emp.gender, emp.nationality ?? "", emp.hireDate, emp.employmentStatus, Number(emp.basicSalary), emp.sscNumber ?? "", emp.personalPhone ?? ""]);
+        if (idx % 2 === 1) r.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F9F4" } }; });
+      });
+      ws2.columns.forEach((col, i) => { col.width = Math.min((empHeaders[i]?.length ?? 10) + 6, 40); });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="zenjo-employees.xlsx"`);
+      await wb2.xlsx.write(res);
+      res.end();
+      return;
+    }
+
+    const allowed = ["headcount", "leave", "attendance", "overtime", "disciplinary", "payroll", "ssc", "income-tax", "turnover", "compliance"];
+    if (!allowed.includes(reportType)) { res.status(400).json({ success: false, message: "Unknown report type" }); return; }
+
+    const { data: { headers, rows } } = { data: await buildReportData(reportType, user, req.query as Record<string, string>) };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "ZenJO HRMS";
+    wb.created = new Date();
+    const ws = wb.addWorksheet("Report", { views: [{ rightToLeft: false }] });
+
+    // Header row — styled
+    const headerRow = ws.addRow(headers);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A6B4A" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+      cell.border = { bottom: { style: "thin", color: { argb: "FF0F3D2B" } } };
+    });
+    headerRow.height = 22;
+
+    // Data rows
+    rows.forEach((row, idx) => {
+      const r = ws.addRow(row);
+      if (idx % 2 === 1) {
+        r.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F9F4" } }; });
+      }
+      r.eachCell(cell => {
+        if (typeof cell.value === "number") cell.alignment = { horizontal: "right" };
+        else cell.alignment = { horizontal: "left" };
+      });
+    });
+
+    // Auto-fit columns
+    ws.columns.forEach((col, i) => {
+      let maxLen = headers[i]?.length ?? 10;
+      rows.forEach(row => { const v = String(row[i] ?? ""); if (v.length > maxLen) maxLen = v.length; });
+      col.width = Math.min(maxLen + 4, 45);
+    });
+
+    // Totals row for numeric reports
+    if (rows.length > 0 && rows[0] !== undefined) {
+      const numericCols = rows[0].map((_, ci) => rows.every(r => typeof r[ci] === "number") ? ci : -1).filter(ci => ci >= 0);
+      if (numericCols.length > 0 && rows.length > 1) {
+        const totalsRow = ws.addRow(headers.map((h, ci) => {
+          if (ci === 0) return "TOTAL";
+          if (numericCols.includes(ci)) return rows.reduce((s, r) => s + (typeof r[ci] === "number" ? (r[ci] as number) : 0), 0);
+          return "";
+        }));
+        totalsRow.eachCell(cell => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5EE" } };
+          cell.font = { bold: true };
+          cell.border = { top: { style: "thin", color: { argb: "FF1A6B4A" } } };
+        });
+      }
+    }
+
+    const filename = `zenjo-${reportType}-report.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error("[GET /api/export/:reportType]", e);
+    if (!res.headersSent) res.status(500).json({ success: false, message: "Export failed" });
+  }
 });
 
 // ─── Probation evaluations ────────────────────────────────────────────────────

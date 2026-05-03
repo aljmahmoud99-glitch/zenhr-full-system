@@ -86,6 +86,28 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - **Dashboard hero RTL**: Fixed `margin-inline-start: auto` → `margin-inline-end: auto` in all RTL hero blocks (both `.rtl-layout` class and `[dir='rtl']` selectors); fixed `justify-content: flex-end` → `justify-content: flex-start` in RTL hero containers so welcome text correctly aligns to the right side
 - **Global RTL CSS** added to `styles.scss`: KPI card accent bar border-radius flipped for RTL (`0 22px 22px 0`); modal-actions `justify-content: flex-start` in RTL; notification panel text `text-align: end`; table cells `text-align: start`; direction explicit on page headers, filter bars, badges, eyebrow chips
 
+## Phase 6 — Reporting & Excel Export (Completed)
+- **ExcelJS installed** (`exceljs@^4.4.0`) on the API server via pnpm workspace
+- **10 real report API endpoints** (all backed by live DB queries, replacing stubs):
+  - `GET /api/reports/headcount` — byStatus + byDept breakdown with bar chart data
+  - `GET /api/reports/leave-summary?year=&month=` — grouped by leave type + status
+  - `GET /api/reports/attendance-summary?month=&year=` — per-employee present/absent/late
+  - `GET /api/reports/overtime-summary?from=&to=` — per-employee hours + cost (1.5× rate)
+  - `GET /api/reports/disciplinary-summary?from=&to=` — warning/suspension/termination counts
+  - `GET /api/reports/payroll-summary?month=&year=` — payroll runs with gross/net/deductions
+  - `GET /api/reports/ssc-contributions?month=&year=` — actual payslip data if run exists, else estimates (7.5% / 14.25%)
+  - `GET /api/reports/income-tax-summary?year=` — annual gross + tax per employee from payslips
+  - `GET /api/reports/turnover?from=&to=` — hires, exits, turnover rate %
+  - `GET /api/reports/compliance-summary` — SSC enrollment, non-Jordanians, expired/expiring work permits
+- **Universal Excel export endpoint**: `GET /api/export/:reportType` — streams .xlsx with ExcelJS Workbook; green header row, alternating row shading, auto-fit columns, totals row; handles all 10 report types + `employees` directory
+- **Reports page enhancements**:
+  - "Export Excel" button + "Print" button added to viewer header
+  - Active filter pill chip shown inline below report title
+  - `exportExcel()` uses `fetch()` with JWT Authorization header to trigger backend xlsx download
+  - `printReport()` calls `window.print()`
+- **Employee list export upgraded**: `exportCsv()` now calls `GET /api/export/employees` backend endpoint (real .xlsx with styled headers); falls back to CSV on network error
+- **Print stylesheet** (`_print.scss`): Added rules for reports page — hides catalog/filters/buttons, shows only table; table headers print in ZenJO green with `-webkit-print-color-adjust: exact`
+
 ## Jordan-Specific Rules
 - SSC: insurable salary = MIN(basic, 3000 JOD). Employee 7.5% + Employer 14.25%
 - EOSB: resignation <3yr = 0, ≥3yr = basic×years/12. Termination = basic×years

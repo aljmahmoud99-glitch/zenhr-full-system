@@ -66,6 +66,17 @@
       <div>
         <h2 class="z-heading">{{ lang === 'ar' ? currentCard()?.labelAr : currentCard()?.labelEn }}</h2>
         <p class="z-small">{{ lang === 'ar' ? currentCard()?.descriptionAr : currentCard()?.descriptionEn }}</p>
+        <span class="filter-chip-inline" *ngIf="activeFiltersText()">{{ activeFiltersText() }}</span>
+      </div>
+      <div class="viewer-actions">
+        <button class="z-btn-ghost icon-text-btn" type="button" (click)="exportExcel()" title="{{ lang === 'ar' ? 'تصدير Excel' : 'Export Excel' }}">
+          <span class="material-icons">table_view</span>
+          <span class="btn-label">{{ lang === 'ar' ? 'Excel' : 'Excel' }}</span>
+        </button>
+        <button class="z-btn-ghost icon-text-btn print-hide" type="button" (click)="printReport()" title="{{ lang === 'ar' ? 'طباعة' : 'Print' }}">
+          <span class="material-icons">print</span>
+          <span class="btn-label">{{ lang === 'ar' ? 'طباعة' : 'Print' }}</span>
+        </button>
       </div>
     </div>
 

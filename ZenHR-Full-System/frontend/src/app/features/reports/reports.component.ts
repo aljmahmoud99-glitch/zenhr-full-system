@@ -120,6 +120,59 @@ export class ReportsComponent implements OnInit {
     });
   }
 
+  exportExcelUrl() {
+    const key = this.activeReport();
+    const m = this.filterMonth;
+    const y = this.filterYear;
+    const from = this.filterFrom;
+    const to = this.filterTo;
+    const map: Record<string, string> = {
+      headcount: '/api/export/headcount',
+      leave: `/api/export/leave?year=${y}&month=${m}`,
+      attendance: `/api/export/attendance?month=${m}&year=${y}`,
+      overtime: `/api/export/overtime?from=${from}&to=${to}`,
+      compliance: '/api/export/compliance',
+      disciplinary: `/api/export/disciplinary?from=${from}&to=${to}`,
+      payroll: `/api/export/payroll?month=${m}&year=${y}`,
+      ssc: `/api/export/ssc?month=${m}&year=${y}`,
+      'income-tax': `/api/export/income-tax?year=${y}`,
+      turnover: `/api/export/turnover?from=${from}&to=${to}`,
+    };
+    return map[key] ?? null;
+  }
+
+  exportExcel() {
+    const url = this.exportExcelUrl();
+    if (!url) return;
+    const token = this.auth.getToken();
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `zenjo-${this.activeReport()}-report.xlsx`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(err => console.error('Export failed', err));
+  }
+
+  printReport() {
+    window.print();
+  }
+
+  activeFiltersText() {
+    const key = this.activeReport();
+    const parts: string[] = [];
+    if (this.usesMonthFilter()) {
+      const names = this.lang === 'ar' ? this.monthsAr : this.monthsEn;
+      parts.push(names[this.filterMonth - 1] ?? '');
+    }
+    if (this.usesYearFilter()) parts.push(String(this.filterYear));
+    if (this.usesDateRange()) parts.push(`${this.filterFrom} → ${this.filterTo}`);
+    return parts.join(' | ');
+  }
+
   maxDept() {
     const data = this.reportData()?.byDept || [];
     return data.length ? Math.max(...data.map((x: any) => x.count)) : 1;

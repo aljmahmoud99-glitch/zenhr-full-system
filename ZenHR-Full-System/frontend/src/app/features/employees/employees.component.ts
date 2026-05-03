@@ -353,38 +353,47 @@ export class EmployeesComponent implements OnInit {
   }
 
   exportCsv() {
-    const headers = [
-      'EmployeeCode', 'Name', 'Department', 'JobTitle', 'Nationality',
-      'NationalId', 'DateOfBirth', 'Gender', 'Phone', 'Address',
-      'BasicSalary', 'Status'
-    ];
-
-    const rows = this.filtered.map(emp => [
-      emp.employeeCode,
-      this.lang === 'ar' ? emp.fullNameAr : emp.fullNameEn,
-      this.lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn,
-      this.lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn,
-      emp.nationality ?? '',
-      this.employeeIdValue(emp),
-      emp.dateOfBirth ?? '',
-      emp.gender ?? '',
-      emp.personalPhone ?? '',
-      emp.addressAr ?? '',
-      String(emp.basicSalary ?? ''),
-      emp.employmentStatus
-    ]);
-
-    const csv = [headers, ...rows]
-      .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'employees-export.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    const token = this.auth.getToken();
+    fetch('/api/export/employees', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'zenjo-employees.xlsx';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => {
+        const headers = [
+          'EmployeeCode', 'Name', 'Department', 'JobTitle', 'Nationality',
+          'NationalId', 'DateOfBirth', 'Gender', 'Phone', 'Address',
+          'BasicSalary', 'Status'
+        ];
+        const rows = this.filtered.map(emp => [
+          emp.employeeCode,
+          this.lang === 'ar' ? emp.fullNameAr : emp.fullNameEn,
+          this.lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn,
+          this.lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn,
+          emp.nationality ?? '',
+          this.employeeIdValue(emp),
+          emp.dateOfBirth ?? '',
+          emp.gender ?? '',
+          emp.personalPhone ?? '',
+          emp.addressAr ?? '',
+          String(emp.basicSalary ?? ''),
+          emp.employmentStatus
+        ]);
+        const csv = [headers, ...rows]
+          .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
+          .join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'employees-export.csv';
+        link.click();
+        URL.revokeObjectURL(url);
+      });
   }
 
   complianceBadge(empId: number) {
