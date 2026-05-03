@@ -769,7 +769,8 @@
       <z-accordion-panel
         [title]="lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience'"
         icon="business_center"
-        [count]="getQualCount('experience')">
+        [count]="getQualCount('experience')"
+        [openByDefault]="true">
         <div class="exp-cards">
           <ng-container *ngFor="let item of getQuals('experience')">
             <div class="exp-card" [class.is-current]="item.data?.isCurrent">
@@ -833,7 +834,8 @@
       <z-accordion-panel
         [title]="lang==='ar' ? 'المهارات' : 'Skills'"
         icon="bolt"
-        [count]="getQualCount('skill')">
+        [count]="getQualCount('skill')"
+        [openByDefault]="true">
         <div class="skill-cloud">
           <ng-container *ngFor="let item of getQuals('skill')">
             <button *ngIf="canEdit"
@@ -895,7 +897,8 @@
       <z-accordion-panel
         [title]="lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications'"
         icon="workspace_premium"
-        [count]="getQualCount('course')">
+        [count]="getQualCount('course')"
+        [openByDefault]="true">
         <div class="course-list">
           <ng-container *ngFor="let item of getQuals('course')">
             <div class="course-item" *ngIf="!isInlineEditing(item)">
