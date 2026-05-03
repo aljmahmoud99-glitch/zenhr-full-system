@@ -175,6 +175,33 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - **Printable Payslip**: Each payslip row has a print button that opens a professional bilingual payslip in a new window and triggers the browser print dialog (works in both Arabic RTL and English LTR)
 - **Status labels**: Added `draft` (warning) and `cancelled` (danger) to payslip status badges
 
+## Step 2 — Normalized Salary Components (Completed)
+
+### New Tables
+- **`salary_components`**: Company-level catalog of salary component templates. Fields: `id, company_id, name_ar, name_en, code (UNIQUE per company), component_type (earning/deduction), calculation_type (fixed/percentage/formula), default_value, formula_expression, percentage_base, is_taxable, is_ssc_applicable, is_recurring, is_active, sort_order, created_at, updated_at`.
+- **`employee_salary_components`**: Normalized per-employee salary assignments with effective date ranges. Fields: `id, employee_id (→ RESTRICT), salary_component_id (→ RESTRICT), override_value, effective_from, effective_to, notes, created_at`.
+
+### Seeded Data
+- 6 default components per company: BASIC (fixed, SSC-applicable), HOUSING (25% of basic), TRANSPORT (fixed), MOBILE (fixed), MEAL (fixed), OVERTIME (formula). 18 total across 3 companies.
+- 31 employee_salary_components rows migrated from existing flat employee salary columns (BASIC/HOUSING/TRANSPORT/MOBILE/MEAL). Existing flat columns kept on `employees` table as fallback.
+
+### Updated Payroll Engine
+- `POST /api/payroll/runs`: Now bulk-loads normalized salary components effective during the payroll period. Falls back to flat employee columns if no normalized data found.
+- `GET /api/payroll/preview/:employeeId`: Reads current (open effective_to=NULL) salary components from normalized table, falls back to flat columns.
+
+### New API Endpoints (Step 2)
+- `GET /api/salary-components/catalog` — List company's salary component catalog
+- `POST /api/salary-components/catalog` — Create new component (hradmin/payrolladmin)
+- `PATCH /api/salary-components/catalog/:id` — Update component
+- `DELETE /api/salary-components/catalog/:id` — Soft-deactivate component
+- `GET /api/employees/:id/salary-components` — List employee's salary assignments (joined with catalog)
+- `POST /api/employees/:id/salary-components` — Add a salary assignment
+- `PATCH /api/employee-salary-components/:id` — Update an assignment
+- `DELETE /api/employee-salary-components/:id` — Remove an assignment
+
+### Updated Action Approval
+- Both `POST /api/employee-actions/:id/approve` and the multi-step workflow approval endpoint now write normalized `employee_salary_components` rows (per-component, per effective date) instead of the old flat-column snapshot.
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
@@ -188,3 +215,5 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - **career_paths** (Phase 2)
 - **employee_actions** (Phase 4 — action history with before/after snapshots and side-effect system)
 - **salary_component_definitions** (Phase 5 — HR-configurable earnings/deductions catalog)
+- **salary_components** (Step 2 — company salary component catalog, normalized)
+- **employee_salary_components** (Step 2 — per-employee salary assignments with effective date ranges)

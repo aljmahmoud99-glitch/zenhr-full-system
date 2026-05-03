@@ -15,6 +15,7 @@ import {
   employeeQualificationsTable,
   employeeActionsTable,
   employeeSalaryComponentsTable,
+  salaryComponentsTable,
   salaryComponentDefinitionsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
@@ -1075,25 +1076,27 @@ app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
         .set({ status: "applied" })
         .where(eq(employeeActionsTable.id, actionId));
       if (insertSalaryComponent) {
-        const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? "0";
-        const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? "0";
-        const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? "0";
-        const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? "0";
-        const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? "0";
-        const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? "0";
-        await tx.insert(employeeSalaryComponentsTable).values({
-          companyId: user.companyId,
-          employeeId: action.employeeId,
-          basicSalary: String(newBasic),
-          housingAllowance: String(newHousing),
-          transportAllowance: String(newTransport),
-          mobileAllowance: String(newMobile),
-          mealAllowance: String(newMeal),
-          otherAllowances: String(newOther),
-          effectiveFrom: action.effectiveDate,
-          effectiveTo: null,
-          sourceActionId: actionId,
-        });
+        const newBasic    = empUpdate.basicSalary         ?? emp.basicSalary         ?? "0";
+        const newHousing  = empUpdate.housingAllowance    ?? emp.housingAllowance    ?? "0";
+        const newTransport= empUpdate.transportAllowance  ?? emp.transportAllowance  ?? "0";
+        const newMobile   = empUpdate.mobileAllowance     ?? emp.mobileAllowance     ?? "0";
+        const newMeal     = empUpdate.mealAllowance       ?? emp.mealAllowance       ?? "0";
+        const salaryComps = await tx.select()
+          .from(salaryComponentsTable)
+          .where(and(
+            eq(salaryComponentsTable.companyId, user.companyId),
+            eq(salaryComponentsTable.isActive, true),
+            inArray(salaryComponentsTable.code, ["BASIC","HOUSING","TRANSPORT","MOBILE","MEAL"])
+          ));
+        const compByCode: Record<string, number> = {};
+        for (const sc of salaryComps) compByCode[sc.code] = sc.id;
+        const toInsert: { employeeId: number; salaryComponentId: number; overrideValue: string; effectiveFrom: string }[] = [];
+        if (parseFloat(String(newBasic))    > 0 && compByCode["BASIC"])     toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode["BASIC"],     overrideValue: String(newBasic),     effectiveFrom: action.effectiveDate });
+        if (parseFloat(String(newHousing))  > 0 && compByCode["HOUSING"])   toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode["HOUSING"],   overrideValue: String(newHousing),   effectiveFrom: action.effectiveDate });
+        if (parseFloat(String(newTransport))> 0 && compByCode["TRANSPORT"]) toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode["TRANSPORT"], overrideValue: String(newTransport), effectiveFrom: action.effectiveDate });
+        if (parseFloat(String(newMobile))   > 0 && compByCode["MOBILE"])    toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode["MOBILE"],    overrideValue: String(newMobile),    effectiveFrom: action.effectiveDate });
+        if (parseFloat(String(newMeal))     > 0 && compByCode["MEAL"])      toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode["MEAL"],      overrideValue: String(newMeal),      effectiveFrom: action.effectiveDate });
+        if (toInsert.length) await tx.insert(employeeSalaryComponentsTable).values(toInsert);
       }
     });
 
@@ -1618,12 +1621,40 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
         lte(overtimeRequestsTable.date, periodEnd),
       ));
 
+    // Load normalized salary components effective during this payroll period
+    const empIds = employees.map((e: any) => e.id);
+    type SalaryMap = Record<string, number>; // code → milli-JOD
+    const salaryByEmployee = new Map<number, SalaryMap>();
+    if (empIds.length > 0) {
+      const escRows = await db
+        .select({
+          employeeId: employeeSalaryComponentsTable.employeeId,
+          code: salaryComponentsTable.code,
+          overrideValue: employeeSalaryComponentsTable.overrideValue,
+          effectiveFrom: employeeSalaryComponentsTable.effectiveFrom,
+          effectiveTo: employeeSalaryComponentsTable.effectiveTo,
+        })
+        .from(employeeSalaryComponentsTable)
+        .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
+        .where(and(
+          inArray(employeeSalaryComponentsTable.employeeId, empIds),
+          lte(employeeSalaryComponentsTable.effectiveFrom, periodEnd),
+        ));
+      for (const row of escRows) {
+        if (row.effectiveTo && row.effectiveTo < periodStart) continue;
+        const m = salaryByEmployee.get(row.employeeId) ?? {};
+        m[row.code] = toM(row.overrideValue ?? "0");
+        salaryByEmployee.set(row.employeeId, m);
+      }
+    }
+
     // Aggregate overtime per employee
     const otByEmployee = new Map<number, number>(); // employeeId → total milli-JOD
     for (const ot of otRows) {
       const emp = employees.find((e: any) => e.id === ot.employeeId);
       if (!emp) continue;
-      const basicM = toM(emp.basicSalary);
+      const empSalary = salaryByEmployee.get(emp.id) ?? {};
+      const basicM = empSalary["BASIC"] ?? toM(emp.basicSalary);
       const hourlyRateM = Math.round(basicM / 30 / workingHoursPerDay);
       const hours = parseFloat(ot.hours);
       const dayOfWeek = new Date(ot.date).getDay(); // 0=Sun, 5=Fri, 6=Sat
@@ -1637,12 +1668,13 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
     const payslipValues: any[] = [];
 
     for (const emp of employees) {
-      const basicM    = toM(emp.basicSalary);
-      const housingM  = toM(String(emp.housingAllowance   ?? "0"));
-      const transportM = toM(String(emp.transportAllowance ?? "0"));
-      const mealM     = toM(String(emp.mealAllowance      ?? "0"));
-      const mobileM   = toM(String(emp.mobileAllowance    ?? "0"));
-      const otherM    = toM(String(emp.otherAllowances    ?? "0"));
+      const empSalary  = salaryByEmployee.get(emp.id) ?? {};
+      const basicM     = empSalary["BASIC"]     ?? toM(emp.basicSalary);
+      const housingM   = empSalary["HOUSING"]   ?? toM(String(emp.housingAllowance   ?? "0"));
+      const transportM = empSalary["TRANSPORT"] ?? toM(String(emp.transportAllowance ?? "0"));
+      const mealM      = empSalary["MEAL"]      ?? toM(String(emp.mealAllowance      ?? "0"));
+      const mobileM    = empSalary["MOBILE"]    ?? toM(String(emp.mobileAllowance    ?? "0"));
+      const otherM     = toM(String(emp.otherAllowances ?? "0"));
       const overtimeM = otByEmployee.get(emp.id) ?? 0;
 
       const grossM = basicM + housingM + transportM + mealM + mobileM + otherM + overtimeM;
@@ -1878,12 +1910,26 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       { from: 40000, to: 50000, rate: 0.20 }, { from: 50000, to: 999999999, rate: 0.25 },
     ];
 
-    const basicM     = toM(emp.basicSalary);
-    const housingM   = toM(String(emp.housingAllowance   ?? "0"));
-    const transportM = toM(String(emp.transportAllowance ?? "0"));
-    const mealM      = toM(String(emp.mealAllowance      ?? "0"));
-    const mobileM    = toM(String(emp.mobileAllowance    ?? "0"));
-    const otherM     = toM(String(emp.otherAllowances    ?? "0"));
+    // Load normalized salary components (current as of today)
+    const today = new Date().toISOString().slice(0, 10);
+    const escRowsPreview = await db
+      .select({ code: salaryComponentsTable.code, overrideValue: employeeSalaryComponentsTable.overrideValue })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
+      .where(and(
+        eq(employeeSalaryComponentsTable.employeeId, emp.id),
+        lte(employeeSalaryComponentsTable.effectiveFrom, today),
+        isNull(employeeSalaryComponentsTable.effectiveTo),
+      ));
+    const escMapPreview: Record<string, number> = {};
+    for (const r of escRowsPreview) escMapPreview[r.code] = toM(r.overrideValue ?? "0");
+
+    const basicM     = escMapPreview["BASIC"]     ?? toM(emp.basicSalary);
+    const housingM   = escMapPreview["HOUSING"]   ?? toM(String(emp.housingAllowance   ?? "0"));
+    const transportM = escMapPreview["TRANSPORT"] ?? toM(String(emp.transportAllowance ?? "0"));
+    const mealM      = escMapPreview["MEAL"]      ?? toM(String(emp.mealAllowance      ?? "0"));
+    const mobileM    = escMapPreview["MOBILE"]    ?? toM(String(emp.mobileAllowance    ?? "0"));
+    const otherM     = toM(String(emp.otherAllowances ?? "0"));
     const grossM     = basicM + housingM + transportM + mealM + mobileM + otherM;
     const insurableM = Math.min(basicM, sscInsurableCapM);
     const sscEmployeeM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
@@ -2007,6 +2053,228 @@ app.delete("/api/salary-components/definitions/:id", auth, async (req, res) => {
     res.json({ success: true, data: row });
   } catch (e) {
     console.error("[DELETE /api/salary-components/definitions/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Salary Components Catalog ────────────────────────────────────────────────
+app.get("/api/salary-components/catalog", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const rows = await db.select().from(salaryComponentsTable)
+      .where(eq(salaryComponentsTable.companyId, user.companyId))
+      .orderBy(asc(salaryComponentsTable.sortOrder), asc(salaryComponentsTable.id));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/salary-components/catalog]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/salary-components/catalog", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { nameAr, nameEn, code, componentType, calculationType, defaultValue,
+            formulaExpression, percentageBase, isTaxable, isSscApplicable,
+            isRecurring, isActive, sortOrder } = req.body;
+    if (!nameEn || !code) {
+      res.status(400).json({ success: false, message: "nameEn and code are required" }); return;
+    }
+    const [row] = await db.insert(salaryComponentsTable).values({
+      companyId: user.companyId,
+      nameAr: nameAr ?? nameEn,
+      nameEn,
+      code: code.toUpperCase(),
+      componentType: componentType ?? "earning",
+      calculationType: calculationType ?? "fixed",
+      defaultValue: String(defaultValue ?? "0"),
+      formulaExpression: formulaExpression ?? null,
+      percentageBase: percentageBase ?? null,
+      isTaxable: isTaxable ?? true,
+      isSscApplicable: isSscApplicable ?? false,
+      isRecurring: isRecurring ?? true,
+      isActive: isActive ?? true,
+      sortOrder: sortOrder ?? 0,
+    }).returning();
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/salary-components/catalog]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/salary-components/catalog/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const { nameAr, nameEn, componentType, calculationType, defaultValue,
+            formulaExpression, percentageBase, isTaxable, isSscApplicable,
+            isRecurring, isActive, sortOrder } = req.body;
+    const update: Record<string, any> = { updatedAt: new Date() };
+    if (nameAr !== undefined) update.nameAr = nameAr;
+    if (nameEn !== undefined) update.nameEn = nameEn;
+    if (componentType !== undefined) update.componentType = componentType;
+    if (calculationType !== undefined) update.calculationType = calculationType;
+    if (defaultValue !== undefined) update.defaultValue = String(defaultValue);
+    if (formulaExpression !== undefined) update.formulaExpression = formulaExpression;
+    if (percentageBase !== undefined) update.percentageBase = percentageBase;
+    if (isTaxable !== undefined) update.isTaxable = isTaxable;
+    if (isSscApplicable !== undefined) update.isSscApplicable = isSscApplicable;
+    if (isRecurring !== undefined) update.isRecurring = isRecurring;
+    if (isActive !== undefined) update.isActive = isActive;
+    if (sortOrder !== undefined) update.sortOrder = sortOrder;
+    const [row] = await db.update(salaryComponentsTable).set(update)
+      .where(and(eq(salaryComponentsTable.id, id), eq(salaryComponentsTable.companyId, user.companyId)))
+      .returning();
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[PATCH /api/salary-components/catalog/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/salary-components/catalog/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const [row] = await db.update(salaryComponentsTable)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(salaryComponentsTable.id, id), eq(salaryComponentsTable.companyId, user.companyId)))
+      .returning({ id: salaryComponentsTable.id });
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[DELETE /api/salary-components/catalog/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Employee Salary Components ───────────────────────────────────────────────
+app.get("/api/employees/:id/salary-components", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params.id, 10);
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+    const rows = await db
+      .select({
+        id: employeeSalaryComponentsTable.id,
+        employeeId: employeeSalaryComponentsTable.employeeId,
+        salaryComponentId: employeeSalaryComponentsTable.salaryComponentId,
+        overrideValue: employeeSalaryComponentsTable.overrideValue,
+        effectiveFrom: employeeSalaryComponentsTable.effectiveFrom,
+        effectiveTo: employeeSalaryComponentsTable.effectiveTo,
+        notes: employeeSalaryComponentsTable.notes,
+        createdAt: employeeSalaryComponentsTable.createdAt,
+        code: salaryComponentsTable.code,
+        nameAr: salaryComponentsTable.nameAr,
+        nameEn: salaryComponentsTable.nameEn,
+        componentType: salaryComponentsTable.componentType,
+        calculationType: salaryComponentsTable.calculationType,
+        isTaxable: salaryComponentsTable.isTaxable,
+        isSscApplicable: salaryComponentsTable.isSscApplicable,
+        sortOrder: salaryComponentsTable.sortOrder,
+      })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
+      .where(eq(employeeSalaryComponentsTable.employeeId, empId))
+      .orderBy(asc(salaryComponentsTable.sortOrder), desc(employeeSalaryComponentsTable.effectiveFrom));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/employees/:id/salary-components]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/employees/:id/salary-components", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params.id, 10);
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+    const { salaryComponentId, overrideValue, effectiveFrom, effectiveTo, notes } = req.body;
+    if (!salaryComponentId || !effectiveFrom) {
+      res.status(400).json({ success: false, message: "salaryComponentId and effectiveFrom are required" }); return;
+    }
+    const [sc] = await db.select({ id: salaryComponentsTable.id }).from(salaryComponentsTable)
+      .where(and(eq(salaryComponentsTable.id, salaryComponentId), eq(salaryComponentsTable.companyId, user.companyId)));
+    if (!sc) { res.status(404).json({ success: false, message: "Salary component not found" }); return; }
+    const [row] = await db.insert(employeeSalaryComponentsTable).values({
+      employeeId: empId,
+      salaryComponentId,
+      overrideValue: overrideValue != null ? String(overrideValue) : null,
+      effectiveFrom,
+      effectiveTo: effectiveTo ?? null,
+      notes: notes ?? null,
+    }).returning();
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/employees/:id/salary-components]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/employee-salary-components/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const { overrideValue, effectiveFrom, effectiveTo, notes } = req.body;
+    const update: Record<string, any> = {};
+    if (overrideValue !== undefined) update.overrideValue = overrideValue != null ? String(overrideValue) : null;
+    if (effectiveFrom !== undefined) update.effectiveFrom = effectiveFrom;
+    if (effectiveTo !== undefined) update.effectiveTo = effectiveTo;
+    if (notes !== undefined) update.notes = notes;
+    // Verify ownership via employee → company
+    const [existing] = await db
+      .select({ employeeId: employeeSalaryComponentsTable.employeeId })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(employeesTable, eq(employeesTable.id, employeeSalaryComponentsTable.employeeId))
+      .where(and(eq(employeeSalaryComponentsTable.id, id), eq(employeesTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    const [row] = await db.update(employeeSalaryComponentsTable).set(update)
+      .where(eq(employeeSalaryComponentsTable.id, id)).returning();
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[PATCH /api/employee-salary-components/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/employee-salary-components/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const [existing] = await db
+      .select({ id: employeeSalaryComponentsTable.id })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(employeesTable, eq(employeesTable.id, employeeSalaryComponentsTable.employeeId))
+      .where(and(eq(employeeSalaryComponentsTable.id, id), eq(employeesTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    await db.delete(employeeSalaryComponentsTable).where(eq(employeeSalaryComponentsTable.id, id));
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[DELETE /api/employee-salary-components/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -4484,25 +4752,27 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
           .set({ status: 'applied', approvalStepsJson: JSON.stringify(approvalData) })
           .where(eq(employeeActionsTable.id, actionId));
         if (insertSalaryComponent) {
-          const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? '0';
-          const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? '0';
-          const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? '0';
-          const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? '0';
-          const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? '0';
-          const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? '0';
-          await tx.insert(employeeSalaryComponentsTable).values({
-            companyId: user.companyId,
-            employeeId: action.employeeId,
-            basicSalary: String(newBasic),
-            housingAllowance: String(newHousing),
-            transportAllowance: String(newTransport),
-            mobileAllowance: String(newMobile),
-            mealAllowance: String(newMeal),
-            otherAllowances: String(newOther),
-            effectiveFrom: action.effectiveDate,
-            effectiveTo: null,
-            sourceActionId: actionId,
-          });
+          const newBasic    = empUpdate.basicSalary         ?? emp.basicSalary         ?? '0';
+          const newHousing  = empUpdate.housingAllowance    ?? emp.housingAllowance    ?? '0';
+          const newTransport= empUpdate.transportAllowance  ?? emp.transportAllowance  ?? '0';
+          const newMobile   = empUpdate.mobileAllowance     ?? emp.mobileAllowance     ?? '0';
+          const newMeal     = empUpdate.mealAllowance       ?? emp.mealAllowance       ?? '0';
+          const salaryComps = await tx.select()
+            .from(salaryComponentsTable)
+            .where(and(
+              eq(salaryComponentsTable.companyId, user.companyId),
+              eq(salaryComponentsTable.isActive, true),
+              inArray(salaryComponentsTable.code, ['BASIC','HOUSING','TRANSPORT','MOBILE','MEAL'])
+            ));
+          const compByCode: Record<string, number> = {};
+          for (const sc of salaryComps) compByCode[sc.code] = sc.id;
+          const toInsert: { employeeId: number; salaryComponentId: number; overrideValue: string; effectiveFrom: string }[] = [];
+          if (parseFloat(String(newBasic))    > 0 && compByCode['BASIC'])     toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode['BASIC'],     overrideValue: String(newBasic),     effectiveFrom: action.effectiveDate });
+          if (parseFloat(String(newHousing))  > 0 && compByCode['HOUSING'])   toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode['HOUSING'],   overrideValue: String(newHousing),   effectiveFrom: action.effectiveDate });
+          if (parseFloat(String(newTransport))> 0 && compByCode['TRANSPORT']) toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode['TRANSPORT'], overrideValue: String(newTransport), effectiveFrom: action.effectiveDate });
+          if (parseFloat(String(newMobile))   > 0 && compByCode['MOBILE'])    toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode['MOBILE'],    overrideValue: String(newMobile),    effectiveFrom: action.effectiveDate });
+          if (parseFloat(String(newMeal))     > 0 && compByCode['MEAL'])      toInsert.push({ employeeId: action.employeeId, salaryComponentId: compByCode['MEAL'],      overrideValue: String(newMeal),      effectiveFrom: action.effectiveDate });
+          if (toInsert.length) await tx.insert(employeeSalaryComponentsTable).values(toInsert);
         }
       });
 

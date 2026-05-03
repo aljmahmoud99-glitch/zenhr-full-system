@@ -1,25 +1,21 @@
-import { pgTable, serial, integer, date, decimal, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, date, decimal, text, timestamp } from "drizzle-orm/pg-core";
 import { employeesTable } from "./employees";
-import { companiesTable } from "./companies";
-import { employeeActionsTable } from "./employee-actions";
+import { salaryComponentsTable } from "./salary-components";
 
 export const employeeSalaryComponentsTable = pgTable("employee_salary_components", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").notNull().references(() => companiesTable.id),
   employeeId: integer("employee_id")
     .notNull()
-    .references(() => employeesTable.id, { onDelete: "cascade" }),
-  basicSalary: decimal("basic_salary", { precision: 12, scale: 3 }).notNull().default("0"),
-  housingAllowance: decimal("housing_allowance", { precision: 12, scale: 3 }).notNull().default("0"),
-  transportAllowance: decimal("transport_allowance", { precision: 12, scale: 3 }).notNull().default("0"),
-  mobileAllowance: decimal("mobile_allowance", { precision: 12, scale: 3 }).notNull().default("0"),
-  mealAllowance: decimal("meal_allowance", { precision: 12, scale: 3 }).notNull().default("0"),
-  otherAllowances: decimal("other_allowances", { precision: 12, scale: 3 }).notNull().default("0"),
+    .references(() => employeesTable.id, { onDelete: "restrict" }),
+  salaryComponentId: integer("salary_component_id")
+    .notNull()
+    .references(() => salaryComponentsTable.id, { onDelete: "restrict" }),
+  overrideValue: decimal("override_value", { precision: 12, scale: 3 }),
   effectiveFrom: date("effective_from").notNull(),
   effectiveTo: date("effective_to"),
-  sourceActionId: integer("source_action_id")
-    .references(() => employeeActionsTable.id, { onDelete: "set null" }),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type EmployeeSalaryComponent = typeof employeeSalaryComponentsTable.$inferSelect;
+export type InsertEmployeeSalaryComponent = typeof employeeSalaryComponentsTable.$inferInsert;
