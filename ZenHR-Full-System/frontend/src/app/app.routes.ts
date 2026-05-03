@@ -138,6 +138,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/payroll/payroll.component').then(m => m.PayrollComponent)
       },
       {
+        path: 'payroll/salary-components',
+        ...pageAccess('/app/payroll/salary-components'),
+        loadComponent: () => import('./features/payroll/salary-component-definitions/salary-component-definitions.component').then(m => m.SalaryComponentDefinitionsComponent)
+      },
+      {
         path: 'documents',
         ...pageAccess('/app/documents'),
         loadComponent: () => import('./features/documents/documents.component').then(m => m.DocumentsComponent)

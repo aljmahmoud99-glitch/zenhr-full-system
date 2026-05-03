@@ -1,0 +1,196 @@
+<section class="z-page scd-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+  <header class="z-page-header">
+    <div>
+      <h1 class="z-title">{{ label('مكونات الراتب', 'Salary Components') }}</h1>
+      <p class="z-body">{{ label('تعريف وإدارة مكونات الراتب — ثابتة أو نسبة مئوية.', 'Define and manage salary components — fixed or percentage-based.') }}</p>
+    </div>
+    <button class="z-btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span>
+      <span>{{ label('إضافة مكوّن', 'Add Component') }}</span>
+    </button>
+  </header>
+
+  <div class="alert alert-error" *ngIf="error() && !showModal()">{{ error() }}</div>
+
+  <div class="z-card">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ label('مكونات الراتب المعرّفة', 'Defined Components') }}</h2>
+        <p class="z-small">{{ label('كل مكوّن يحدد كيفية حساب جزء من الراتب ومدى خضوعه للضمان أو الضريبة.', 'Each component defines how a salary element is calculated and its SSC/tax treatment.') }}</p>
+      </div>
+      <label class="search-field">
+        <span class="material-icons search-icon">search</span>
+        <input class="z-input" [(ngModel)]="search" [placeholder]="label('بحث...', 'Search...')" />
+      </label>
+    </div>
+
+    <div *ngIf="loading()" class="loading-state">
+      <span class="material-icons spin">autorenew</span>
+      {{ label('جارٍ التحميل...', 'Loading...') }}
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && filtered().length === 0">
+      <div class="empty-icon"><span class="material-icons">tune</span></div>
+      <div class="empty-title">{{ label('لا توجد مكونات بعد', 'No components defined yet') }}</div>
+      <div class="empty-sub">{{ label('أضف مكونات الراتب من الزر أعلاه.', 'Add salary components using the button above.') }}</div>
+    </div>
+
+    <div class="z-table-container" *ngIf="!loading() && filtered().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th>{{ label('المفتاح', 'Key') }}</th>
+            <th>{{ label('الاسم', 'Name') }}</th>
+            <th>{{ label('النوع', 'Type') }}</th>
+            <th>{{ label('النسبة', 'Rate') }}</th>
+            <th>{{ label('القاعدة', 'Base') }}</th>
+            <th>{{ label('أساسي', 'Basic') }}</th>
+            <th>{{ label('مؤمَّن', 'Insurable') }}</th>
+            <th>{{ label('خاضع للضريبة', 'Taxable') }}</th>
+            <th>{{ label('خصم', 'Deduction') }}</th>
+            <th>{{ label('الترتيب', 'Order') }}</th>
+            <th>{{ label('الحالة', 'Status') }}</th>
+            <th>{{ label('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let def of filtered()" [class.inactive-row]="!def.isActive">
+            <td><code class="comp-key">{{ def.componentKey }}</code></td>
+            <td>
+              <div class="comp-name-en">{{ def.nameEn }}</div>
+              <div class="comp-name-ar">{{ def.nameAr }}</div>
+            </td>
+            <td><span class="z-badge neutral">{{ typeLabel(def.componentType) }}</span></td>
+            <td>{{ def.componentType === 'percentage' ? (def.percentage + '%') : '—' }}</td>
+            <td>{{ def.componentType === 'percentage' ? (def.baseRef || '—') : '—' }}</td>
+            <td><span [class]="def.isBasic ? 'z-badge success' : 'z-badge neutral'">{{ boolLabel(def.isBasic) }}</span></td>
+            <td><span [class]="def.isInsurable ? 'z-badge success' : 'z-badge neutral'">{{ boolLabel(def.isInsurable) }}</span></td>
+            <td><span [class]="def.isTaxable ? 'z-badge success' : 'z-badge neutral'">{{ boolLabel(def.isTaxable) }}</span></td>
+            <td><span [class]="def.isDeduction ? 'z-badge amber' : 'z-badge neutral'">{{ boolLabel(def.isDeduction) }}</span></td>
+            <td>{{ def.sortOrder }}</td>
+            <td><span [class]="def.isActive ? 'z-badge success' : 'z-badge neutral'">{{ def.isActive ? label('نشط','Active') : label('غير نشط','Inactive') }}</span></td>
+            <td>
+              <div class="row-actions">
+                <button class="z-btn-secondary btn-sm" (click)="openEdit(def)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="z-btn-danger btn-sm" (click)="confirmDelete(def.id)" *ngIf="def.isActive">
+                  <span class="material-icons">block</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SSC & Tax info card -->
+  <div class="z-card info-card">
+    <div class="info-card-icon"><span class="material-icons">info</span></div>
+    <div>
+      <h3 class="z-heading-sm">{{ label('كيف تؤثر مكونات الراتب على المسير؟', 'How do salary components affect payroll?') }}</h3>
+      <ul class="info-list">
+        <li>{{ label('المكونات المؤمَّنة: تدخل في احتساب الضمان الاجتماعي (SSC) على أساس الراتب الأساسي فقط.', 'Insurable components: SSC is calculated on basic salary only, capped at the insurable cap.') }}</li>
+        <li>{{ label('المكونات الخاضعة للضريبة: تُحتسب ضمن الدخل الخاضع للضريبة السنوية بشكل تصاعدي.', 'Taxable components: included in annual taxable income using Jordan progressive brackets.') }}</li>
+        <li>{{ label('المكونات من نوع "نسبة مئوية": تُحسب تلقائياً كنسبة من الراتب الأساسي.', 'Percentage-type components: automatically calculated as a ratio of the base salary.') }}</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Create / Edit Modal -->
+<div class="modal-overlay" *ngIf="showModal()" (click)="closeModal()">
+  <div class="modal-card z-card scd-modal" (click)="$event.stopPropagation()">
+    <div class="modal-head">
+      <h2 class="z-heading">{{ editingId() ? label('تعديل مكوّن الراتب', 'Edit Salary Component') : label('إضافة مكوّن جديد', 'Add Salary Component') }}</h2>
+      <button class="icon-btn" (click)="closeModal()"><span class="material-icons">close</span></button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="z-label required">{{ label('المفتاح (بالإنجليزية)', 'Component Key') }}</label>
+          <input class="z-input" [ngModel]="f.componentKey" (ngModelChange)="patchForm({componentKey: $event})"
+                 [placeholder]="label('مثال: housing_allowance', 'e.g. housing_allowance')" [disabled]="!!editingId()" />
+          <span class="field-hint">{{ label('حروف إنجليزية صغيرة وشرطات سفلية فقط.', 'Lowercase letters and underscores only.') }}</span>
+        </div>
+        <div class="form-group">
+          <label class="z-label required">{{ label('النوع', 'Type') }}</label>
+          <select class="z-input" [ngModel]="f.componentType" (ngModelChange)="patchForm({componentType: $event})">
+            <option value="fixed">{{ label('ثابت', 'Fixed') }}</option>
+            <option value="percentage">{{ label('نسبة مئوية', 'Percentage') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="z-label required">{{ label('الاسم بالعربية', 'Name (Arabic)') }}</label>
+          <input class="z-input" [ngModel]="f.nameAr" (ngModelChange)="patchForm({nameAr: $event})" [placeholder]="label('مثال: بدل السكن', 'e.g. بدل السكن')" dir="rtl" />
+        </div>
+        <div class="form-group">
+          <label class="z-label required">{{ label('الاسم بالإنجليزية', 'Name (English)') }}</label>
+          <input class="z-input" [ngModel]="f.nameEn" (ngModelChange)="patchForm({nameEn: $event})" placeholder="e.g. Housing Allowance" />
+        </div>
+
+        <ng-container *ngIf="f.componentType === 'percentage'">
+          <div class="form-group">
+            <label class="z-label">{{ label('النسبة (%)', 'Percentage (%)') }}</label>
+            <input class="z-input" type="number" min="0" max="100" step="0.01"
+                   [ngModel]="f.percentage" (ngModelChange)="patchForm({percentage: $event})"
+                   placeholder="e.g. 25" />
+          </div>
+          <div class="form-group">
+            <label class="z-label">{{ label('القاعدة الحسابية', 'Base Reference') }}</label>
+            <select class="z-input" [ngModel]="f.baseRef" (ngModelChange)="patchForm({baseRef: $event})">
+              <option value="basic_salary">{{ label('الراتب الأساسي', 'Basic Salary') }}</option>
+              <option value="gross_salary">{{ label('الراتب الإجمالي', 'Gross Salary') }}</option>
+            </select>
+          </div>
+        </ng-container>
+
+        <div class="form-group">
+          <label class="z-label">{{ label('رقم الترتيب', 'Sort Order') }}</label>
+          <input class="z-input" type="number" min="0" [ngModel]="f.sortOrder" (ngModelChange)="patchForm({sortOrder: +$event})" />
+        </div>
+      </div>
+
+      <div class="toggles-grid">
+        <label class="toggle-row">
+          <input type="checkbox" [ngModel]="f.isBasic" (ngModelChange)="patchForm({isBasic: $event})" />
+          <span>{{ label('راتب أساسي', 'Is Basic Salary') }}</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" [ngModel]="f.isInsurable" (ngModelChange)="patchForm({isInsurable: $event})" />
+          <span>{{ label('مؤمَّن (يدخل في حساب SSC)', 'Insurable (included in SSC)') }}</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" [ngModel]="f.isTaxable" (ngModelChange)="patchForm({isTaxable: $event})" />
+          <span>{{ label('خاضع للضريبة', 'Taxable') }}</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" [ngModel]="f.isDeduction" (ngModelChange)="patchForm({isDeduction: $event})" />
+          <span>{{ label('خصم (يُطرح من الإجمالي)', 'Deduction (subtracted from gross)') }}</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="z-btn-secondary" (click)="closeModal()">{{ label('إلغاء', 'Cancel') }}</button>
+      <button class="z-btn-primary" (click)="save()" [disabled]="saving()">
+        {{ saving() ? label('جارٍ الحفظ...', 'Saving...') : label('حفظ', 'Save') }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<app-confirm-dialog
+  [open]="confirmDeleteId() !== null"
+  [title]="label('إلغاء تفعيل المكوّن', 'Deactivate Component')"
+  [message]="label('سيتم إلغاء تفعيل هذا المكوّن. يمكنك إعادة تفعيله لاحقاً بالتعديل.', 'This component will be deactivated. You can reactivate it by editing later.')"
+  [confirmLabel]="label('إلغاء التفعيل', 'Deactivate')"
+  [cancelLabel]="label('تراجع', 'Cancel')"
+  [tone]="'danger'"
+  (confirm)="submitDelete()"
+  (cancel)="confirmDeleteId.set(null)"
+/>

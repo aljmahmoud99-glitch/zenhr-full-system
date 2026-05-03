@@ -15,6 +15,7 @@ import {
   employeeQualificationsTable,
   employeeActionsTable,
   employeeSalaryComponentsTable,
+  salaryComponentDefinitionsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -1496,46 +1497,208 @@ app.get("/api/payroll/runs", auth, async (req, res) => {
   }
 });
 
+// ─── Payroll helpers ─────────────────────────────────────────────────────────
+function toM(s: string | null | undefined): number {
+  if (!s) return 0;
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : Math.round(n * 1000);
+}
+function fromM(n: number): string {
+  return (Math.round(n) / 1000).toFixed(3);
+}
+function calcAnnualIncomeTax(annualJOD: number, brackets: { from: number; to: number; rate: number }[]): number {
+  let tax = 0;
+  for (const b of brackets) {
+    if (annualJOD <= b.from) break;
+    const slice = Math.min(annualJOD, b.to) - b.from;
+    tax += slice * b.rate;
+  }
+  return tax;
+}
+async function enrichPayslips(slips: any[], db: any): Promise<any[]> {
+  if (!slips.length) return [];
+  const empIds = [...new Set(slips.map(s => s.employeeId))];
+  const runIds = [...new Set(slips.map(s => s.payrollRunId))];
+  const [emps, runs, nodes] = await Promise.all([
+    db.select().from(employeesTable).where(inArray(employeesTable.id, empIds)),
+    db.select().from(payrollRunsTable).where(inArray(payrollRunsTable.id, runIds)),
+    db.select().from(orgNodesTable),
+  ]);
+  const mid = (s: string | null) => (s ? ` ${s}` : "");
+  return slips.map(slip => {
+    const emp = emps.find((e: any) => e.id === slip.employeeId);
+    const run = runs.find((r: any) => r.id === slip.payrollRunId);
+    const node = emp?.orgNodeId ? nodes.find((n: any) => n.id === emp.orgNodeId) : null;
+    const fullNameAr = emp ? `${emp.firstNameAr}${mid(emp.middleNameAr)} ${emp.lastNameAr}`.trim() : "";
+    const fullNameEn = emp ? `${emp.firstNameEn}${mid(emp.middleNameEn)} ${emp.lastNameEn}`.trim() : "";
+    return {
+      ...slip,
+      periodMonth: slip.runMonth,
+      periodYear: slip.runYear,
+      overtimeAmount: slip.overtimeEarnings,
+      sscEmployeeDeduction: slip.sscDeduction,
+      fullNameAr,
+      fullNameEn,
+      employeeCode: emp?.employeeCode ?? "",
+      jobTitle: emp?.jobTitle ?? "",
+      orgNodeNameAr: node?.nameAr ?? null,
+      orgNodeNameEn: node?.nameEn ?? null,
+      payrollRunStatus: run?.status ?? null,
+    };
+  });
+}
+
 app.post("/api/payroll/runs", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { runMonth, runYear, notes } = req.body as { runMonth: number; runYear: number; notes?: string };
-    const employees = await db.select().from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden: payroll admin required" }); return;
+    }
+    const runMonth = Number(req.body.month ?? req.body.runMonth);
+    const runYear = Number(req.body.year ?? req.body.runYear);
+    const notes: string | undefined = req.body.notes;
+    if (!runMonth || !runYear) {
+      res.status(400).json({ success: false, message: "month and year are required" }); return;
+    }
 
-    let totalGross = 0, totalNet = 0, totalDeductions = 0;
-    const payslipValues = [];
+    // Immutability guard: block if an approved run exists for this period
+    const [existingApproved] = await db.select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(and(
+        eq(payrollRunsTable.companyId, user.companyId),
+        eq(payrollRunsTable.runMonth, runMonth),
+        eq(payrollRunsTable.runYear, runYear),
+        eq(payrollRunsTable.status, "approved"),
+        eq(payrollRunsTable.isDeleted, false),
+      ));
+    if (existingApproved) {
+      res.status(409).json({ success: false, message: "An approved payroll run already exists for this period. It cannot be replaced." }); return;
+    }
+
+    // Load payroll-related system configurations
+    const configs = await db.select().from(systemConfigurationsTable)
+      .where(eq(systemConfigurationsTable.companyId, user.companyId));
+    const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
+
+    const sscEmployeeRate = parseFloat(cfg("ssc_employee_rate", "0.075"));
+    const sscEmployerRate = parseFloat(cfg("ssc_employer_rate", "0.1425"));
+    const sscInsurableCapM = toM(cfg("ssc_insurable_salary_cap", "3000"));
+    const workingHoursPerDay = parseInt(cfg("working_hours_per_day", "8"));
+    const otRateWeekday = parseFloat(cfg("overtime_rate_weekday", "1.5"));
+    const otRateWeekend = parseFloat(cfg("overtime_rate_weekend", "2.0"));
+
+    let taxBrackets: { from: number; to: number; rate: number }[] = [];
+    try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
+    if (!taxBrackets.length) {
+      taxBrackets = [
+        { from: 0, to: 9000, rate: 0 },
+        { from: 9000, to: 20000, rate: 0.05 },
+        { from: 20000, to: 30000, rate: 0.10 },
+        { from: 30000, to: 40000, rate: 0.15 },
+        { from: 40000, to: 50000, rate: 0.20 },
+        { from: 50000, to: 999999999, rate: 0.25 },
+      ];
+    }
+
+    const employees = await db.select().from(employeesTable)
+      .where(and(
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+        eq(employeesTable.employmentStatus, "active"),
+      ));
+
+    // Load approved overtime for the payroll period
+    const periodStart = `${runYear}-${String(runMonth).padStart(2, "0")}-01`;
+    const periodEnd = `${runYear}-${String(runMonth).padStart(2, "0")}-31`;
+    const otRows = await db.select().from(overtimeRequestsTable)
+      .where(and(
+        eq(overtimeRequestsTable.status, "approved"),
+        eq(overtimeRequestsTable.isDeleted, false),
+        gte(overtimeRequestsTable.date, periodStart),
+        lte(overtimeRequestsTable.date, periodEnd),
+      ));
+
+    // Aggregate overtime per employee
+    const otByEmployee = new Map<number, number>(); // employeeId → total milli-JOD
+    for (const ot of otRows) {
+      const emp = employees.find((e: any) => e.id === ot.employeeId);
+      if (!emp) continue;
+      const basicM = toM(emp.basicSalary);
+      const hourlyRateM = Math.round(basicM / 30 / workingHoursPerDay);
+      const hours = parseFloat(ot.hours);
+      const dayOfWeek = new Date(ot.date).getDay(); // 0=Sun, 5=Fri, 6=Sat
+      const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
+      const multiplier = isWeekend ? otRateWeekend : otRateWeekday;
+      const amountM = Math.round(hourlyRateM * hours * multiplier);
+      otByEmployee.set(ot.employeeId, (otByEmployee.get(ot.employeeId) ?? 0) + amountM);
+    }
+
+    let totalGrossM = 0, totalNetM = 0, totalDeductionsM = 0, totalOTM = 0;
+    const payslipValues: any[] = [];
+
     for (const emp of employees) {
-      const basic = parseFloat(emp.basicSalary);
-      const housing = parseFloat(String(emp.housingAllowance ?? "0"));
-      const transport = parseFloat(String(emp.transportAllowance ?? "0"));
-      const meal = parseFloat(String(emp.mealAllowance ?? "0"));
-      const mobile = parseFloat(String(emp.mobileAllowance ?? "0"));
-      const other = parseFloat(String(emp.otherAllowances ?? "0"));
-      const gross = basic + housing + transport + meal + mobile + other;
-      const insurable = Math.min(basic, 3000);
-      const sscDeduction = emp.isSSCExempt ? 0 : insurable * 0.075;
-      const taxable = gross - sscDeduction;
-      let incomeTax = 0;
-      if (taxable > 833.33) incomeTax = (taxable - 833.33) * 0.05;
-      const deductions = sscDeduction + incomeTax;
-      const net = gross - deductions;
-      totalGross += gross; totalDeductions += deductions; totalNet += net;
+      const basicM    = toM(emp.basicSalary);
+      const housingM  = toM(String(emp.housingAllowance   ?? "0"));
+      const transportM = toM(String(emp.transportAllowance ?? "0"));
+      const mealM     = toM(String(emp.mealAllowance      ?? "0"));
+      const mobileM   = toM(String(emp.mobileAllowance    ?? "0"));
+      const otherM    = toM(String(emp.otherAllowances    ?? "0"));
+      const overtimeM = otByEmployee.get(emp.id) ?? 0;
+
+      const grossM = basicM + housingM + transportM + mealM + mobileM + otherM + overtimeM;
+
+      // SSC: calculated on basic salary only, capped at insurable cap
+      const insurableM = Math.min(basicM, sscInsurableCapM);
+      const sscEmployeeM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
+      const sscEmployerM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployerRate);
+
+      // Income tax: progressive, calculated on annual basis
+      const annualTaxableJOD = Math.max(0, (grossM - sscEmployeeM) * 12) / 1000;
+      const annualTaxJOD = calcAnnualIncomeTax(annualTaxableJOD, taxBrackets);
+      const monthlyTaxM = Math.round(annualTaxJOD * 1000 / 12);
+
+      const totalDeductionsEmpM = sscEmployeeM + monthlyTaxM;
+      const netM = grossM - totalDeductionsEmpM;
+
+      totalGrossM      += grossM;
+      totalDeductionsM += totalDeductionsEmpM;
+      totalNetM        += netM;
+      totalOTM         += overtimeM;
+
       payslipValues.push({
         runMonth, runYear, employeeId: emp.id,
-        basicSalary: String(basic), housingAllowance: String(housing), transportAllowance: String(transport),
-        mealAllowance: String(meal), mobileAllowance: String(mobile), otherAllowances: String(other),
-        grossSalary: String(gross), sscDeduction: String(sscDeduction), incomeTaxDeduction: String(incomeTax),
-        loanDeductions: "0", otherDeductions: "0", totalDeductions: String(deductions), netSalary: String(net),
-        bankName: emp.bankName, iban: emp.iban, payrollRunId: 0,
+        basicSalary:           fromM(basicM),
+        housingAllowance:      fromM(housingM),
+        transportAllowance:    fromM(transportM),
+        mealAllowance:         fromM(mealM),
+        mobileAllowance:       fromM(mobileM),
+        otherAllowances:       fromM(otherM),
+        overtimeEarnings:      fromM(overtimeM),
+        grossSalary:           fromM(grossM),
+        sscDeduction:          fromM(sscEmployeeM),
+        sscEmployerContribution: fromM(sscEmployerM),
+        incomeTaxDeduction:    fromM(monthlyTaxM),
+        loanDeductions:        "0.000",
+        otherDeductions:       "0.000",
+        totalDeductions:       fromM(totalDeductionsEmpM),
+        netSalary:             fromM(netM),
+        bankName:              emp.bankName,
+        iban:                  emp.iban,
+        payrollRunId:          0,
       });
     }
 
     const [run] = await db.insert(payrollRunsTable).values({
-      companyId: user.companyId, runMonth, runYear, status: "processed",
-      totalGross: String(totalGross.toFixed(3)), totalNet: String(totalNet.toFixed(3)),
-      totalDeductions: String(totalDeductions.toFixed(3)), employeeCount: employees.length,
-      processedAt: new Date(), notes,
+      companyId: user.companyId,
+      runMonth, runYear,
+      status: "draft",
+      totalGross:            fromM(totalGrossM),
+      totalNet:              fromM(totalNetM),
+      totalDeductions:       fromM(totalDeductionsM),
+      totalOvertimeEarnings: fromM(totalOTM),
+      employeeCount:         employees.length,
+      processedAt:           new Date(),
+      notes,
     }).returning();
 
     if (run && payslipValues.length > 0) {
@@ -1546,18 +1709,41 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
     }
     res.status(201).json({ success: true, data: run });
   } catch (e) {
-    console.error(e);
+    console.error("[POST /api/payroll/runs]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/payroll/runs/:id", auth, async (req, res) => {
   try {
-    const [run] = await db.select().from(payrollRunsTable).where(eq(payrollRunsTable.id, parseInt(req.params["id"]!)));
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const [run] = await db.select().from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, parseInt(req.params["id"]!)), eq(payrollRunsTable.companyId, user.companyId)));
     if (!run) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    const payslips = await db.select().from(payslipsTable).where(eq(payslipsTable.payrollRunId, run.id));
-    res.json({ success: true, data: { ...run, payslips } });
+    res.json({ success: true, data: run });
   } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/payroll/runs/:id/payslips", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const runId = parseInt(req.params["id"]!);
+    const [run] = await db.select({ id: payrollRunsTable.id }).from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, runId), eq(payrollRunsTable.companyId, user.companyId)));
+    if (!run) { res.status(404).json({ success: false, message: "Run not found" }); return; }
+    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.payrollRunId, runId));
+    const enriched = await enrichPayslips(slips, db);
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[GET /api/payroll/runs/:id/payslips]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1565,11 +1751,22 @@ app.get("/api/payroll/runs/:id", auth, async (req, res) => {
 app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden: payroll admin required" }); return;
+    }
+    const runId = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, runId), eq(payrollRunsTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    if (existing.status === "approved") {
+      res.status(409).json({ success: false, message: "This payroll run is already approved and immutable." }); return;
+    }
     const [run] = await db.update(payrollRunsTable).set({
       status: "approved", approvedAt: new Date(), approvedById: user.userId,
-    }).where(eq(payrollRunsTable.id, parseInt(req.params["id"]!))).returning();
+    }).where(eq(payrollRunsTable.id, runId)).returning();
     res.json({ success: true, data: run });
   } catch (e) {
+    console.error("[POST /api/payroll/runs/:id/approve]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1577,10 +1774,8 @@ app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
 app.get("/api/payroll/slips", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (user.role === "employee") {
-      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-      const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
-      res.json({ success: true, data: slips }); return;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const { employeeId, year, month } = req.query as Record<string, string>;
     const conditions: any[] = [];
@@ -1590,7 +1785,8 @@ app.get("/api/payroll/slips", auth, async (req, res) => {
     const slips = conditions.length > 0
       ? await db.select().from(payslipsTable).where(and(...conditions)).orderBy(desc(payslipsTable.createdAt))
       : await db.select().from(payslipsTable).orderBy(desc(payslipsTable.createdAt));
-    res.json({ success: true, data: slips });
+    const enriched = await enrichPayslips(slips, db);
+    res.json({ success: true, data: enriched });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -1601,8 +1797,11 @@ app.get("/api/payroll/slips/my", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
-    res.json({ success: true, data: slips });
+    const slips = await db.select().from(payslipsTable)
+      .where(eq(payslipsTable.employeeId, user.employeeId))
+      .orderBy(desc(payslipsTable.createdAt));
+    const enriched = await enrichPayslips(slips, db);
+    res.json({ success: true, data: enriched });
   } catch (e) {
     console.error("[/api/payroll/slips/my]", e);
     res.status(500).json({ success: false, error: "Internal server error" });
@@ -1612,10 +1811,22 @@ app.get("/api/payroll/slips/my", auth, async (req, res) => {
 app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!user.employeeId) { res.json({ success: true, data: { totalNetYTD: 0, lastPayslip: null } }); return; }
-    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
-    const ytd = slips.reduce((s, p) => s + parseFloat(p.netSalary), 0);
-    res.json({ success: true, data: { totalNetYTD: ytd, lastPayslip: slips[0] ?? null } });
+    if (!user.employeeId) {
+      res.json({ success: true, data: { totalNetYTD: 0, totalEarnings: 0, totalDeductions: 0, netSalary: 0, lastPayslip: null } }); return;
+    }
+    const slips = await db.select().from(payslipsTable)
+      .where(eq(payslipsTable.employeeId, user.employeeId))
+      .orderBy(desc(payslipsTable.createdAt));
+    const enriched = await enrichPayslips(slips, db);
+    const ytdM = enriched.reduce((s: number, p: any) => s + toM(p.netSalary), 0);
+    const latest = enriched[0] ?? null;
+    res.json({ success: true, data: {
+      totalNetYTD:     ytdM / 1000,
+      totalEarnings:   latest ? parseFloat(latest.grossSalary) : 0,
+      totalDeductions: latest ? parseFloat(latest.totalDeductions) : 0,
+      netSalary:       latest ? parseFloat(latest.netSalary) : 0,
+      lastPayslip:     latest,
+    }});
   } catch (e) {
     console.error("[/api/payroll/slips/my/summary]", e);
     res.status(500).json({ success: false, error: "Internal server error" });
@@ -1624,14 +1835,179 @@ app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
 
 app.get("/api/payroll/slips/:id", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const idVal = parseInt(req.params["id"]!);
     if (isNaN(idVal)) { res.status(400).json({ success: false, error: "Invalid slip ID" }); return; }
     const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, idVal));
     if (!slip) { res.status(404).json({ success: false, error: "Not found" }); return; }
-    res.json({ success: true, data: slip });
+    // Employees may only view their own slips
+    if (user.role === "employee" && slip.employeeId !== user.employeeId) {
+      res.status(403).json({ success: false, error: "Forbidden" }); return;
+    }
+    const [enriched] = await enrichPayslips([slip], db);
+    res.json({ success: true, data: enriched });
   } catch (e) {
     console.error("[/api/payroll/slips/:id]", e);
     res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// ─── Salary preview (calculate without creating run) ──────────────────────────
+app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params["employeeId"]!);
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    const configs = await db.select().from(systemConfigurationsTable)
+      .where(eq(systemConfigurationsTable.companyId, user.companyId));
+    const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
+    const sscEmployeeRate  = parseFloat(cfg("ssc_employee_rate", "0.075"));
+    const sscEmployerRate  = parseFloat(cfg("ssc_employer_rate", "0.1425"));
+    const sscInsurableCapM = toM(cfg("ssc_insurable_salary_cap", "3000"));
+    let taxBrackets: { from: number; to: number; rate: number }[] = [];
+    try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
+    if (!taxBrackets.length) taxBrackets = [
+      { from: 0, to: 9000, rate: 0 }, { from: 9000, to: 20000, rate: 0.05 },
+      { from: 20000, to: 30000, rate: 0.10 }, { from: 30000, to: 40000, rate: 0.15 },
+      { from: 40000, to: 50000, rate: 0.20 }, { from: 50000, to: 999999999, rate: 0.25 },
+    ];
+
+    const basicM     = toM(emp.basicSalary);
+    const housingM   = toM(String(emp.housingAllowance   ?? "0"));
+    const transportM = toM(String(emp.transportAllowance ?? "0"));
+    const mealM      = toM(String(emp.mealAllowance      ?? "0"));
+    const mobileM    = toM(String(emp.mobileAllowance    ?? "0"));
+    const otherM     = toM(String(emp.otherAllowances    ?? "0"));
+    const grossM     = basicM + housingM + transportM + mealM + mobileM + otherM;
+    const insurableM = Math.min(basicM, sscInsurableCapM);
+    const sscEmployeeM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
+    const sscEmployerM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployerRate);
+    const annualTaxableJOD = Math.max(0, (grossM - sscEmployeeM) * 12) / 1000;
+    const annualTaxJOD = calcAnnualIncomeTax(annualTaxableJOD, taxBrackets);
+    const monthlyTaxM = Math.round(annualTaxJOD * 1000 / 12);
+    const totalDeductionsM = sscEmployeeM + monthlyTaxM;
+    const netM = grossM - totalDeductionsM;
+
+    res.json({ success: true, data: {
+      employeeId: emp.id,
+      basicSalary:             fromM(basicM),
+      housingAllowance:        fromM(housingM),
+      transportAllowance:      fromM(transportM),
+      mealAllowance:           fromM(mealM),
+      mobileAllowance:         fromM(mobileM),
+      otherAllowances:         fromM(otherM),
+      grossSalary:             fromM(grossM),
+      insurableBase:           fromM(insurableM),
+      sscEmployeeDeduction:    fromM(sscEmployeeM),
+      sscEmployerContribution: fromM(sscEmployerM),
+      annualTaxableIncome:     annualTaxableJOD.toFixed(3),
+      incomeTaxDeduction:      fromM(monthlyTaxM),
+      totalDeductions:         fromM(totalDeductionsM),
+      netSalary:               fromM(netM),
+      isSSCExempt:             emp.isSSCExempt,
+    }});
+  } catch (e) {
+    console.error("[GET /api/payroll/preview/:employeeId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Salary component definitions ────────────────────────────────────────────
+app.get("/api/salary-components/definitions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const rows = await db.select().from(salaryComponentDefinitionsTable)
+      .where(eq(salaryComponentDefinitionsTable.companyId, user.companyId))
+      .orderBy(asc(salaryComponentDefinitionsTable.sortOrder), asc(salaryComponentDefinitionsTable.id));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/salary-components/definitions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/salary-components/definitions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { componentKey, nameAr, nameEn, componentType, percentage, baseRef,
+            isBasic, isInsurable, isTaxable, isDeduction, sortOrder } = req.body;
+    if (!componentKey || !nameAr || !nameEn) {
+      res.status(400).json({ success: false, message: "componentKey, nameAr, nameEn are required" }); return;
+    }
+    const [row] = await db.insert(salaryComponentDefinitionsTable).values({
+      companyId: user.companyId,
+      componentKey, nameAr, nameEn,
+      componentType: componentType ?? "fixed",
+      percentage:   percentage != null ? String(percentage) : null,
+      baseRef:      baseRef ?? null,
+      isBasic:      isBasic ?? false,
+      isInsurable:  isInsurable ?? true,
+      isTaxable:    isTaxable ?? true,
+      isDeduction:  isDeduction ?? false,
+      sortOrder:    sortOrder ?? 0,
+      isActive:     true,
+    }).returning();
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/salary-components/definitions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/salary-components/definitions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const allowed = ["nameAr", "nameEn", "componentType", "percentage", "baseRef",
+                     "isBasic", "isInsurable", "isTaxable", "isDeduction", "sortOrder", "isActive"];
+    const updates: any = {};
+    for (const key of allowed) { if (key in req.body) updates[key] = req.body[key]; }
+    if (!Object.keys(updates).length) {
+      res.status(400).json({ success: false, message: "No valid fields to update" }); return;
+    }
+    const [row] = await db.update(salaryComponentDefinitionsTable)
+      .set(updates)
+      .where(and(eq(salaryComponentDefinitionsTable.id, id), eq(salaryComponentDefinitionsTable.companyId, user.companyId)))
+      .returning();
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[PATCH /api/salary-components/definitions/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/salary-components/definitions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params["id"]!);
+    const [row] = await db.update(salaryComponentDefinitionsTable)
+      .set({ isActive: false })
+      .where(and(eq(salaryComponentDefinitionsTable.id, id), eq(salaryComponentDefinitionsTable.companyId, user.companyId)))
+      .returning();
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[DELETE /api/salary-components/definitions/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
@@ -1910,6 +2286,8 @@ const DEFAULT_CONFIGS = [
   { key: "income_tax_exempt_annual", value: "10000", category: "payroll", description: "Annual income tax exemption (JOD)" },
   { key: "ssc_employee_rate", value: "0.075", category: "payroll", description: "SSC employee contribution rate" },
   { key: "ssc_employer_rate", value: "0.1425", category: "payroll", description: "SSC employer contribution rate" },
+  { key: "ssc_insurable_salary_cap", value: "3000", category: "payroll", description: "Maximum monthly basic salary used as SSC calculation base (JOD)" },
+  { key: "income_tax_brackets", value: JSON.stringify([{from:0,to:9000,rate:0},{from:9000,to:20000,rate:0.05},{from:20000,to:30000,rate:0.10},{from:30000,to:40000,rate:0.15},{from:40000,to:50000,rate:0.20},{from:50000,to:999999999,rate:0.25}]), category: "payroll", description: "Jordan progressive income tax brackets (annual JOD, from/to/rate)" },
   { key: "annual_leave_days", value: "14", category: "leave", description: "Annual leave days" },
   { key: "sick_leave_days", value: "14", category: "leave", description: "Sick leave days per year" },
   { key: "probation_period_months", value: "3", category: "hr", description: "Probation period in months" },

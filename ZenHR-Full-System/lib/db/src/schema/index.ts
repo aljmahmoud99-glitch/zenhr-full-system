@@ -20,3 +20,4 @@ export * from "./career-paths";
 export * from "./employee-qualifications";
 export * from "./employee-actions";
 export * from "./employee-salary-components";
+export * from "./salary-component-definitions";

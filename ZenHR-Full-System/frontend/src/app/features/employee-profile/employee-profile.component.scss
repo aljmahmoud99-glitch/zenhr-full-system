@@ -626,3 +626,108 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
   max-height: min(92vh, 680px); display: flex; flex-direction: column;
   .modal-body { flex: 1; overflow-y: auto; }
 }
+
+
+/* ── Salary Preview Card ─────────────────────────────────────── */
+.salary-preview-card {
+  margin-bottom: 16px;
+}
+.salary-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: start;
+  margin-top: 12px;
+  @media (max-width: 700px) { grid-template-columns: 1fr; }
+}
+.salary-preview-section {
+  background: var(--z-page-bg);
+  border-radius: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--z-border);
+}
+.salary-preview-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--z-text-muted);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--z-border);
+}
+.salary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--z-text);
+  gap: 8px;
+  &.salary-subtotal {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--z-border);
+    font-weight: 600;
+  }
+}
+.salary-val {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  &.accent { color: var(--z-emerald); }
+  &.deduct { color: #e53e3e; }
+}
+.salary-preview-net {
+  background: var(--z-emerald);
+  color: #fff;
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 130px;
+  @media (max-width: 700px) { flex-direction: row; justify-content: space-between; }
+}
+.salary-net-label {
+  font-size: 11px;
+  opacity: 0.85;
+  font-weight: 600;
+  text-align: center;
+}
+.salary-net-amount {
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.salary-employer-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--z-text-muted);
+  padding: 6px 10px;
+  background: var(--z-page-bg);
+  border-radius: 6px;
+  border: 1px solid var(--z-border);
+  strong { color: var(--z-text); }
+}
+
+/* ── Print Button ────────────────────────────────────────────── */
+.btn-icon-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--z-text-muted);
+  transition: background 0.15s, color 0.15s;
+  .material-icons { font-size: 16px; }
+  &:hover {
+    background: var(--z-border);
+    color: var(--z-emerald);
+  }
+}

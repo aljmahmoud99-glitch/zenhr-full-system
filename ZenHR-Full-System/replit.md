@@ -149,10 +149,36 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - `POST /api/employee-actions` — Record new employee action with side effects (Phase 4)
 - `GET /api/employee-actions/types` — All action types with AR+EN labels (Phase 4)
 
+## Phase 5 — Dynamic Salary System (Completed)
+
+### Calculation Engine
+- **Integer milli-JOD arithmetic**: `toM(s)=Math.round(parseFloat(s)*1000)`, `fromM(n)=(n/1000).toFixed(3)` — all payroll math in integer milli-JOD to avoid floating-point drift
+- **Jordanian SSC**: Employee 7.5% + Employer 14.25% on `MIN(basicSalary, ssc_insurable_salary_cap)` (default cap 3,000 JOD), configurable via `system_configurations`
+- **Progressive income tax**: 6 Jordan brackets (0%→25%) read from `system_configurations.income_tax_brackets`, annual basis then /12 for monthly
+- **Overtime**: Approved OT for the period included in gross (weekday 1.5×, weekend 2×, configurable)
+- **Immutability guard**: Once a payroll run is approved, re-running the same period returns 409
+
+### New API Endpoints (Phase 5)
+- `POST /api/payroll/runs` — Creates a draft payroll run; computes payslips for all active employees with integer milli-JOD math
+- `POST /api/payroll/runs/:id/approve` — Approves a draft run (hradmin/payrolladmin only); blocks re-approval
+- `GET /api/payroll/preview/:employeeId` — Returns a real-time salary breakdown for one employee (no DB write)
+- `GET/POST /api/salary-components/definitions` — CRUD for HR-configurable salary component catalog
+- `PATCH/DELETE /api/salary-components/definitions/:id` — Update/soft-delete a component definition
+
+### enrichPayslips Helper
+- Joins employees + payroll runs + org nodes
+- Adds aliases: `periodMonth/periodYear` (from `runMonth/runYear`), `overtimeAmount` (from `overtimeEarnings`), `sscEmployeeDeduction` (from `sscDeduction`), `fullNameAr/En`, `employeeCode`, `orgNodeNameAr/En`, `payrollRunStatus`
+
+### Frontend (Phase 5)
+- **Salary Component Definitions page** (`/app/payroll/salary-components`): Full CRUD table — create/edit/deactivate component definitions; accessible to hradmin + payrolladmin
+- **Employee Profile → Payslips tab**: Shows a real-time salary breakdown card (earnings, deductions, SSC, tax, net) fetched from `/api/payroll/preview/:id` (visible to hradmin/payrolladmin only)
+- **Printable Payslip**: Each payslip row has a print button that opens a professional bilingual payslip in a new window and triggers the browser print dialog (works in both Arabic RTL and English LTR)
+- **Status labels**: Added `draft` (warning) and `cancelled` (danger) to payslip status badges
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
-- payroll_runs, payslips
+- payroll_runs, payslips (+ `overtime_earnings`, `ssc_employer_contribution` columns added Phase 5)
 - attendance_records
 - documents, document_types
 - assets, asset_categories
@@ -161,3 +187,4 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - **job_descriptions** (Phase 2)
 - **career_paths** (Phase 2)
 - **employee_actions** (Phase 4 — action history with before/after snapshots and side-effect system)
+- **salary_component_definitions** (Phase 5 — HR-configurable earnings/deductions catalog)

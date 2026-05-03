@@ -1093,10 +1093,52 @@
   </div>
 
   <div *ngIf="activeTab()==='payslips'" class="profile-tab-body">
+
+    <!-- Salary Breakdown Preview (HR/Payroll admins only) -->
+    <div class="profile-section-card salary-preview-card" *ngIf="canSeeTab('salary')">
+      <div class="profile-section-title">
+        <span class="material-icons">account_balance_wallet</span>
+        {{ lang==='ar' ? 'تفاصيل الراتب المتوقع' : 'Expected Salary Breakdown' }}
+      </div>
+      <div class="loading-wrap" *ngIf="loadingSalaryPreview()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ الحساب...' : 'Calculating...' }}</div>
+      </div>
+      <ng-container *ngIf="!loadingSalaryPreview() && salaryPreview()">
+        <div class="salary-preview-grid">
+          <div class="salary-preview-section">
+            <div class="salary-preview-section-label">{{ lang==='ar' ? 'الاستحقاقات' : 'Earnings' }}</div>
+            <div class="salary-row"><span>{{ lang==='ar' ? 'الأساسي' : 'Basic' }}</span><span class="salary-val">{{ payrollMoney(salaryPreview().basicSalary) }}</span></div>
+            <div class="salary-row" *ngIf="+salaryPreview().housingAllowance > 0"><span>{{ lang==='ar' ? 'بدل السكن' : 'Housing' }}</span><span class="salary-val">{{ payrollMoney(salaryPreview().housingAllowance) }}</span></div>
+            <div class="salary-row" *ngIf="+salaryPreview().transportAllowance > 0"><span>{{ lang==='ar' ? 'المواصلات' : 'Transport' }}</span><span class="salary-val">{{ payrollMoney(salaryPreview().transportAllowance) }}</span></div>
+            <div class="salary-row" *ngIf="+salaryPreview().mobileAllowance > 0"><span>{{ lang==='ar' ? 'الجوال' : 'Mobile' }}</span><span class="salary-val">{{ payrollMoney(salaryPreview().mobileAllowance) }}</span></div>
+            <div class="salary-row" *ngIf="+salaryPreview().otherAllowances > 0"><span>{{ lang==='ar' ? 'أخرى' : 'Others' }}</span><span class="salary-val">{{ payrollMoney(salaryPreview().otherAllowances) }}</span></div>
+            <div class="salary-row salary-subtotal"><span>{{ lang==='ar' ? 'الإجمالي' : 'Gross' }}</span><span class="salary-val accent">{{ payrollMoney(salaryPreview().grossSalary) }}</span></div>
+          </div>
+          <div class="salary-preview-section">
+            <div class="salary-preview-section-label">{{ lang==='ar' ? 'الاستقطاعات' : 'Deductions' }}</div>
+            <div class="salary-row"><span>{{ lang==='ar' ? 'ضمان اجتماعي (7.5%)' : 'SSC Employee (7.5%)' }}</span><span class="salary-val deduct">{{ payrollMoney(salaryPreview().sscEmployeeDeduction) }}</span></div>
+            <div class="salary-row"><span>{{ lang==='ar' ? 'ضريبة الدخل' : 'Income Tax' }}</span><span class="salary-val deduct">{{ payrollMoney(salaryPreview().incomeTaxDeduction) }}</span></div>
+            <div class="salary-row salary-subtotal"><span>{{ lang==='ar' ? 'إجمالي الاستقطاعات' : 'Total Deductions' }}</span><span class="salary-val deduct">{{ payrollMoney(salaryPreview().totalDeductions) }}</span></div>
+          </div>
+          <div class="salary-preview-net">
+            <span class="salary-net-label">{{ lang==='ar' ? 'صافي الراتب' : 'Net Salary' }}</span>
+            <span class="salary-net-amount">{{ payrollMoney(salaryPreview().netSalary) }}</span>
+          </div>
+        </div>
+        <div class="salary-employer-note">
+          <span class="material-icons" style="font-size:14px;vertical-align:middle;margin-inline-end:4px">info</span>
+          {{ lang==='ar' ? 'مساهمة صاحب العمل في الضمان (14.25%):' : 'Employer SSC contribution (14.25%):' }}
+          <strong>{{ payrollMoney(salaryPreview().sscEmployerContribution) }}</strong>
+        </div>
+      </ng-container>
+    </div>
+
+    <!-- Payslips History -->
     <div class="profile-section-card">
       <div class="profile-section-title">
         <span class="material-icons">receipt_long</span>
-        {{ lang==='ar' ? 'كشوف الرواتب' : 'Payslips' }}
+        {{ lang==='ar' ? 'كشوف الرواتب' : 'Payslip History' }}
       </div>
 
       <div class="loading-wrap" *ngIf="loadingPayslips()">
@@ -1118,6 +1160,7 @@
               <th>{{ lang==='ar' ? 'الاستقطاعات' : 'Deductions' }}</th>
               <th>{{ lang==='ar' ? 'الصافي' : 'Net' }}</th>
               <th>{{ lang==='ar' ? 'الحالة' : 'Status' }}</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -1125,8 +1168,13 @@
               <td>{{ (lang==='ar' ? ['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][item.periodMonth] : ['','January','February','March','April','May','June','July','August','September','October','November','December'][item.periodMonth]) }} {{ item.periodYear }}</td>
               <td>{{ payrollMoney(item.grossSalary) }}</td>
               <td>{{ payrollMoney(item.totalDeductions) }}</td>
-              <td>{{ payrollMoney(item.netSalary) }}</td>
+              <td><strong>{{ payrollMoney(item.netSalary) }}</strong></td>
               <td><span [class]="payslipStatusClass(item.paymentStatus || item.payrollRunStatus)">{{ payslipStatusLabel(item.paymentStatus || item.payrollRunStatus) }}</span></td>
+              <td>
+                <button class="btn-icon-sm" (click)="printPayslip(item)" [title]="lang==='ar' ? 'طباعة قسيمة الراتب' : 'Print Payslip'">
+                  <span class="material-icons">print</span>
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>

@@ -33,6 +33,8 @@ export class EmployeeProfileComponent implements OnInit {
   documents = signal<any[]>([]);
   assets = signal<any[]>([]);
   payslips = signal<any[]>([]);
+  salaryPreview = signal<any>(null);
+  loadingSalaryPreview = signal(false);
   advances = signal<any[]>([]);
   orgNodesFlat: any[] = [];
   qualifications: any[] = [];
@@ -190,6 +192,9 @@ export class EmployeeProfileComponent implements OnInit {
     }
     if (tab === 'payslips' && emp) {
       this.loadPayslips(emp.id);
+      if (this.access.isAny('hradmin', 'payrolladmin')) {
+        this.loadSalaryPreview(emp.id);
+      }
     }
     if (tab === 'disciplinary' && emp) {
       this.loadDisciplinary(emp.id);
@@ -566,6 +571,132 @@ export class EmployeeProfileComponent implements OnInit {
     });
   }
 
+  loadSalaryPreview(empId: number) {
+    this.loadingSalaryPreview.set(true);
+    this.salaryPreview.set(null);
+    this.api.get<any>(`/api/payroll/preview/${empId}`).subscribe({
+      next: response => {
+        this.salaryPreview.set(response.data ?? null);
+        this.loadingSalaryPreview.set(false);
+      },
+      error: () => {
+        this.loadingSalaryPreview.set(false);
+      }
+    });
+  }
+
+  printPayslip(slip: any) {
+    const ar = this.lang === 'ar';
+    const months = ar
+      ? ['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']
+      : ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+    const period = `${months[slip.periodMonth] ?? slip.periodMonth} ${slip.periodYear}`;
+    const empName = ar ? (slip.fullNameAr || slip.fullNameEn || '') : (slip.fullNameEn || slip.fullNameAr || '');
+    const dept = ar ? (slip.orgNodeNameAr || '') : (slip.orgNodeNameEn || '');
+    const fmt = (v: any) => {
+      const n = parseFloat(v ?? 0);
+      return isNaN(n) ? '0.000' : n.toFixed(3) + ' JOD';
+    };
+    const dir = ar ? 'rtl' : 'ltr';
+    const companyName = ar ? 'ZenJO' : 'ZenJO';
+
+    const html = `<!DOCTYPE html>
+<html dir="${dir}" lang="${ar ? 'ar' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<title>${ar ? 'قسيمة راتب' : 'Payslip'} — ${period}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: ${ar ? "'Segoe UI', Tahoma, Arial" : "'Segoe UI', Arial"}, sans-serif; font-size:12px; color:#1a202c; direction:${dir}; }
+  .page { max-width:720px; margin:20px auto; padding:24px; border:1px solid #e2e8f0; border-radius:8px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid #1a6b4a; }
+  .company { font-size:20px; font-weight:700; color:#1a6b4a; }
+  .company-sub { font-size:11px; color:#718096; margin-top:2px; }
+  .payslip-label { text-align:${ar ? 'left' : 'right'}; }
+  .payslip-label h2 { font-size:15px; font-weight:700; color:#2d3748; }
+  .payslip-label p { font-size:11px; color:#718096; margin-top:2px; }
+  .emp-info { background:#f7fafc; border-radius:6px; padding:12px 16px; margin-bottom:16px; display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; }
+  .emp-info div { display:flex; justify-content:space-between; font-size:11px; }
+  .emp-info .label { color:#718096; }
+  .emp-info .val { font-weight:600; color:#2d3748; }
+  table { width:100%; border-collapse:collapse; margin-bottom:14px; }
+  th { background:#1a6b4a; color:#fff; padding:7px 12px; font-size:11px; text-align:${ar ? 'right' : 'left'}; }
+  td { padding:6px 12px; font-size:11px; border-bottom:1px solid #edf2f7; }
+  tr:last-child td { border-bottom:none; }
+  .amount { font-weight:600; text-align:${ar ? 'left' : 'right'}; }
+  .section-title { font-size:12px; font-weight:700; color:#2d3748; margin:12px 0 6px; }
+  .net-box { background:#1a6b4a; color:#fff; border-radius:6px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  .net-label { font-size:13px; font-weight:700; }
+  .net-amount { font-size:18px; font-weight:800; }
+  .footer { margin-top:24px; padding-top:12px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; font-size:10px; color:#a0aec0; }
+  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { border:none; margin:0; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="company">${companyName}</div>
+      <div class="company-sub">${ar ? 'نظام إدارة الموارد البشرية' : 'Human Resources Management System'}</div>
+    </div>
+    <div class="payslip-label">
+      <h2>${ar ? 'قسيمة الراتب' : 'Payslip'}</h2>
+      <p>${period}</p>
+    </div>
+  </div>
+  <div class="emp-info">
+    <div><span class="label">${ar ? 'اسم الموظف' : 'Employee Name'}</span><span class="val">${empName}</span></div>
+    <div><span class="label">${ar ? 'رقم الموظف' : 'Employee Code'}</span><span class="val">${slip.employeeCode || '—'}</span></div>
+    <div><span class="label">${ar ? 'الوحدة التنظيمية' : 'Department'}</span><span class="val">${dept || '—'}</span></div>
+    <div><span class="label">${ar ? 'فترة الراتب' : 'Pay Period'}</span><span class="val">${period}</span></div>
+  </div>
+
+  <div class="section-title">${ar ? 'الاستحقاقات' : 'Earnings'}</div>
+  <table>
+    <thead><tr><th>${ar ? 'البند' : 'Item'}</th><th>${ar ? 'المبلغ' : 'Amount'}</th></tr></thead>
+    <tbody>
+      <tr><td>${ar ? 'الراتب الأساسي' : 'Basic Salary'}</td><td class="amount">${fmt(slip.basicSalary)}</td></tr>
+      ${parseFloat(slip.housingAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل السكن' : 'Housing Allowance'}</td><td class="amount">${fmt(slip.housingAllowance)}</td></tr>` : ''}
+      ${parseFloat(slip.transportationAllowance ?? slip.transportAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل المواصلات' : 'Transport Allowance'}</td><td class="amount">${fmt(slip.transportationAllowance ?? slip.transportAllowance)}</td></tr>` : ''}
+      ${parseFloat(slip.mobileAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل الجوال' : 'Mobile Allowance'}</td><td class="amount">${fmt(slip.mobileAllowance)}</td></tr>` : ''}
+      ${parseFloat(slip.otherAllowances ?? 0) > 0 ? `<tr><td>${ar ? 'بدلات أخرى' : 'Other Allowances'}</td><td class="amount">${fmt(slip.otherAllowances)}</td></tr>` : ''}
+      ${parseFloat(slip.overtimeAmount ?? slip.overtimeEarnings ?? 0) > 0 ? `<tr><td>${ar ? 'أجر الإضافي' : 'Overtime'}</td><td class="amount">${fmt(slip.overtimeAmount ?? slip.overtimeEarnings)}</td></tr>` : ''}
+      <tr style="background:#f7fafc;font-weight:700"><td>${ar ? 'الإجمالي' : 'Gross Salary'}</td><td class="amount">${fmt(slip.grossSalary)}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">${ar ? 'الاستقطاعات' : 'Deductions'}</div>
+  <table>
+    <thead><tr><th>${ar ? 'البند' : 'Item'}</th><th>${ar ? 'المبلغ' : 'Amount'}</th></tr></thead>
+    <tbody>
+      <tr><td>${ar ? 'ضمان اجتماعي (الموظف 7.5%)' : 'SSC Employee (7.5%)'}</td><td class="amount">${fmt(slip.sscEmployeeDeduction)}</td></tr>
+      <tr><td>${ar ? 'ضريبة الدخل' : 'Income Tax'}</td><td class="amount">${fmt(slip.incomeTaxDeduction)}</td></tr>
+      ${parseFloat(slip.advanceDeduction ?? 0) > 0 ? `<tr><td>${ar ? 'خصم سلفة' : 'Advance Deduction'}</td><td class="amount">${fmt(slip.advanceDeduction)}</td></tr>` : ''}
+      ${parseFloat(slip.otherDeductions ?? 0) > 0 ? `<tr><td>${ar ? 'استقطاعات أخرى' : 'Other Deductions'}</td><td class="amount">${fmt(slip.otherDeductions)}</td></tr>` : ''}
+      <tr style="background:#fff5f5;font-weight:700"><td>${ar ? 'إجمالي الاستقطاعات' : 'Total Deductions'}</td><td class="amount">${fmt(slip.totalDeductions)}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="net-box">
+    <span class="net-label">${ar ? 'صافي الراتب' : 'Net Salary'}</span>
+    <span class="net-amount">${fmt(slip.netSalary)}</span>
+  </div>
+
+  <div class="footer">
+    <span>${ar ? 'تم إنشاؤه بواسطة نظام ZenJO' : 'Generated by ZenJO HR System'}</span>
+    <span>${new Date().toLocaleDateString(ar ? 'ar-JO' : 'en-US')}</span>
+  </div>
+</div>
+<script>window.onload = function(){ window.print(); window.onafterprint = function(){ window.close(); }; };<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=780,height=600');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
+
   formatAttendanceTime(value?: string | null) {
     if (!value) return '—';
     return new Date(value).toLocaleTimeString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', { hour: '2-digit', minute: '2-digit' });
@@ -667,18 +798,22 @@ export class EmployeeProfileComponent implements OnInit {
 
   payslipStatusLabel(status: string) {
     const map: Record<string, { ar: string; en: string }> = {
+      draft: { ar: 'مسودة', en: 'Draft' },
       approved: { ar: 'معتمد', en: 'Approved' },
       paid: { ar: 'مدفوع', en: 'Paid' },
-      unpaid: { ar: 'غير مدفوع', en: 'Unpaid' }
+      unpaid: { ar: 'غير مدفوع', en: 'Unpaid' },
+      cancelled: { ar: 'ملغي', en: 'Cancelled' }
     };
     return this.lang === 'ar' ? (map[status]?.ar ?? status) : (map[status]?.en ?? status);
   }
 
   payslipStatusClass(status: string) {
     const map: Record<string, string> = {
+      draft: 'badge-warning',
       approved: 'badge-success',
       paid: 'badge-success',
-      unpaid: 'badge-neutral'
+      unpaid: 'badge-neutral',
+      cancelled: 'badge-danger'
     };
     return `badge ${map[status] ?? 'badge-neutral'}`;
   }
