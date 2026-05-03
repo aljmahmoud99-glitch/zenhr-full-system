@@ -22,6 +22,8 @@ export interface ExportOptions {
   reportTitle: string;
   reportTitleAr?: string;
   filters?: Record<string, string>;
+  /** Return an ARGB hex color (e.g. "FFFF4444") to override the row fill for a specific data record */
+  rowColorFn?: (record: Record<string, unknown>) => string | undefined;
 }
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
@@ -162,10 +164,13 @@ export async function generateExcelBuffer(opts: ExportOptions): Promise<Buffer> 
     });
 
     const row = ws.addRow(values);
+    const overrideColor = opts.rowColorFn?.(record);
     row.eachCell({ includeEmpty: true }, (cell, colNum) => {
       const ci = colNum - 1;
 
-      if (rowIdx % 2 === 1) {
+      if (overrideColor) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: overrideColor } };
+      } else if (rowIdx % 2 === 1) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ARGB_ALT_ROW } };
       }
 

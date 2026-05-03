@@ -1,0 +1,59 @@
+STEP 3 — BACKEND: Report Endpoints
+═══════════════════════════════════
+Build these report endpoints. Each must:
+  - Accept filter parameters (date range, department/org unit, status, employee)
+  - Support two response modes: ?format=json (table data) and ?format=excel (file download)
+  - Enforce the same data scope as the main endpoints (employee sees own data only, etc.)
+  - Return proper Content-Disposition header for file downloads
+
+Reports to implement:
+
+1. GET /api/reports/headcount
+   Filters: orgNodeId, employmentStatus, nationality, gender, contractType, asOfDate
+   JSON output: { total, byDepartment: [{name, count}], byStatus: [...], byGender: [...], byNationality: [...] }
+   Excel: one sheet per breakdown (department, status, gender, nationality)
+
+2. GET /api/reports/attendance-summary
+   Filters: employeeId, orgNodeId, month, year, status
+   JSON: per-employee per-day attendance grid
+   Excel: rows=employees, columns=days, cells=status code, footer=totals
+
+3. GET /api/reports/leave-analysis
+   Filters: orgNodeId, leaveType, status, dateFrom, dateTo
+   JSON: requests with employee name, type, dates, days, status, approver
+   Excel: one row per request, summary tab with totals by type
+
+4. GET /api/reports/payroll-summary
+   Filters: month, year, orgNodeId
+   JSON: per-employee breakdown (gross, SSC, tax, deductions, net)
+   Excel: formatted payroll ledger with totals row
+
+5. GET /api/reports/ssc-contributions
+   Filters: month, year
+   JSON: per-employee SSC data (SSC number, basic salary, insurable amount, employee share, employer share)
+   Excel: government submission format (fixed column order, no styling — raw data)
+   This report is used to submit to the Jordan Social Security Corporation.
+
+6. GET /api/reports/income-tax
+   Filters: year
+   JSON: annual taxable income per employee
+   Excel: tax department submission format
+
+7. GET /api/reports/disciplinary-summary
+   Filters: orgNodeId, violationType, dateFrom, dateTo
+   JSON: all disciplinary actions with employee name, violation, penalty, status
+
+8. GET /api/reports/turnover
+   Filters: year, orgNodeId
+   JSON: { hired, resigned, terminated, transfers, promotions } by month
+   Excel: monthly trend data
+
+9. GET /api/reports/compliance-status
+   Filters: orgNodeId, nationality, documentType, status
+   JSON: per-employee compliance document status (work permit, health cert, criminal clearance)
+   Excel: traffic-light color coding (expired=red, expiring=amber, valid=green)
+
+10. GET /api/reports/salary-components
+    Filters: orgNodeId, componentCode, month, year
+    JSON: per-employee salary component breakdown
+    Excel: shows each component as a column, employees as rows
