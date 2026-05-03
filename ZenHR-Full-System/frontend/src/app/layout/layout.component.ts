@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -31,6 +31,7 @@ type LayoutNotification = {
 })
 export class LayoutComponent implements OnInit {
   user = signal<User | null>(null);
+  isMobileView = signal(typeof window !== 'undefined' ? window.innerWidth <= 980 : false);
   sidebarOpen = signal(typeof window !== 'undefined' ? window.innerWidth > 980 : true);
   endingImpersonation = signal(false);
   currentPage = signal<NavItem | null>(null);
@@ -67,6 +68,15 @@ export class LayoutComponent implements OnInit {
       this.syncPageMeta();
       this.notificationsOpen.set(false);
     });
+  }
+
+  @HostListener('window:resize')
+  onResize() {
+    const mobile = window.innerWidth <= 980;
+    this.isMobileView.set(mobile);
+    if (!mobile && !this.sidebarOpen()) {
+      this.sidebarOpen.set(true);
+    }
   }
 
   toggleSidebar() {

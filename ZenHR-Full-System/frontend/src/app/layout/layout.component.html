@@ -1,5 +1,5 @@
 <div class="app-shell z-app-shell" [class.sidebar-closed]="!sidebarOpen()" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
-  <div class="layout-overlay" *ngIf="sidebarOpen()" (click)="toggleSidebar()"></div>
+  <div class="layout-overlay" *ngIf="isMobileView() && sidebarOpen()" (click)="toggleSidebar()"></div>
 
   <aside class="sidebar z-sidebar">
     <div class="sidebar-brand-card">
