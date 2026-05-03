@@ -31,7 +31,7 @@ type LayoutNotification = {
 })
 export class LayoutComponent implements OnInit {
   user = signal<User | null>(null);
-  sidebarOpen = signal(true);
+  sidebarOpen = signal(typeof window !== 'undefined' ? window.innerWidth > 980 : true);
   endingImpersonation = signal(false);
   currentPage = signal<NavItem | null>(null);
   today = signal(new Date());
