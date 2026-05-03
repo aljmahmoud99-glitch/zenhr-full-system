@@ -202,6 +202,31 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 ### Updated Action Approval
 - Both `POST /api/employee-actions/:id/approve` and the multi-step workflow approval endpoint now write normalized `employee_salary_components` rows (per-component, per effective date) instead of the old flat-column snapshot.
 
+## Step 4 — Backend Salary APIs (Completed)
+
+### New Canonical Endpoints
+
+**Salary Component Catalog:**
+- `GET /api/salary-components` — lists all components with `isReferenced` flag (true if any active employee assignment exists)
+- `POST /api/salary-components` — create component (hradmin/payrolladmin); 409 on duplicate `code` within company
+- `PUT /api/salary-components/:id` — update fields (nameAr/En, calculationType, defaultValue, percentageBase, etc.)
+- `DELETE /api/salary-components/:id` — soft-deactivate; **409 blocked** if any open (`effectiveTo IS NULL`) employee assignments exist
+
+**Employee Salary Assignments:**
+- `GET /api/employees/:id/salary-components` — **enhanced**: now returns `calculatedValueJOD` per row (resolves fixed/percentage/formula using full calculation engine); returns all historical rows (open + end-dated)
+- `POST /api/employees/:id/salary-components` — assign component with optional `overrideValue` + `effectiveFrom`
+- `PUT /api/employees/:id/salary-components/:ecId` — update override/dates (nested route, company-scoped)
+- `DELETE /api/employees/:id/salary-components/:ecId` — **end-dates** the assignment (`effectiveTo = today`), does NOT hard-delete
+
+**Salary Calculation:**
+- `GET /api/salary/preview/:employeeId` — returns `{ gross, deductions: {ssc, tax, other, total}, net, breakdown: [{code, nameEn, nameAr, componentType, valueJOD, calculationType, isTaxable, isSscApplicable, isOverride}] }` — uses same engine as payroll run, no DB write
+- `GET /api/salary/config` — returns structured config: `{ sscEmployeeRate, sscEmployerRate, sscInsurableCapJOD, overtimeWeekday/WeekendMultiplier, incomeTaxPersonalExemption, incomeTaxFamilyExemption, incomeTaxBrackets, rawConfigs }`
+
+### Notes
+- Old `/api/salary-components/catalog/*` and `/api/employee-salary-components/:id` endpoints kept as aliases for backward compatibility.
+- `calculateComponentValueM` from the calculation service is now also used in the employee salary component list endpoint to compute `calculatedValueJOD` in real time.
+- `DELETE /api/employees/:id/salary-components/:ecId` end-dates (not hard-deletes) so payroll history is never corrupted.
+
 ## Step 3 — Backend Salary Calculation Engine (Completed)
 
 ### New Services

@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
-import { applyBrackets } from "./salary-calculation.service.js";
+import { applyBrackets, calculateComponentValueM } from "./salary-calculation.service.js";
 import { db } from "@workspace/db";
 import {
   usersTable, employeesTable, departmentsTable, jobTitlesTable,
@@ -2036,7 +2036,8 @@ app.get("/api/employees/:id/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const empId = parseInt(req.params.id, 10);
-    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+    const [emp] = await db.select({ id: employeesTable.id, basicSalary: employeesTable.basicSalary })
+      .from(employeesTable)
       .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
     const rows = await db
@@ -2054,15 +2055,38 @@ app.get("/api/employees/:id/salary-components", auth, async (req, res) => {
         nameEn: salaryComponentsTable.nameEn,
         componentType: salaryComponentsTable.componentType,
         calculationType: salaryComponentsTable.calculationType,
+        defaultValue: salaryComponentsTable.defaultValue,
+        formulaExpression: salaryComponentsTable.formulaExpression,
+        percentageBase: salaryComponentsTable.percentageBase,
         isTaxable: salaryComponentsTable.isTaxable,
         isSscApplicable: salaryComponentsTable.isSscApplicable,
+        isRecurring: salaryComponentsTable.isRecurring,
+        isActive: salaryComponentsTable.isActive,
         sortOrder: salaryComponentsTable.sortOrder,
       })
       .from(employeeSalaryComponentsTable)
       .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
       .where(eq(employeeSalaryComponentsTable.employeeId, empId))
       .orderBy(asc(salaryComponentsTable.sortOrder), desc(employeeSalaryComponentsTable.effectiveFrom));
-    res.json({ success: true, data: rows });
+    // Resolve basic salary for percentage calculations
+    const basicRow = rows.find(r => r.code === "BASIC");
+    const basicJOD = basicRow
+      ? (basicRow.overrideValue ? parseFloat(basicRow.overrideValue) : parseFloat(basicRow.defaultValue ?? "0"))
+      : parseFloat(String(emp.basicSalary ?? "0"));
+    let runningGrossJOD = 0;
+    const enriched = rows.map(r => {
+      const valM = calculateComponentValueM(
+        { calculationType: r.calculationType, defaultValue: r.defaultValue ?? "0",
+          formulaExpression: r.formulaExpression ?? null, percentageBase: r.percentageBase ?? null,
+          isTaxable: r.isTaxable, isSscApplicable: r.isSscApplicable },
+        r.overrideValue,
+        basicJOD,
+        runningGrossJOD,
+      );
+      if (r.componentType === "earning") runningGrossJOD += valM / 1000;
+      return { ...r, calculatedValueJOD: (valM / 1000).toFixed(3) };
+    });
+    res.json({ success: true, data: enriched });
   } catch (e) {
     console.error("[GET /api/employees/:id/salary-components]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -2147,6 +2171,383 @@ app.delete("/api/employee-salary-components/:id", auth, async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error("[DELETE /api/employee-salary-components/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Step 4: Canonical Salary Component API ───────────────────────────────────
+
+// GET /api/salary-components — full catalog with isReferenced flag [all auth]
+app.get("/api/salary-components", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const rows = await db.select().from(salaryComponentsTable)
+      .where(eq(salaryComponentsTable.companyId, user.companyId))
+      .orderBy(asc(salaryComponentsTable.sortOrder), asc(salaryComponentsTable.id));
+    let referencedIds = new Set<number>();
+    if (rows.length) {
+      const ids = rows.map(r => r.id);
+      const refs = await db
+        .selectDistinct({ scId: employeeSalaryComponentsTable.salaryComponentId })
+        .from(employeeSalaryComponentsTable)
+        .where(and(
+          inArray(employeeSalaryComponentsTable.salaryComponentId, ids),
+          isNull(employeeSalaryComponentsTable.effectiveTo),
+        ));
+      refs.forEach(r => referencedIds.add(r.scId));
+    }
+    res.json({ success: true, data: rows.map(r => ({ ...r, isReferenced: referencedIds.has(r.id) })) });
+  } catch (e) {
+    console.error("[GET /api/salary-components]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/salary-components — create component [hradmin]
+app.post("/api/salary-components", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { nameAr, nameEn, code, componentType, calculationType, defaultValue,
+            formulaExpression, percentageBase, isTaxable, isSscApplicable,
+            isRecurring, isActive, sortOrder } = req.body;
+    if (!nameEn || !code) {
+      res.status(400).json({ success: false, message: "nameEn and code are required" }); return;
+    }
+    const upperCode = (code as string).toUpperCase();
+    const [dupe] = await db.select({ id: salaryComponentsTable.id }).from(salaryComponentsTable)
+      .where(and(eq(salaryComponentsTable.companyId, user.companyId), eq(salaryComponentsTable.code, upperCode)));
+    if (dupe) {
+      res.status(409).json({ success: false, message: `Component code '${upperCode}' already exists` }); return;
+    }
+    const [row] = await db.insert(salaryComponentsTable).values({
+      companyId: user.companyId,
+      nameAr: nameAr ?? nameEn,
+      nameEn,
+      code: upperCode,
+      componentType: componentType ?? "earning",
+      calculationType: calculationType ?? "fixed",
+      defaultValue: String(defaultValue ?? "0"),
+      formulaExpression: formulaExpression ?? null,
+      percentageBase: percentageBase ?? null,
+      isTaxable: isTaxable ?? true,
+      isSscApplicable: isSscApplicable ?? false,
+      isRecurring: isRecurring ?? true,
+      isActive: isActive ?? true,
+      sortOrder: sortOrder ?? 0,
+    }).returning();
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/salary-components]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/salary-components/:id — update component [hradmin]
+app.put("/api/salary-components/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const { nameAr, nameEn, componentType, calculationType, defaultValue,
+            formulaExpression, percentageBase, isTaxable, isSscApplicable,
+            isRecurring, isActive, sortOrder } = req.body;
+    const update: Record<string, any> = { updatedAt: new Date() };
+    if (nameAr !== undefined) update.nameAr = nameAr;
+    if (nameEn !== undefined) update.nameEn = nameEn;
+    if (componentType !== undefined) update.componentType = componentType;
+    if (calculationType !== undefined) update.calculationType = calculationType;
+    if (defaultValue !== undefined) update.defaultValue = String(defaultValue);
+    if (formulaExpression !== undefined) update.formulaExpression = formulaExpression;
+    if (percentageBase !== undefined) update.percentageBase = percentageBase;
+    if (isTaxable !== undefined) update.isTaxable = isTaxable;
+    if (isSscApplicable !== undefined) update.isSscApplicable = isSscApplicable;
+    if (isRecurring !== undefined) update.isRecurring = isRecurring;
+    if (isActive !== undefined) update.isActive = isActive;
+    if (sortOrder !== undefined) update.sortOrder = sortOrder;
+    const [row] = await db.update(salaryComponentsTable).set(update)
+      .where(and(eq(salaryComponentsTable.id, id), eq(salaryComponentsTable.companyId, user.companyId)))
+      .returning();
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[PUT /api/salary-components/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// DELETE /api/salary-components/:id — soft delete; blocked if any active employee assignments [hradmin]
+app.delete("/api/salary-components/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const id = parseInt(req.params.id, 10);
+    const [ref] = await db
+      .select({ id: employeeSalaryComponentsTable.id })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(employeesTable, eq(employeesTable.id, employeeSalaryComponentsTable.employeeId))
+      .where(and(
+        eq(employeeSalaryComponentsTable.salaryComponentId, id),
+        isNull(employeeSalaryComponentsTable.effectiveTo),
+        eq(employeesTable.companyId, user.companyId),
+      ));
+    if (ref) {
+      res.status(409).json({ success: false, message: "Cannot delete: component is actively assigned to employees. End-date those assignments first." });
+      return;
+    }
+    const [row] = await db.update(salaryComponentsTable)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(salaryComponentsTable.id, id), eq(salaryComponentsTable.companyId, user.companyId)))
+      .returning({ id: salaryComponentsTable.id });
+    if (!row) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[DELETE /api/salary-components/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/employees/:id/salary-components/:ecId — update assignment override [hradmin]
+app.put("/api/employees/:id/salary-components/:ecId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params.id, 10);
+    const ecId  = parseInt(req.params.ecId, 10);
+    const { overrideValue, effectiveFrom, effectiveTo, notes } = req.body;
+    const update: Record<string, any> = {};
+    if (overrideValue !== undefined) update.overrideValue = overrideValue != null ? String(overrideValue) : null;
+    if (effectiveFrom !== undefined) update.effectiveFrom = effectiveFrom;
+    if (effectiveTo !== undefined) update.effectiveTo = effectiveTo;
+    if (notes !== undefined) update.notes = notes;
+    const [existing] = await db
+      .select({ id: employeeSalaryComponentsTable.id })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(employeesTable, eq(employeesTable.id, employeeSalaryComponentsTable.employeeId))
+      .where(and(
+        eq(employeeSalaryComponentsTable.id, ecId),
+        eq(employeeSalaryComponentsTable.employeeId, empId),
+        eq(employeesTable.companyId, user.companyId),
+      ));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    const [row] = await db.update(employeeSalaryComponentsTable).set(update)
+      .where(eq(employeeSalaryComponentsTable.id, ecId)).returning();
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[PUT /api/employees/:id/salary-components/:ecId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// DELETE /api/employees/:id/salary-components/:ecId — end-date assignment (effective_to = today) [hradmin]
+app.delete("/api/employees/:id/salary-components/:ecId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params.id, 10);
+    const ecId  = parseInt(req.params.ecId, 10);
+    const [existing] = await db
+      .select({ id: employeeSalaryComponentsTable.id })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(employeesTable, eq(employeesTable.id, employeeSalaryComponentsTable.employeeId))
+      .where(and(
+        eq(employeeSalaryComponentsTable.id, ecId),
+        eq(employeeSalaryComponentsTable.employeeId, empId),
+        eq(employeesTable.companyId, user.companyId),
+      ));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    const [row] = await db.update(employeeSalaryComponentsTable)
+      .set({ effectiveTo: today })
+      .where(eq(employeeSalaryComponentsTable.id, ecId))
+      .returning();
+    res.json({ success: true, data: row });
+  } catch (e) {
+    console.error("[DELETE /api/employees/:id/salary-components/:ecId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Step 4: Salary Preview & Config ─────────────────────────────────────────
+
+// GET /api/salary/preview/:employeeId — calculate current month salary (no DB write)
+// Returns: { gross, deductions: {ssc, tax, other}, net, breakdown: [...components with values] }
+app.get("/api/salary/preview/:employeeId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params.employeeId, 10);
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    // Load config
+    const configs = await db.select().from(systemConfigurationsTable)
+      .where(eq(systemConfigurationsTable.companyId, user.companyId));
+    const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
+    const sscEmployeeRate  = parseFloat(cfg("ssc_employee_rate",  "0.075"));
+    const sscEmployerRate  = parseFloat(cfg("ssc_employer_rate",  "0.1425"));
+    const sscInsurableCapM = toM(cfg("ssc_insurable_salary_cap", "3000"));
+    let taxBrackets: { from: number; to: number; rate: number }[] = [];
+    try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
+    if (!taxBrackets.length) taxBrackets = [
+      { from: 0, to: 9000, rate: 0 }, { from: 9000, to: 20000, rate: 0.05 },
+      { from: 20000, to: 30000, rate: 0.10 }, { from: 30000, to: 40000, rate: 0.15 },
+      { from: 40000, to: 50000, rate: 0.20 }, { from: 50000, to: 999999999, rate: 0.25 },
+    ];
+    const personalExemptionJOD = parseFloat(cfg("income_tax_personal_exemption", "9000"));
+    const familyExemptionJOD   = emp.maritalStatus === "married"
+      ? parseFloat(cfg("income_tax_family_exemption", "500")) : 0;
+    const taxExemptionJOD      = parseFloat(String(emp.taxExemptionAmount ?? "0"));
+
+    // Load active components as of today
+    const today = new Date().toISOString().slice(0, 10);
+    const components = await db
+      .select({
+        code:              salaryComponentsTable.code,
+        nameAr:            salaryComponentsTable.nameAr,
+        nameEn:            salaryComponentsTable.nameEn,
+        componentType:     salaryComponentsTable.componentType,
+        calculationType:   salaryComponentsTable.calculationType,
+        defaultValue:      salaryComponentsTable.defaultValue,
+        formulaExpression: salaryComponentsTable.formulaExpression,
+        percentageBase:    salaryComponentsTable.percentageBase,
+        isTaxable:         salaryComponentsTable.isTaxable,
+        isSscApplicable:   salaryComponentsTable.isSscApplicable,
+        overrideValue:     employeeSalaryComponentsTable.overrideValue,
+        sortOrder:         salaryComponentsTable.sortOrder,
+      })
+      .from(employeeSalaryComponentsTable)
+      .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
+      .where(and(
+        eq(employeeSalaryComponentsTable.employeeId, empId),
+        lte(employeeSalaryComponentsTable.effectiveFrom, today),
+        isNull(employeeSalaryComponentsTable.effectiveTo),
+        eq(salaryComponentsTable.isActive, true),
+      ))
+      .orderBy(asc(salaryComponentsTable.sortOrder));
+
+    // Compute values using the same engine as the payroll run
+    const basicRow = components.find(c => c.code === "BASIC");
+    const basicJOD = basicRow
+      ? (basicRow.overrideValue ? parseFloat(basicRow.overrideValue) : parseFloat(basicRow.defaultValue ?? "0"))
+      : parseFloat(String(emp.basicSalary ?? "0"));
+
+    let runningGrossM = 0;
+    const breakdown: any[] = [];
+    for (const comp of components) {
+      const valM = calculateComponentValueM(
+        { calculationType: comp.calculationType, defaultValue: comp.defaultValue ?? "0",
+          formulaExpression: comp.formulaExpression ?? null, percentageBase: comp.percentageBase ?? null,
+          isTaxable: comp.isTaxable, isSscApplicable: comp.isSscApplicable },
+        comp.overrideValue,
+        basicJOD,
+        runningGrossM / 1000,
+      );
+      if (comp.componentType === "earning") runningGrossM += valM;
+      breakdown.push({
+        code:          comp.code,
+        nameEn:        comp.nameEn,
+        nameAr:        comp.nameAr,
+        componentType: comp.componentType,
+        valueJOD:      (valM / 1000).toFixed(3),
+        calculationType: comp.calculationType,
+        isTaxable:     comp.isTaxable,
+        isSscApplicable: comp.isSscApplicable,
+        isOverride:    comp.overrideValue !== null,
+      });
+    }
+
+    // Fallback: use flat columns if no normalized components
+    const grossM = components.length
+      ? runningGrossM
+      : toM(String(emp.basicSalary ?? "0"))
+        + toM(String(emp.housingAllowance    ?? "0"))
+        + toM(String(emp.transportAllowance  ?? "0"))
+        + toM(String(emp.mealAllowance       ?? "0"))
+        + toM(String(emp.mobileAllowance     ?? "0"))
+        + toM(String(emp.otherAllowances     ?? "0"));
+
+    const basicM       = toM(String(emp.basicSalary ?? "0"));
+    const insurableM   = Math.min(basicM, sscInsurableCapM);
+    const sscEmpM      = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
+    const sscErM       = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployerRate);
+    const annualTaxableJOD = Math.max(0, (grossM - sscEmpM) * 12 / 1000 - personalExemptionJOD - familyExemptionJOD - taxExemptionJOD);
+    const annualTaxJOD     = applyBrackets(annualTaxableJOD, taxBrackets);
+    const monthlyTaxM      = Math.round(annualTaxJOD * 1000 / 12);
+    const totalDeductionsM = sscEmpM + monthlyTaxM;
+    const netM             = grossM - totalDeductionsM;
+
+    res.json({ success: true, data: {
+      employeeId: emp.id,
+      employeeCode: emp.employeeCode,
+      gross:      fromM(grossM),
+      net:        fromM(netM),
+      deductions: {
+        ssc:   fromM(sscEmpM),
+        tax:   fromM(monthlyTaxM),
+        other: "0.000",
+        total: fromM(totalDeductionsM),
+      },
+      employerSscContribution: fromM(sscErM),
+      insurableBase:           fromM(insurableM),
+      annualTaxableIncome:     annualTaxableJOD.toFixed(3),
+      isSSCExempt:             emp.isSSCExempt,
+      breakdown,
+    }});
+  } catch (e) {
+    console.error("[GET /api/salary/preview/:employeeId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/salary/config — salary calculation configuration
+app.get("/api/salary/config", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const configs = await db.select().from(systemConfigurationsTable)
+      .where(eq(systemConfigurationsTable.companyId, user.companyId));
+    const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
+
+    let taxBrackets: any[] = [];
+    try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
+    if (!taxBrackets.length) taxBrackets = [
+      { from: 0,     to: 9000,      rate: 0,    label: "0%" },
+      { from: 9000,  to: 20000,     rate: 0.05, label: "5%" },
+      { from: 20000, to: 30000,     rate: 0.10, label: "10%" },
+      { from: 30000, to: 40000,     rate: 0.15, label: "15%" },
+      { from: 40000, to: 50000,     rate: 0.20, label: "20%" },
+      { from: 50000, to: 999999999, rate: 0.25, label: "25%" },
+    ];
+
+    res.json({ success: true, data: {
+      sscEmployeeRate:            parseFloat(cfg("ssc_employee_rate",  "0.075")),
+      sscEmployerRate:            parseFloat(cfg("ssc_employer_rate",  "0.1425")),
+      sscInsurableCapJOD:         parseFloat(cfg("ssc_insurable_salary_cap", "3000")),
+      overtimeWeekdayMultiplier:  parseFloat(cfg("overtime_weekday_multiplier", "1.5")),
+      overtimeWeekendMultiplier:  parseFloat(cfg("overtime_weekend_multiplier", "2.0")),
+      incomeTaxPersonalExemption: parseFloat(cfg("income_tax_personal_exemption", "9000")),
+      incomeTaxFamilyExemption:   parseFloat(cfg("income_tax_family_exemption", "500")),
+      incomeTaxBrackets:          taxBrackets,
+      rawConfigs:                 configs,
+    }});
+  } catch (e) {
+    console.error("[GET /api/salary/config]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
