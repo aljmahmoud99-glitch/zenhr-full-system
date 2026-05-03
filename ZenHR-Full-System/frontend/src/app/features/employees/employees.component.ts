@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
@@ -11,14 +12,13 @@ import { getErrorMessage } from '../../core/utils/error-message';
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { OrgNode, OrgNodesService } from '../../core/services/org-nodes.service';
-import { AccordionComponent, AccordionPanelComponent } from '../../shared/components/accordion/accordion.component';
 
 type EmployeeForm = Partial<Employee> & { password?: string };
 
 @Component({
   selector: 'app-employees',
   standalone: true,
-  imports: [CommonModule, FormsModule, SkeletonTableComponent, ConfirmDialogComponent, AccordionComponent, AccordionPanelComponent],
+  imports: [CommonModule, FormsModule, SkeletonTableComponent, ConfirmDialogComponent],
   templateUrl: './employees.component.html',
   styleUrl: './employees.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -37,14 +37,11 @@ export class EmployeesComponent implements OnInit {
   filterStatus = '';
 
   showFormModal = signal(false);
-  showDetailsModal = signal(false);
   editMode = signal(false);
   formLoading = signal(false);
-  detailsLoading = signal(false);
   saving = signal(false);
   deleting = signal(false);
   formError = signal('');
-  detailsError = signal('');
   formErrors = signal<Record<string, string>>({});
   selectedEmployee = signal<Employee | null>(null);
   pendingDeleteEmployee = signal<Employee | null>(null);
@@ -66,7 +63,8 @@ export class EmployeesComponent implements OnInit {
     private api: ApiService,
     private toast: ToastService,
     private settings: AppSettingsService,
-    private orgNodesService: OrgNodesService
+    private orgNodesService: OrgNodesService,
+    private router: Router
   ) {}
 
   get lang() {
@@ -261,22 +259,8 @@ export class EmployeesComponent implements OnInit {
     });
   }
 
-  openDetails(employee: Employee) {
-    this.showDetailsModal.set(true);
-    this.detailsLoading.set(true);
-    this.detailsError.set('');
-    this.selectedEmployee.set(null);
-
-    this.api.get<ApiResponse<Employee>>(`/api/employees/${employee.id}`).subscribe({
-      next: response => {
-        this.selectedEmployee.set(response.data ?? employee);
-        this.detailsLoading.set(false);
-      },
-      error: apiError => {
-        this.detailsError.set(getErrorMessage(apiError, this.t('تعذر تحميل تفاصيل الموظف.', 'Failed to load employee details.')));
-        this.detailsLoading.set(false);
-      }
-    });
+  viewProfile(employee: Employee) {
+    this.router.navigate(['/app/employees', employee.id]);
   }
 
   closeFormModal() {
@@ -288,13 +272,6 @@ export class EmployeesComponent implements OnInit {
     this.formError.set('');
     this.formErrors.set({});
     this.form = {};
-  }
-
-  closeDetailsModal() {
-    this.showDetailsModal.set(false);
-    this.detailsLoading.set(false);
-    this.detailsError.set('');
-    this.selectedEmployee.set(null);
   }
 
   save() {
@@ -325,9 +302,6 @@ export class EmployeesComponent implements OnInit {
             : this.t('تمت إضافة الموظف بنجاح.', 'Employee created successfully.')
         );
         this.load();
-        if (savedId) {
-          this.refreshDetails(savedId);
-        }
       },
       error: apiError => {
         this.saving.set(false);
@@ -359,9 +333,6 @@ export class EmployeesComponent implements OnInit {
         this.deleting.set(false);
         this.pendingDeleteEmployee.set(null);
         this.toast.success(this.t('تم حذف الموظف بنجاح.', 'Employee deleted successfully.'));
-        if (this.selectedEmployee()?.id === employee.id) {
-          this.closeDetailsModal();
-        }
         this.load();
       },
       error: apiError => {
@@ -548,16 +519,6 @@ export class EmployeesComponent implements OnInit {
     );
   }
 
-  editSelectedEmployee() {
-    const employee = this.selectedEmployee();
-    if (!employee) {
-      return;
-    }
-
-    this.closeDetailsModal();
-    this.openEdit(employee);
-  }
-
   trackByEmployee(_: number, emp: Employee) {
     return emp.id;
   }
@@ -574,20 +535,6 @@ export class EmployeesComponent implements OnInit {
     else if (daysLeft <= 7) alertLevel = 'critical';
     else if (daysLeft <= 14) alertLevel = 'warning';
     return { pct, daysLeft, alertLevel };
-  }
-
-  private refreshDetails(employeeId: number) {
-    if (!this.showDetailsModal() && this.selectedEmployee()?.id !== employeeId) {
-      return;
-    }
-
-    this.api.get<ApiResponse<Employee>>(`/api/employees/${employeeId}`).subscribe({
-      next: response => {
-        if (response.data) {
-          this.selectedEmployee.set(response.data);
-        }
-      }
-    });
   }
 
   private validateForm() {

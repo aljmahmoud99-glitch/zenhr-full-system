@@ -153,7 +153,7 @@
             <td><code class="employee-code">{{ emp.employeeCode }}</code></td>
 
             <td class="employee-cell">
-              <button class="employee-link" type="button" (click)="openDetails(emp)">
+              <button class="employee-link" type="button" (click)="viewProfile(emp)">
                 <span class="avatar">{{ (lang === 'ar' ? emp.fullNameAr : emp.fullNameEn).slice(0, 1) }}</span>
                 <span class="identity">
                   <strong>{{ lang === 'ar' ? emp.fullNameAr : emp.fullNameEn }}</strong>
@@ -242,7 +242,7 @@
 
             <td>
               <div class="action-row">
-                <button class="icon-btn primary" type="button" (click)="openDetails(emp)" [title]="t('عرض', 'View')">
+                <button class="icon-btn primary" type="button" (click)="viewProfile(emp)" [title]="t('عرض', 'View')">
                   <span class="material-icons">visibility</span>
                 </button>
                 <button class="icon-btn" type="button" *ngIf="canManage" (click)="openEdit(emp)" [title]="t('تعديل', 'Edit')">
@@ -448,194 +448,6 @@
         </button>
         <button class="z-btn-primary" type="button" (click)="save()" [disabled]="saving() || formLoading()">
           {{ saving() ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ', 'Save') }}
-        </button>
-      </footer>
-    </section>
-  </div>
-
-  <div class="modal-overlay" *ngIf="showDetailsModal()" (click)="closeDetailsModal()">
-    <section class="modal-card z-card employee-details-modal" (click)="$event.stopPropagation()">
-      <header class="modal-head employee-modal-head">
-        <div>
-          <h2 class="z-heading">{{ t('تفاصيل الموظف', 'Employee details') }}</h2>
-          <p class="z-small">{{ t('عرض منظم لجميع بيانات الموظف الأساسية.', 'A clean summary of the employee record.') }}</p>
-        </div>
-        <button class="icon-btn" type="button" (click)="closeDetailsModal()">
-          <span class="material-icons">close</span>
-        </button>
-      </header>
-
-      <div class="employee-modal-body">
-        <div class="loading-wrap" *ngIf="detailsLoading()">
-          <div class="spinner"></div>
-          <div class="z-small">{{ t('جارٍ تحميل التفاصيل...', 'Loading details...') }}</div>
-        </div>
-
-        <div class="alert alert-error" *ngIf="!detailsLoading() && detailsError()">{{ detailsError() }}</div>
-
-        <ng-container *ngIf="!detailsLoading() && selectedEmployee() as emp">
-          <section class="employee-details-hero">
-            <div class="details-avatar">{{ (lang === 'ar' ? emp.fullNameAr : emp.fullNameEn).slice(0, 1) }}</div>
-            <div class="details-hero-copy">
-              <div class="details-name-row">
-                <h3 class="details-name">{{ lang === 'ar' ? emp.fullNameAr : emp.fullNameEn }}</h3>
-                <span
-                  class="z-badge"
-                  [class.success]="emp.employmentStatus === 'active'"
-                  [class.warning]="emp.employmentStatus === 'probation'"
-                  [class.danger]="emp.employmentStatus === 'terminated' || emp.employmentStatus === 'suspended'">
-                  {{ empStatus(emp.employmentStatus) }}
-                </span>
-              </div>
-              <div class="details-meta-grid">
-                <span>{{ emp.employeeCode }}</span>
-                <span>{{ (lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) || '—' }}</span>
-                <span>{{ (lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) || '—' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <z-accordion>
-            <z-accordion-panel
-              [title]="t('المعلومات الشخصية', 'Personal Information')"
-              icon="👤"
-              [openByDefault]="true">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الاسم بالعربية', 'Arabic name') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.fullNameAr) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الاسم بالإنجليزية', 'English name') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.fullNameEn) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الجنسية', 'Nationality') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.nationality) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ employeeIdLabel(emp) }}</span>
-                  <strong class="detail-value">{{ employeeIdValue(emp) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('تاريخ الميلاد', 'Date of birth') }}</span>
-                  <strong class="detail-value">{{ formatDate(emp.dateOfBirth) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('العمر', 'Age') }}</span>
-                  <strong class="detail-value">{{ age(emp) === '—' ? '—' : t(age(emp) + ' سنة', age(emp) + ' years') }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('البريد الإلكتروني', 'Work email') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.workEmail) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الهاتف الشخصي', 'Personal phone') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.personalPhone) }}</strong>
-                </div>
-                <div class="detail-item detail-item-wide">
-                  <span class="detail-label">{{ t('العنوان', 'Address') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.addressAr) }}</strong>
-                </div>
-              </div>
-            </z-accordion-panel>
-
-            <z-accordion-panel
-              [title]="t('المعلومات الوظيفية', 'Employment Information')"
-              icon="💼">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
-                  <strong class="detail-value">{{ displayValue(lang === 'ar' ? emp.departmentNameAr : emp.departmentNameEn) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('المسمى الوظيفي', 'Job title') }}</span>
-                  <strong class="detail-value">{{ displayValue(lang === 'ar' ? emp.jobTitleAr : emp.jobTitleEn) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('تاريخ التعيين', 'Hire date') }}</span>
-                  <strong class="detail-value">{{ formatDate(emp.hireDate) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('نوع التوظيف', 'Employment type') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.employmentType) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('نهاية التجربة', 'Probation end') }}</span>
-                  <strong class="detail-value">{{ formatDate(emp.probationEndDate) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الحالة الوظيفية', 'Employment status') }}</span>
-                  <strong class="detail-value">{{ empStatus(emp.employmentStatus) }}</strong>
-                </div>
-              </div>
-            </z-accordion-panel>
-
-            <z-accordion-panel
-              *ngIf="canViewSalary"
-              [title]="t('الراتب والبنك', 'Salary & Bank')"
-              icon="💰">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('الراتب الأساسي', 'Basic salary') }}</span>
-                  <strong class="detail-value">{{ money(emp.basicSalary) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('إجمالي الحزمة', 'Package total') }}</span>
-                  <strong class="detail-value">{{ money(salaryTotal(emp)) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('البنك', 'Bank') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.bankName) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('رقم الحساب', 'Account number') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.bankAccountNumber) }}</strong>
-                </div>
-                <div class="detail-item detail-item-wide">
-                  <span class="detail-label">{{ t('IBAN', 'IBAN') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.iban) }}</strong>
-                </div>
-              </div>
-            </z-accordion-panel>
-
-            <z-accordion-panel
-              [title]="t('الوثائق والامتثال', 'Documents & Compliance')"
-              icon="📄">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('حالة الامتثال', 'Compliance status') }}</span>
-                  <strong class="detail-value">
-                    <ng-container *ngIf="complianceBadge(emp.id) as cb; else noDetailCompliance">
-                      {{ complianceBadgeLabel(cb.overallStatus) }}<span *ngIf="cb.alertCount > 0"> ({{ cb.alertCount }})</span>
-                    </ng-container>
-                    <ng-template #noDetailCompliance>—</ng-template>
-                  </strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('رقم الضمان', 'SSC number') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.sscNumber) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('رقم تصريح العمل', 'Work permit number') }}</span>
-                  <strong class="detail-value">{{ displayValue(emp.workPermitNumber) }}</strong>
-                </div>
-                <div class="detail-item">
-                  <span class="detail-label">{{ t('انتهاء تصريح العمل', 'Work permit expiry') }}</span>
-                  <strong class="detail-value">{{ formatDate(emp.workPermitExpiry) }}</strong>
-                </div>
-              </div>
-            </z-accordion-panel>
-          </z-accordion>
-        </ng-container>
-      </div>
-
-      <footer class="modal-actions employee-modal-actions">
-        <button class="z-btn-secondary" type="button" (click)="closeDetailsModal()">
-          {{ t('إغلاق', 'Close') }}
-        </button>
-        <button class="z-btn-primary" type="button" *ngIf="canManage && selectedEmployee()" (click)="editSelectedEmployee()">
-          {{ t('تعديل', 'Edit') }}
         </button>
       </footer>
     </section>
