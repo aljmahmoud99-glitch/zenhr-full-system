@@ -160,6 +160,10 @@
       <span class="material-icons">receipt_long</span>
       {{ lang==='ar' ? 'كشوف الرواتب' : 'Payslips' }}
     </button>
+    <button class="profile-tab" *ngIf="canSeeTab('salary')" [class.active]="activeTab()==='salary'" (click)="onTabChange('salary')">
+      <span class="material-icons">account_balance_wallet</span>
+      {{ lang==='ar' ? 'مكونات الراتب' : 'Salary Setup' }}
+    </button>
     <button class="profile-tab" *ngIf="canSeeTab('bank-ssc')" [class.active]="activeTab()==='bank-ssc'" (click)="onTabChange('bank-ssc')">
       <span class="material-icons">account_balance</span>
       {{ lang==='ar' ? 'بيانات بنكية' : 'Banking' }}
@@ -1178,6 +1182,275 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <!-- TAB: Salary Setup -->
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <div *ngIf="activeTab()==='salary'" class="profile-tab-body">
+
+    <!-- Action bar -->
+    <div class="salary-tab-header">
+      <button class="z-btn-secondary" (click)="refreshSalaryTab()">
+        <span class="material-icons">refresh</span>
+        {{ lang==='ar' ? 'تحديث' : 'Refresh' }}
+      </button>
+      <button class="z-btn-primary" (click)="openAssignModal()">
+        <span class="material-icons">add</span>
+        {{ lang==='ar' ? 'إضافة مكوّن' : 'Add Component' }}
+      </button>
+    </div>
+
+    <!-- NET SALARY Banner (preview) -->
+    <div class="salary-net-banner" *ngIf="salaryTabPreview()">
+      <div class="salary-net-banner-label">{{ lang==='ar' ? 'صافي الراتب المتوقع' : 'Expected Net Salary' }}</div>
+      <div class="salary-net-banner-amount">{{ payrollMoney(salaryTabPreview().net) }}</div>
+      <div class="salary-net-banner-sub">
+        {{ lang==='ar' ? 'إجمالي:' : 'Gross:' }} {{ payrollMoney(salaryTabPreview().gross) }}
+        &nbsp;·&nbsp;
+        {{ lang==='ar' ? 'استقطاعات:' : 'Deductions:' }} {{ payrollMoney(salaryTabPreview().deductions?.total) }}
+      </div>
+    </div>
+    <div class="salary-net-banner loading" *ngIf="loadingSalaryTabPreview()">
+      <div class="spinner-sm"></div>
+      <span class="z-small">{{ lang==='ar' ? 'جارٍ الحساب...' : 'Calculating...' }}</span>
+    </div>
+
+    <!-- EARNINGS -->
+    <div class="profile-section-card">
+      <div class="profile-section-title">
+        <span class="material-icons" style="color:var(--z-emerald)">trending_up</span>
+        {{ lang==='ar' ? 'الاستحقاقات' : 'Earnings' }}
+      </div>
+
+      <div class="loading-wrap" *ngIf="loadingSalaryComponents()">
+        <div class="spinner"></div>
+        <div class="z-small">{{ lang==='ar' ? 'جارٍ التحميل...' : 'Loading...' }}</div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loadingSalaryComponents() && openEarningComponents().length === 0">
+        <div class="empty-icon"><span class="material-icons">attach_money</span></div>
+        <div class="empty-title">{{ lang==='ar' ? 'لا توجد استحقاقات مسندة' : 'No earnings assigned' }}</div>
+        <div class="empty-sub">{{ lang==='ar' ? 'أضف مكونات الراتب من الزر أعلاه.' : 'Use the Add Component button above.' }}</div>
+      </div>
+
+      <div class="salary-comp-table-wrap" *ngIf="!loadingSalaryComponents() && openEarningComponents().length > 0">
+        <table class="salary-comp-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'المكوّن' : 'Component' }}</th>
+              <th>{{ lang==='ar' ? 'الحساب' : 'Calculation' }}</th>
+              <th class="amount-th">{{ lang==='ar' ? 'القيمة (د.أ)' : 'Value (JOD)' }}</th>
+              <th>{{ lang==='ar' ? 'تجاوز' : 'Override' }}</th>
+              <th>{{ lang==='ar' ? 'من تاريخ' : 'Effective From' }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let comp of openEarningComponents()">
+              <tr [class.editing-row]="editingOverrideId() === comp.id">
+                <td>
+                  <div class="comp-name">{{ lang==='ar' ? comp.nameAr : comp.nameEn }}</div>
+                  <code class="comp-code-sm">{{ comp.code }}</code>
+                </td>
+                <td class="z-small">{{ salaryCompTypeLabel(comp) }}</td>
+                <td class="amount-td">{{ payrollMoney(comp.calculatedValueJOD) }}</td>
+                <td class="z-small" [style.color]="comp.overrideValue ? 'var(--z-amber)' : 'var(--z-text-muted)'">
+                  {{ comp.overrideValue ? (payrollMoney(comp.overrideValue) + ' ✱') : (lang==='ar' ? 'افتراضي' : 'Default') }}
+                </td>
+                <td class="z-small">{{ comp.effectiveFrom | date:'mediumDate' }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="sc-action-btn edit" (click)="startEditOverride(comp)"
+                      *ngIf="editingOverrideId() !== comp.id"
+                      [title]="lang==='ar' ? 'تعديل القيمة' : 'Edit Override'">
+                      <span class="material-icons">edit</span>
+                    </button>
+                    <button class="sc-action-btn danger" (click)="endDateSalaryComponent(comp.id)"
+                      *ngIf="editingOverrideId() !== comp.id"
+                      [title]="lang==='ar' ? 'إزالة (تاريخ انتهاء)' : 'Remove (end-date)'">
+                      <span class="material-icons">remove_circle_outline</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <!-- Inline edit row -->
+              <tr *ngIf="editingOverrideId() === comp.id" class="inline-edit-row">
+                <td colspan="6">
+                  <div class="inline-edit-form">
+                    <span class="z-small" style="font-weight:600">{{ lang==='ar' ? 'قيمة التجاوز (دينار):' : 'Override value (JOD):' }}</span>
+                    <input type="number" class="z-input override-input" [(ngModel)]="editingOverrideVal"
+                           min="0" step="0.001" [placeholder]="lang==='ar' ? '0.000' : '0.000'" />
+                    <button class="z-btn-primary btn-xs" (click)="saveOverride(comp.id)" [disabled]="savingOverride()">
+                      {{ savingOverride() ? '...' : (lang==='ar' ? 'حفظ' : 'Save') }}
+                    </button>
+                    <button class="z-btn-secondary btn-xs" (click)="clearOverride(comp.id)" [disabled]="savingOverride()"
+                      [title]="lang==='ar' ? 'إعادة إلى القيمة الافتراضية' : 'Reset to default'">
+                      {{ lang==='ar' ? 'إعادة' : 'Reset' }}
+                    </button>
+                    <button class="z-btn-secondary btn-xs" (click)="editingOverrideId.set(null)">
+                      {{ lang==='ar' ? 'إلغاء' : 'Cancel' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <!-- Gross total row -->
+            <tr class="comp-subtotal-row">
+              <td colspan="2" style="font-weight:700">{{ lang==='ar' ? 'الإجمالي' : 'Gross Total' }}</td>
+              <td class="amount-td" style="font-weight:700;color:var(--z-emerald)">{{ payrollMoney(earningsTotal()) }}</td>
+              <td colspan="3"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DEDUCTIONS -->
+    <div class="profile-section-card" *ngIf="openDeductionComponents().length > 0">
+      <div class="profile-section-title">
+        <span class="material-icons" style="color:#e53e3e">trending_down</span>
+        {{ lang==='ar' ? 'استقطاعات المكونات' : 'Component Deductions' }}
+      </div>
+      <div class="salary-comp-table-wrap">
+        <table class="salary-comp-table">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'المكوّن' : 'Component' }}</th>
+              <th>{{ lang==='ar' ? 'الحساب' : 'Calculation' }}</th>
+              <th class="amount-th">{{ lang==='ar' ? 'القيمة (د.أ)' : 'Value (JOD)' }}</th>
+              <th>{{ lang==='ar' ? 'تجاوز' : 'Override' }}</th>
+              <th>{{ lang==='ar' ? 'من تاريخ' : 'Effective From' }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let comp of openDeductionComponents()">
+              <tr [class.editing-row]="editingOverrideId() === comp.id">
+                <td>
+                  <div class="comp-name">{{ lang==='ar' ? comp.nameAr : comp.nameEn }}</div>
+                  <code class="comp-code-sm">{{ comp.code }}</code>
+                </td>
+                <td class="z-small">{{ salaryCompTypeLabel(comp) }}</td>
+                <td class="amount-td deduct-val">{{ payrollMoney(comp.calculatedValueJOD) }}</td>
+                <td class="z-small" [style.color]="comp.overrideValue ? 'var(--z-amber)' : 'var(--z-text-muted)'">
+                  {{ comp.overrideValue ? (payrollMoney(comp.overrideValue) + ' ✱') : (lang==='ar' ? 'افتراضي' : 'Default') }}
+                </td>
+                <td class="z-small">{{ comp.effectiveFrom | date:'mediumDate' }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="sc-action-btn edit" (click)="startEditOverride(comp)"
+                      *ngIf="editingOverrideId() !== comp.id">
+                      <span class="material-icons">edit</span>
+                    </button>
+                    <button class="sc-action-btn danger" (click)="endDateSalaryComponent(comp.id)"
+                      *ngIf="editingOverrideId() !== comp.id">
+                      <span class="material-icons">remove_circle_outline</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="editingOverrideId() === comp.id" class="inline-edit-row">
+                <td colspan="6">
+                  <div class="inline-edit-form">
+                    <span class="z-small" style="font-weight:600">{{ lang==='ar' ? 'قيمة التجاوز (دينار):' : 'Override value (JOD):' }}</span>
+                    <input type="number" class="z-input override-input" [(ngModel)]="editingOverrideVal"
+                           min="0" step="0.001" />
+                    <button class="z-btn-primary btn-xs" (click)="saveOverride(comp.id)" [disabled]="savingOverride()">
+                      {{ lang==='ar' ? 'حفظ' : 'Save' }}
+                    </button>
+                    <button class="z-btn-secondary btn-xs" (click)="clearOverride(comp.id)" [disabled]="savingOverride()">
+                      {{ lang==='ar' ? 'إعادة' : 'Reset' }}
+                    </button>
+                    <button class="z-btn-secondary btn-xs" (click)="editingOverrideId.set(null)">
+                      {{ lang==='ar' ? 'إلغاء' : 'Cancel' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SSC + Tax from preview -->
+    <div class="profile-section-card" *ngIf="salaryTabPreview()">
+      <div class="profile-section-title">
+        <span class="material-icons" style="color:#e53e3e">remove_circle</span>
+        {{ lang==='ar' ? 'الاستقطاعات القانونية' : 'Statutory Deductions' }}
+      </div>
+      <div class="salary-statutory-grid">
+        <div class="salary-row">
+          <span>{{ lang==='ar' ? 'الضمان الاجتماعي — الموظف (7.5%)' : 'SSC — Employee (7.5%)' }}</span>
+          <span class="salary-val deduct">{{ payrollMoney(salaryTabPreview().deductions?.ssc) }}</span>
+        </div>
+        <div class="salary-row">
+          <span>{{ lang==='ar' ? 'ضريبة الدخل' : 'Income Tax' }}</span>
+          <span class="salary-val deduct">{{ payrollMoney(salaryTabPreview().deductions?.tax) }}</span>
+        </div>
+        <div class="salary-row salary-subtotal">
+          <span>{{ lang==='ar' ? 'إجمالي الاستقطاعات' : 'Total Deductions' }}</span>
+          <span class="salary-val deduct">{{ payrollMoney(salaryTabPreview().deductions?.total) }}</span>
+        </div>
+      </div>
+      <div class="salary-employer-note">
+        <span class="material-icons" style="font-size:14px;vertical-align:middle;margin-inline-end:4px">info</span>
+        {{ lang==='ar' ? 'مساهمة صاحب العمل في الضمان (14.25%):' : 'Employer SSC contribution (14.25%):' }}
+        <strong *ngIf="salaryTabPreview().employerSscContribution">{{ payrollMoney(salaryTabPreview().employerSscContribution) }}</strong>
+        <strong *ngIf="!salaryTabPreview().employerSscContribution && salaryTabPreview().deductions?.ssc">
+          {{ payrollMoney(+salaryTabPreview().deductions.ssc / 0.075 * 0.1425) }}
+        </strong>
+      </div>
+    </div>
+
+    <!-- Assign Component Modal -->
+    <div class="modal-overlay" *ngIf="showAssignModal()" (click)="closeAssignModal()">
+      <div class="modal-dialog z-card" style="max-width:460px" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <h3 class="z-heading">{{ lang==='ar' ? 'إضافة مكوّن راتب' : 'Assign Salary Component' }}</h3>
+          <button class="icon-btn" (click)="closeAssignModal()"><span class="material-icons">close</span></button>
+        </div>
+        <div class="modal-body" style="padding:var(--z-space-4)">
+          <div class="alert alert-error" *ngIf="assignError()">{{ assignError() }}</div>
+
+          <div class="form-group" style="margin-bottom:var(--z-space-3)">
+            <label class="z-label required">{{ lang==='ar' ? 'المكوّن' : 'Component' }}</label>
+            <div *ngIf="loadingSalaryCatalog()" class="z-small" style="padding:8px;color:var(--z-text-muted)">
+              {{ lang==='ar' ? 'جارٍ التحميل...' : 'Loading...' }}
+            </div>
+            <select class="z-input" [(ngModel)]="assignForm.salaryComponentId" *ngIf="!loadingSalaryCatalog()">
+              <option [ngValue]="null">{{ lang==='ar' ? '— اختر مكوّناً —' : '— Select a component —' }}</option>
+              <option *ngFor="let c of salaryCatalog()" [ngValue]="c.id">
+                {{ lang==='ar' ? c.nameAr : c.nameEn }} ({{ c.code }})
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:var(--z-space-3)">
+            <label class="z-label">{{ lang==='ar' ? 'قيمة تجاوز (اختياري، بالدينار)' : 'Override Value (optional, JOD)' }}</label>
+            <input type="number" class="z-input" [(ngModel)]="assignForm.overrideValue" min="0" step="0.001" placeholder="0.000" />
+            <span class="field-hint">{{ lang==='ar' ? 'اتركه فارغاً لاستخدام القيمة الافتراضية.' : 'Leave blank to use component default value.' }}</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom:var(--z-space-3)">
+            <label class="z-label required">{{ lang==='ar' ? 'نافذ من تاريخ' : 'Effective From' }}</label>
+            <input type="date" class="z-input" [(ngModel)]="assignForm.effectiveFrom" />
+          </div>
+
+          <div class="form-group">
+            <label class="z-label">{{ lang==='ar' ? 'ملاحظات' : 'Notes' }}</label>
+            <input type="text" class="z-input" [(ngModel)]="assignForm.notes" [placeholder]="lang==='ar' ? 'ملاحظة اختيارية...' : 'Optional note...'" />
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:var(--z-space-3) var(--z-space-4)">
+          <button class="z-btn-secondary" (click)="closeAssignModal()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+          <button class="z-btn-primary" (click)="submitAssign()" [disabled]="savingAssign()">
+            {{ savingAssign() ? (lang==='ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang==='ar' ? 'إضافة' : 'Assign') }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

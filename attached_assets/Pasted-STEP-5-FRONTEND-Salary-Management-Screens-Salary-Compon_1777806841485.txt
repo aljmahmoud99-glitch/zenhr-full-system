@@ -1,0 +1,82 @@
+STEP 5 — FRONTEND: Salary Management Screens
+═══════════════════════════════════
+Salary Components Catalog (/app/salary-components):
+  Table: Code | Name (AR) | Name (EN) | Type | Calculation | Status
+  Visible to: hradmin only
+  CRUD operations with modal form
+  Validation: formula expression validated before save (show preview of formula result)
+
+Employee Salary Tab (in profile from Phase 3):
+  Two-section layout:
+  
+  EARNINGS section:
+    ┌─────────────────────────────────────────────────────────┐
+    │ Component Name    Calculation    Amount (JOD)     Type  │
+    │ راتب أساسي        ثابت           1,000.000        💰    │
+    │ بدل سكن           25% من الأساس    250.000         🏠   │
+    │ بدل مواصلات       ثابت             150.000         🚗   │
+    │──────────────────────────────────────────────────────── │
+    │ الإجمالي                          1,400.000             │
+    └─────────────────────────────────────────────────────────┘
+  
+  DEDUCTIONS section:
+    ┌─────────────────────────────────────────────────────────┐
+    │ ضمان اجتماعي     7.5% من الأساس     75.000              │
+    │ ضريبة دخل        شرائح تصاعدية      XX.XXX              │
+    │──────────────────────────────────────────────────────── │
+    │ إجمالي الاستقطاعات                 XXX.XXX              │
+    └─────────────────────────────────────────────────────────┘
+  
+  NET SALARY box: large, green, prominent — "صافي الراتب: 1,XXX.XXX JOD"
+  
+  [معاينة الراتب] button → calls /api/salary/preview/:id → shows live calculation result
+  [إضافة مكون] button → dropdown of available components from catalog → assign with override value
+  
+  Each component row: [✏️ تعديل القيمة] [🗑 إزالة] (end-dates the component)
+  Editing a component: opens inline form showing current value + input for new override
+
+Payslip Detail View:
+  Professional formatted payslip (printable):
+  ┌─ Company Header ────────────────────────────────────────────┐
+  │  [Company Logo]  اسم الشركة   رقم السجل التجاري           │
+  └─────────────────────────────────────────────────────────────┘
+  ┌─ Employee Info ──────────────────────────────────────────────┐
+  │  الاسم: [name]    الرمز: [code]    القسم: [dept]            │
+  │  المسمى: [title]  الفترة: [month year]  تاريخ الإصدار: [date]│
+  └─────────────────────────────────────────────────────────────┘
+  ┌─ Earnings ─────────────────────────── Deductions ───────────┐
+  │  راتب أساسي    1,000.000    │   ضمان اجتماعي    75.000     │
+  │  بدل سكن         250.000    │   ضريبة دخل       XX.XXX     │
+  │  بدل مواصلات     150.000    │                              │
+  │  ─────────────────────────  │   ──────────────────────────  │
+  │  الإجمالي      1,400.000    │   إجمالي الاستقطاعات XX.XXX  │
+  └─────────────────────────────────────────────────────────────┘
+  ┌─ Net Salary ────────────────────────────────────────────────┐
+  │         صافي الراتب: 1,XXX.XXX JOD                         │
+  └─────────────────────────────────────────────────────────────┘
+  [🖨️ طباعة] button → window.print() with print-specific CSS (hides nav, shows only payslip)
+
+═══════════════════════════════════
+CONSTRAINTS
+═══════════════════════════════════
+- All monetary amounts: DECIMAL(12,3) in DB, displayed with 3 decimal places.
+- Always western digits for numbers — never Arabic-Indic numerals (١٢٣ → 123).
+- Approved payroll runs are IMMUTABLE — no editing payslips after approval.
+- Salary data visible ONLY to hradmin + payrolladmin — server-enforced masking.
+- Formula evaluation: NEVER use eval() or any dynamic code execution.
+- SSC and tax rates MUST come from system_configurations — never hardcode.
+- Overtime amounts in payroll: only pull APPROVED requests — pending ones are excluded.
+
+═══════════════════════════════════
+EXPECTED OUTCOME
+═══════════════════════════════════
+After this phase:
+  ✓ salary_components catalog exists and is editable by HR
+  ✓ Employee salary tab shows component breakdown with calculated values
+  ✓ Salary preview endpoint returns correct gross/net for any employee
+  ✓ Payroll run correctly uses components (not hardcoded fields) for calculation
+  ✓ SSC calculated correctly (7.5% employee, capped at 3000 JOD base)
+  ✓ Income tax calculated using progressive brackets from config
+  ✓ Payslip shows professional layout, printable
+  ✓ Approved payroll run cannot be modified
+  ✓ Financial data not accessible to employee/manager roles

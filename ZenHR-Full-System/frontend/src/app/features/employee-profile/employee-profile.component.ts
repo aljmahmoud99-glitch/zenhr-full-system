@@ -56,6 +56,22 @@ export class EmployeeProfileComponent implements OnInit {
   loadingPayslips = signal(false);
   loadingQualifications = signal(false);
   tabErrors = signal<Record<string, string>>({});
+
+  salaryComponents = signal<any[]>([]);
+  loadingSalaryComponents = signal(false);
+  salaryCatalog = signal<any[]>([]);
+  loadingSalaryCatalog = signal(false);
+  salaryTabPreview = signal<any>(null);
+  loadingSalaryTabPreview = signal(false);
+  showAssignModal = signal(false);
+  savingAssign = signal(false);
+  assignForm: { salaryComponentId: number | null; overrideValue: string; effectiveFrom: string; notes: string } = {
+    salaryComponentId: null, overrideValue: '', effectiveFrom: new Date().toISOString().slice(0, 10), notes: ''
+  };
+  assignError = signal('');
+  editingOverrideId = signal<number | null>(null);
+  editingOverrideVal = '';
+  savingOverride = signal(false);
   error = signal('');
 
   showEvalModal = signal(false);
@@ -73,7 +89,7 @@ export class EmployeeProfileComponent implements OnInit {
     recommendation: 'continue'
   };
 
-  activeTab = signal<'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions'>('personal');
+  activeTab = signal<'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'salary' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions'>('personal');
   loadedTabs = signal<string[]>(['personal']);
 
   showActionDropdown = signal(false);
@@ -162,7 +178,7 @@ export class EmployeeProfileComponent implements OnInit {
     });
   }
 
-  onTabChange(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions') {
+  onTabChange(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'salary' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions') {
     this.activeTab.set(tab);
     if (tab === 'qualifications') this.loadQualifications(this.employeeId);
     if (this.loadedTabs().includes(tab)) return;
@@ -195,6 +211,10 @@ export class EmployeeProfileComponent implements OnInit {
       if (this.access.isAny('hradmin', 'payrolladmin')) {
         this.loadSalaryPreview(emp.id);
       }
+    }
+    if (tab === 'salary' && emp) {
+      this.loadSalaryComponents(emp.id);
+      this.loadSalaryTabPreview(emp.id);
     }
     if (tab === 'disciplinary' && emp) {
       this.loadDisciplinary(emp.id);
@@ -585,6 +605,144 @@ export class EmployeeProfileComponent implements OnInit {
     });
   }
 
+  loadSalaryComponents(empId: number) {
+    this.loadingSalaryComponents.set(true);
+    this.api.get<any>(`/api/employees/${empId}/salary-components`).subscribe({
+      next: r => { this.salaryComponents.set(r.data ?? []); this.loadingSalaryComponents.set(false); },
+      error: () => { this.loadingSalaryComponents.set(false); }
+    });
+  }
+
+  loadSalaryTabPreview(empId: number) {
+    this.loadingSalaryTabPreview.set(true);
+    this.salaryTabPreview.set(null);
+    this.api.get<any>(`/api/salary/preview/${empId}`).subscribe({
+      next: r => { this.salaryTabPreview.set(r.data ?? null); this.loadingSalaryTabPreview.set(false); },
+      error: () => { this.loadingSalaryTabPreview.set(false); }
+    });
+  }
+
+  refreshSalaryTab() {
+    const emp = this.employee();
+    if (!emp) return;
+    this.loadSalaryComponents(emp.id);
+    this.loadSalaryTabPreview(emp.id);
+  }
+
+  openAssignModal() {
+    this.assignForm = { salaryComponentId: null, overrideValue: '', effectiveFrom: new Date().toISOString().slice(0, 10), notes: '' };
+    this.assignError.set('');
+    if (this.salaryCatalog().length === 0) {
+      this.loadingSalaryCatalog.set(true);
+      this.api.get<any>('/api/salary-components').subscribe({
+        next: r => { this.salaryCatalog.set((r.data ?? []).filter((c: any) => c.isActive)); this.loadingSalaryCatalog.set(false); },
+        error: () => { this.loadingSalaryCatalog.set(false); }
+      });
+    }
+    this.showAssignModal.set(true);
+  }
+
+  closeAssignModal() {
+    if (this.savingAssign()) return;
+    this.showAssignModal.set(false);
+  }
+
+  submitAssign() {
+    if (this.savingAssign()) return;
+    const emp = this.employee();
+    if (!emp) return;
+    if (!this.assignForm.salaryComponentId) {
+      this.assignError.set(this.lang === 'ar' ? 'يرجى اختيار مكوّن الراتب.' : 'Please select a salary component.');
+      return;
+    }
+    if (!this.assignForm.effectiveFrom) {
+      this.assignError.set(this.lang === 'ar' ? 'يرجى تحديد تاريخ البدء.' : 'Please enter effective from date.');
+      return;
+    }
+    this.savingAssign.set(true);
+    this.assignError.set('');
+    const payload: any = {
+      salaryComponentId: this.assignForm.salaryComponentId,
+      effectiveFrom: this.assignForm.effectiveFrom,
+    };
+    if (this.assignForm.overrideValue.trim()) payload.overrideValue = this.assignForm.overrideValue.trim();
+    if (this.assignForm.notes.trim()) payload.notes = this.assignForm.notes.trim();
+    this.api.post<any>(`/api/employees/${emp.id}/salary-components`, payload).subscribe({
+      next: () => {
+        this.savingAssign.set(false);
+        this.closeAssignModal();
+        this.refreshSalaryTab();
+      },
+      error: (e: any) => {
+        this.savingAssign.set(false);
+        const msg = e?.error?.message ?? (this.lang === 'ar' ? 'حدث خطأ' : 'An error occurred');
+        this.assignError.set(msg);
+      }
+    });
+  }
+
+  startEditOverride(comp: any) {
+    this.editingOverrideId.set(comp.id);
+    this.editingOverrideVal = comp.overrideValue != null ? String(comp.overrideValue) : comp.calculatedValueJOD ?? '';
+  }
+
+  saveOverride(ecId: number) {
+    if (this.savingOverride()) return;
+    const emp = this.employee();
+    if (!emp) return;
+    this.savingOverride.set(true);
+    const payload: any = {};
+    if (this.editingOverrideVal.trim() !== '') payload.overrideValue = this.editingOverrideVal.trim();
+    this.api.put<any>(`/api/employees/${emp.id}/salary-components/${ecId}`, payload).subscribe({
+      next: () => {
+        this.savingOverride.set(false);
+        this.editingOverrideId.set(null);
+        this.refreshSalaryTab();
+      },
+      error: () => { this.savingOverride.set(false); }
+    });
+  }
+
+  clearOverride(ecId: number) {
+    if (this.savingOverride()) return;
+    const emp = this.employee();
+    if (!emp) return;
+    this.savingOverride.set(true);
+    this.api.put<any>(`/api/employees/${emp.id}/salary-components/${ecId}`, { overrideValue: null }).subscribe({
+      next: () => {
+        this.savingOverride.set(false);
+        this.editingOverrideId.set(null);
+        this.refreshSalaryTab();
+      },
+      error: () => { this.savingOverride.set(false); }
+    });
+  }
+
+  endDateSalaryComponent(ecId: number) {
+    const emp = this.employee();
+    if (!emp) return;
+    this.api.delete<any>(`/api/employees/${emp.id}/salary-components/${ecId}`).subscribe({
+      next: () => { this.refreshSalaryTab(); },
+      error: () => {}
+    });
+  }
+
+  salaryCompTypeLabel(c: any) {
+    if (c.calculationType === 'fixed') return (this.lang === 'ar' ? 'ثابت' : 'Fixed');
+    if (c.calculationType === 'percentage') return `${c.defaultValue}%`;
+    return (this.lang === 'ar' ? 'صيغة' : 'Formula');
+  }
+
+  openEarningComponents() {
+    return this.salaryComponents().filter((c: any) => c.componentType === 'earning' && !c.effectiveTo);
+  }
+  openDeductionComponents() {
+    return this.salaryComponents().filter((c: any) => c.componentType === 'deduction' && !c.effectiveTo);
+  }
+  earningsTotal() {
+    return this.openEarningComponents().reduce((sum: number, c: any) => sum + parseFloat(c.calculatedValueJOD ?? '0'), 0);
+  }
+
   printPayslip(slip: any) {
     const ar = this.lang === 'ar';
     const months = ar
@@ -598,7 +756,30 @@ export class EmployeeProfileComponent implements OnInit {
       return isNaN(n) ? '0.000' : n.toFixed(3) + ' JOD';
     };
     const dir = ar ? 'rtl' : 'ltr';
-    const companyName = ar ? 'ZenJO' : 'ZenJO';
+    const companyName = 'ZenJO';
+
+    // Parse componentsSnapshot for detailed breakdown
+    let snapshotComponents: { nameEn: string; nameAr: string; type: string; valueJOD: string }[] = [];
+    if (slip.componentsSnapshot) {
+      try {
+        const parsed = typeof slip.componentsSnapshot === 'string'
+          ? JSON.parse(slip.componentsSnapshot)
+          : slip.componentsSnapshot;
+        snapshotComponents = parsed.components ?? [];
+      } catch { /* ignore */ }
+    }
+    const earningRows = snapshotComponents.filter((c: any) => c.type === 'earning');
+    const hasSnapshot = earningRows.length > 0;
+
+    const earningsHtml = hasSnapshot
+      ? earningRows.map((c: any) => `<tr><td>${ar ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr)}</td><td class="amount">${fmt(c.valueJOD)}</td></tr>`).join('')
+      : [
+          `<tr><td>${ar ? 'الراتب الأساسي' : 'Basic Salary'}</td><td class="amount">${fmt(slip.basicSalary)}</td></tr>`,
+          parseFloat(slip.housingAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل السكن' : 'Housing Allowance'}</td><td class="amount">${fmt(slip.housingAllowance)}</td></tr>` : '',
+          parseFloat(slip.transportationAllowance ?? slip.transportAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل المواصلات' : 'Transport Allowance'}</td><td class="amount">${fmt(slip.transportationAllowance ?? slip.transportAllowance)}</td></tr>` : '',
+          parseFloat(slip.mobileAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل الجوال' : 'Mobile Allowance'}</td><td class="amount">${fmt(slip.mobileAllowance)}</td></tr>` : '',
+          parseFloat(slip.otherAllowances ?? 0) > 0 ? `<tr><td>${ar ? 'بدلات أخرى' : 'Other Allowances'}</td><td class="amount">${fmt(slip.otherAllowances)}</td></tr>` : '',
+        ].join('');
 
     const html = `<!DOCTYPE html>
 <html dir="${dir}" lang="${ar ? 'ar' : 'en'}">
@@ -655,11 +836,7 @@ export class EmployeeProfileComponent implements OnInit {
   <table>
     <thead><tr><th>${ar ? 'البند' : 'Item'}</th><th>${ar ? 'المبلغ' : 'Amount'}</th></tr></thead>
     <tbody>
-      <tr><td>${ar ? 'الراتب الأساسي' : 'Basic Salary'}</td><td class="amount">${fmt(slip.basicSalary)}</td></tr>
-      ${parseFloat(slip.housingAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل السكن' : 'Housing Allowance'}</td><td class="amount">${fmt(slip.housingAllowance)}</td></tr>` : ''}
-      ${parseFloat(slip.transportationAllowance ?? slip.transportAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل المواصلات' : 'Transport Allowance'}</td><td class="amount">${fmt(slip.transportationAllowance ?? slip.transportAllowance)}</td></tr>` : ''}
-      ${parseFloat(slip.mobileAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل الجوال' : 'Mobile Allowance'}</td><td class="amount">${fmt(slip.mobileAllowance)}</td></tr>` : ''}
-      ${parseFloat(slip.otherAllowances ?? 0) > 0 ? `<tr><td>${ar ? 'بدلات أخرى' : 'Other Allowances'}</td><td class="amount">${fmt(slip.otherAllowances)}</td></tr>` : ''}
+      ${earningsHtml}
       ${parseFloat(slip.overtimeAmount ?? slip.overtimeEarnings ?? 0) > 0 ? `<tr><td>${ar ? 'أجر الإضافي' : 'Overtime'}</td><td class="amount">${fmt(slip.overtimeAmount ?? slip.overtimeEarnings)}</td></tr>` : ''}
       <tr style="background:#f7fafc;font-weight:700"><td>${ar ? 'الإجمالي' : 'Gross Salary'}</td><td class="amount">${fmt(slip.grossSalary)}</td></tr>
     </tbody>

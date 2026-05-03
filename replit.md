@@ -316,6 +316,46 @@ The app is fully bilingual AR/EN with RTL layout:
 - `t(ar, en)` helper in component templates uses Arabic string as first arg, English as second
 - Mojibake recovery: files corrupted by cp1256 re-encoding were fixed with the pair-map algorithm (each garbled cp1256 char pair → original UTF-8 byte → correct Arabic char)
 
+---
+
+## Step 5 — Salary Management Screens (COMPLETE)
+
+### Salary Components Catalog (`/app/salary-components`)
+- **Component:** `frontend/src/app/features/salary-components/salary-components.component.ts`
+- Full CRUD table for global salary component definitions (earnings + deductions)
+- Inline formula evaluator (recursive-descent parser; no `eval`; variables: `basic`, `gross`, `hours`, `rate`)
+- Columns: Code, Name (AR/EN), Type (Earning/Deduction), Calculation (Fixed/Percentage/Formula), Default Value, Status, Is-Referenced
+- DELETE returns 409 if component is assigned to any employee
+- Accessible from sidebar for `hradmin` and `payrolladmin`
+
+### Salary Setup Tab on Employee Profile (`/app/employees/:id` → "Salary Setup" tab)
+- **Tab name:** "Salary Setup" (EN) / "مكونات الراتب" (AR)
+- **NET SALARY banner** — pulls from `GET /api/salary/preview/:id` (shows gross, net, total deductions)
+- **Earnings table** — lists active assigned components with inline override editing
+- **Deductions table** — same for deduction-type components  
+- **Statutory Deductions card** — SSC employee (7.5%) + income tax from preview; employer SSC contribution calculated
+- **Assign modal** — picks from active catalog, optional override value, effective-from date, notes
+- **Inline override** — edit/reset per assigned component; calls `PUT /api/employees/:id/salary-components/:ecId`
+- **End-date** — removes component assignment (sets effectiveTo = today) via `DELETE /api/employees/:id/salary-components/:ecId`
+
+### API Endpoints Used
+- `GET /api/salary-components` — catalog list
+- `POST /api/salary-components` — create catalog entry
+- `PUT /api/salary-components/:id` — update catalog entry
+- `DELETE /api/salary-components/:id` — delete catalog entry (409 if referenced)
+- `GET /api/employees/:id/salary-components` — employee's assigned components with calculated values
+- `POST /api/employees/:id/salary-components` — assign component
+- `PUT /api/employees/:id/salary-components/:ecId` — update override value
+- `DELETE /api/employees/:id/salary-components/:ecId` — end-date assignment
+- `GET /api/salary/preview/:id` — real-time net salary preview
+
+### Payslip Print Enhancement
+- `printPayslip()` now reads `componentsSnapshot` JSON from the payslip record
+- If snapshot has earning components → prints their individual rows instead of legacy flat fields
+- Falls back to legacy flat fields (basicSalary, housingAllowance, etc.) for old payslips without snapshot
+
+---
+
 ### Demo Accounts (seeded)
 
 | Username | Password | Role |

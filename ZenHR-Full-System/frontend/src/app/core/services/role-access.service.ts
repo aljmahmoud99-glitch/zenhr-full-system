@@ -45,6 +45,7 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/payroll/runs': ['hradmin', 'payrolladmin'],
   '/app/payroll/slips': ['hradmin', 'payrolladmin', 'employee'],
   '/app/payroll/salary-components': ['hradmin', 'payrolladmin'],
+  '/app/salary-components': ['hradmin', 'payrolladmin'],
 
   '/app/forms': ['hradmin', 'payrolladmin', 'manager', 'employee'],
   '/app/reports': ['hradmin', 'payrolladmin'],
@@ -139,7 +140,7 @@ const HRADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
-      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/payroll/salary-components' }
+      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' }
     ]
   },
   {
@@ -170,7 +171,7 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     labelEn: 'Payroll',
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
-      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/payroll/salary-components' },
+      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
       { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'price_change', path: '/app/employee-actions/salary-changes' }
     ]
