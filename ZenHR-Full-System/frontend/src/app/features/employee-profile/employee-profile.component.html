@@ -526,7 +526,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل سجل الحضور...' : 'Loading attendance record...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['attendance']" style="margin-bottom:12px">{{ tabErrors()['attendance'] }}</div>
       <div class="empty-state" *ngIf="!loadingAttendance() && attendanceRecords().length === 0">
         <div class="empty-icon"><span class="material-icons">fact_check</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد سجلات حضور لهذا الموظف.' : 'No attendance records for this employee.' }}</div>
@@ -568,6 +568,11 @@
       <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل ملف الامتثال...' : 'Loading compliance status...' }}</div>
     </div>
 
+    <div class="alert alert-error" *ngIf="tabErrors()['compliance']" style="margin-bottom:12px">{{ tabErrors()['compliance'] }}</div>
+    <div class="empty-state" *ngIf="!loadingCompliance() && !complianceProfile() && !tabErrors()['compliance']">
+      <div class="empty-icon"><span class="material-icons">fact_check</span></div>
+      <div class="empty-title">{{ lang==='ar' ? 'لا توجد بيانات امتثال لهذا الموظف.' : 'No compliance data available for this employee.' }}</div>
+    </div>
     <ng-container *ngIf="!loadingCompliance() && complianceProfile() as compliance">
       <div class="compliance-status-banner">
         <span class="material-icons compliance-status-icon">
@@ -643,7 +648,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل المستندات...' : 'Loading documents...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['documents']" style="margin-bottom:12px">{{ tabErrors()['documents'] }}</div>
       <div class="empty-state" *ngIf="!loadingDocuments() && documents().length === 0">
         <div class="empty-icon"><span class="material-icons">folder_off</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد مستندات لهذا الموظف.' : 'No documents for this employee.' }}</div>
@@ -688,6 +693,11 @@
   </div>
 
   <div *ngIf="activeTab()==='qualifications'" class="profile-tab-body">
+    <div class="loading-wrap" *ngIf="loadingQualifications()">
+      <div class="spinner"></div>
+      <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل المؤهلات...' : 'Loading qualifications...' }}</div>
+    </div>
+    <div class="alert alert-error" *ngIf="tabErrors()['qualifications']" style="margin-bottom:12px">{{ tabErrors()['qualifications'] }}</div>
     <z-accordion>
 
       <!-- Section 1: Education (table) -->
@@ -971,7 +981,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل الأصول...' : 'Loading assets...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['assets']" style="margin-bottom:12px">{{ tabErrors()['assets'] }}</div>
       <div class="empty-state" *ngIf="!loadingAssets() && assets().length === 0">
         <div class="empty-icon"><span class="material-icons">inventory_2</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد أصول مرتبطة بهذا الموظف.' : 'No assets linked to this employee.' }}</div>
@@ -1018,7 +1028,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل السلف...' : 'Loading advances...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['advances']" style="margin-bottom:12px">{{ tabErrors()['advances'] }}</div>
       <div class="empty-state" *ngIf="!loadingAdvances() && advances().length === 0">
         <div class="empty-icon"><span class="material-icons">request_quote</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد سلف مرتبطة بهذا الموظف.' : 'No advances linked to this employee.' }}</div>
@@ -1062,7 +1072,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل كشوف الرواتب...' : 'Loading payslips...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['payslips']" style="margin-bottom:12px">{{ tabErrors()['payslips'] }}</div>
       <div class="empty-state" *ngIf="!loadingPayslips() && payslips().length === 0">
         <div class="empty-icon"><span class="material-icons">receipt_long</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد كشوف رواتب متاحة لهذا الموظف.' : 'No payslips available for this employee.' }}</div>
@@ -1115,6 +1125,7 @@
       <div class="spinner"></div>
       <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل بيانات الإجازات...' : 'Loading leave data...' }}</div>
     </div>
+    <div class="alert alert-error" *ngIf="tabErrors()['leave']" style="margin-bottom:12px">{{ tabErrors()['leave'] }}</div>
     <ng-container *ngIf="!loadingLeave()">
       <div class="profile-section-card" *ngIf="leaveBalances().length > 0" style="margin-bottom:16px">
         <div class="profile-section-title">
@@ -1179,7 +1190,7 @@
         <div class="spinner"></div>
         <div class="z-small">{{ lang==='ar' ? 'جارٍ تحميل السجل التأديبي...' : 'Loading disciplinary record...' }}</div>
       </div>
-
+      <div class="alert alert-error" *ngIf="tabErrors()['disciplinary']" style="margin-bottom:12px">{{ tabErrors()['disciplinary'] }}</div>
       <div class="empty-state" *ngIf="!loadingDisciplinary() && disciplinaryCases().length === 0">
         <div class="empty-icon"><span class="material-icons">gavel</span></div>
         <div class="empty-title">{{ lang==='ar' ? 'لا توجد مخالفات مسجلة لهذا الموظف.' : 'No disciplinary cases recorded for this employee.' }}</div>
@@ -1214,7 +1225,7 @@
 <!-- Evaluation Modal -->
 <!-- ═══════════════════════════════════════════════════════════════════-->
 <div class="modal-overlay" *ngIf="showEvalModal()" (click)="closeEvalModal()">
-  <div class="modal-box eval-modal" (click)="$event.stopPropagation()">
+  <div class="modal-card eval-modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
       <span class="modal-title">
         {{ lang==='ar' ? stageLabel(evalStage).ar : stageLabel(evalStage).en }}
@@ -1246,9 +1257,9 @@
         <div class="eval-criterion-row">
           <span class="criterion-name">{{ lang==='ar' ? 'الالتزام' : 'Commitment' }}</span>
           <div class="score-input-stars">
-            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="star-btn"
                   [class.active]="evalForm['commitmentScore'] >= s"
-                  (click)="evalForm['commitmentScore'] = s">★</span>
+                  (click)="evalForm['commitmentScore'] = s">★</button>
             <span class="score-num">{{ evalForm['commitmentScore'] }}/5</span>
           </div>
           <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['commitmentNotes']">
@@ -1257,9 +1268,9 @@
         <div class="eval-criterion-row">
           <span class="criterion-name">{{ lang==='ar' ? 'جودة الشغل' : 'Work Quality' }}</span>
           <div class="score-input-stars">
-            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="star-btn"
                   [class.active]="evalForm['workQualityScore'] >= s"
-                  (click)="evalForm['workQualityScore'] = s">★</span>
+                  (click)="evalForm['workQualityScore'] = s">★</button>
             <span class="score-num">{{ evalForm['workQualityScore'] }}/5</span>
           </div>
           <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['workQualityNotes']">
@@ -1268,9 +1279,9 @@
         <div class="eval-criterion-row">
           <span class="criterion-name">{{ lang==='ar' ? 'التعلم والتطور' : 'Learning' }}</span>
           <div class="score-input-stars">
-            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="star-btn"
                   [class.active]="evalForm['learningScore'] >= s"
-                  (click)="evalForm['learningScore'] = s">★</span>
+                  (click)="evalForm['learningScore'] = s">★</button>
             <span class="score-num">{{ evalForm['learningScore'] }}/5</span>
           </div>
           <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['learningNotes']">
@@ -1279,9 +1290,9 @@
         <div class="eval-criterion-row">
           <span class="criterion-name">{{ lang==='ar' ? 'السلوك المهني' : 'Behavior' }}</span>
           <div class="score-input-stars">
-            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="star-btn"
                   [class.active]="evalForm['behaviorScore'] >= s"
-                  (click)="evalForm['behaviorScore'] = s">★</span>
+                  (click)="evalForm['behaviorScore'] = s">★</button>
             <span class="score-num">{{ evalForm['behaviorScore'] }}/5</span>
           </div>
           <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['behaviorNotes']">
@@ -1290,9 +1301,9 @@
         <div class="eval-criterion-row">
           <span class="criterion-name">{{ lang==='ar' ? 'العمل الجماعي' : 'Teamwork' }}</span>
           <div class="score-input-stars">
-            <span *ngFor="let s of [1,2,3,4,5]" class="star-btn"
+            <button type="button" *ngFor="let s of [1,2,3,4,5]" class="star-btn"
                   [class.active]="evalForm['teamworkScore'] >= s"
-                  (click)="evalForm['teamworkScore'] = s">★</span>
+                  (click)="evalForm['teamworkScore'] = s">★</button>
             <span class="score-num">{{ evalForm['teamworkScore'] }}/5</span>
           </div>
           <input type="text" class="form-control form-control-sm" [(ngModel)]="evalForm['teamworkNotes']">

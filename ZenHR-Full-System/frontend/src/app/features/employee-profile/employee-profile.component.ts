@@ -52,6 +52,8 @@ export class EmployeeProfileComponent implements OnInit {
   loadingAssets = signal(false);
   loadingAdvances = signal(false);
   loadingPayslips = signal(false);
+  loadingQualifications = signal(false);
+  tabErrors = signal<Record<string, string>>({});
   error = signal('');
 
   showEvalModal = signal(false);
@@ -189,7 +191,26 @@ export class EmployeeProfileComponent implements OnInit {
   }
 
   loadQualifications(empId: number): void {
-    this.http.get<any>(`/api/employees/${empId}/qualifications`).subscribe(r => this.qualifications = r.data ?? []);
+    this.loadingQualifications.set(true);
+    this.http.get<any>(`/api/employees/${empId}/qualifications`).subscribe({
+      next: r => {
+        this.qualifications = r.data ?? [];
+        this.loadingQualifications.set(false);
+      },
+      error: () => {
+        this.qualifications = [];
+        this.loadingQualifications.set(false);
+        this.setTabError('qualifications', this.lang === 'ar' ? 'فشل تحميل المؤهلات.' : 'Failed to load qualifications.');
+      }
+    });
+  }
+
+  setTabError(tab: string, msg: string): void {
+    this.tabErrors.update(e => ({ ...e, [tab]: msg }));
+  }
+
+  clearTabError(tab: string): void {
+    this.tabErrors.update(e => { const n = { ...e }; delete n[tab]; return n; });
   }
 
   loadOrgNodes(): void {
@@ -398,6 +419,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.disciplinaryCases.set([]);
         this.loadingDisciplinary.set(false);
+        this.setTabError('disciplinary', this.lang === 'ar' ? 'فشل تحميل السجل التأديبي.' : 'Failed to load disciplinary record.');
       }
     });
   }
@@ -412,6 +434,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.attendanceRecords.set([]);
         this.loadingAttendance.set(false);
+        this.setTabError('attendance', this.lang === 'ar' ? 'فشل تحميل سجل الحضور.' : 'Failed to load attendance records.');
       }
     });
   }
@@ -427,6 +450,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.leaveRequests.set([]);
         this.loadingLeave.set(false);
+        this.setTabError('leave', this.lang === 'ar' ? 'فشل تحميل بيانات الإجازات.' : 'Failed to load leave data.');
       }
     });
 
@@ -450,6 +474,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.complianceProfile.set(null);
         this.loadingCompliance.set(false);
+        this.setTabError('compliance', this.lang === 'ar' ? 'فشل تحميل ملف الامتثال.' : 'Failed to load compliance profile.');
       }
     });
   }
@@ -464,6 +489,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.advances.set([]);
         this.loadingAdvances.set(false);
+        this.setTabError('advances', this.lang === 'ar' ? 'فشل تحميل السلف.' : 'Failed to load salary advances.');
       }
     });
   }
@@ -478,6 +504,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.documents.set([]);
         this.loadingDocuments.set(false);
+        this.setTabError('documents', this.lang === 'ar' ? 'فشل تحميل المستندات.' : 'Failed to load documents.');
       }
     });
   }
@@ -492,6 +519,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.assets.set([]);
         this.loadingAssets.set(false);
+        this.setTabError('assets', this.lang === 'ar' ? 'فشل تحميل الأصول.' : 'Failed to load assets.');
       }
     });
   }
@@ -506,6 +534,7 @@ export class EmployeeProfileComponent implements OnInit {
       error: () => {
         this.payslips.set([]);
         this.loadingPayslips.set(false);
+        this.setTabError('payslips', this.lang === 'ar' ? 'فشل تحميل قسائم الراتب.' : 'Failed to load payslips.');
       }
     });
   }
