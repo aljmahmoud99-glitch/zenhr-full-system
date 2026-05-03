@@ -210,7 +210,7 @@ export class EmployeesComponent implements OnInit {
     this.api.get<any>('/api/compliance/badge-status').subscribe({
       next: response => {
         const map: Record<number, any> = {};
-        (response.data as any[]).forEach(item => {
+        (Array.isArray(response.data) ? response.data as any[] : []).forEach((item: any) => {
           map[item.employeeId] = item;
         });
         this.complianceBadgeMap.set(map);
