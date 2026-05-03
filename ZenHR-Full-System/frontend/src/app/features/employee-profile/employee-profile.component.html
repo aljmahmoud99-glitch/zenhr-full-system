@@ -61,6 +61,10 @@
       </div>
     </div>
     <div class="profile-header-actions" *ngIf="canManage">
+      <button class="btn btn-secondary btn-sm" (click)="printEmployeeCard()">
+        <span class="material-icons">print</span>
+        {{ lang==='ar' ? 'طباعة البطاقة' : 'Print Card' }}
+      </button>
       <button class="btn btn-primary btn-sm" (click)="goToEdit()">
         <span class="material-icons">edit</span>
         {{ lang==='ar' ? 'تعديل' : 'Edit' }}

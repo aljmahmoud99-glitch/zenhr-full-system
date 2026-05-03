@@ -10,6 +10,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
 import { getErrorMessage } from '../../core/utils/error-message';
+import { openPrintDoc } from '../../core/utils/print-doc.util';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
 import { AccordionComponent, AccordionPanelComponent } from '../../shared/components/accordion/accordion.component';
@@ -137,6 +138,65 @@ export class EmployeeProfileComponent implements OnInit {
 
   get canEvaluate() {
     return this.access.isAny('hradmin', 'manager');
+  }
+
+  printEmployeeCard() {
+    const emp = this.employee();
+    if (!emp) return;
+    const ar = this.lang === 'ar';
+    const empName = ar ? (emp.fullNameAr || emp.fullNameEn) : (emp.fullNameEn || emp.fullNameAr);
+    const jobTitle = ar ? (emp.jobTitleAr || emp.jobTitleEn || '—') : (emp.jobTitleEn || emp.jobTitleAr || '—');
+    const dept = ar ? (emp.departmentNameAr || emp.departmentNameEn || '—') : (emp.departmentNameEn || emp.departmentNameAr || '—');
+    const companyName = this.settings.value(ar ? 'company_name_ar' : 'company_name_en', 'ZenJO');
+
+    const statusMap: Record<string, [string, string]> = {
+      active: ['نشط', 'Active'],
+      inactive: ['غير نشط', 'Inactive'],
+      on_leave: ['في إجازة', 'On Leave'],
+      terminated: ['منتهية خدمته', 'Terminated'],
+      probation: ['تحت التجربة', 'Probation'],
+    };
+    const empStatus = statusMap[emp.employmentStatus] ? (ar ? statusMap[emp.employmentStatus][0] : statusMap[emp.employmentStatus][1]) : emp.employmentStatus;
+
+    const genderMap: Record<string, [string, string]> = {
+      male: ['ذكر', 'Male'],
+      female: ['أنثى', 'Female'],
+    };
+    const gender = genderMap[emp.gender] ? (ar ? genderMap[emp.gender][0] : genderMap[emp.gender][1]) : (emp.gender || '—');
+
+    const hireDate = emp.hireDate ? new Date(emp.hireDate).toLocaleDateString(ar ? 'ar-JO-u-nu-latn' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+
+    const fields: { label: string; value: string; span?: boolean }[] = [
+      { label: ar ? 'اسم الموظف' : 'Employee Name', value: empName },
+      { label: ar ? 'الرقم الوظيفي' : 'Employee Code', value: emp.employeeCode || '—' },
+      { label: ar ? 'المسمى الوظيفي' : 'Job Title', value: jobTitle },
+      { label: ar ? 'الوحدة التنظيمية' : 'Department', value: dept },
+      { label: ar ? 'حالة التوظيف' : 'Employment Status', value: empStatus },
+      { label: ar ? 'تاريخ التعيين' : 'Hire Date', value: hireDate },
+      { label: ar ? 'الجنس' : 'Gender', value: gender },
+      { label: ar ? 'الجنسية' : 'Nationality', value: emp.nationality || '—' },
+    ];
+    if (emp.nationalId) {
+      fields.push({ label: ar ? 'الرقم الوطني' : 'National ID', value: emp.nationalId });
+    }
+    if (emp.dateOfBirth) {
+      const dob = new Date(emp.dateOfBirth).toLocaleDateString(ar ? 'ar-JO-u-nu-latn' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      fields.push({ label: ar ? 'تاريخ الميلاد' : 'Date of Birth', value: dob });
+    }
+
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'EMPL',
+      title: ar ? 'بطاقة الموظف' : 'Employee Card',
+      subtitle: empName,
+      companyNameAr: companyName,
+      companyNameEn: companyName,
+      fields,
+      signatures: [
+        { label: ar ? 'توقيع مدير الموارد البشرية' : 'HR Manager Signature' },
+        { label: ar ? 'توقيع الموظف' : 'Employee Signature' },
+      ],
+    });
   }
 
   ngOnInit() {
@@ -750,15 +810,14 @@ export class EmployeeProfileComponent implements OnInit {
       : ['','January','February','March','April','May','June','July','August','September','October','November','December'];
     const period = `${months[slip.periodMonth] ?? slip.periodMonth} ${slip.periodYear}`;
     const empName = ar ? (slip.fullNameAr || slip.fullNameEn || '') : (slip.fullNameEn || slip.fullNameAr || '');
-    const dept = ar ? (slip.orgNodeNameAr || '') : (slip.orgNodeNameEn || '');
+    const dept = ar ? (slip.orgNodeNameAr || slip.orgNodeNameEn || '') : (slip.orgNodeNameEn || slip.orgNodeNameAr || '');
     const fmt = (v: any) => {
       const n = parseFloat(v ?? 0);
-      return isNaN(n) ? '0.000' : n.toFixed(3) + ' JOD';
+      return isNaN(n) ? '0.000 JOD' : n.toFixed(3) + ' JOD';
     };
-    const dir = ar ? 'rtl' : 'ltr';
-    const companyName = 'ZenJO';
+    const companyName = this.settings.value(ar ? 'company_name_ar' : 'company_name_en', 'ZenJO');
 
-    // Parse componentsSnapshot for detailed breakdown
+    // Parse componentsSnapshot for detailed earnings breakdown
     let snapshotComponents: { nameEn: string; nameAr: string; type: string; valueJOD: string }[] = [];
     if (slip.componentsSnapshot) {
       try {
@@ -768,110 +827,55 @@ export class EmployeeProfileComponent implements OnInit {
         snapshotComponents = parsed.components ?? [];
       } catch { /* ignore */ }
     }
-    const earningRows = snapshotComponents.filter((c: any) => c.type === 'earning');
-    const hasSnapshot = earningRows.length > 0;
+    const snapshotEarnings = snapshotComponents.filter((c: any) => c.type === 'earning');
+    const hasSnapshot = snapshotEarnings.length > 0;
 
-    const earningsHtml = hasSnapshot
-      ? earningRows.map((c: any) => `<tr><td>${ar ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr)}</td><td class="amount">${fmt(c.valueJOD)}</td></tr>`).join('')
+    const earningRows: string[][] = hasSnapshot
+      ? [
+          ...snapshotEarnings.map((c: any) => [ar ? (c.nameAr || c.nameEn) : (c.nameEn || c.nameAr), fmt(c.valueJOD)]),
+          ...(parseFloat(slip.overtimeAmount ?? slip.overtimeEarnings ?? 0) > 0 ? [[ar ? 'أجر الإضافي' : 'Overtime', fmt(slip.overtimeAmount ?? slip.overtimeEarnings)]] : []),
+          [ar ? 'الإجمالي' : 'Gross Salary', fmt(slip.grossSalary)],
+        ]
       : [
-          `<tr><td>${ar ? 'الراتب الأساسي' : 'Basic Salary'}</td><td class="amount">${fmt(slip.basicSalary)}</td></tr>`,
-          parseFloat(slip.housingAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل السكن' : 'Housing Allowance'}</td><td class="amount">${fmt(slip.housingAllowance)}</td></tr>` : '',
-          parseFloat(slip.transportationAllowance ?? slip.transportAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل المواصلات' : 'Transport Allowance'}</td><td class="amount">${fmt(slip.transportationAllowance ?? slip.transportAllowance)}</td></tr>` : '',
-          parseFloat(slip.mobileAllowance ?? 0) > 0 ? `<tr><td>${ar ? 'بدل الجوال' : 'Mobile Allowance'}</td><td class="amount">${fmt(slip.mobileAllowance)}</td></tr>` : '',
-          parseFloat(slip.otherAllowances ?? 0) > 0 ? `<tr><td>${ar ? 'بدلات أخرى' : 'Other Allowances'}</td><td class="amount">${fmt(slip.otherAllowances)}</td></tr>` : '',
-        ].join('');
+          [ar ? 'الراتب الأساسي' : 'Basic Salary', fmt(slip.basicSalary)],
+          ...(parseFloat(slip.housingAllowance ?? 0) > 0 ? [[ar ? 'بدل السكن' : 'Housing Allowance', fmt(slip.housingAllowance)]] : []),
+          ...(parseFloat(slip.transportationAllowance ?? slip.transportAllowance ?? 0) > 0 ? [[ar ? 'بدل المواصلات' : 'Transport Allowance', fmt(slip.transportationAllowance ?? slip.transportAllowance)]] : []),
+          ...(parseFloat(slip.mobileAllowance ?? 0) > 0 ? [[ar ? 'بدل الجوال' : 'Mobile Allowance', fmt(slip.mobileAllowance)]] : []),
+          ...(parseFloat(slip.otherAllowances ?? 0) > 0 ? [[ar ? 'بدلات أخرى' : 'Other Allowances', fmt(slip.otherAllowances)]] : []),
+          ...(parseFloat(slip.overtimeAmount ?? slip.overtimeEarnings ?? 0) > 0 ? [[ar ? 'أجر الإضافي' : 'Overtime', fmt(slip.overtimeAmount ?? slip.overtimeEarnings)]] : []),
+          [ar ? 'الإجمالي' : 'Gross Salary', fmt(slip.grossSalary)],
+        ];
 
-    const html = `<!DOCTYPE html>
-<html dir="${dir}" lang="${ar ? 'ar' : 'en'}">
-<head>
-<meta charset="UTF-8">
-<title>${ar ? 'قسيمة راتب' : 'Payslip'} — ${period}</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: ${ar ? "'Segoe UI', Tahoma, Arial" : "'Segoe UI', Arial"}, sans-serif; font-size:12px; color:#1a202c; direction:${dir}; }
-  .page { max-width:720px; margin:20px auto; padding:24px; border:1px solid #e2e8f0; border-radius:8px; }
-  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid #1a6b4a; }
-  .company { font-size:20px; font-weight:700; color:#1a6b4a; }
-  .company-sub { font-size:11px; color:#718096; margin-top:2px; }
-  .payslip-label { text-align:${ar ? 'left' : 'right'}; }
-  .payslip-label h2 { font-size:15px; font-weight:700; color:#2d3748; }
-  .payslip-label p { font-size:11px; color:#718096; margin-top:2px; }
-  .emp-info { background:#f7fafc; border-radius:6px; padding:12px 16px; margin-bottom:16px; display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; }
-  .emp-info div { display:flex; justify-content:space-between; font-size:11px; }
-  .emp-info .label { color:#718096; }
-  .emp-info .val { font-weight:600; color:#2d3748; }
-  table { width:100%; border-collapse:collapse; margin-bottom:14px; }
-  th { background:#1a6b4a; color:#fff; padding:7px 12px; font-size:11px; text-align:${ar ? 'right' : 'left'}; }
-  td { padding:6px 12px; font-size:11px; border-bottom:1px solid #edf2f7; }
-  tr:last-child td { border-bottom:none; }
-  .amount { font-weight:600; text-align:${ar ? 'left' : 'right'}; }
-  .section-title { font-size:12px; font-weight:700; color:#2d3748; margin:12px 0 6px; }
-  .net-box { background:#1a6b4a; color:#fff; border-radius:6px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
-  .net-label { font-size:13px; font-weight:700; }
-  .net-amount { font-size:18px; font-weight:800; }
-  .footer { margin-top:24px; padding-top:12px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; font-size:10px; color:#a0aec0; }
-  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { border:none; margin:0; } }
-</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="company">${companyName}</div>
-      <div class="company-sub">${ar ? 'نظام إدارة الموارد البشرية' : 'Human Resources Management System'}</div>
-    </div>
-    <div class="payslip-label">
-      <h2>${ar ? 'قسيمة الراتب' : 'Payslip'}</h2>
-      <p>${period}</p>
-    </div>
-  </div>
-  <div class="emp-info">
-    <div><span class="label">${ar ? 'اسم الموظف' : 'Employee Name'}</span><span class="val">${empName}</span></div>
-    <div><span class="label">${ar ? 'رقم الموظف' : 'Employee Code'}</span><span class="val">${slip.employeeCode || '—'}</span></div>
-    <div><span class="label">${ar ? 'الوحدة التنظيمية' : 'Department'}</span><span class="val">${dept || '—'}</span></div>
-    <div><span class="label">${ar ? 'فترة الراتب' : 'Pay Period'}</span><span class="val">${period}</span></div>
-  </div>
+    const deductRows: string[][] = [
+      [ar ? 'ضمان اجتماعي (الموظف 7.5%)' : 'SSC Employee (7.5%)', fmt(slip.sscEmployeeDeduction)],
+      [ar ? 'ضريبة الدخل' : 'Income Tax', fmt(slip.incomeTaxDeduction)],
+      ...(parseFloat(slip.advanceDeduction ?? 0) > 0 ? [[ar ? 'خصم سلفة' : 'Advance Deduction', fmt(slip.advanceDeduction)]] : []),
+      ...(parseFloat(slip.otherDeductions ?? 0) > 0 ? [[ar ? 'استقطاعات أخرى' : 'Other Deductions', fmt(slip.otherDeductions)]] : []),
+      [ar ? 'إجمالي الاستقطاعات' : 'Total Deductions', fmt(slip.totalDeductions)],
+    ];
 
-  <div class="section-title">${ar ? 'الاستحقاقات' : 'Earnings'}</div>
-  <table>
-    <thead><tr><th>${ar ? 'البند' : 'Item'}</th><th>${ar ? 'المبلغ' : 'Amount'}</th></tr></thead>
-    <tbody>
-      ${earningsHtml}
-      ${parseFloat(slip.overtimeAmount ?? slip.overtimeEarnings ?? 0) > 0 ? `<tr><td>${ar ? 'أجر الإضافي' : 'Overtime'}</td><td class="amount">${fmt(slip.overtimeAmount ?? slip.overtimeEarnings)}</td></tr>` : ''}
-      <tr style="background:#f7fafc;font-weight:700"><td>${ar ? 'الإجمالي' : 'Gross Salary'}</td><td class="amount">${fmt(slip.grossSalary)}</td></tr>
-    </tbody>
-  </table>
-
-  <div class="section-title">${ar ? 'الاستقطاعات' : 'Deductions'}</div>
-  <table>
-    <thead><tr><th>${ar ? 'البند' : 'Item'}</th><th>${ar ? 'المبلغ' : 'Amount'}</th></tr></thead>
-    <tbody>
-      <tr><td>${ar ? 'ضمان اجتماعي (الموظف 7.5%)' : 'SSC Employee (7.5%)'}</td><td class="amount">${fmt(slip.sscEmployeeDeduction)}</td></tr>
-      <tr><td>${ar ? 'ضريبة الدخل' : 'Income Tax'}</td><td class="amount">${fmt(slip.incomeTaxDeduction)}</td></tr>
-      ${parseFloat(slip.advanceDeduction ?? 0) > 0 ? `<tr><td>${ar ? 'خصم سلفة' : 'Advance Deduction'}</td><td class="amount">${fmt(slip.advanceDeduction)}</td></tr>` : ''}
-      ${parseFloat(slip.otherDeductions ?? 0) > 0 ? `<tr><td>${ar ? 'استقطاعات أخرى' : 'Other Deductions'}</td><td class="amount">${fmt(slip.otherDeductions)}</td></tr>` : ''}
-      <tr style="background:#fff5f5;font-weight:700"><td>${ar ? 'إجمالي الاستقطاعات' : 'Total Deductions'}</td><td class="amount">${fmt(slip.totalDeductions)}</td></tr>
-    </tbody>
-  </table>
-
-  <div class="net-box">
-    <span class="net-label">${ar ? 'صافي الراتب' : 'Net Salary'}</span>
-    <span class="net-amount">${fmt(slip.netSalary)}</span>
-  </div>
-
-  <div class="footer">
-    <span>${ar ? 'تم إنشاؤه بواسطة نظام ZenJO' : 'Generated by ZenJO HR System'}</span>
-    <span>${new Date().toLocaleDateString(ar ? 'ar-JO' : 'en-US')}</span>
-  </div>
-</div>
-<script>window.onload = function(){ window.print(); window.onafterprint = function(){ window.close(); }; };<\/script>
-</body></html>`;
-
-    const win = window.open('', '_blank', 'width=780,height=600');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'PAYSLIP',
+      title: ar ? 'قسيمة الراتب' : 'Payslip',
+      subtitle: period,
+      companyNameAr: companyName,
+      companyNameEn: companyName,
+      fields: [
+        { label: ar ? 'اسم الموظف' : 'Employee Name', value: empName },
+        { label: ar ? 'رقم الموظف' : 'Employee Code', value: slip.employeeCode || '—' },
+        { label: ar ? 'الوحدة التنظيمية' : 'Department', value: dept || '—' },
+        { label: ar ? 'فترة الراتب' : 'Pay Period', value: period },
+      ],
+      tableHeaders: [ar ? 'البند' : 'Item', ar ? 'المبلغ' : 'Amount'],
+      tableRows: [...earningRows, ['', ''], ...deductRows],
+      summaryLabel: ar ? 'صافي الراتب' : 'Net Salary',
+      summaryValue: fmt(slip.netSalary),
+      signatures: [
+        { label: ar ? 'توقيع مدير الرواتب' : 'Payroll Manager' },
+        { label: ar ? 'توقيع الموظف / إقرار الاستلام' : 'Employee Signature / Receipt' },
+      ],
+    });
   }
 
   formatAttendanceTime(value?: string | null) {

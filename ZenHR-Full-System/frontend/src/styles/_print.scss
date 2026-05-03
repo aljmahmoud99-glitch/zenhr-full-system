@@ -1,76 +1,265 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL PRINT STYLESHEET — ZenJO HR System
+// Applied via @media print: hides chrome, shows document content.
+// ═══════════════════════════════════════════════════════════════════════════
+
 @media print {
-  body {
-    background: #fff;
+  // ── Page setup ────────────────────────────────────────────────────────────
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
   }
 
+  // ── Color accuracy ─────────────────────────────────────────────────────────
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  // ── Reset body background ──────────────────────────────────────────────────
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 11pt;
+  }
+
+  // ── Hide chrome: navigation, toolbars, action buttons ─────────────────────
+  .z-sidebar,
+  .sidebar,
+  .top-bar,
+  .z-topbar,
+  .layout-overlay,
+  .impersonation-banner,
+  .sidebar-brand-card,
+  .sidebar-nav,
+  .sidebar-footer,
+  .sidebar-toggle,
+  .z-page-header .header-actions,
+  .profile-header-actions,
+  .page-header .header-actions,
+  .filter-bar,
+  .filter-panel,
+  .filter-row,
+  .filter-shell,
+  .filters-shell,
+  .filters-head,
+  .toolbar-row,
+  .table-toolbar > *:not(h2):not(p):not(.z-heading),
+  .search-bar,
+  .pagination-bar,
+  .pager,
+  .chip-bar,
+  .viewer-actions,
+  .modal-actions,
+  .modal-footer,
+  .print-hide,
+  .icon-btn,
+  .z-btn-primary,
+  .z-btn-secondary,
+  .z-btn-danger,
+  .z-btn-ghost,
+  .btn,
+  .btn-sm,
+  .btn-xs,
+  .payslip-filter-actions,
+  .summary-grid,
+  .balance-grid,
+  .policy-summary-card,
+  .balance-card,
+  app-skeleton-kpi-cards,
+  app-skeleton-table,
+  app-skeleton-card,
+  app-confirm-dialog,
+  .action-dropdown-wrap,
+  .tab-bar,
+  .tab-nav,
+  .tabs,
+  .report-catalog,
+  .back-btn,
+  .row-actions {
+    display: none !important;
+  }
+
+  // ── Show print-only elements ───────────────────────────────────────────────
+  .print-show {
+    display: block !important;
+  }
+
+  // ── Layout: full-width, no scrollbars ─────────────────────────────────────
+  .app-shell,
+  .main-area,
+  .main-content,
+  .z-app-shell {
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    min-height: unset !important;
+  }
+
+  .z-page,
+  .page-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 16px !important;
+  }
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  .z-card,
+  .card,
+  .modal-card {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+
+  // ── Tables ────────────────────────────────────────────────────────────────
+  .z-table {
+    font-size: 10pt;
+    width: 100%;
+    border-collapse: collapse;
+
+    thead th {
+      background-color: #1a6b4a !important;
+      color: #fff !important;
+      padding: 8px 12px;
+    }
+
+    tbody td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+  }
+
+  .table-scroll {
+    overflow: visible !important;
+  }
+
+  // ── Badges ────────────────────────────────────────────────────────────────
+  .badge,
+  .z-badge {
+    border: 1px solid currentColor !important;
+    background: transparent !important;
+  }
+
+  // ── Modals: flatten so they print inline ──────────────────────────────────
   .modal-overlay {
     position: static !important;
     inset: auto !important;
     background: transparent !important;
     padding: 0 !important;
     display: block !important;
+    overflow: visible !important;
   }
 
-  .modal-overlay > *:not(.slip-detail-modal) {
+  .modal-overlay > *:not(.slip-detail-modal):not(.details-modal):not(.modal-panel) {
     display: none !important;
   }
 
-  .slip-detail-modal {
+  .slip-detail-modal,
+  .details-modal,
+  .modal-panel {
     width: 100% !important;
     max-width: 100% !important;
+    max-height: none !important;
     border: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
   }
 
-  .detail-header-actions,
-  .icon-btn,
-  .btn,
-  .sidebar,
-  .top-bar,
-  .layout-overlay,
-  .impersonation-banner {
-    display: none !important;
+  // ── Leave details modal ────────────────────────────────────────────────────
+  .details-modal .modal-head {
+    border-bottom: 2px solid #1a6b4a;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
   }
 
-  .main-area,
-  .main-content,
-  .z-page,
-  .modal-box,
+  .detail-card {
+    break-inside: avoid;
+  }
+
+  // ── Payslip print area ─────────────────────────────────────────────────────
   .payslip-print-area {
+    display: block !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
   }
 
-  .payslip-print-area {
-    display: block !important;
-  }
-
-  // Reports page print
+  // ── Reports page ──────────────────────────────────────────────────────────
+  .reports-page .filters-shell,
+  .reports-page .report-catalog,
+  .reports-page .viewer-actions,
+  .reports-page .print-hide,
   app-reports .filters-shell,
   app-reports .report-catalog,
   app-reports .viewer-actions,
-  app-reports .print-hide,
-  .reports-page .filters-shell,
-  .reports-page .report-catalog,
-  .reports-page .viewer-actions {
+  app-reports .print-hide {
     display: none !important;
   }
 
   .reports-page .viewer-shell {
     box-shadow: none !important;
-    border: 1px solid #ccc !important;
+    border: 1px solid #d1d5db !important;
   }
 
   .reports-page .z-table th {
     background-color: #1a6b4a !important;
     color: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
   .reports-page .z-table {
-    font-size: 11pt;
+    font-size: 10pt;
+  }
+
+  // ── Employee profile ───────────────────────────────────────────────────────
+  .profile-header-bar .btn.btn-secondary {
+    display: none !important;
+  }
+
+  .profile-header-bar {
+    border-bottom: 2px solid #1a6b4a;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+
+  // ── Clearance & assets page header ────────────────────────────────────────
+  .z-page-header p,
+  .z-page-header h1 {
+    page-break-after: avoid;
+  }
+
+  // ── Page breaks ───────────────────────────────────────────────────────────
+  .page-break {
+    page-break-before: always;
+    break-before: always;
+  }
+
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  // ── Section titles & headings ─────────────────────────────────────────────
+  .z-heading,
+  .z-title {
+    page-break-after: avoid;
+  }
+
+  // ── Fonts fallback ────────────────────────────────────────────────────────
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+
+  // ── Remove decorative shadows & backgrounds from KPI cards ────────────────
+  .z-kpi-card,
+  .dashboard-stat-card {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
   }
 }

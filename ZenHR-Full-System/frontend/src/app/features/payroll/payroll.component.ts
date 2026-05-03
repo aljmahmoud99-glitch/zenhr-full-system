@@ -10,6 +10,7 @@ import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { getErrorMessage } from '../../core/utils/error-message';
+import { openPrintDoc } from '../../core/utils/print-doc.util';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 
 type PayrollStatus = 'draft' | 'approved' | 'paid' | 'unpaid' | string;
@@ -494,81 +495,78 @@ export class PayrollComponent implements OnInit {
   }
 
   printRun(run: any) {
-    const popup = window.open('', '_blank', 'width=980,height=760');
-    if (!popup) return;
-    popup.document.write(`
-      <html lang="${this.lang}" dir="${this.lang === 'ar' ? 'rtl' : 'ltr'}">
-        <head>
-          <title>${this.label('ملخص مسير الرواتب', 'Payroll run summary')}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
-            h1 { margin: 0 0 10px; }
-            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
-            .card { border: 1px solid #d9e4dc; border-radius: 14px; padding: 14px; }
-            .label { font-size: 12px; color: #666; margin-bottom: 6px; }
-            .value { font-weight: 700; }
-          </style>
-        </head>
-        <body>
-          <h1>${this.label('ملخص مسير الرواتب', 'Payroll run summary')}</h1>
-          <div class="grid">
-            <div class="card"><div class="label">${this.label('الفترة', 'Period')}</div><div class="value">${this.monthName(run.runMonth)} ${run.runYear}</div></div>
-            <div class="card"><div class="label">${this.label('الحالة', 'Status')}</div><div class="value">${this.statusLabel(run.status)}</div></div>
-            <div class="card"><div class="label">${this.label('عدد الموظفين', 'Employee count')}</div><div class="value">${run.employeeCount ?? 0}</div></div>
-            <div class="card"><div class="label">${this.label('إجمالي الرواتب', 'Gross total')}</div><div class="value">${this.money(run.totalGross)}</div></div>
-            <div class="card"><div class="label">${this.label('إجمالي الاستقطاعات', 'Total deductions')}</div><div class="value">${this.money(run.totalDeductions)}</div></div>
-            <div class="card"><div class="label">${this.label('إجمالي الصافي', 'Net total')}</div><div class="value">${this.money(run.totalNet)}</div></div>
-            <div class="card"><div class="label">${this.label('أنشئ بواسطة', 'Created by')}</div><div class="value">${run.createdByName || '—'}</div></div>
-            <div class="card"><div class="label">${this.label('اعتمد بواسطة', 'Approved by')}</div><div class="value">${run.approvedByName || '—'}</div></div>
-          </div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    popup.focus();
-    popup.print();
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'PAYRUN',
+      title: this.label('ملخص مسير الرواتب', 'Payroll Run Summary'),
+      subtitle: `${this.monthName(run.runMonth)} ${run.runYear}`,
+      fields: [
+        { label: this.label('فترة المسير', 'Payroll Period'), value: `${this.monthName(run.runMonth)} ${run.runYear}` },
+        { label: this.label('الحالة', 'Status'), value: this.statusLabel(run.status) },
+        { label: this.label('عدد الموظفين', 'Employee Count'), value: String(run.employeeCount ?? 0) },
+        { label: this.label('إجمالي الرواتب', 'Gross Total'), value: this.money(run.totalGross) },
+        { label: this.label('إجمالي الاستقطاعات', 'Total Deductions'), value: this.money(run.totalDeductions) },
+        { label: this.label('إجمالي الصافي', 'Net Total'), value: this.money(run.totalNet) },
+        { label: this.label('أنشئ بواسطة', 'Created By'), value: run.createdByName || '—' },
+        { label: this.label('اعتمد بواسطة', 'Approved By'), value: run.approvedByName || '—' },
+        { label: this.label('تاريخ الاعتماد', 'Approval Date'), value: run.approvedAt ? new Date(run.approvedAt).toLocaleDateString(this.lang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US') : '—' },
+      ],
+      summaryLabel: this.label('إجمالي الصافي', 'Net Total'),
+      summaryValue: this.money(run.totalNet),
+      signatures: [
+        { label: this.label('توقيع مدير الرواتب', 'Payroll Manager Signature') },
+        { label: this.label('توقيع المدير المالي', 'Finance Director Signature') },
+      ],
+    });
   }
 
   printSlip(slip?: any) {
     const current = slip ?? this.selectedSlip();
     if (!current) return;
-    const popup = window.open('', '_blank', 'width=980,height=760');
-    if (!popup) return;
-    popup.document.write(`
-      <html lang="${this.lang}" dir="${this.lang === 'ar' ? 'rtl' : 'ltr'}">
-        <head>
-          <title>${this.label('كشف راتب', 'Payslip')}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
-            h1 { margin: 0 0 10px; }
-            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
-            .card { border: 1px solid #d9e4dc; border-radius: 14px; padding: 14px; }
-            .label { font-size: 12px; color: #666; margin-bottom: 6px; }
-            .value { font-weight: 700; }
-          </style>
-        </head>
-        <body>
-          <h1>${this.label('كشف راتب', 'Payslip')}</h1>
-          <div class="grid">
-            <div class="card"><div class="label">${this.label('الموظف', 'Employee')}</div><div class="value">${this.lang === 'ar' ? current.fullNameAr : current.fullNameEn}</div></div>
-            <div class="card"><div class="label">${this.label('الرقم الوظيفي', 'Employee code')}</div><div class="value">${current.employeeCode || '—'}</div></div>
-            <div class="card"><div class="label">${this.label('الوحدة', 'Org Unit')}</div><div class="value">${this.orgUnitLabel(current) || '—'}</div></div>
-            <div class="card"><div class="label">${this.label('الفترة', 'Payroll month')}</div><div class="value">${this.monthName(current.periodMonth)} ${current.periodYear}</div></div>
-            <div class="card"><div class="label">${this.label('الإجمالي', 'Gross salary')}</div><div class="value">${this.money(current.grossSalary)}</div></div>
-            <div class="card"><div class="label">${this.label('إضافي', 'Overtime')}</div><div class="value">${this.money(current.overtimeAmount)}</div></div>
-            <div class="card"><div class="label">${this.label('الاستقطاعات', 'Deductions')}</div><div class="value">${this.money(current.totalDeductions)}</div></div>
-            <div class="card"><div class="label">${this.label('الصافي', 'Net salary')}</div><div class="value">${this.money(current.netSalary)}</div></div>
-            <div class="card"><div class="label">SSC</div><div class="value">${this.money(current.sscDeduction)}</div></div>
-            <div class="card"><div class="label">${this.label('الضريبة', 'Tax')}</div><div class="value">${this.money(current.incomeTaxDeduction)}</div></div>
-            <div class="card"><div class="label">${this.label('السلفة', 'Advance deduction')}</div><div class="value">${this.money(current.advanceDeduction)}</div></div>
-            <div class="card"><div class="label">${this.label('حالة الدفع', 'Payment status')}</div><div class="value">${this.statusLabel(current.paymentStatus || current.payrollRunStatus)}</div></div>
-          </div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    popup.focus();
-    popup.print();
+
+    const empName = this.lang === 'ar' ? (current.fullNameAr || current.fullNameEn) : (current.fullNameEn || current.fullNameAr);
+    const period = `${this.monthName(current.periodMonth)} ${current.periodYear}`;
+
+    const earningRows: string[][] = [
+      [this.label('الراتب الأساسي', 'Basic Salary'), this.money(current.basicSalary)],
+    ];
+    if (parseFloat(current.housingAllowance ?? 0) > 0) earningRows.push([this.label('بدل السكن', 'Housing Allowance'), this.money(current.housingAllowance)]);
+    if (parseFloat(current.transportAllowance ?? 0) > 0) earningRows.push([this.label('بدل المواصلات', 'Transport Allowance'), this.money(current.transportAllowance)]);
+    if (parseFloat(current.mobileAllowance ?? 0) > 0) earningRows.push([this.label('بدل الجوال', 'Mobile Allowance'), this.money(current.mobileAllowance)]);
+    if (parseFloat(current.mealAllowance ?? 0) > 0) earningRows.push([this.label('بدل الوجبات', 'Meal Allowance'), this.money(current.mealAllowance)]);
+    if (parseFloat(current.otherAllowances ?? 0) > 0) earningRows.push([this.label('بدلات أخرى', 'Other Allowances'), this.money(current.otherAllowances)]);
+    if (parseFloat(current.overtimeAmount ?? 0) > 0) earningRows.push([this.label('أجر إضافي', 'Overtime'), this.money(current.overtimeAmount)]);
+    earningRows.push([this.label('الإجمالي', 'Gross Salary'), this.money(current.grossSalary)]);
+
+    const deductRows: string[][] = [
+      [this.label('ضمان اجتماعي (7.5%)', 'SSC Employee (7.5%)'), this.money(current.sscEmployeeDeduction ?? current.sscDeduction)],
+      [this.label('ضريبة الدخل', 'Income Tax'), this.money(current.incomeTaxDeduction)],
+    ];
+    if (parseFloat(current.advanceDeduction ?? 0) > 0) deductRows.push([this.label('خصم سلفة', 'Advance Deduction'), this.money(current.advanceDeduction)]);
+    if (parseFloat(current.otherDeductions ?? 0) > 0) deductRows.push([this.label('استقطاعات أخرى', 'Other Deductions'), this.money(current.otherDeductions)]);
+    deductRows.push([this.label('إجمالي الاستقطاعات', 'Total Deductions'), this.money(current.totalDeductions)]);
+
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'PAYSLIP',
+      title: this.label('كشف الراتب', 'Payslip'),
+      subtitle: period,
+      fields: [
+        { label: this.label('الموظف', 'Employee'), value: empName },
+        { label: this.label('الرقم الوظيفي', 'Employee Code'), value: current.employeeCode || '—' },
+        { label: this.label('الوحدة التنظيمية', 'Org Unit'), value: this.orgUnitLabel(current) || '—' },
+        { label: this.label('فترة الراتب', 'Pay Period'), value: period },
+        { label: this.label('حالة الدفع', 'Payment Status'), value: this.statusLabel(current.paymentStatus || current.payrollRunStatus) },
+      ],
+      tableHeaders: [this.label('البند', 'Item'), this.label('المبلغ', 'Amount')],
+      tableRows: [...earningRows, ['', ''], ...deductRows],
+      summaryLabel: this.label('صافي الراتب', 'Net Salary'),
+      summaryValue: this.money(current.netSalary),
+      signatures: [
+        { label: this.label('توقيع مدير الرواتب', 'Payroll Manager') },
+        { label: this.label('توقيع الموظف / إقرار الاستلام', 'Employee Signature / Receipt') },
+      ],
+    });
   }
 
   openCreateForMonth(month: number, year: number) {

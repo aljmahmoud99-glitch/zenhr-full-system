@@ -11,6 +11,7 @@ import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skel
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { RejectReasonDialogComponent } from '../../shared/components/ui/reject-reason-dialog.component';
 import { getErrorMessage } from '../../core/utils/error-message';
+import { openPrintDoc } from '../../core/utils/print-doc.util';
 
 type LeaveActionType = 'approve' | 'cancel';
 
@@ -401,59 +402,47 @@ export class LeaveComponent implements OnInit {
   }
 
   printRequest(request: LeaveRequest) {
-    const printWindow = window.open('', '_blank', 'width=960,height=720');
-    if (!printWindow) return;
-
     const policy = this.policies().find(item => item.leaveTypeId === request.leaveTypeId);
-    const managerLine = request.managerApprovedAt
-      ? `${this.t('موافقة المدير', 'Manager approval')}: ${this.formatDate(request.managerApprovedAt)}${request.managerApproverName ? ` - ${request.managerApproverName}` : ''}`
-      : `${this.t('موافقة المدير', 'Manager approval')}: ${this.t('قيد الانتظار', 'Pending')}`;
-    const hrLine = request.hrApprovedAt
-      ? `${this.t('موافقة الموارد البشرية', 'HR approval')}: ${this.formatDate(request.hrApprovedAt)}${request.hrApproverName ? ` - ${request.hrApproverName}` : ''}`
-      : `${this.t('موافقة الموارد البشرية', 'HR approval')}: ${policy?.requiresHrApproval ? this.t('قيد الانتظار', 'Pending') : this.t('غير مطلوبة', 'Not required')}`;
+    const approvalTrail: string[] = [];
+    if (request.managerApprovedAt) {
+      approvalTrail.push(`${this.t('موافقة المدير', 'Manager approval')}: ${this.formatDate(request.managerApprovedAt)}${request.managerApproverName ? ` — ${request.managerApproverName}` : ''}`);
+    } else {
+      approvalTrail.push(`${this.t('موافقة المدير', 'Manager approval')}: ${this.t('قيد الانتظار', 'Pending')}`);
+    }
+    if (request.hrApprovedAt) {
+      approvalTrail.push(`${this.t('موافقة الموارد البشرية', 'HR approval')}: ${this.formatDate(request.hrApprovedAt)}${request.hrApproverName ? ` — ${request.hrApproverName}` : ''}`);
+    } else {
+      approvalTrail.push(`${this.t('موافقة الموارد البشرية', 'HR approval')}: ${policy?.requiresHrApproval ? this.t('قيد الانتظار', 'Pending') : this.t('غير مطلوبة', 'Not required')}`);
+    }
+    if (request.rejectionReason) {
+      approvalTrail.push(`${this.t('سبب الرفض', 'Rejection reason')}: ${request.rejectionReason}`);
+    }
 
-    printWindow.document.write(`
-      <html lang="${this.lang}" dir="${this.lang === 'ar' ? 'rtl' : 'ltr'}">
-      <head>
-        <title>${this.t('طباعة طلب إجازة', 'Print Leave Request')}</title>
-        <style>
-          body { font-family: sans-serif; padding: 24px; color: #111; }
-          .sheet { display:grid; gap:16px; }
-          .grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px 18px; }
-          .card { border:1px solid #ddd; border-radius:16px; padding:16px; }
-          .label { color:#666; font-size:12px; }
-          .value { font-weight:700; }
-          .signatures { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:32px; padding-top:32px; }
-          .signature { border-top:1px solid #999; padding-top:10px; min-height:48px; }
-        </style>
-      </head>
-      <body>
-        <div class="sheet">
-          <h1>${this.t('طلب إجازة', 'Leave Request')}</h1>
-          <div class="grid">
-            <div class="card"><div class="label">${this.t('الموظف', 'Employee')}</div><div class="value">${this.employeeName(request)}</div></div>
-            <div class="card"><div class="label">${this.t('الرقم الوظيفي', 'Employee Code')}</div><div class="value">${request.employeeCode || '—'}</div></div>
-            <div class="card"><div class="label">${this.t('القسم', 'Department')}</div><div class="value">${request.departmentAr || request.departmentEn || '—'}</div></div>
-            <div class="card"><div class="label">${this.t('المسمى الوظيفي', 'Job title')}</div><div class="value">${(this.lang === 'ar' ? request.jobTitleAr : request.jobTitleEn) || request.jobTitleAr || request.jobTitleEn || '—'}</div></div>
-            <div class="card"><div class="label">${this.t('نوع الإجازة', 'Leave type')}</div><div class="value">${this.requestTitle(request)}</div></div>
-            <div class="card"><div class="label">${this.t('من', 'From')}</div><div class="value">${request.startDate}</div></div>
-            <div class="card"><div class="label">${this.t('إلى', 'To')}</div><div class="value">${request.endDate}</div></div>
-            <div class="card"><div class="label">${this.t('عدد الأيام', 'Requested days')}</div><div class="value">${request.totalDays}</div></div>
-            <div class="card"><div class="label">${this.t('الحالة', 'Status')}</div><div class="value">${this.statusLabel(request.status)}</div></div>
-            <div class="card" style="grid-column:1 / -1"><div class="label">${this.t('السبب', 'Reason')}</div><div class="value">${request.reason || '—'}</div></div>
-            <div class="card" style="grid-column:1 / -1"><div class="label">${this.t('مسار الاعتماد', 'Approval trail')}</div><div class="value">${managerLine}<br>${hrLine}${request.rejectionReason ? `<br>${this.t('سبب الرفض', 'Rejection reason')}: ${request.rejectionReason}` : ''}</div></div>
-          </div>
-          <div class="signatures">
-            <div class="signature">${this.t('توقيع الموظف', 'Employee signature')}</div>
-            <div class="signature">${this.t('توقيع الإدارة', 'Management signature')}</div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'LEAVE',
+      title: this.t('طلب إجازة', 'Leave Request'),
+      subtitle: this.requestTitle(request),
+      fields: [
+        { label: this.t('الموظف', 'Employee'), value: this.employeeName(request) },
+        { label: this.t('الرقم الوظيفي', 'Employee Code'), value: request.employeeCode || '—' },
+        { label: this.t('القسم', 'Department'), value: request.departmentAr || request.departmentEn || '—' },
+        { label: this.t('المسمى الوظيفي', 'Job Title'), value: (this.lang === 'ar' ? request.jobTitleAr : request.jobTitleEn) || request.jobTitleAr || request.jobTitleEn || '—' },
+        { label: this.t('نوع الإجازة', 'Leave Type'), value: this.requestTitle(request) },
+        { label: this.t('الحالة', 'Status'), value: this.statusLabel(request.status) },
+        { label: this.t('من', 'From'), value: request.startDate },
+        { label: this.t('إلى', 'To'), value: request.endDate },
+        { label: this.t('عدد الأيام المطلوبة', 'Requested Days'), value: String(request.totalDays) },
+        { label: this.t('المرفق', 'Attachment'), value: request.attachmentUrl ? this.t('مرفق', 'Attached') : this.t('لا يوجد', 'None') },
+        { label: this.t('السبب', 'Reason'), value: request.reason || '—', span: true },
+        { label: this.t('مسار الاعتماد', 'Approval Trail'), value: approvalTrail.join(' | '), span: true },
+      ],
+      signatures: [
+        { label: this.t('توقيع الموظف', 'Employee Signature') },
+        { label: this.t('توقيع المدير المباشر', 'Direct Manager Signature') },
+        { label: this.t('توقيع الموارد البشرية', 'HR Signature') },
+      ],
+    });
   }
 
   calcDays() {

@@ -10,6 +10,7 @@ import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialo
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
 import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleton-table.component';
 import { getErrorMessage } from '../../core/utils/error-message';
+import { openPrintDoc } from '../../core/utils/print-doc.util';
 
 @Component({
   selector: 'app-assets',
@@ -527,40 +528,42 @@ export class AssetsComponent implements OnInit {
   }
 
   printAssetSlip(asset: any, mode: 'handover' | 'return') {
-    const popup = window.open('', '_blank', 'width=960,height=760');
-    if (!popup) return;
+    const isHandover = mode === 'handover';
+    const docDate = isHandover
+      ? (asset.assignment?.assignedDate || asset.assignedDate || new Date().toISOString().slice(0, 10))
+      : (asset.assignment?.returnedDate || asset.returnedDate || new Date().toISOString().slice(0, 10));
 
-    popup.document.write(`
-      <html dir="${this.lang === 'ar' ? 'rtl' : 'ltr'}" lang="${this.lang}">
-      <head>
-        <title>${mode === 'handover' ? this.t('نموذج تسليم أصل', 'Asset handover form') : this.t('إيصال إرجاع أصل', 'Asset return receipt')}</title>
-        <style>
-          body{font-family:Segoe UI,Tahoma,sans-serif;padding:28px;color:#111}
-          .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
-          .row{display:grid;gap:4px}
-          .label{font-size:12px;color:#666}
-          .signatures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding-top:28px}
-          .sig{border-top:1px solid #bbb;padding-top:10px;min-height:50px}
-        </style>
-      </head>
-      <body>
-        <h1>${mode === 'handover' ? this.t('نموذج تسليم أصل', 'Asset handover form') : this.t('إيصال إرجاع أصل', 'Asset return receipt')}</h1>
-        <div class="grid">
-          <div class="row"><div class="label">${this.t('الأصل', 'Asset')}</div><strong>${this.assetName(asset)}</strong></div>
-          <div class="row"><div class="label">${this.t('الفئة', 'Category')}</div><strong>${this.categoryName(asset)}</strong></div>
-          <div class="row"><div class="label">${this.t('الرقم التسلسلي', 'Serial')}</div><strong>${asset.serialNumber || '—'}</strong></div>
-          <div class="row"><div class="label">${this.t('الموظف', 'Employee')}</div><strong>${this.assignedEmployee(asset)}</strong></div>
-          <div class="row"><div class="label">${this.t('التاريخ', 'Date')}</div><strong>${asset.assignedDate || asset.expectedReturnDate || '—'}</strong></div>
-          <div class="row"><div class="label">${this.t('الحالة / الشرط', 'Status / condition')}</div><strong>${this.conditionLabel(asset.currentCondition || asset.conditionOnAssign)}</strong></div>
-        </div>
-        <div class="signatures">
-          <div class="sig">${this.t('توقيع الموارد البشرية', 'HR signature')}</div>
-          <div class="sig">${this.t('توقيع الموظف', 'Employee signature')}</div>
-        </div>
-      </body></html>
-    `);
-    popup.document.close();
-    popup.print();
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: isHandover ? 'HANDOVER' : 'RETURN',
+      title: isHandover
+        ? this.t('نموذج تسليم أصل', 'Asset Handover Form')
+        : this.t('إيصال إرجاع أصل', 'Asset Return Receipt'),
+      subtitle: this.assetName(asset),
+      fields: [
+        { label: this.t('اسم الأصل', 'Asset Name'), value: this.assetName(asset) },
+        { label: this.t('الفئة', 'Category'), value: this.categoryName(asset) },
+        { label: this.t('الرقم التسلسلي', 'Serial Number'), value: asset.serialNumber || '—' },
+        { label: this.t('الموظف المستلم', isHandover ? 'Assigned Employee' : 'Returning Employee'), value: this.assignedEmployee(asset) },
+        { label: isHandover ? this.t('تاريخ التسليم', 'Handover Date') : this.t('تاريخ الإرجاع', 'Return Date'), value: docDate },
+        { label: this.t('الحالة / الشرط', 'Condition'), value: this.conditionLabel(asset.currentCondition || asset.conditionOnAssign || asset.assignment?.conditionOnAssign) },
+        { label: this.t('حالة الأصل', 'Asset Status'), value: this.assetStatusLabel(asset.currentStatus) },
+        { label: this.t('القيمة الحالية', 'Current Value'), value: `${Number(asset.currentValue || asset.purchaseValue || 0).toFixed(3)} JOD` },
+        { label: this.t('ملاحظات', 'Notes'), value: asset.assignment?.notes || asset.notes || '—', span: true },
+      ],
+      notes: isHandover
+        ? this.t('يُقرّ الموظف المستلم بتسلّم الأصل الموصوف أعلاه بالحالة المبيّنة، ويتعهد بالمحافظة عليه وإعادته عند الطلب.', 'The receiving employee acknowledges receipt of the above asset in the stated condition and undertakes to maintain and return it upon request.')
+        : this.t('يُقرّ الموظف بإعادة الأصل الموصوف أعلاه، وقد جرت المعاينة وتأكيد الحالة.', 'The employee acknowledges returning the above asset. Condition has been inspected and confirmed.'),
+      signatures: isHandover
+        ? [
+            { label: this.t('توقيع مسؤول الأصول / الموارد البشرية', 'Assets Officer / HR Signature') },
+            { label: this.t('توقيع الموظف المستلم', 'Receiving Employee Signature') },
+          ]
+        : [
+            { label: this.t('توقيع مسؤول الأصول / الموارد البشرية', 'Assets Officer / HR Signature') },
+            { label: this.t('توقيع الموظف المُرجِع', 'Returning Employee Signature') },
+          ],
+    });
   }
 
   openEmployeeProfile(asset: any) {

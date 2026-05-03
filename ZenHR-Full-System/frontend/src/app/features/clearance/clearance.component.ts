@@ -8,6 +8,7 @@ import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skel
 import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleton-table.component';
 import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialog.component';
 import { getErrorMessage } from '../../core/utils/error-message';
+import { openPrintDoc } from '../../core/utils/print-doc.util';
 
 interface ClearanceRow {
   id: number;
@@ -501,52 +502,47 @@ export class ClearanceComponent implements OnInit {
     const detail = source;
     if (!detail) return;
 
-    const popup = window.open('', '_blank', 'width=960,height=760');
-    if (!popup) return;
+    const fmt3 = (v: any) => `${Number(v ?? 0).toFixed(3)} JOD`;
+    const calc = detail.calculation ?? {};
 
-    popup.document.write(`
-      <html dir="${this.lang === 'ar' ? 'rtl' : 'ltr'}" lang="${this.lang}">
-      <head>
-        <title>${this.t('طباعة براءة الذمة', 'Print Clearance')}</title>
-        <style>
-          body{font-family:Segoe UI,Tahoma,sans-serif;padding:32px;color:#111}
-          .sheet{display:grid;gap:18px}
-          .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
-          .row{display:grid;gap:4px}
-          .label{font-size:12px;color:#666}
-          .signatures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;padding-top:24px}
-          .sig{border-top:1px solid #bbb;padding-top:10px;min-height:52px}
-        </style>
-      </head>
-      <body>
-        <div class="sheet">
-          <h1>${this.t('نموذج براءة ذمة / نهاية خدمة', 'End of Service / Clearance Form')}</h1>
-          <div class="grid">
-            <div class="row"><div class="label">${this.t('الموظف', 'Employee')}</div><strong>${detail.employee?.nameAr || detail.employeeNameAr || '—'}</strong></div>
-            <div class="row"><div class="label">${this.t('الرمز الوظيفي', 'Employee Code')}</div><strong>${detail.employee?.employeeCode || detail.employeeCode || '—'}</strong></div>
-            <div class="row"><div class="label">${this.t('القسم', 'Department')}</div><strong>${detail.employee?.departmentAr || detail.departmentAr || '—'}</strong></div>
-            <div class="row"><div class="label">${this.t('سبب الإنهاء', 'Termination Reason')}</div><strong>${this.reasonLabel(detail.terminationReason)}</strong></div>
-            <div class="row"><div class="label">${this.t('سنوات الخدمة', 'Years of Service')}</div><strong>${Number(detail.calculation?.yearsOfService ?? detail.yearsOfService ?? 0).toFixed(2)}</strong></div>
-            <div class="row"><div class="label">${this.t('الراتب', 'Salary')}</div><strong>${Number(detail.calculation?.salary ?? detail.salary ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('المكافأة', 'Gratuity')}</div><strong>${Number(detail.calculation?.gratuity ?? detail.gratuity ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('بدل الإجازات', 'Leave Compensation')}</div><strong>${Number(detail.calculation?.leaveBalanceCompensation ?? detail.leaveBalanceCompensation ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('الراتب المستحق', 'Pending Salary')}</div><strong>${Number(detail.calculation?.pendingSalary ?? detail.pendingSalary ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('الخصومات', 'Deductions')}</div><strong>${Number(detail.calculation?.deductions ?? detail.deductions ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('السلف', 'Advances')}</div><strong>${Number(detail.calculation?.advances ?? detail.advances ?? 0).toFixed(3)}</strong></div>
-            <div class="row"><div class="label">${this.t('التسوية النهائية', 'Final Settlement')}</div><strong>${Number(detail.calculation?.finalSettlement ?? detail.finalSettlementAmount ?? 0).toFixed(3)}</strong></div>
-          </div>
-          <div>${this.t('ملاحظات', 'Notes')}: ${detail.hrNotes || '—'}</div>
-          <div class="signatures">
-            <div class="sig">${this.t('توقيع الموارد البشرية', 'HR Signature')}</div>
-            <div class="sig">${this.t('توقيع الموظف', 'Employee Signature')}</div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-    popup.document.close();
-    popup.focus();
-    popup.print();
+    const gratuity = Number(calc.gratuity ?? detail.gratuity ?? 0);
+    const leaveComp = Number(calc.leaveBalanceCompensation ?? detail.leaveBalanceCompensation ?? 0);
+    const pendingSalary = Number(calc.pendingSalary ?? detail.pendingSalary ?? 0);
+    const additions = Number(calc.additions ?? detail.additions ?? 0);
+    const deductions = Number(calc.deductions ?? detail.deductions ?? 0);
+    const advances = Number(calc.advances ?? detail.advances ?? 0);
+    const penalties = Number(calc.penalties ?? detail.penalties ?? 0);
+    const finalSettlement = Number(calc.finalSettlement ?? detail.finalSettlementAmount ?? 0);
+
+    openPrintDoc({
+      lang: this.lang as 'ar' | 'en',
+      docType: 'CLEAR',
+      title: this.t('نموذج براءة ذمة / نهاية خدمة', 'End of Service / Clearance Form'),
+      subtitle: this.statusLabel(detail.clearanceStatus || detail.status || ''),
+      fields: [
+        { label: this.t('الموظف', 'Employee'), value: detail.employee?.nameAr || detail.employee?.fullNameAr || detail.employeeNameAr || '—' },
+        { label: this.t('الرمز الوظيفي', 'Employee Code'), value: detail.employee?.employeeCode || detail.employeeCode || '—' },
+        { label: this.t('القسم', 'Department'), value: detail.employee?.departmentAr || detail.departmentAr || '—' },
+        { label: this.t('سبب إنهاء الخدمة', 'Termination Reason'), value: this.reasonLabel(detail.terminationReason) },
+        { label: this.t('الراتب الأساسي', 'Basic Salary'), value: fmt3(calc.salary ?? detail.salary) },
+        { label: this.t('سنوات الخدمة', 'Years of Service'), value: Number(calc.yearsOfService ?? detail.yearsOfService ?? 0).toFixed(2) },
+        { label: this.t('مكافأة نهاية الخدمة', 'End-of-Service Gratuity'), value: fmt3(gratuity) },
+        { label: this.t('بدل رصيد الإجازات', 'Leave Balance Compensation'), value: fmt3(leaveComp) },
+        { label: this.t('الراتب المستحق', 'Pending Salary'), value: fmt3(pendingSalary) },
+        { label: this.t('إضافات أخرى', 'Other Additions'), value: fmt3(additions) },
+        { label: this.t('الخصومات', 'Deductions'), value: fmt3(deductions) },
+        { label: this.t('السلف', 'Advances'), value: fmt3(advances) },
+        { label: this.t('الغرامات', 'Penalties'), value: fmt3(penalties) },
+      ],
+      notes: detail.hrNotes || undefined,
+      summaryLabel: this.t('التسوية النهائية', 'Final Settlement Amount'),
+      summaryValue: fmt3(finalSettlement),
+      signatures: [
+        { label: this.t('توقيع مدير الموارد البشرية', 'HR Manager Signature') },
+        { label: this.t('توقيع المدير المالي', 'Finance Director Signature') },
+        { label: this.t('توقيع الموظف / إقرار الاستلام', 'Employee Signature / Receipt Acknowledgement') },
+      ],
+    });
   }
 
   reasonLabel(reason: string) {
