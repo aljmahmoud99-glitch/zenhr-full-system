@@ -731,101 +731,193 @@ app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
 
 // ─── Employee Actions ─────────────────────────────────────────────────────────
 
-app.get("/api/employees/:id/actions", auth, async (req, res) => {
+const ACTION_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
+  hire:                { en: "Hired",                   ar: "تعيين" },
+  probation_start:     { en: "Probation Started",       ar: "بدء التجربة" },
+  probation_complete:  { en: "Probation Completed",     ar: "اجتياز التجربة" },
+  probation_fail:      { en: "Probation Failed",        ar: "فشل التجربة" },
+  transfer:            { en: "Transfer",                ar: "نقل" },
+  promotion:           { en: "Promotion",               ar: "ترقية" },
+  demotion:            { en: "Demotion",                ar: "خفض درجة" },
+  salary_change:       { en: "Salary Change",           ar: "تعديل الراتب" },
+  suspension:          { en: "Suspension",              ar: "إيقاف" },
+  suspension_lift:     { en: "Suspension Lifted",       ar: "رفع الإيقاف" },
+  termination:         { en: "Termination",             ar: "إنهاء خدمة" },
+  resignation:         { en: "Resignation",             ar: "استقالة" },
+  leave_of_absence:    { en: "Leave of Absence",        ar: "إجازة بدون راتب" },
+  return_from_leave:   { en: "Returned from Leave",     ar: "عودة من الإجازة" },
+  warning_issued:      { en: "Warning Issued",          ar: "إنذار" },
+  document_expired:    { en: "Document Expired",        ar: "وثيقة منتهية" },
+  contract_renewal:    { en: "Contract Renewal",        ar: "تجديد عقد" },
+};
+
+// GET /api/employee-actions/types — dropdown labels
+app.get("/api/employee-actions/types", auth, (_req, res) => {
+  const types = Object.entries(ACTION_TYPE_LABELS).map(([value, labels]) => ({
+    value,
+    labelEn: labels.en,
+    labelAr: labels.ar,
+  }));
+  res.json({ success: true, data: types });
+});
+
+// GET /api/employee-actions?employeeId=X
+app.get("/api/employee-actions", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const empId = parseInt(req.params["id"]!);
+    const { employeeId } = req.query as Record<string, string>;
+
+    // Employee: can only query own actions
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      if (employeeId && parseInt(employeeId) !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
+      const actions = await db.select().from(employeeActionsTable)
+        .where(eq(employeeActionsTable.employeeId, user.employeeId))
+        .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
+      return res.json({ success: true, data: enrichActions(actions) });
+    }
+
+    // HR / managers: require employeeId param
+    if (!employeeId) {
+      res.status(400).json({ success: false, message: "employeeId is required" }); return;
+    }
+    const empId = parseInt(employeeId);
     const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
       .from(employeesTable).where(eq(employeesTable.id, empId)).limit(1);
     if (!emp || emp.companyId !== user.companyId) {
       res.status(404).json({ success: false, message: "Employee not found" }); return;
     }
-    if (user.role === "employee" && user.employeeId !== empId) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
     const actions = await db.select().from(employeeActionsTable)
-      .where(and(eq(employeeActionsTable.employeeId, empId), eq(employeeActionsTable.isDeleted, false)))
+      .where(eq(employeeActionsTable.employeeId, empId))
       .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
-    res.json({ success: true, data: actions });
+    res.json({ success: true, data: enrichActions(actions) });
   } catch (e) {
-    console.error("[GET /api/employees/:id/actions]", e);
+    console.error("[GET /api/employee-actions]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.post("/api/employees/:id/actions", auth, async (req, res) => {
+function enrichActions(actions: any[]) {
+  return actions.map(a => ({
+    ...a,
+    labelEn: ACTION_TYPE_LABELS[a.actionType]?.en ?? a.actionType,
+    labelAr: ACTION_TYPE_LABELS[a.actionType]?.ar ?? a.actionType,
+  }));
+}
+
+// POST /api/employee-actions
+app.post("/api/employee-actions", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "payrolladmin", "manager", "superadmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    if (user.role !== "hradmin" && user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Only HR admins can record employee actions" }); return;
     }
-    const empId = parseInt(req.params["id"]!);
-    const [emp] = await db.select().from(employeesTable)
-      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId))).limit(1);
-    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
 
-    const { actionType, effectiveDate, notes, metadata } = req.body as {
+    const { employeeId, actionType, effectiveDate, notes, ...extra } = req.body as {
+      employeeId: number;
       actionType: string;
       effectiveDate: string;
       notes?: string;
-      metadata?: Record<string, any>;
+      [k: string]: any;
     };
-    if (!actionType || !effectiveDate) {
-      res.status(400).json({ success: false, message: "actionType and effectiveDate are required" }); return;
+    if (!employeeId || !actionType || !effectiveDate) {
+      res.status(400).json({ success: false, message: "employeeId, actionType and effectiveDate are required" }); return;
     }
 
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, user.companyId))).limit(1);
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
     const action = await db.transaction(async (tx) => {
-      const meta = metadata ?? {};
+      // ── Capture "before" snapshot ────────────────────────────────────────────
+      const beforeFields: Record<string, any> = {};
       const empUpdate: Record<string, any> = {};
 
-      if (actionType === "TRANSFER") {
-        if (meta.newOrgNodeId != null) empUpdate.orgNodeId = meta.newOrgNodeId;
-        if (meta.newDepartmentId != null) empUpdate.departmentId = meta.newDepartmentId;
-      } else if (actionType === "TITLE_CHANGE" || actionType === "PROMOTION" || actionType === "DEMOTION") {
-        if (meta.newJobTitleId != null) empUpdate.jobTitleId = meta.newJobTitleId;
-      } else if (actionType === "SALARY_CHANGE") {
-        if (meta.newBasicSalary != null) empUpdate.basicSalary = String(meta.newBasicSalary);
-        if (meta.newHousingAllowance != null) empUpdate.housingAllowance = String(meta.newHousingAllowance);
-        if (meta.newTransportAllowance != null) empUpdate.transportAllowance = String(meta.newTransportAllowance);
-        if (meta.newMobileAllowance != null) empUpdate.mobileAllowance = String(meta.newMobileAllowance);
-        if (meta.newMealAllowance != null) empUpdate.mealAllowance = String(meta.newMealAllowance);
-        if (meta.newOtherAllowances != null) empUpdate.otherAllowances = String(meta.newOtherAllowances);
-      } else if (actionType === "TERMINATION") {
-        empUpdate.employmentStatus = "terminated";
-        if (meta.terminationDate) empUpdate.terminationDate = meta.terminationDate;
-        if (meta.terminationReason) empUpdate.terminationReason = meta.terminationReason;
-      } else if (actionType === "RESIGNATION") {
-        empUpdate.employmentStatus = "resigned";
-        if (meta.terminationDate) empUpdate.terminationDate = meta.terminationDate;
-      } else if (actionType === "PROBATION_CONFIRMATION") {
-        empUpdate.employmentStatus = "active";
-      } else if (actionType === "SUSPENSION") {
+      // ── Per-action side effects + before/after capture ────────────────────────
+      if (actionType === "transfer") {
+        beforeFields.orgNodeId = emp.orgNodeId;
+        beforeFields.departmentId = emp.departmentId;
+        if (extra.orgNodeId != null) empUpdate.orgNodeId = extra.orgNodeId;
+        if (extra.departmentId != null) empUpdate.departmentId = extra.departmentId;
+      } else if (actionType === "promotion" || actionType === "demotion") {
+        beforeFields.jobTitleId = emp.jobTitleId;
+        if (extra.jobTitleId != null) empUpdate.jobTitleId = extra.jobTitleId;
+        if (extra.basicSalary != null) {
+          beforeFields.basicSalary = emp.basicSalary;
+          empUpdate.basicSalary = String(extra.basicSalary);
+        }
+      } else if (actionType === "salary_change") {
+        beforeFields.basicSalary = emp.basicSalary;
+        beforeFields.housingAllowance = emp.housingAllowance;
+        beforeFields.transportAllowance = emp.transportAllowance;
+        beforeFields.mobileAllowance = emp.mobileAllowance;
+        beforeFields.mealAllowance = emp.mealAllowance;
+        beforeFields.otherAllowances = emp.otherAllowances;
+        if (extra.basicSalary != null) empUpdate.basicSalary = String(extra.basicSalary);
+        if (extra.housingAllowance != null) empUpdate.housingAllowance = String(extra.housingAllowance);
+        if (extra.transportAllowance != null) empUpdate.transportAllowance = String(extra.transportAllowance);
+        if (extra.mobileAllowance != null) empUpdate.mobileAllowance = String(extra.mobileAllowance);
+        if (extra.mealAllowance != null) empUpdate.mealAllowance = String(extra.mealAllowance);
+        if (extra.otherAllowances != null) empUpdate.otherAllowances = String(extra.otherAllowances);
+      } else if (actionType === "suspension") {
+        beforeFields.employmentStatus = emp.employmentStatus;
         empUpdate.employmentStatus = "suspended";
-      } else if (actionType === "RETURN_FROM_SUSPENSION") {
+      } else if (actionType === "suspension_lift") {
+        beforeFields.employmentStatus = emp.employmentStatus;
         empUpdate.employmentStatus = "active";
+      } else if (actionType === "termination") {
+        beforeFields.employmentStatus = emp.employmentStatus;
+        empUpdate.employmentStatus = "terminated";
+        empUpdate.terminationDate = effectiveDate;
+        if (extra.terminationReason) empUpdate.terminationReason = extra.terminationReason;
+      } else if (actionType === "resignation") {
+        beforeFields.employmentStatus = emp.employmentStatus;
+        empUpdate.employmentStatus = "resigned";
+        empUpdate.terminationDate = effectiveDate;
+      } else if (actionType === "probation_complete") {
+        beforeFields.employmentStatus = emp.employmentStatus;
+        empUpdate.employmentStatus = "active";
+      } else if (actionType === "probation_fail") {
+        beforeFields.employmentStatus = emp.employmentStatus;
+        empUpdate.employmentStatus = "terminated";
+        empUpdate.terminationDate = effectiveDate;
+      } else if (actionType === "return_from_leave") {
+        beforeFields.employmentStatus = emp.employmentStatus;
+        empUpdate.employmentStatus = "active";
+      } else if (actionType === "leave_of_absence") {
+        beforeFields.employmentStatus = emp.employmentStatus;
       }
 
+      // After snapshot = before + applied updates
+      const afterFields: Record<string, any> = { ...beforeFields };
+      for (const [k, v] of Object.entries(empUpdate)) afterFields[k] = v;
+
+      // Apply employee update
       if (Object.keys(empUpdate).length > 0) {
-        await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, empId));
+        await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, employeeId));
       }
 
+      // Insert action record
       const [inserted] = await tx.insert(employeeActionsTable).values({
         companyId: user.companyId,
-        employeeId: empId,
+        employeeId,
         actionType,
         effectiveDate,
-        performedByUserId: user.userId,
-        performedByName: user.username,
+        createdByUserId: user.userId,
+        previousValueJson: Object.keys(beforeFields).length ? JSON.stringify(beforeFields) : null,
+        newValueJson: Object.keys(afterFields).length ? JSON.stringify(afterFields) : null,
         notes: notes ?? null,
-        metadata: metadata ?? null,
+        status: "applied",
       }).returning();
       return inserted;
     });
 
-    await logActivity(user.companyId, "employee_action", `Action ${actionType} recorded for employee #${empId}`, null);
-    res.status(201).json({ success: true, data: action });
+    await logActivity(user.companyId, "employee_action", `${actionType} recorded for employee #${employeeId}`, null);
+    res.status(201).json({ success: true, data: { ...action, labelEn: ACTION_TYPE_LABELS[actionType]?.en, labelAr: ACTION_TYPE_LABELS[actionType]?.ar } });
   } catch (e) {
-    console.error("[POST /api/employees/:id/actions]", e);
+    console.error("[POST /api/employee-actions]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

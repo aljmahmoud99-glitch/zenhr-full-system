@@ -1,24 +1,50 @@
-import { pgTable, serial, integer, varchar, text, date, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, text, date, timestamp } from "drizzle-orm/pg-core";
 import { employeesTable } from "./employees";
 import { companiesTable } from "./companies";
 import { usersTable } from "./users";
 
+export const EMPLOYEE_ACTION_TYPES = [
+  "hire",
+  "probation_start",
+  "probation_complete",
+  "probation_fail",
+  "transfer",
+  "promotion",
+  "demotion",
+  "salary_change",
+  "suspension",
+  "suspension_lift",
+  "termination",
+  "resignation",
+  "leave_of_absence",
+  "return_from_leave",
+  "warning_issued",
+  "document_expired",
+  "contract_renewal",
+] as const;
+
+export type EmployeeActionType = typeof EMPLOYEE_ACTION_TYPES[number];
+
 export const employeeActionsTable = pgTable("employee_actions", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companiesTable.id),
-  employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "restrict" }),
 
   actionType: varchar("action_type", { length: 50 }).notNull(),
   effectiveDate: date("effective_date").notNull(),
 
-  performedByUserId: integer("performed_by_user_id").references(() => usersTable.id),
-  performedByName: varchar("performed_by_name", { length: 200 }),
+  createdByUserId: integer("created_by_user_id")
+    .references(() => usersTable.id, { onDelete: "set null" }),
+
+  previousValueJson: text("previous_value_json"),
+  newValueJson: text("new_value_json"),
 
   notes: text("notes"),
-  metadata: jsonb("metadata"),
+  status: varchar("status", { length: 20 }).notNull().default("applied"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  isDeleted: boolean("is_deleted").default(false).notNull(),
 });
 
 export type EmployeeAction = typeof employeeActionsTable.$inferSelect;

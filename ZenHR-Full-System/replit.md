@@ -30,27 +30,6 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 | employee | Employee@1234 | employee |
 | recruiter | Recruiter@1234 | recruiter |
 
-## API Endpoints (all under /api prefix, proxied by Angular dev server)
-- `GET /api/healthz` — Health check
-- `POST /api/auth/login` — Login (returns JWT)
-- `GET /api/auth/context` — Tenant/org context for current user (company + branch/dept names)
-- `GET/POST /api/employees` — Employee management (enriched: branch, breadcrumb, manager name; supports `?branchId=`, `?jobDescriptionId=` filters)
-- `GET/POST /api/departments` — Departments
-- `GET/POST /api/job-titles` — Job titles
-- `GET/POST /api/leave/requests` — Leave requests
-- `GET/POST /api/leave/policies` — Leave policies
-- `GET/POST /api/payroll/runs` — Payroll runs
-- `GET /api/payroll/slips` — Payslips
-- `GET/POST /api/attendance` — Attendance records
-- `GET/POST /api/documents` — Documents
-- `GET/POST /api/assets` — Assets
-- `GET /api/lookups/*` — Reference data (nationalities, cities, banks, etc.)
-- `GET /api/dashboard/*` — Dashboard stats
-- `GET/POST /api/job-descriptions` — Job descriptions CRUD (search, filter by grade/dept/status, pagination)
-- `GET/PUT/DELETE /api/job-descriptions/:id` — Single job description (409 guard if referenced by career path or employee)
-- `GET/POST /api/career-paths` — Career paths CRUD (company-scoped)
-- `DELETE /api/career-paths/:id` — Delete career path
-
 ## Key Files
 - `ZenHR-Full-System/artifacts/api-server/src/index.ts` — Main Express API server
 - `ZenHR-Full-System/artifacts/api-server/src/auth.ts` — JWT auth & middleware
@@ -109,6 +88,54 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - **Backend**: 8 new endpoints — full CRUD for job descriptions (with search, grade/dept/status filter, pagination, 409 conflict guard), full CRUD for career paths (company-scoped). `/api/employees` supports `?jobDescriptionId=X` filter.
 - **Frontend** (`job-descriptions.component`): Two-tab layout — Job Descriptions table + Career Paths card grid. Skeleton loading, error/retry state, illustrated empty state. Add/Edit modal with bilingual title fields, grade, department, salary range, and 4 JSON textarea sections (responsibilities, requirements, skills, qualifications) with inline per-field validation. Side drawer shows all details + employees assigned + career paths to/from. Career path modal with from/to job selects and months input. All errors via toast — no `alert()`. Full RTL support.
 
+## Phase 4 — Employee Actions & Self-Service Isolation (Completed)
+
+### Employee Actions System
+- **DB**: `employee_actions` table — id, company_id, employee_id (RESTRICT), action_type, effective_date, created_by_user_id (SET NULL), previous_value_json (TEXT before-snapshot), new_value_json (TEXT after-snapshot), notes, status (applied|reversed), created_at
+- **17 action types**: hire | probation_start | probation_complete | probation_fail | transfer | promotion | demotion | salary_change | suspension | suspension_lift | termination | resignation | leave_of_absence | return_from_leave | warning_issued | document_expired | contract_renewal
+- **GET /api/employee-actions?employeeId=X** — auth-scoped (employee sees own only; HR passes employeeId); returns enriched timeline with labelEn/labelAr
+- **POST /api/employee-actions** — hradmin only; captures before/after snapshots; runs in DB transaction with immediate side effects (employee status, salary, title, org-node, department updated atomically)
+- **GET /api/employee-actions/types** — returns all types with AR+EN labels for frontend dropdowns
+- **Side effects per action**: transfer→orgNodeId+departmentId, promotion/demotion→jobTitleId+salary, salary_change→all salary fields, suspension/suspension_lift/termination/resignation/probation_complete/probation_fail→employmentStatus+terminationDate
+- **Frontend**: Actions Timeline tab on every employee profile — vertical timeline with color-coded icon per type, effective date, notes, recorded-by attribution. HR admins see "Record Action" button with modal (type dropdown + effective date + notes). Employees see read-only timeline of their own actions.
+
+### Self-Service Data Isolation (8 endpoints hardened)
+All 8 endpoints now enforce role-based scoping at the DB query level — the frontend cannot bypass by crafting API calls:
+- **GET /api/leave/requests** — employee→own; manager→department; hradmin→all
+- **GET /api/payroll/slips** — employee→own; hradmin/payrolladmin→filter by employeeId
+- **GET /api/attendance** — employee→own; manager→department; hradmin→all
+- **GET /api/documents** — employee→own; manager→department; hradmin→all
+- **GET /api/assets** — employee→own assigned; manager→department; hradmin→all
+- **GET /api/overtime** — employee→own; manager→department; hradmin→all
+- **GET /api/resignations** — employee→own; hradmin→all
+- **GET /api/salary-advances** — employee→own; hradmin→employeeId filter
+
+## API Endpoints (all under /api prefix, proxied by Angular dev server)
+- `GET /api/healthz` — Health check
+- `POST /api/auth/login` — Login (returns JWT)
+- `GET /api/auth/context` — Tenant/org context for current user (company + branch/dept names)
+- `GET/POST /api/employees` — Employee management (enriched: branch, breadcrumb, manager name; supports `?branchId=`, `?jobDescriptionId=` filters)
+- `GET/POST /api/departments` — Departments
+- `GET/POST /api/job-titles` — Job titles
+- `GET/POST /api/leave/requests` — Leave requests (role-scoped)
+- `GET/POST /api/leave/policies` — Leave policies
+- `GET/POST /api/payroll/runs` — Payroll runs
+- `GET /api/payroll/slips` — Payslips (role-scoped)
+- `GET/POST /api/attendance` — Attendance records (role-scoped)
+- `GET/POST /api/documents` — Documents (role-scoped)
+- `GET/POST /api/assets` — Assets (role-scoped)
+- `GET /api/overtime` — Overtime (role-scoped)
+- `GET /api/resignations` — Resignations (role-scoped)
+- `GET /api/salary-advances` — Salary advances (role-scoped)
+- `GET /api/lookups/*` — Reference data (nationalities, cities, banks, etc.)
+- `GET /api/dashboard/*` — Dashboard stats
+- `GET/POST /api/job-descriptions` — Job descriptions CRUD
+- `GET/PUT/DELETE /api/job-descriptions/:id` — Single job description
+- `GET/POST /api/career-paths` — Career paths CRUD
+- `GET /api/employee-actions?employeeId=X` — Employee actions timeline (Phase 4)
+- `POST /api/employee-actions` — Record new employee action with side effects (Phase 4)
+- `GET /api/employee-actions/types` — All action types with AR+EN labels (Phase 4)
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
@@ -120,3 +147,4 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - activity_logs, system_configurations, overtime_requests
 - **job_descriptions** (Phase 2)
 - **career_paths** (Phase 2)
+- **employee_actions** (Phase 4 — action history with before/after snapshots and side-effect system)

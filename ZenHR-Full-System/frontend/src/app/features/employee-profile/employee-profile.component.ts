@@ -971,7 +971,7 @@ export class EmployeeProfileComponent implements OnInit {
 
   loadActions(empId: number) {
     this.loadingActions.set(true);
-    this.api.get<any>(`/api/employees/${empId}/actions`).subscribe({
+    this.api.get<any>('/api/employee-actions', { employeeId: empId }).subscribe({
       next: r => { this.employeeActions.set(r.data ?? []); this.loadingActions.set(false); },
       error: () => { this.employeeActions.set([]); this.loadingActions.set(false); }
     });
@@ -979,26 +979,30 @@ export class EmployeeProfileComponent implements OnInit {
 
   actionTypeLabel(type: string): { en: string; ar: string; icon: string; cls: string } {
     const map: Record<string, { en: string; ar: string; icon: string; cls: string }> = {
-      HIRE:                  { en: 'Hired',                    ar: 'تعيين',           icon: 'person_add',       cls: 'action-hire' },
-      TRANSFER:              { en: 'Transfer',                 ar: 'نقل',             icon: 'swap_horiz',       cls: 'action-transfer' },
-      TITLE_CHANGE:          { en: 'Title Change',             ar: 'تغيير المسمى',    icon: 'badge',            cls: 'action-title' },
-      SALARY_CHANGE:         { en: 'Salary Change',            ar: 'تعديل الراتب',    icon: 'payments',         cls: 'action-salary' },
-      PROMOTION:             { en: 'Promotion',                ar: 'ترقية',           icon: 'trending_up',      cls: 'action-promotion' },
-      DEMOTION:              { en: 'Demotion',                 ar: 'خفض درجة',        icon: 'trending_down',    cls: 'action-demotion' },
-      TERMINATION:           { en: 'Termination',              ar: 'إنهاء خدمة',      icon: 'person_remove',    cls: 'action-termination' },
-      RESIGNATION:           { en: 'Resignation',              ar: 'استقالة',         icon: 'exit_to_app',      cls: 'action-resignation' },
-      PROBATION_CONFIRMATION:{ en: 'Probation Confirmed',      ar: 'تثبيت',           icon: 'verified',         cls: 'action-confirm' },
-      SUSPENSION:            { en: 'Suspension',               ar: 'إيقاف',           icon: 'pause_circle',     cls: 'action-suspension' },
-      RETURN_FROM_SUSPENSION:{ en: 'Returned from Suspension', ar: 'عودة من الإيقاف', icon: 'play_circle',      cls: 'action-return' },
-      WARNING:               { en: 'Warning Issued',           ar: 'إنذار',           icon: 'warning',          cls: 'action-warning' },
-      CUSTOM:                { en: 'Custom Action',            ar: 'إجراء مخصص',     icon: 'edit_note',        cls: 'action-custom' },
+      hire:               { en: 'Hired',                   ar: 'تعيين',             icon: 'person_add',    cls: 'action-hire' },
+      probation_start:    { en: 'Probation Started',       ar: 'بدء التجربة',       icon: 'timer',         cls: 'action-probation' },
+      probation_complete: { en: 'Probation Completed',     ar: 'اجتياز التجربة',    icon: 'verified',      cls: 'action-confirm' },
+      probation_fail:     { en: 'Probation Failed',        ar: 'فشل التجربة',       icon: 'cancel',        cls: 'action-demotion' },
+      transfer:           { en: 'Transfer',                ar: 'نقل',               icon: 'swap_horiz',    cls: 'action-transfer' },
+      promotion:          { en: 'Promotion',               ar: 'ترقية',             icon: 'trending_up',   cls: 'action-promotion' },
+      demotion:           { en: 'Demotion',                ar: 'خفض درجة',          icon: 'trending_down', cls: 'action-demotion' },
+      salary_change:      { en: 'Salary Change',           ar: 'تعديل الراتب',      icon: 'payments',      cls: 'action-salary' },
+      suspension:         { en: 'Suspension',              ar: 'إيقاف',             icon: 'pause_circle',  cls: 'action-suspension' },
+      suspension_lift:    { en: 'Suspension Lifted',       ar: 'رفع الإيقاف',       icon: 'play_circle',   cls: 'action-return' },
+      termination:        { en: 'Termination',             ar: 'إنهاء خدمة',        icon: 'person_remove', cls: 'action-termination' },
+      resignation:        { en: 'Resignation',             ar: 'استقالة',           icon: 'exit_to_app',   cls: 'action-resignation' },
+      leave_of_absence:   { en: 'Leave of Absence',        ar: 'إجازة بدون راتب',   icon: 'beach_access',  cls: 'action-leave' },
+      return_from_leave:  { en: 'Returned from Leave',     ar: 'عودة من الإجازة',   icon: 'login',         cls: 'action-return' },
+      warning_issued:     { en: 'Warning Issued',          ar: 'إنذار',             icon: 'warning',       cls: 'action-warning' },
+      document_expired:   { en: 'Document Expired',        ar: 'وثيقة منتهية',      icon: 'description',   cls: 'action-warning' },
+      contract_renewal:   { en: 'Contract Renewal',        ar: 'تجديد عقد',         icon: 'autorenew',     cls: 'action-hire' },
     };
     return map[type] ?? { en: type, ar: type, icon: 'history', cls: 'action-custom' };
   }
 
   openActionModal() {
     this.actionForm = {
-      actionType: 'TRANSFER',
+      actionType: 'transfer',
       effectiveDate: new Date().toISOString().slice(0, 10),
       notes: '',
       metadata: {}
@@ -1012,11 +1016,11 @@ export class EmployeeProfileComponent implements OnInit {
     const emp = this.employee();
     if (!emp || !this.actionForm.actionType || !this.actionForm.effectiveDate) return;
     this.actionSaving.set(true);
-    this.api.post<any>(`/api/employees/${emp.id}/actions`, {
+    this.api.post<any>('/api/employee-actions', {
+      employeeId: emp.id,
       actionType: this.actionForm.actionType,
       effectiveDate: this.actionForm.effectiveDate,
       notes: this.actionForm.notes || null,
-      metadata: Object.keys(this.actionForm.metadata).length ? this.actionForm.metadata : null
     }).subscribe({
       next: () => {
         this.actionSaving.set(false);
@@ -1033,9 +1037,11 @@ export class EmployeeProfileComponent implements OnInit {
   }
 
   ACTION_TYPES = [
-    'HIRE','TRANSFER','TITLE_CHANGE','SALARY_CHANGE','PROMOTION','DEMOTION',
-    'TERMINATION','RESIGNATION','PROBATION_CONFIRMATION','SUSPENSION',
-    'RETURN_FROM_SUSPENSION','WARNING','CUSTOM'
+    'hire','probation_start','probation_complete','probation_fail',
+    'transfer','promotion','demotion','salary_change',
+    'suspension','suspension_lift','termination','resignation',
+    'leave_of_absence','return_from_leave','warning_issued',
+    'document_expired','contract_renewal',
   ];
 
   goBack() {
