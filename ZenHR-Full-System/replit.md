@@ -41,6 +41,14 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
 - `ZenHR-Full-System/lib/db/src/seed.ts` — Demo data seeder
 - `ZenHR-Full-System/frontend/proxy.conf.json` — Proxies /api → localhost:3001
 
+## Employee Profile Improvements (Completed)
+- **Edit button fixed**: Clicking "Edit" in the employee profile header now navigates to `/app/employees?edit={id}` and automatically opens the edit modal for that employee. The employees list component reads the `?edit` query param on init, clears it from the URL, and calls `openEdit()`.
+- **Profile layout CSS**: Added all missing layout classes to `employee-profile.component.scss`: `profile-header-bar` (sticky header), `profile-header-info`, `profile-name`, `profile-meta-row`, `emp-code`, `profile-tabs` (horizontally scrollable), `profile-tab`, `profile-tab-body`, `profile-section-card`, `profile-section-title`, `info-grid`, `info-row`, `info-label`, `info-val`, `profile-grid-2`.
+- **Action dropdown styling**: Dropdown menu already had solid styles; tab bar and action header now have proper CSS with active-tab underline indicator and smooth transitions.
+- **Approval workflow**: `POST /api/employee-actions` now inserts actions with `status: "pending"` and does NOT apply side effects immediately. Two new endpoints handle the lifecycle: `POST /api/employee-actions/:id/approve` (applies all side effects — employee field updates, salary component creation — and sets status to "applied") and `POST /api/employee-actions/:id/reject` (sets status to "rejected"). The profile's Actions tab shows a colored status badge (yellow=pending, green=applied, red=rejected) on each action card, and for pending actions shows Approve/Reject buttons that call these endpoints.
+- **Disciplinary integration**: When recording a `warning_issued` or `suspension` action from the profile, the frontend also fires a `POST /api/disciplinary` to create a linked disciplinary case (in-memory store). The disciplinary tab in the profile reads from the same `/api/disciplinary?employeeId=X` endpoint and displays any linked cases.
+- **Career/Action timeline**: The timeline already worked via `GET /api/employee-actions?employeeId=X`; now it also shows the action status badge and approve/reject controls for pending items.
+
 ## Phase UI-1 — Tenant/Org Context Visibility (Completed)
 - **Layout header**: Shows company name (and branch/dept for manager/employee) as a green pill badge next to the role label in every page header
 - **Employees screen**: Branch filter dropdown added; Branch column shows branch badge; Org Unit column now shows node name + full breadcrumb; filtering uses descendant traversal (branch filter matches all sub-units)

@@ -61,7 +61,7 @@
       </div>
     </div>
     <div class="profile-header-actions" *ngIf="canManage">
-      <button class="btn btn-primary btn-sm" (click)="onTabChange('employment')">
+      <button class="btn btn-primary btn-sm" (click)="goToEdit()">
         <span class="material-icons">edit</span>
         {{ lang==='ar' ? 'تعديل' : 'Edit' }}
       </button>
@@ -1398,10 +1398,13 @@
             <span class="action-type-chip" [ngClass]="actionTypeLabel(action.actionType).cls">
               {{ lang==='ar' ? actionTypeLabel(action.actionType).ar : actionTypeLabel(action.actionType).en }}
             </span>
-            <span class="action-date">
-              <span class="material-icons" style="font-size:12px;vertical-align:middle">event</span>
-              {{ action.effectiveDate | date:'dd/MM/yyyy' }}
-            </span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span [ngClass]="actionStatusClass(action.status)">{{ actionStatusLabel(action.status) }}</span>
+              <span class="action-date">
+                <span class="material-icons" style="font-size:12px;vertical-align:middle">event</span>
+                {{ action.effectiveDate | date:'dd/MM/yyyy' }}
+              </span>
+            </div>
           </div>
 
           <!-- Before/After changes -->
@@ -1424,6 +1427,18 @@
             {{ action.createdByName || '—' }}
             &nbsp;·&nbsp;
             {{ action.createdAt | date:'dd/MM/yyyy HH:mm' }}
+          </div>
+
+          <!-- Approve / Reject buttons for pending actions -->
+          <div *ngIf="action.status === 'pending' && canManage" class="action-approval-row">
+            <button class="btn-action-approve" [disabled]="approvingId() === action.id" (click)="approveAction(action.id)">
+              <span class="material-icons">check_circle</span>
+              {{ approvingId() === action.id ? (lang==='ar' ? 'جاري الاعتماد...' : 'Approving...') : (lang==='ar' ? 'اعتماد وتطبيق' : 'Approve & Apply') }}
+            </button>
+            <button class="btn-action-reject" [disabled]="rejectingId() === action.id" (click)="rejectAction(action.id)">
+              <span class="material-icons">cancel</span>
+              {{ rejectingId() === action.id ? (lang==='ar' ? 'جاري الرفض...' : 'Rejecting...') : (lang==='ar' ? 'رفض' : 'Reject') }}
+            </button>
           </div>
         </div>
       </div>

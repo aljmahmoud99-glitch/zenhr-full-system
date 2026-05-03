@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
@@ -64,7 +64,8 @@ export class EmployeesComponent implements OnInit {
     private toast: ToastService,
     private settings: AppSettingsService,
     private orgNodesService: OrgNodesService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   get lang() {
@@ -123,6 +124,15 @@ export class EmployeesComponent implements OnInit {
     this.loadOrgNodes();
     this.loadJobTitles();
     this.loadComplianceBadges();
+
+    const editId = this.route.snapshot.queryParams['edit'];
+    if (editId) {
+      this.router.navigate([], { queryParams: {}, replaceUrl: true });
+      this.api.get<ApiResponse<Employee>>(`/api/employees/${editId}`).subscribe({
+        next: response => { if (response.data) this.openEdit(response.data); },
+        error: () => {}
+      });
+    }
   }
 
   t(ar: string, en: string) {

@@ -1197,9 +1197,21 @@ export class EmployeeProfileComponent implements OnInit {
       next: () => {
         this.actionSaving.set(false);
         this.closeActionModal();
-        this.toast.success(this.lang === 'ar' ? 'تم تسجيل الإجراء بنجاح.' : 'Action recorded successfully.');
+        this.toast.success(this.lang === 'ar' ? 'تم إرسال الإجراء بانتظار الاعتماد.' : 'Action submitted and awaiting approval.');
         this.loadActions(emp.id);
-        this.loadEmployee(emp.id);
+        // Link to disciplinary module for warning/suspension actions
+        if (f.actionType === 'warning_issued' || f.actionType === 'suspension') {
+          const discPayload: Record<string, any> = {
+            employeeId: emp.id,
+            violationDate: f.effectiveDate,
+            violationNameAr: f.actionType === 'warning_issued' ? 'إنذار رسمي' : 'إيقاف عن العمل',
+            violationNameEn: f.actionType === 'warning_issued' ? 'Official Warning' : 'Work Suspension',
+            penaltyType: f.actionType === 'warning_issued' ? 'warning' : 'suspension',
+            notes: f.notes || null,
+            status: 'pending',
+          };
+          this.api.post<any>('/api/disciplinary', discPayload).subscribe({ error: () => {} });
+        }
       },
       error: e => {
         this.actionSaving.set(false);
@@ -1207,6 +1219,61 @@ export class EmployeeProfileComponent implements OnInit {
         this.toast.error(getErrorMessage(e, this.lang === 'ar' ? 'حدث خطأ أثناء حفظ الإجراء.' : 'Failed to save action.'));
       }
     });
+  }
+
+  approvingId = signal<number | null>(null);
+  rejectingId = signal<number | null>(null);
+
+  approveAction(actionId: number) {
+    this.approvingId.set(actionId);
+    this.api.post<any>(`/api/employee-actions/${actionId}/approve`, {}).subscribe({
+      next: () => {
+        this.approvingId.set(null);
+        this.toast.success(this.lang === 'ar' ? 'تم اعتماد الإجراء وتطبيقه.' : 'Action approved and applied.');
+        const emp = this.employee();
+        if (emp) { this.loadActions(emp.id); this.loadEmployee(emp.id); }
+      },
+      error: e => {
+        this.approvingId.set(null);
+        this.toast.error(getErrorMessage(e, this.lang === 'ar' ? 'فشل اعتماد الإجراء.' : 'Failed to approve action.'));
+      }
+    });
+  }
+
+  rejectAction(actionId: number) {
+    this.rejectingId.set(actionId);
+    this.api.post<any>(`/api/employee-actions/${actionId}/reject`, {}).subscribe({
+      next: () => {
+        this.rejectingId.set(null);
+        this.toast.success(this.lang === 'ar' ? 'تم رفض الإجراء.' : 'Action rejected.');
+        const emp = this.employee();
+        if (emp) this.loadActions(emp.id);
+      },
+      error: e => {
+        this.rejectingId.set(null);
+        this.toast.error(getErrorMessage(e, this.lang === 'ar' ? 'فشل رفض الإجراء.' : 'Failed to reject action.'));
+      }
+    });
+  }
+
+  actionStatusLabel(status: string | null | undefined): string {
+    const s = status ?? 'applied';
+    if (s === 'pending')  return this.lang === 'ar' ? 'بانتظار الاعتماد' : 'Pending';
+    if (s === 'rejected') return this.lang === 'ar' ? 'مرفوض' : 'Rejected';
+    return this.lang === 'ar' ? 'مطبّق' : 'Applied';
+  }
+
+  actionStatusClass(status: string | null | undefined): string {
+    const s = status ?? 'applied';
+    if (s === 'pending')  return 'action-status-badge status-pending';
+    if (s === 'rejected') return 'action-status-badge status-rejected';
+    return 'action-status-badge status-applied';
+  }
+
+  goToEdit() {
+    const emp = this.employee();
+    if (!emp) return;
+    this.router.navigate(['/app/employees'], { queryParams: { edit: emp.id } });
   }
 
   ACTION_TYPES = [

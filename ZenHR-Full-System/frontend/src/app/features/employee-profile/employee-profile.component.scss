@@ -1,3 +1,206 @@
+/* ── Profile Page Wrapper ─────────────────────────────────────────── */
+.employee-profile-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--z-page-bg);
+}
+
+/* ── Profile Header ─────────────────────────────────────────────────── */
+.profile-header-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--z-surface);
+  border-bottom: 1px solid var(--z-border);
+  border-radius: 12px 12px 0 0;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.profile-header-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+.profile-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--z-text);
+  line-height: 1.25;
+}
+.profile-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.emp-code {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--z-text-muted);
+  background: var(--z-page-bg);
+  border: 1px solid var(--z-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: .5px;
+}
+
+/* ── Tab Bar ─────────────────────────────────────────────────────────── */
+.profile-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0 12px;
+  background: var(--z-surface);
+  border-bottom: 2px solid var(--z-border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--z-border) transparent;
+  &::-webkit-scrollbar { height: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--z-border); border-radius: 4px; }
+}
+.profile-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--z-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+  .material-icons { font-size: 15px; }
+  &:hover { color: var(--z-text); }
+  &.active {
+    color: var(--z-emerald);
+    border-bottom-color: var(--z-emerald);
+    font-weight: 600;
+  }
+}
+
+/* ── Tab Content Area ──────────────────────────────────────────────── */
+.profile-tab-body {
+  padding: 20px;
+  flex: 1;
+}
+
+/* ── Section Cards ─────────────────────────────────────────────────── */
+.profile-section-card {
+  background: var(--z-surface);
+  border: 1px solid var(--z-border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--z-text);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--z-border);
+  .material-icons { font-size: 18px; color: var(--z-emerald); }
+}
+
+/* ── Info Grid ──────────────────────────────────────────────────────── */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px 24px;
+}
+.info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.info-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--z-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.info-val {
+  font-size: 14px;
+  color: var(--z-text);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* ── Two-column Profile Grid ─────────────────────────────────────── */
+.profile-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  @media (max-width: 720px) { grid-template-columns: 1fr; }
+}
+
+/* ── Action Workflow Status Badges ─────────────────────────────────── */
+.action-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 9px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  display: inline-block;
+  &.status-pending  { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  &.status-applied  { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  &.status-rejected { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+}
+
+/* ── Approve / Reject Buttons ───────────────────────────────────────── */
+.action-approval-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--z-border);
+  flex-wrap: wrap;
+}
+.btn-action-approve,
+.btn-action-reject {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity .15s;
+  .material-icons { font-size: 14px; }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+.btn-action-approve {
+  background: var(--z-emerald, #10b981);
+  color: #fff;
+  &:hover:not(:disabled) { opacity: .88; }
+}
+.btn-action-reject {
+  background: #ef4444;
+  color: #fff;
+  &:hover:not(:disabled) { opacity: .88; }
+}
+
 .profile-error {
   margin: 24px;
 }

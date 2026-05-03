@@ -1,0 +1,102 @@
+Fix Employee Profile actions UX + Edit button + Disciplinary integration.
+
+Do not touch backend unless an endpoint is missing or broken.
+Do not rewrite unrelated modules.
+
+Current issues:
+1. Employee profile page design is messy and unprofessional.
+2. The Edit button in the employee profile header does not work.
+3. Employee actions such as warning, suspension, suspension_lift, and termination should be connected with the Disciplinary module, because they are HR disciplinary-related actions.
+4. The action dropdown works, but the page layout/tabs look visually broken.
+
+Tasks:
+
+1. Fix Edit button
+- Find the Edit button on /app/employees/:id profile header.
+- Make it open the existing employee edit modal or navigate to the existing edit flow.
+- It must load the selected employee data correctly.
+- Save must update the employee and refresh the profile.
+- Do not create a second duplicate edit form.
+
+2. Clean Employee Profile layout
+- Improve the profile page UI without changing business logic.
+- Make it look like a professional HR profile page.
+- Header should be clean:
+  - avatar
+  - employee name
+  - employee code
+  - department / org unit
+  - status badges
+  - action buttons aligned properly
+- Tabs should be visually clean, spaced, and readable.
+- Current tabs are too cramped and messy.
+- Use a clean horizontal tab bar with icons and labels.
+- On small screens, allow horizontal scroll but keep it styled.
+- Content sections should be inside clean cards.
+- Remove excessive empty white space.
+- Fix RTL alignment and spacing.
+
+3. Improve Action dropdown styling
+- Keep grouped categories:
+  - التوظيف
+  - الراتب
+  - الحالة
+  - الإجراءات
+- Make dropdown cleaner:
+  - better spacing
+  - consistent icons
+  - hover states
+  - clear separators
+- Ensure it does not overlap badly with the sidebar.
+
+4. Connect disciplinary-related actions
+For these employee action types:
+- warning_issued
+- suspension
+- suspension_lift
+- termination if applicable
+
+They must integrate with the Disciplinary module.
+
+Expected behavior:
+- If HR creates a warning action from employee profile:
+  - it should also create or link a disciplinary record if the disciplinary API/table exists.
+- If HR creates suspension:
+  - it should appear in the employee action timeline
+  - and be visible/linked from the disciplinary screen.
+- In the employee profile, the disciplinary tab should show related disciplinary records/actions.
+
+Implementation rule:
+- First inspect existing disciplinary APIs/tables/components.
+- If disciplinary records already exist, link employee_actions to them using reference id or shared employeeId/actionType/date.
+- Do not duplicate records blindly.
+- If no backend support exists, document the gap and add only safe minimal integration.
+
+5. Career History / Action Timeline
+- Ensure the timeline is visible in the "سجل الإجراءات" tab.
+- Timeline should show:
+  - action label
+  - date
+  - created by
+  - before/after changes
+  - notes
+- Empty state if no actions.
+
+6. Verification
+Test as HR:
+- Open /app/employees/:id
+- Click Edit → edit modal opens and saves
+- Click اتخاذ إجراء → create warning
+- Confirm warning appears in:
+  - employee action timeline
+  - disciplinary-related area if available
+- Create suspension
+- Confirm employee status updates and timeline records it
+- Confirm no console errors.
+
+Return:
+- files changed
+- why Edit was broken
+- how profile layout was improved
+- how disciplinary integration was handled
+- verification results

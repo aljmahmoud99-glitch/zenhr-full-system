@@ -1,0 +1,86 @@
+Important correction: Employee Actions must have real workflows, not just UI buttons.
+
+Do not treat actions as simple direct updates.
+
+For every action created from employee profile, implement/verify a proper workflow:
+
+1. Action workflow requirements
+Each action must have:
+- draft/request creation
+- status: pending | approved | rejected | applied | cancelled
+- created_by
+- approved_by
+- approval_date
+- effective_date
+- notes
+- audit trail
+- final side effects only after approval, unless the action type is explicitly immediate
+
+2. HR action flow
+When HR clicks "اتخاذ إجراء":
+- open action form
+- user fills details
+- submit creates a pending action/request
+- show it in timeline as pending
+- do NOT apply side effects immediately unless configured
+- approver reviews and approves
+- only then apply side effects:
+  - transfer updates org unit/department
+  - promotion updates job title
+  - salary_change updates salary components
+  - suspension updates employment status
+  - termination updates employment status + termination date
+
+3. Approval handling
+If an approval system already exists:
+- reuse it
+- integrate employee_actions with it
+If no approval system exists:
+- create a minimal safe approval workflow for employee_actions:
+  - POST /api/employee-actions creates pending
+  - POST /api/employee-actions/:id/approve applies side effects
+  - POST /api/employee-actions/:id/reject rejects without side effects
+
+4. Disciplinary actions workflow
+For warning_issued, suspension, suspension_lift:
+- link them with Disciplinary module
+- do not duplicate records blindly
+- disciplinary action should be pending until approved if approval is required
+- after approval:
+  - warning becomes official
+  - suspension updates employee status
+  - suspension_lift restores status if valid
+
+5. UI requirements
+In employee profile:
+- timeline must show status badge:
+  - pending
+  - approved
+  - rejected
+  - applied
+- actions dropdown creates a workflow item, not direct silent update
+- show pending approvals clearly
+- HR/Admin can approve/reject if allowed
+- normal employee cannot approve
+
+6. Safety rules
+- Side effects must be transactional and only occur once.
+- Re-approving an already applied action must be blocked.
+- Rejecting an applied action must be blocked.
+- Every state transition must be logged.
+- Backend must enforce all permissions.
+
+7. Verification
+Test:
+- create salary_change → status pending, salary not changed yet
+- approve salary_change → salary changes and timeline shows applied
+- reject transfer → org unit remains unchanged
+- create suspension → pending, status not changed yet
+- approve suspension → employee status becomes suspended
+- confirm disciplinary screen sees warning/suspension if available
+
+Return:
+- workflow design used
+- endpoints added/changed
+- frontend workflow screens/buttons added
+- verification results

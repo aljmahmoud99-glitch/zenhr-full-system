@@ -963,22 +963,7 @@ app.post("/api/employee-actions", auth, async (req, res) => {
       const afterFields: Record<string, any> = { ...beforeFields };
       for (const [k, v] of Object.entries(empUpdate)) afterFields[k] = v;
 
-      // ── 1. End-date current salary components if needed ───────────────────
-      if (insertSalaryComponent) {
-        await tx.update(employeeSalaryComponentsTable)
-          .set({ effectiveTo: dayBefore(effectiveDate) })
-          .where(and(
-            eq(employeeSalaryComponentsTable.employeeId, employeeId),
-            isNull(employeeSalaryComponentsTable.effectiveTo)
-          ));
-      }
-
-      // ── 2. Apply employee field updates ───────────────────────────────────
-      if (Object.keys(empUpdate).length > 0) {
-        await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, employeeId));
-      }
-
-      // ── 3. Insert action record ───────────────────────────────────────────
+      // ── Insert action record as PENDING (side effects applied only on approve) ──
       const [inserted] = await tx.insert(employeeActionsTable).values({
         companyId: user.companyId,
         employeeId,
@@ -988,36 +973,13 @@ app.post("/api/employee-actions", auth, async (req, res) => {
         previousValueJson: Object.keys(beforeFields).length ? JSON.stringify(beforeFields) : null,
         newValueJson: Object.keys(afterFields).length ? JSON.stringify(afterFields) : null,
         notes: notes ?? null,
-        status: "applied",
+        status: "pending",
       }).returning();
-
-      // ── 4. Insert new salary component row ───────────────────────────────
-      if (insertSalaryComponent) {
-        const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? "0";
-        const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? "0";
-        const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? "0";
-        const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? "0";
-        const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? "0";
-        const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? "0";
-        await tx.insert(employeeSalaryComponentsTable).values({
-          companyId: user.companyId,
-          employeeId,
-          basicSalary: String(newBasic),
-          housingAllowance: String(newHousing),
-          transportAllowance: String(newTransport),
-          mobileAllowance: String(newMobile),
-          mealAllowance: String(newMeal),
-          otherAllowances: String(newOther),
-          effectiveFrom: effectiveDate,
-          effectiveTo: null,
-          sourceActionId: inserted.id,
-        });
-      }
 
       return inserted;
     });
 
-    await logActivity(user.companyId, "employee_action", `${actionType} recorded for employee #${employeeId}`, null);
+    await logActivity(user.companyId, "employee_action", `${actionType} submitted for employee #${employeeId}`, null);
     res.status(201).json({
       success: true,
       data: {
@@ -1028,6 +990,143 @@ app.post("/api/employee-actions", auth, async (req, res) => {
     });
   } catch (e) {
     console.error("[POST /api/employee-actions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/employee-actions/:id/approve — apply side effects and mark applied
+app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "hradmin" && user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Only HR admins can approve actions" }); return;
+    }
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid action id" }); return; }
+
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Action not found" }); return; }
+    if (action.status !== "pending") { res.status(400).json({ success: false, message: "Action is not pending" }); return; }
+
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, action.employeeId), eq(employeesTable.companyId, user.companyId))).limit(1);
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    const after = action.newValueJson ? JSON.parse(action.newValueJson) : {};
+    const empUpdate: Record<string, any> = {};
+    let insertSalaryComponent = false;
+
+    if (action.actionType === "transfer") {
+      if (after.orgNodeId != null) empUpdate.orgNodeId = after.orgNodeId;
+      if (after.departmentId != null) empUpdate.departmentId = after.departmentId;
+    } else if (action.actionType === "promotion" || action.actionType === "demotion") {
+      if (after.jobTitleId != null) empUpdate.jobTitleId = after.jobTitleId;
+      if (after.basicSalary != null) {
+        empUpdate.basicSalary = String(after.basicSalary);
+        if (after.housingAllowance != null) empUpdate.housingAllowance = String(after.housingAllowance);
+        if (after.transportAllowance != null) empUpdate.transportAllowance = String(after.transportAllowance);
+        if (after.mobileAllowance != null) empUpdate.mobileAllowance = String(after.mobileAllowance);
+        if (after.mealAllowance != null) empUpdate.mealAllowance = String(after.mealAllowance);
+        if (after.otherAllowances != null) empUpdate.otherAllowances = String(after.otherAllowances);
+        insertSalaryComponent = true;
+      }
+    } else if (action.actionType === "salary_change") {
+      if (after.basicSalary != null) empUpdate.basicSalary = String(after.basicSalary);
+      if (after.housingAllowance != null) empUpdate.housingAllowance = String(after.housingAllowance);
+      if (after.transportAllowance != null) empUpdate.transportAllowance = String(after.transportAllowance);
+      if (after.mobileAllowance != null) empUpdate.mobileAllowance = String(after.mobileAllowance);
+      if (after.mealAllowance != null) empUpdate.mealAllowance = String(after.mealAllowance);
+      if (after.otherAllowances != null) empUpdate.otherAllowances = String(after.otherAllowances);
+      insertSalaryComponent = true;
+    } else if (action.actionType === "suspension") {
+      empUpdate.employmentStatus = "suspended";
+    } else if (action.actionType === "suspension_lift") {
+      empUpdate.employmentStatus = "active";
+    } else if (action.actionType === "termination") {
+      empUpdate.employmentStatus = "terminated";
+      empUpdate.terminationDate = action.effectiveDate;
+    } else if (action.actionType === "resignation") {
+      empUpdate.employmentStatus = "resigned";
+      empUpdate.terminationDate = action.effectiveDate;
+    } else if (action.actionType === "probation_complete") {
+      empUpdate.employmentStatus = "active";
+    } else if (action.actionType === "probation_fail") {
+      empUpdate.employmentStatus = "terminated";
+      empUpdate.terminationDate = action.effectiveDate;
+    } else if (action.actionType === "return_from_leave") {
+      empUpdate.employmentStatus = "active";
+    }
+
+    await db.transaction(async (tx) => {
+      if (insertSalaryComponent) {
+        await tx.update(employeeSalaryComponentsTable)
+          .set({ effectiveTo: dayBefore(action.effectiveDate) })
+          .where(and(
+            eq(employeeSalaryComponentsTable.employeeId, action.employeeId),
+            isNull(employeeSalaryComponentsTable.effectiveTo)
+          ));
+      }
+      if (Object.keys(empUpdate).length > 0) {
+        await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, action.employeeId));
+      }
+      await tx.update(employeeActionsTable)
+        .set({ status: "applied" })
+        .where(eq(employeeActionsTable.id, actionId));
+      if (insertSalaryComponent) {
+        const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? "0";
+        const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? "0";
+        const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? "0";
+        const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? "0";
+        const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? "0";
+        const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? "0";
+        await tx.insert(employeeSalaryComponentsTable).values({
+          companyId: user.companyId,
+          employeeId: action.employeeId,
+          basicSalary: String(newBasic),
+          housingAllowance: String(newHousing),
+          transportAllowance: String(newTransport),
+          mobileAllowance: String(newMobile),
+          mealAllowance: String(newMeal),
+          otherAllowances: String(newOther),
+          effectiveFrom: action.effectiveDate,
+          effectiveTo: null,
+          sourceActionId: actionId,
+        });
+      }
+    });
+
+    await logActivity(user.companyId, "employee_action", `${action.actionType} approved for employee #${action.employeeId}`, null);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /api/employee-actions/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/employee-actions/:id/reject — mark rejected, no side effects
+app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "hradmin" && user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Only HR admins can reject actions" }); return;
+    }
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid action id" }); return; }
+
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Action not found" }); return; }
+    if (action.status !== "pending") { res.status(400).json({ success: false, message: "Action is not pending" }); return; }
+
+    await db.update(employeeActionsTable)
+      .set({ status: "rejected" })
+      .where(eq(employeeActionsTable.id, actionId));
+
+    await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /api/employee-actions/:id/reject]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
