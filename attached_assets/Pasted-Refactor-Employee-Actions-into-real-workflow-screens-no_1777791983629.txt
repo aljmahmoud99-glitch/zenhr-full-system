@@ -1,0 +1,289 @@
+Refactor Employee Actions into real workflow screens, not simple profile dropdown actions.
+
+Do NOT keep all actions as small profile modals.
+Do NOT apply changes directly before approvals.
+Do NOT make this HR-only data display. Final approved changes must reflect across all affected screens.
+
+OBJECTIVE:
+Build structured workflow modules for employee actions with approvals and side effects after final approval only.
+
+Current problem:
+Employee action workflow is too shallow. Transfer/promotion/salary/suspension/etc. need full workflow screens, approval stages, and system-wide reflection after approval.
+
+Required Workflow Groups:
+
+1. Career Movement Screen
+Create ONE full screen for:
+- Transfer / النقل
+- Promotion / الترقية
+- Demotion / خفض الدرجة
+
+Route suggestion:
+  /app/employee-actions/career-movements
+
+This screen must support:
+- create request
+- list requests
+- view request details
+- approve/reject workflow
+- status tracking
+
+Transfer:
+Example: employee in Amman branch → move to Irbid branch.
+Fields:
+- employee
+- current company / branch / department / org unit
+- target branch
+- target department/org unit
+- effective date
+- reason/notes
+- attachments if existing attachment system supports it
+
+Promotion:
+Must use dynamic career path / job ladder data.
+Fields:
+- employee
+- current job title / grade
+- target job title / grade
+- related career path if exists
+- effective date
+- salary change optional
+- reason/notes
+
+Demotion:
+Same as promotion but downward:
+- current job / grade
+- target lower job / grade
+- reason
+- effective date
+
+Approval chain for career movement:
+- direct manager approval
+- HR approval
+- payroll manager approval if salary/job grade affects payroll
+Only after all required approvals:
+- transfer updates org_node_id / department_id
+- promotion/demotion updates job_title_id / grade
+- if salary changed, update salary components
+- create employee_actions record
+- create audit/activity log
+
+2. Salary Change Screen
+Create separate full screen:
+  /app/employee-actions/salary-changes
+
+Fields:
+- employee
+- current salary components
+- new salary components
+- effective date
+- reason
+- notes
+
+Approval chain:
+- HR approval
+- payroll manager approval
+- optional direct manager approval if configured
+
+Only after approval:
+- end-date old salary components
+- create new salary components
+- update employee salary summary if used
+- create employee_actions record
+- reflect on payroll dashboard, employee profile, payslip preparation screens
+
+3. Employment Status Screen
+Create separate full screen for:
+- Suspension / إيقاف
+- Suspension Lift / رفع الإيقاف
+- Termination / إنهاء الخدمة
+
+Route:
+  /app/employee-actions/status-changes
+
+Fields:
+- employee
+- current status
+- requested status/action
+- effective date
+- reason
+- notes
+
+Approval chain:
+- direct manager approval if applicable
+- HR approval
+- payroll manager approval if payroll impact exists
+
+Only after approval:
+- suspension → employee status = suspended
+- suspension_lift → employee status = active
+- termination → employee status = terminated + termination date
+- reflect everywhere:
+  - employees list
+  - employee profile
+  - dashboard counts
+  - payroll eligibility
+  - attendance/leave eligibility if applicable
+
+4. Disciplinary Screen Integration
+Move these actions into the Disciplinary module:
+- Warning / إنذار
+- Contract Renewal / تجديد عقد if it fits existing disciplinary/contracts area
+
+Do not keep them only inside employee profile dropdown.
+
+Route:
+  existing disciplinary screen OR /app/disciplinary/actions
+
+Warning workflow:
+- create warning request
+- reason
+- severity
+- notes
+- employee
+- attachments if supported
+- approvals
+- after approval: official warning appears in:
+  - employee disciplinary tab
+  - employee action history
+  - disciplinary screen
+
+Contract renewal workflow:
+If there is a contracts/compliance module, use that. If not, place temporarily under disciplinary/actions but label clearly as contract workflow.
+Fields:
+- employee
+- current contract end date
+- new contract end date
+- effective date
+- notes
+- approvals
+After approval:
+- update contract end date
+- create employee action history
+- reflect in employee profile and contract/compliance alerts
+
+Core Architecture Requirements:
+
+1. Workflow statuses
+Every workflow request must have:
+- draft
+- pending_manager
+- pending_hr
+- pending_payroll
+- approved
+- rejected
+- applied
+- cancelled
+
+2. Approval records
+Each approval step must store:
+- request_id
+- approver_role
+- approver_user_id
+- decision: pending | approved | rejected
+- decision_date
+- notes
+
+3. No direct side effects before approval
+Creating a request must NOT immediately update employee data.
+
+Correct flow:
+create request → approvals → final approval → apply side effects transactionally → mark applied
+
+4. Transaction safety
+Final apply must be one transaction:
+- update employee
+- update salary if needed
+- insert employee_actions
+- insert activity_logs
+- update workflow status
+
+If any part fails, rollback all.
+
+5. Prevent double application
+If request is already applied:
+- block re-approval
+- block re-apply
+- return clear error
+
+6. Reflection across system
+Approved/applied workflows must reflect across all relevant screens:
+- employee profile
+- employees list
+- manager team screen
+- payroll screens
+- HR dashboard
+- employee self-service
+- org structure reports
+- disciplinary screen if related
+
+Example:
+If employee gets promoted:
+- employee profile shows new job title
+- employees table shows new job title
+- career history shows promotion
+- payroll sees updated salary/grade if changed
+- employee self-service sees new title after workflow is applied
+
+7. Permissions
+Visibility must be role-based:
+- HR can create and approve HR steps
+- direct manager can approve only own team requests
+- payroll manager can approve salary/payroll-impact steps
+- employee can see own finalized actions, and pending requests only if relevant
+- no role can approve its own request unless explicitly allowed
+
+8. UI requirements
+Do not put everything in employee profile dropdown.
+Employee profile may show:
+- quick button to start workflow
+- timeline
+- pending requests summary
+But the real workflow management must live in full screens.
+
+Screens must include:
+- filters by status, type, employee, branch
+- request list
+- detail view
+- approval timeline
+- comments/notes
+- approve/reject buttons based on role
+- clean Arabic RTL layout
+- English digits always
+
+9. Verification scenarios
+
+Test Transfer:
+- Create transfer: Amman → Irbid
+- Before approvals: employee still in Amman
+- Manager approves
+- HR approves
+- Payroll approves if needed
+- After final approval: employee appears in Irbid branch everywhere
+
+Test Promotion:
+- Create promotion using dynamic career path/job ladder
+- Before approval: employee title unchanged
+- After approval: new title appears in employee profile, employees table, manager view
+
+Test Salary Change:
+- Create salary change
+- Before approval: salary unchanged
+- After payroll approval: salary components updated and old components end-dated
+
+Test Suspension:
+- Create suspension
+- Before approval: status still active
+- After approval: status suspended across all screens
+
+Test Warning:
+- Create warning from disciplinary screen
+- After approval: appears in disciplinary list and employee action timeline
+
+Return:
+- screens created/changed
+- workflow database/API design
+- approval chain implemented
+- side effects implemented
+- permissions enforced
+- verification results

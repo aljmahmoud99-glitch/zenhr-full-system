@@ -191,6 +191,21 @@ export const routes: Routes = [
         path: 'user-roles',
         ...pageAccess('/app/user-roles'),
         loadComponent: () => import('./features/user-roles/user-roles.component').then(m => m.UserRolesComponent)
+      },
+      {
+        path: 'employee-actions/career-movements',
+        ...pageAccess('/app/employee-actions/career-movements'),
+        loadComponent: () => import('./features/employee-actions/career-movements/career-movements.component').then(m => m.CareerMovementsComponent)
+      },
+      {
+        path: 'employee-actions/salary-changes',
+        ...pageAccess('/app/employee-actions/salary-changes'),
+        loadComponent: () => import('./features/employee-actions/salary-changes/salary-changes.component').then(m => m.SalaryChangesComponent)
+      },
+      {
+        path: 'employee-actions/status-changes',
+        ...pageAccess('/app/employee-actions/status-changes'),
+        loadComponent: () => import('./features/employee-actions/status-changes/status-changes.component').then(m => m.StatusChangesComponent)
       }
     ]
   },

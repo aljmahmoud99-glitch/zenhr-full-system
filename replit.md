@@ -22,6 +22,48 @@ The Replit runtime uses the **Node.js/Express + PostgreSQL** stack. The `.NET/My
 
 ---
 
+## Workflow Module — Multi-Step Employee Action Approvals
+
+Three structured workflow screens added under `/app/employee-actions/*`:
+
+### Routes & Components
+- `/app/employee-actions/career-movements` → `CareerMovementsComponent` — Transfers, Promotions, Demotions
+- `/app/employee-actions/salary-changes` → `SalaryChangesComponent` — Salary adjustments
+- `/app/employee-actions/status-changes` → `StatusChangesComponent` — Suspension, Termination, Resignation, Contract Renewal
+
+### API Endpoints (all under `/api/workflow/`)
+- `GET /api/workflow/career-movements` — list career movement actions
+- `GET /api/workflow/salary-changes` — list salary change actions
+- `GET /api/workflow/status-changes` — list status change actions
+- `POST /api/workflow/requests` — create new workflow request
+- `POST /api/workflow/requests/:id/approve` — advance to next approval step or apply side effects
+- `POST /api/workflow/requests/:id/reject` — reject at current step
+- `POST /api/workflow/requests/:id/cancel` — cancel pending request
+- `GET /api/workflow/employee-list` — all active employees for dropdowns
+
+### Approval Chains
+- `salary_change` → `pending_hr → pending_payroll`
+- `promotion | demotion | termination` → `pending_manager → pending_hr → pending_payroll`
+- All others → `pending_manager → pending_hr`
+
+### DB Schema
+- `employee_actions.status` extended to `varchar(30)` to hold multi-word statuses
+- `employee_actions.approval_steps_json` TEXT column stores chain + step decisions as JSON
+
+### Role Permissions
+- `pending_manager`: manager, hradmin, superadmin
+- `pending_hr`: hradmin, superadmin
+- `pending_payroll`: payrolladmin, hradmin, superadmin
+
+### Side Effects on Final Approval
+- Salary changes: updates employee salary fields + inserts new salary component record
+- Transfers: updates `orgNodeId`, `departmentId`
+- Promotions/Demotions: updates `jobTitleId` + optionally salary
+- Termination/Resignation: updates `employmentStatus`, sets `terminationDate`
+- Suspension/Lift: updates `employmentStatus`
+
+---
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -3698,6 +3698,503 @@ app.post("/api/register/company", async (req, res) => {
   }
 });
 
+// ─── Workflow: Multi-Step Employee Action Workflows ───────────────────────────
+
+// Ensure approvalStepsJson column exists (idempotent)
+;(async () => {
+  try {
+    await db.execute(sql`ALTER TABLE employee_actions ALTER COLUMN status TYPE varchar(30)`);
+  } catch {}
+  try {
+    await db.execute(sql`ALTER TABLE employee_actions ADD COLUMN IF NOT EXISTS approval_steps_json TEXT`);
+  } catch {}
+})();
+
+const CAREER_ACTION_TYPES = ['transfer', 'promotion', 'demotion'];
+const SALARY_ACTION_TYPES = ['salary_change'];
+const STATUS_ACTION_TYPES = ['suspension', 'suspension_lift', 'termination', 'resignation', 'contract_renewal'];
+
+function getApprovalChain(actionType: string): string[] {
+  if (['salary_change'].includes(actionType)) {
+    return ['pending_hr', 'pending_payroll'];
+  } else if (['termination', 'promotion', 'demotion'].includes(actionType)) {
+    return ['pending_manager', 'pending_hr', 'pending_payroll'];
+  } else {
+    return ['pending_manager', 'pending_hr'];
+  }
+}
+
+function canApproveWorkflowStep(role: string, status: string): boolean {
+  if (role === 'superadmin') return true;
+  if (status === 'pending_manager') return ['manager', 'hradmin'].includes(role);
+  if (status === 'pending_hr') return ['hradmin'].includes(role);
+  if (status === 'pending_payroll') return ['payrolladmin', 'hradmin'].includes(role);
+  return false;
+}
+
+const workflowEmpAlias = alias(employeesTable, "wf_target_emp");
+const workflowCreatorAlias = alias(employeesTable, "wf_creator_emp");
+
+async function queryWorkflowActions(companyId: number, typeGroup: string[]) {
+  const rows = await db.select({
+    id: employeeActionsTable.id,
+    companyId: employeeActionsTable.companyId,
+    employeeId: employeeActionsTable.employeeId,
+    actionType: employeeActionsTable.actionType,
+    effectiveDate: employeeActionsTable.effectiveDate,
+    createdByUserId: employeeActionsTable.createdByUserId,
+    previousValueJson: employeeActionsTable.previousValueJson,
+    newValueJson: employeeActionsTable.newValueJson,
+    notes: employeeActionsTable.notes,
+    status: employeeActionsTable.status,
+    approvalStepsJson: employeeActionsTable.approvalStepsJson,
+    createdAt: employeeActionsTable.createdAt,
+    employeeFirstNameEn: workflowEmpAlias.firstNameEn,
+    employeeLastNameEn: workflowEmpAlias.lastNameEn,
+    employeeFirstNameAr: workflowEmpAlias.firstNameAr,
+    employeeLastNameAr: workflowEmpAlias.lastNameAr,
+    employeeCode: workflowEmpAlias.employeeCode,
+    createdByUsername: usersTable.username,
+    createdByFirstName: workflowCreatorAlias.firstNameEn,
+    createdByLastName: workflowCreatorAlias.lastNameEn,
+  })
+  .from(employeeActionsTable)
+  .leftJoin(workflowEmpAlias, eq(employeeActionsTable.employeeId, workflowEmpAlias.id))
+  .leftJoin(usersTable, eq(employeeActionsTable.createdByUserId, usersTable.id))
+  .leftJoin(workflowCreatorAlias, eq(usersTable.employeeId, workflowCreatorAlias.id))
+  .where(and(
+    eq(employeeActionsTable.companyId, companyId),
+    inArray(employeeActionsTable.actionType, typeGroup)
+  ))
+  .orderBy(desc(employeeActionsTable.createdAt));
+
+  return rows.map(r => ({
+    ...r,
+    employeeFullNameEn: `${r.employeeFirstNameEn ?? ''} ${r.employeeLastNameEn ?? ''}`.trim(),
+    employeeFullNameAr: `${r.employeeFirstNameAr ?? ''} ${r.employeeLastNameAr ?? ''}`.trim(),
+    createdByName: r.createdByFirstName && r.createdByLastName
+      ? `${r.createdByFirstName} ${r.createdByLastName}`
+      : (r.createdByUsername ?? null),
+    labelEn: ACTION_TYPE_LABELS[r.actionType]?.en ?? r.actionType,
+    labelAr: ACTION_TYPE_LABELS[r.actionType]?.ar ?? r.actionType,
+  }));
+}
+
+// GET /api/workflow/career-movements
+app.get("/api/workflow/career-movements", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!['hradmin', 'superadmin', 'manager', 'payrolladmin'].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const data = await queryWorkflowActions(user.companyId, CAREER_ACTION_TYPES);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/workflow/career-movements]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/workflow/salary-changes
+app.get("/api/workflow/salary-changes", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!['hradmin', 'superadmin', 'payrolladmin'].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const data = await queryWorkflowActions(user.companyId, SALARY_ACTION_TYPES);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/workflow/salary-changes]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/workflow/status-changes
+app.get("/api/workflow/status-changes", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!['hradmin', 'superadmin', 'manager', 'payrolladmin'].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const data = await queryWorkflowActions(user.companyId, STATUS_ACTION_TYPES);
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/workflow/status-changes]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/workflow/requests/:id
+app.get("/api/workflow/requests/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    res.json({ success: true, data: action });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/workflow/requests — create new workflow request
+app.post("/api/workflow/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!['hradmin', 'superadmin', 'manager'].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    const { employeeId, actionType, effectiveDate, notes, ...extra } = req.body as {
+      employeeId: number; actionType: string; effectiveDate: string;
+      notes?: string; [k: string]: any;
+    };
+    if (!employeeId || !actionType || !effectiveDate) {
+      res.status(400).json({ success: false, message: "employeeId, actionType, effectiveDate are required" }); return;
+    }
+
+    const allWorkflowTypes = [...CAREER_ACTION_TYPES, ...SALARY_ACTION_TYPES, ...STATUS_ACTION_TYPES];
+    if (!allWorkflowTypes.includes(actionType)) {
+      res.status(400).json({ success: false, message: "Invalid actionType for workflow" }); return;
+    }
+
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, user.companyId))).limit(1);
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    // Build before/after snapshots (same logic as existing employee-actions POST)
+    const beforeFields: Record<string, any> = {};
+    const afterFields: Record<string, any> = {};
+
+    if (actionType === 'transfer') {
+      beforeFields.orgNodeId = emp.orgNodeId;
+      beforeFields.departmentId = emp.departmentId;
+      afterFields.orgNodeId = extra.orgNodeId ?? emp.orgNodeId;
+      afterFields.departmentId = extra.departmentId ?? emp.departmentId;
+    } else if (actionType === 'promotion' || actionType === 'demotion') {
+      beforeFields.jobTitleId = emp.jobTitleId;
+      afterFields.jobTitleId = extra.jobTitleId ?? emp.jobTitleId;
+      if (extra.basicSalary != null) {
+        beforeFields.basicSalary = emp.basicSalary;
+        beforeFields.housingAllowance = emp.housingAllowance;
+        beforeFields.transportAllowance = emp.transportAllowance;
+        beforeFields.mobileAllowance = emp.mobileAllowance;
+        beforeFields.mealAllowance = emp.mealAllowance;
+        beforeFields.otherAllowances = emp.otherAllowances;
+        afterFields.basicSalary = extra.basicSalary;
+        afterFields.housingAllowance = extra.housingAllowance ?? emp.housingAllowance;
+        afterFields.transportAllowance = extra.transportAllowance ?? emp.transportAllowance;
+        afterFields.mobileAllowance = extra.mobileAllowance ?? emp.mobileAllowance;
+        afterFields.mealAllowance = extra.mealAllowance ?? emp.mealAllowance;
+        afterFields.otherAllowances = extra.otherAllowances ?? emp.otherAllowances;
+      }
+    } else if (actionType === 'salary_change') {
+      beforeFields.basicSalary = emp.basicSalary;
+      beforeFields.housingAllowance = emp.housingAllowance;
+      beforeFields.transportAllowance = emp.transportAllowance;
+      beforeFields.mobileAllowance = emp.mobileAllowance;
+      beforeFields.mealAllowance = emp.mealAllowance;
+      beforeFields.otherAllowances = emp.otherAllowances;
+      afterFields.basicSalary = extra.basicSalary;
+      afterFields.housingAllowance = extra.housingAllowance ?? emp.housingAllowance;
+      afterFields.transportAllowance = extra.transportAllowance ?? emp.transportAllowance;
+      afterFields.mobileAllowance = extra.mobileAllowance ?? emp.mobileAllowance;
+      afterFields.mealAllowance = extra.mealAllowance ?? emp.mealAllowance;
+      afterFields.otherAllowances = extra.otherAllowances ?? emp.otherAllowances;
+    } else if (actionType === 'suspension') {
+      beforeFields.employmentStatus = emp.employmentStatus;
+      afterFields.employmentStatus = 'suspended';
+    } else if (actionType === 'suspension_lift') {
+      beforeFields.employmentStatus = emp.employmentStatus;
+      afterFields.employmentStatus = 'active';
+    } else if (actionType === 'termination') {
+      beforeFields.employmentStatus = emp.employmentStatus;
+      afterFields.employmentStatus = 'terminated';
+      if (extra.terminationReason) afterFields.terminationReason = extra.terminationReason;
+    } else if (actionType === 'resignation') {
+      beforeFields.employmentStatus = emp.employmentStatus;
+      afterFields.employmentStatus = 'resigned';
+    } else if (actionType === 'contract_renewal') {
+      beforeFields.contractEndDate = emp.contractEndDate;
+      afterFields.contractEndDate = extra.contractEndDate ?? emp.contractEndDate;
+    }
+
+    // Determine initial status from approval chain
+    const chain = getApprovalChain(actionType);
+    const initialStatus = chain[0];
+
+    const approvalStepsData = { chain, steps: [] as any[] };
+
+    const [inserted] = await db.insert(employeeActionsTable).values({
+      companyId: user.companyId,
+      employeeId,
+      actionType,
+      effectiveDate,
+      createdByUserId: user.userId,
+      previousValueJson: Object.keys(beforeFields).length ? JSON.stringify(beforeFields) : null,
+      newValueJson: Object.keys(afterFields).length ? JSON.stringify(afterFields) : null,
+      notes: notes ?? null,
+      status: initialStatus,
+      approvalStepsJson: JSON.stringify(approvalStepsData),
+    }).returning();
+
+    await logActivity(user.companyId, "employee_action", `${actionType} workflow request created for employee #${employeeId}`, null);
+    res.status(201).json({ success: true, data: { ...inserted, labelEn: ACTION_TYPE_LABELS[actionType]?.en, labelAr: ACTION_TYPE_LABELS[actionType]?.ar } });
+  } catch (e) {
+    console.error("[POST /api/workflow/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/workflow/requests/:id/approve — advance to next step or apply side effects
+app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+    if (!canApproveWorkflowStep(user.role, action.status)) {
+      res.status(403).json({ success: false, message: "You are not authorized to approve at this stage" }); return;
+    }
+
+    // Parse or initialize approval steps data
+    let approvalData: { chain: string[]; steps: any[] };
+    if (action.approvalStepsJson) {
+      try { approvalData = JSON.parse(action.approvalStepsJson); }
+      catch { approvalData = { chain: getApprovalChain(action.actionType), steps: [] }; }
+    } else {
+      approvalData = { chain: getApprovalChain(action.actionType), steps: [] };
+    }
+
+    // Record this approval step
+    approvalData.steps.push({
+      step: action.status,
+      userId: user.userId,
+      username: user.username,
+      decision: 'approved',
+      date: new Date().toISOString(),
+      notes: req.body.notes ?? null,
+    });
+
+    // Determine next status
+    const currentIdx = approvalData.chain.indexOf(action.status);
+    const nextStatus = currentIdx >= 0 && currentIdx < approvalData.chain.length - 1
+      ? approvalData.chain[currentIdx + 1]
+      : null;
+
+    if (nextStatus) {
+      // Advance to next step
+      await db.update(employeeActionsTable)
+        .set({ status: nextStatus, approvalStepsJson: JSON.stringify(approvalData) })
+        .where(eq(employeeActionsTable.id, actionId));
+      await logActivity(user.companyId, "employee_action", `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
+      res.json({ success: true, nextStatus });
+    } else {
+      // Final approval — apply side effects
+      const [emp] = await db.select().from(employeesTable)
+        .where(and(eq(employeesTable.id, action.employeeId), eq(employeesTable.companyId, user.companyId))).limit(1);
+      if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+      const after = action.newValueJson ? JSON.parse(action.newValueJson) : {};
+      const empUpdate: Record<string, any> = {};
+      let insertSalaryComponent = false;
+
+      if (action.actionType === 'transfer') {
+        if (after.orgNodeId != null) empUpdate.orgNodeId = after.orgNodeId;
+        if (after.departmentId != null) empUpdate.departmentId = after.departmentId;
+      } else if (action.actionType === 'promotion' || action.actionType === 'demotion') {
+        if (after.jobTitleId != null) empUpdate.jobTitleId = after.jobTitleId;
+        if (after.basicSalary != null) {
+          empUpdate.basicSalary = String(after.basicSalary);
+          if (after.housingAllowance != null) empUpdate.housingAllowance = String(after.housingAllowance);
+          if (after.transportAllowance != null) empUpdate.transportAllowance = String(after.transportAllowance);
+          if (after.mobileAllowance != null) empUpdate.mobileAllowance = String(after.mobileAllowance);
+          if (after.mealAllowance != null) empUpdate.mealAllowance = String(after.mealAllowance);
+          if (after.otherAllowances != null) empUpdate.otherAllowances = String(after.otherAllowances);
+          insertSalaryComponent = true;
+        }
+      } else if (action.actionType === 'salary_change') {
+        if (after.basicSalary != null) empUpdate.basicSalary = String(after.basicSalary);
+        if (after.housingAllowance != null) empUpdate.housingAllowance = String(after.housingAllowance);
+        if (after.transportAllowance != null) empUpdate.transportAllowance = String(after.transportAllowance);
+        if (after.mobileAllowance != null) empUpdate.mobileAllowance = String(after.mobileAllowance);
+        if (after.mealAllowance != null) empUpdate.mealAllowance = String(after.mealAllowance);
+        if (after.otherAllowances != null) empUpdate.otherAllowances = String(after.otherAllowances);
+        insertSalaryComponent = true;
+      } else if (action.actionType === 'suspension') {
+        empUpdate.employmentStatus = 'suspended';
+      } else if (action.actionType === 'suspension_lift') {
+        empUpdate.employmentStatus = 'active';
+      } else if (action.actionType === 'termination') {
+        empUpdate.employmentStatus = 'terminated';
+        empUpdate.terminationDate = action.effectiveDate;
+        if (after.terminationReason) empUpdate.terminationReason = after.terminationReason;
+      } else if (action.actionType === 'resignation') {
+        empUpdate.employmentStatus = 'resigned';
+        empUpdate.terminationDate = action.effectiveDate;
+      } else if (action.actionType === 'contract_renewal') {
+        if (after.contractEndDate) empUpdate.contractEndDate = after.contractEndDate;
+      }
+
+      await db.transaction(async (tx) => {
+        if (insertSalaryComponent) {
+          await tx.update(employeeSalaryComponentsTable)
+            .set({ effectiveTo: dayBefore(action.effectiveDate) })
+            .where(and(
+              eq(employeeSalaryComponentsTable.employeeId, action.employeeId),
+              isNull(employeeSalaryComponentsTable.effectiveTo)
+            ));
+        }
+        if (Object.keys(empUpdate).length > 0) {
+          await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, action.employeeId));
+        }
+        await tx.update(employeeActionsTable)
+          .set({ status: 'applied', approvalStepsJson: JSON.stringify(approvalData) })
+          .where(eq(employeeActionsTable.id, actionId));
+        if (insertSalaryComponent) {
+          const newBasic = empUpdate.basicSalary ?? emp.basicSalary ?? '0';
+          const newHousing = empUpdate.housingAllowance ?? emp.housingAllowance ?? '0';
+          const newTransport = empUpdate.transportAllowance ?? emp.transportAllowance ?? '0';
+          const newMobile = empUpdate.mobileAllowance ?? emp.mobileAllowance ?? '0';
+          const newMeal = empUpdate.mealAllowance ?? emp.mealAllowance ?? '0';
+          const newOther = empUpdate.otherAllowances ?? emp.otherAllowances ?? '0';
+          await tx.insert(employeeSalaryComponentsTable).values({
+            companyId: user.companyId,
+            employeeId: action.employeeId,
+            basicSalary: String(newBasic),
+            housingAllowance: String(newHousing),
+            transportAllowance: String(newTransport),
+            mobileAllowance: String(newMobile),
+            mealAllowance: String(newMeal),
+            otherAllowances: String(newOther),
+            effectiveFrom: action.effectiveDate,
+            effectiveTo: null,
+            sourceActionId: actionId,
+          });
+        }
+      });
+
+      await logActivity(user.companyId, "employee_action", `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
+      res.json({ success: true, nextStatus: 'applied' });
+    }
+  } catch (e) {
+    console.error("[POST /api/workflow/requests/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/workflow/requests/:id/reject
+app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+    if (!canApproveWorkflowStep(user.role, action.status)) {
+      res.status(403).json({ success: false, message: "Not authorized to reject at this stage" }); return;
+    }
+
+    let approvalData: { chain: string[]; steps: any[] };
+    if (action.approvalStepsJson) {
+      try { approvalData = JSON.parse(action.approvalStepsJson); }
+      catch { approvalData = { chain: getApprovalChain(action.actionType), steps: [] }; }
+    } else {
+      approvalData = { chain: getApprovalChain(action.actionType), steps: [] };
+    }
+
+    approvalData.steps.push({
+      step: action.status,
+      userId: user.userId,
+      username: user.username,
+      decision: 'rejected',
+      date: new Date().toISOString(),
+      notes: req.body.notes ?? null,
+    });
+
+    await db.update(employeeActionsTable)
+      .set({ status: 'rejected', approvalStepsJson: JSON.stringify(approvalData) })
+      .where(eq(employeeActionsTable.id, actionId));
+
+    await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /api/workflow/requests/:id/reject]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/workflow/requests/:id/cancel
+app.post("/api/workflow/requests/:id/cancel", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const actionId = parseInt(req.params.id, 10);
+    if (isNaN(actionId)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+    if (!action.status.startsWith('pending')) {
+      res.status(400).json({ success: false, message: "Only pending requests can be cancelled" }); return;
+    }
+    const canCancel = action.createdByUserId === user.userId || ['hradmin', 'superadmin'].includes(user.role);
+    if (!canCancel) { res.status(403).json({ success: false, message: "Not authorized to cancel" }); return; }
+
+    await db.update(employeeActionsTable)
+      .set({ status: 'cancelled' })
+      .where(eq(employeeActionsTable.id, actionId));
+
+    await logActivity(user.companyId, "employee_action", `${action.actionType} workflow request cancelled`, null);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[POST /api/workflow/requests/:id/cancel]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/workflow/employee-list — all active employees for workflow dropdowns
+app.get("/api/workflow/employee-list", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const emps = await db.select({
+      id: employeesTable.id,
+      employeeCode: employeesTable.employeeCode,
+      firstNameEn: employeesTable.firstNameEn,
+      lastNameEn: employeesTable.lastNameEn,
+      firstNameAr: employeesTable.firstNameAr,
+      lastNameAr: employeesTable.lastNameAr,
+      basicSalary: employeesTable.basicSalary,
+      housingAllowance: employeesTable.housingAllowance,
+      transportAllowance: employeesTable.transportAllowance,
+      mobileAllowance: employeesTable.mobileAllowance,
+      mealAllowance: employeesTable.mealAllowance,
+      otherAllowances: employeesTable.otherAllowances,
+    })
+    .from(employeesTable)
+    .where(and(
+      eq(employeesTable.companyId, user.companyId),
+      eq(employeesTable.isDeleted, false),
+      eq(employeesTable.employmentStatus, 'active')
+    ))
+    .orderBy(asc(employeesTable.firstNameEn));
+    res.json({ success: true, data: emps });
+  } catch (e) {
+    console.error("[GET /api/employees/active-list]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 async function logActivity(companyId: number, type: string, description: string, employeeName: string | null) {
   try {

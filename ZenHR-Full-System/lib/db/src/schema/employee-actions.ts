@@ -42,7 +42,8 @@ export const employeeActionsTable = pgTable("employee_actions", {
   newValueJson: text("new_value_json"),
 
   notes: text("notes"),
-  status: varchar("status", { length: 20 }).notNull().default("applied"),
+  status: varchar("status", { length: 30 }).notNull().default("applied"),
+  approvalStepsJson: text("approval_steps_json"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

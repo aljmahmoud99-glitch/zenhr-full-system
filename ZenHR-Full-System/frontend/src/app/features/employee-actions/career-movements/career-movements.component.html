@@ -1,0 +1,425 @@
+<section class="z-page workflow-page" [attr.dir]="lang==='ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
+
+  <!-- PAGE HEADER -->
+  <header class="z-page-header">
+    <div class="header-copy">
+      <span class="eyebrow">{{ t('إجراءات الموظفين', 'Employee Actions') }}</span>
+      <h1 class="z-title">{{ t('الحركات الوظيفية', 'Career Movements') }}</h1>
+      <p class="z-body">{{ t('تتبّع طلبات النقل والترقية وتخفيض الدرجة مع دورة موافقة متعددة المراحل.', 'Track transfers, promotions, and demotions through a structured multi-step approval workflow.') }}</p>
+    </div>
+    <div class="header-actions" *ngIf="!selectedAction">
+      <button class="z-btn-primary" type="button" (click)="openCreate()"
+        *ngIf="['hradmin','manager','superadmin'].includes(role)">
+        <span class="material-icons">add</span>
+        {{ t('طلب جديد', 'New Request') }}
+      </button>
+    </div>
+    <div class="header-actions" *ngIf="selectedAction">
+      <button class="z-btn-secondary" type="button" (click)="closeDetail()">
+        <span class="material-icons">arrow_back</span>
+        {{ t('العودة', 'Back') }}
+      </button>
+    </div>
+  </header>
+
+  <!-- KPI CARDS -->
+  <ng-container *ngIf="!selectedAction">
+    <app-skeleton-kpi-cards *ngIf="loading()" [count]="4" />
+    <section class="stats-grid" *ngIf="!loading()">
+      <article class="z-card z-kpi-card">
+        <div class="metric-label">{{ t('إجمالي الطلبات', 'Total Requests') }}</div>
+        <div class="metric-value">{{ kpis().total }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-amber">
+        <div class="metric-label">{{ t('قيد الموافقة', 'Pending Approval') }}</div>
+        <div class="metric-value">{{ kpis().pending }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-emerald">
+        <div class="metric-label">{{ t('مُطبَّق', 'Applied') }}</div>
+        <div class="metric-value">{{ kpis().applied }}</div>
+      </article>
+      <article class="z-card z-kpi-card accent-danger">
+        <div class="metric-label">{{ t('مرفوض', 'Rejected') }}</div>
+        <div class="metric-value">{{ kpis().rejected }}</div>
+      </article>
+    </section>
+
+    <!-- FILTERS -->
+    <section class="z-card filters-card">
+      <div class="filters-head">
+        <div>
+          <h2 class="z-heading">{{ t('البحث والتصفية', 'Search & Filters') }}</h2>
+        </div>
+        <button class="z-btn-ghost" type="button" *ngIf="hasActiveFilters" (click)="resetFilters()">
+          {{ t('مسح الفلاتر', 'Clear Filters') }}
+        </button>
+      </div>
+      <div class="filter-grid">
+        <label class="field search-field">
+          <span class="field-label">{{ t('بحث', 'Search') }}</span>
+          <div class="search-shell">
+            <span class="material-icons">search</span>
+            <input class="z-input" type="text" [(ngModel)]="filterSearch"
+              [placeholder]="t('اسم الموظف أو الرمز', 'Employee name or code')" />
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">{{ t('نوع الحركة', 'Movement Type') }}</span>
+          <select class="z-input" [(ngModel)]="filterType">
+            <option value="">{{ t('كل الأنواع', 'All Types') }}</option>
+            <option value="transfer">{{ t('نقل', 'Transfer') }}</option>
+            <option value="promotion">{{ t('ترقية', 'Promotion') }}</option>
+            <option value="demotion">{{ t('خفض درجة', 'Demotion') }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+          <select class="z-input" [(ngModel)]="filterStatus">
+            <option value="">{{ t('كل الحالات', 'All Statuses') }}</option>
+            <option value="pending_manager">{{ t('بانتظار المدير', 'Pending Manager') }}</option>
+            <option value="pending_hr">{{ t('بانتظار الموارد البشرية', 'Pending HR') }}</option>
+            <option value="pending_payroll">{{ t('بانتظار الرواتب', 'Pending Payroll') }}</option>
+            <option value="applied">{{ t('مُطبَّق', 'Applied') }}</option>
+            <option value="rejected">{{ t('مرفوض', 'Rejected') }}</option>
+            <option value="cancelled">{{ t('ملغى', 'Cancelled') }}</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <!-- TABLE -->
+    <section class="z-table-container table-shell">
+      <div class="table-toolbar">
+        <div>
+          <h2 class="z-heading">{{ t('سجل الطلبات', 'Requests Register') }}</h2>
+          <p class="z-small">{{ filtered().length }} {{ t('طلب', 'records') }}</p>
+        </div>
+      </div>
+      <app-skeleton-table *ngIf="loading()" [rows]="8" [cols]="6" />
+      <div class="empty-state" *ngIf="!loading() && filtered().length === 0">
+        <div class="empty-icon"><span class="material-icons">swap_horiz</span></div>
+        <div class="empty-title">{{ t('لا توجد طلبات مطابقة.', 'No matching requests found.') }}</div>
+      </div>
+      <div class="table-scroll" *ngIf="!loading() && filtered().length > 0">
+        <table class="z-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{{ t('الموظف', 'Employee') }}</th>
+              <th>{{ t('نوع الحركة', 'Type') }}</th>
+              <th>{{ t('تاريخ النفاذ', 'Effective Date') }}</th>
+              <th>{{ t('الحالة', 'Status') }}</th>
+              <th>{{ t('بواسطة', 'By') }}</th>
+              <th>{{ t('الإجراء', 'Action') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filtered()" (click)="openDetail(item)">
+              <td>{{ item.id }}</td>
+              <td class="employee-cell">
+                <div class="employee-meta">
+                  <strong>{{ lang==='ar' ? item.employeeFullNameAr : item.employeeFullNameEn }}</strong>
+                  <small>{{ item.employeeCode }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="action-type-chip" [class]="item.actionType">
+                  <span class="material-icons">{{ actionTypeIcon(item.actionType) }}</span>
+                  {{ actionTypeLabel(item.actionType) }}
+                </span>
+              </td>
+              <td>{{ item.effectiveDate | date:'dd/MM/yyyy' }}</td>
+              <td><span class="z-badge" [class]="statusClass(item.status)">{{ statusLabel(item.status) }}</span></td>
+              <td class="text-muted">{{ item.createdByName || '—' }}</td>
+              <td (click)="$event.stopPropagation()">
+                <button class="z-btn-ghost icon-btn" (click)="openDetail(item)"
+                  [title]="t('عرض التفاصيل', 'View Details')">
+                  <span class="material-icons">open_in_new</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- DETAIL VIEW -->
+  <ng-container *ngIf="selectedAction">
+    <div class="detail-layout">
+
+      <!-- Summary card -->
+      <div class="z-card detail-summary-card">
+        <div class="detail-header-row">
+          <div class="detail-title-block">
+            <span class="action-type-chip large" [class]="selectedAction.actionType">
+              <span class="material-icons">{{ actionTypeIcon(selectedAction.actionType) }}</span>
+              {{ actionTypeLabel(selectedAction.actionType) }}
+            </span>
+            <div>
+              <h2 class="z-heading" style="margin:0">
+                {{ lang==='ar' ? selectedAction.employeeFullNameAr : selectedAction.employeeFullNameEn }}
+              </h2>
+              <small class="text-muted">{{ selectedAction.employeeCode }}</small>
+            </div>
+          </div>
+          <span class="z-badge large-badge" [class]="statusClass(selectedAction.status)">
+            {{ statusLabel(selectedAction.status) }}
+          </span>
+        </div>
+
+        <div class="detail-info-grid">
+          <div class="detail-info-item">
+            <span class="info-label">{{ t('تاريخ النفاذ', 'Effective Date') }}</span>
+            <span class="info-value">{{ selectedAction.effectiveDate | date:'dd/MM/yyyy' }}</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="info-label">{{ t('تاريخ الإنشاء', 'Created At') }}</span>
+            <span class="info-value">{{ selectedAction.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="info-label">{{ t('بواسطة', 'By') }}</span>
+            <span class="info-value">{{ selectedAction.createdByName || '—' }}</span>
+          </div>
+          <div class="detail-info-item" *ngIf="selectedAction.notes">
+            <span class="info-label">{{ t('ملاحظات', 'Notes') }}</span>
+            <span class="info-value">{{ selectedAction.notes }}</span>
+          </div>
+        </div>
+
+        <!-- Change summary -->
+        <div class="change-summary" *ngIf="selectedAction.actionType === 'transfer'">
+          <h3 class="change-summary-title">{{ t('تفاصيل التغيير', 'Change Details') }}</h3>
+          <div class="change-row">
+            <span class="change-label">{{ t('القسم/الوحدة الجديدة', 'New Org Unit') }}</span>
+            <span class="change-to">{{ getOrgNodeName(getNewValue(selectedAction).orgNodeId) }}</span>
+          </div>
+          <div class="change-row" *ngIf="getPreviousValue(selectedAction).orgNodeId">
+            <span class="change-label">{{ t('من', 'From') }}</span>
+            <span class="change-from">{{ getOrgNodeName(getPreviousValue(selectedAction).orgNodeId) }}</span>
+          </div>
+        </div>
+
+        <div class="change-summary" *ngIf="selectedAction.actionType !== 'transfer'">
+          <h3 class="change-summary-title">{{ t('تفاصيل التغيير', 'Change Details') }}</h3>
+          <div class="change-row" *ngIf="getNewValue(selectedAction).jobTitleId">
+            <span class="change-label">{{ t('المسمى الوظيفي الجديد', 'New Job Title') }}</span>
+            <span class="change-to">{{ getJobTitleName(getNewValue(selectedAction).jobTitleId) }}</span>
+          </div>
+          <ng-container *ngIf="getNewValue(selectedAction).basicSalary != null">
+            <div class="salary-compare">
+              <div class="salary-block before">
+                <div class="salary-block-label">{{ t('قبل', 'Before') }}</div>
+                <div class="salary-item">
+                  <span>{{ t('الأساسي', 'Basic') }}</span>
+                  <strong>{{ getPreviousValue(selectedAction).basicSalary | number:'1.0-2' }}</strong>
+                </div>
+              </div>
+              <div class="salary-arrow"><span class="material-icons">arrow_forward</span></div>
+              <div class="salary-block after">
+                <div class="salary-block-label">{{ t('بعد', 'After') }}</div>
+                <div class="salary-item">
+                  <span>{{ t('الأساسي', 'Basic') }}</span>
+                  <strong>{{ getNewValue(selectedAction).basicSalary | number:'1.0-2' }}</strong>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Approval Timeline -->
+      <div class="z-card approval-card">
+        <h3 class="z-heading">{{ t('سلسلة الموافقة', 'Approval Chain') }}</h3>
+        <ng-container *ngIf="getApprovalData(selectedAction) as approvals">
+          <div class="approval-timeline">
+            <div *ngFor="let stepName of approvals.chain; let i = index" class="timeline-step"
+              [class.completed]="approvals.steps.length > i && approvals.steps[i].decision === 'approved'"
+              [class.rejected]="approvals.steps.length > i && approvals.steps[i].decision === 'rejected'"
+              [class.current]="approvals.steps.length === i && selectedAction.status.startsWith('pending')"
+              [class.upcoming]="approvals.steps.length < i">
+              <div class="timeline-dot">
+                <span class="material-icons" *ngIf="approvals.steps.length > i && approvals.steps[i].decision === 'approved'">check</span>
+                <span class="material-icons" *ngIf="approvals.steps.length > i && approvals.steps[i].decision === 'rejected'">close</span>
+                <span *ngIf="approvals.steps.length === i">{{ i + 1 }}</span>
+                <span *ngIf="approvals.steps.length < i">{{ i + 1 }}</span>
+              </div>
+              <div class="timeline-content">
+                <div class="timeline-step-name">{{ stepLabel(stepName) }}</div>
+                <ng-container *ngIf="approvals.steps[i] as step">
+                  <div class="timeline-approver">{{ step.username }}</div>
+                  <div class="timeline-date">{{ step.date | date:'dd/MM/yyyy HH:mm' }}</div>
+                  <div class="timeline-notes" *ngIf="step.notes">{{ step.notes }}</div>
+                </ng-container>
+              </div>
+            </div>
+            <!-- Final apply step -->
+            <div class="timeline-step" [class.completed]="selectedAction.status === 'applied'">
+              <div class="timeline-dot">
+                <span class="material-icons" *ngIf="selectedAction.status === 'applied'">done_all</span>
+                <span *ngIf="selectedAction.status !== 'applied'">✓</span>
+              </div>
+              <div class="timeline-content">
+                <div class="timeline-step-name">{{ t('تطبيق التغييرات', 'Changes Applied') }}</div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- No approval data yet -->
+        <div *ngIf="!getApprovalData(selectedAction)" class="approval-empty">
+          <span class="material-icons">hourglass_empty</span>
+          <p>{{ t('لا توجد بيانات موافقة', 'No approval data yet') }}</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="z-card action-buttons-card" *ngIf="canApprove(selectedAction) || canCancel(selectedAction)">
+        <h3 class="z-heading">{{ t('الإجراءات المتاحة', 'Available Actions') }}</h3>
+        <div class="action-btn-row">
+          <button class="z-btn-primary" (click)="approve(selectedAction.id)" *ngIf="canApprove(selectedAction)">
+            <span class="material-icons">check_circle</span>
+            {{ t('موافقة', 'Approve') }}
+          </button>
+          <button class="z-btn-danger" (click)="openRejectModal(selectedAction.id)" *ngIf="canApprove(selectedAction)">
+            <span class="material-icons">cancel</span>
+            {{ t('رفض', 'Reject') }}
+          </button>
+          <button class="z-btn-secondary" (click)="cancel(selectedAction.id)" *ngIf="canCancel(selectedAction)">
+            <span class="material-icons">block</span>
+            {{ t('إلغاء الطلب', 'Cancel Request') }}
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </ng-container>
+
+  <!-- CREATE MODAL -->
+  <div class="z-modal-backdrop" *ngIf="showCreateModal" (click)="closeCreate()">
+    <div class="z-modal" (click)="$event.stopPropagation()">
+      <div class="z-modal-header">
+        <h2>{{ t('طلب حركة وظيفية جديدة', 'New Career Movement Request') }}</h2>
+        <button class="z-btn-ghost icon-btn" (click)="closeCreate()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="z-modal-body">
+        <div class="alert alert-error" *ngIf="formError">{{ formError }}</div>
+
+        <div class="form-grid">
+          <label class="field full-width">
+            <span class="field-label">{{ t('الموظف *', 'Employee *') }}</span>
+            <select class="z-input" [(ngModel)]="form.employeeId" required>
+              <option [ngValue]="null">{{ t('اختر الموظف...', 'Select employee...') }}</option>
+              <option *ngFor="let emp of employees()" [ngValue]="emp.id">
+                {{ lang==='ar' ? emp.firstNameAr + ' ' + emp.lastNameAr : emp.firstNameEn + ' ' + emp.lastNameEn }}
+                ({{ emp.employeeCode }})
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('نوع الحركة *', 'Movement Type *') }}</span>
+            <select class="z-input" [(ngModel)]="form.actionType">
+              <option value="transfer">{{ t('نقل', 'Transfer') }}</option>
+              <option value="promotion">{{ t('ترقية', 'Promotion') }}</option>
+              <option value="demotion">{{ t('خفض درجة', 'Demotion') }}</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('تاريخ النفاذ *', 'Effective Date *') }}</span>
+            <input class="z-input" type="date" [(ngModel)]="form.effectiveDate" required />
+          </label>
+
+          <!-- Transfer: org node -->
+          <label class="field full-width" *ngIf="form.actionType === 'transfer'">
+            <span class="field-label">{{ t('الوحدة التنظيمية الجديدة', 'New Org Unit') }}</span>
+            <select class="z-input" [(ngModel)]="form.orgNodeId">
+              <option [ngValue]="null">{{ t('اختر الوحدة...', 'Select org unit...') }}</option>
+              <option *ngFor="let node of orgNodes()" [ngValue]="node.id">
+                {{ lang==='ar' ? node.nameAr : node.nameEn }}
+              </option>
+            </select>
+          </label>
+
+          <!-- Promotion / Demotion: job title -->
+          <ng-container *ngIf="form.actionType !== 'transfer'">
+            <label class="field full-width">
+              <span class="field-label">{{ t('المسمى الوظيفي الجديد *', 'New Job Title *') }}</span>
+              <select class="z-input" [(ngModel)]="form.jobTitleId">
+                <option [ngValue]="null">{{ t('اختر المسمى...', 'Select job title...') }}</option>
+                <option *ngFor="let jt of jobTitles()" [ngValue]="jt.id">
+                  {{ lang==='ar' ? jt.titleAr : jt.titleEn }}
+                </option>
+              </select>
+            </label>
+
+            <div class="field full-width">
+              <span class="field-label">{{ t('تغيير الراتب (اختياري)', 'Salary Change (Optional)') }}</span>
+              <div class="salary-mini-grid">
+                <label class="field">
+                  <span class="field-label">{{ t('الأساسي', 'Basic') }}</span>
+                  <input class="z-input" type="number" [(ngModel)]="form.basicSalary" min="0" />
+                </label>
+                <label class="field">
+                  <span class="field-label">{{ t('السكن', 'Housing') }}</span>
+                  <input class="z-input" type="number" [(ngModel)]="form.housingAllowance" min="0" />
+                </label>
+                <label class="field">
+                  <span class="field-label">{{ t('المواصلات', 'Transport') }}</span>
+                  <input class="z-input" type="number" [(ngModel)]="form.transportAllowance" min="0" />
+                </label>
+                <label class="field">
+                  <span class="field-label">{{ t('الجوال', 'Mobile') }}</span>
+                  <input class="z-input" type="number" [(ngModel)]="form.mobileAllowance" min="0" />
+                </label>
+              </div>
+            </div>
+          </ng-container>
+
+          <label class="field full-width">
+            <span class="field-label">{{ t('ملاحظات', 'Notes') }}</span>
+            <textarea class="z-input" rows="2" [(ngModel)]="form.notes"
+              [placeholder]="t('ملاحظات اختيارية...', 'Optional notes...')"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="z-modal-footer">
+        <button class="z-btn-secondary" (click)="closeCreate()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-primary" (click)="submitCreate()" [disabled]="saving()">
+          <span class="material-icons" *ngIf="!saving()">send</span>
+          {{ saving() ? t('جاري الإرسال...', 'Submitting...') : t('إرسال للموافقة', 'Submit for Approval') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REJECT MODAL -->
+  <div class="z-modal-backdrop" *ngIf="showRejectModal" (click)="closeRejectModal()">
+    <div class="z-modal small-modal" (click)="$event.stopPropagation()">
+      <div class="z-modal-header">
+        <h2>{{ t('رفض الطلب', 'Reject Request') }}</h2>
+        <button class="z-btn-ghost icon-btn" (click)="closeRejectModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="z-modal-body">
+        <label class="field full-width">
+          <span class="field-label">{{ t('سبب الرفض (اختياري)', 'Rejection reason (optional)') }}</span>
+          <textarea class="z-input" rows="3" [(ngModel)]="rejectNotes"
+            [placeholder]="t('أدخل سبب الرفض...', 'Enter rejection reason...')"></textarea>
+        </label>
+      </div>
+      <div class="z-modal-footer">
+        <button class="z-btn-secondary" (click)="closeRejectModal()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-danger" (click)="confirmReject()">
+          <span class="material-icons">cancel</span>
+          {{ t('تأكيد الرفض', 'Confirm Rejection') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+</section>

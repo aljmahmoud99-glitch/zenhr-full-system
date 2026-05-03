@@ -51,7 +51,11 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/settings': ['hradmin'],
   '/app/org-structure': ['hradmin'],
   '/app/roles': ['hradmin'],
-  '/app/user-roles': ['hradmin']
+  '/app/user-roles': ['hradmin'],
+
+  '/app/employee-actions/career-movements': ['hradmin', 'manager', 'payrolladmin'],
+  '/app/employee-actions/salary-changes': ['hradmin', 'payrolladmin'],
+  '/app/employee-actions/status-changes': ['hradmin', 'manager', 'payrolladmin'],
 };
 
 export interface NavItem {
@@ -97,6 +101,15 @@ const HRADMIN_NAV: NavGroup[] = [
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
       { labelAr: 'الاستقالات', labelEn: 'Resignations', icon: 'logout', path: '/app/resignations' },
       { labelAr: 'براءة الذمة', labelEn: 'Clearance', icon: 'fact_check', path: '/app/clearance' }
+    ]
+  },
+  {
+    labelAr: 'حركات الموظفين',
+    labelEn: 'Employee Actions',
+    items: [
+      { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
+      { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'payments', path: '/app/employee-actions/salary-changes' },
+      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' }
     ]
   },
   {
@@ -155,7 +168,8 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     labelEn: 'Payroll',
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
-      { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' }
+      { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
+      { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'price_change', path: '/app/employee-actions/salary-changes' }
     ]
   },
   {
@@ -191,6 +205,8 @@ const MANAGER_NAV: NavGroup[] = [
     items: [
       { labelAr: 'فريقي', labelEn: 'My Team', icon: 'groups', path: '/app/employees' },
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
+      { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
+      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
       { labelAr: 'ورديات الفريق', labelEn: 'Team Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'حضور الفريق', labelEn: 'Team Attendance', icon: 'fact_check', path: '/app/attendance' },
       { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_note', path: '/app/leave' },
