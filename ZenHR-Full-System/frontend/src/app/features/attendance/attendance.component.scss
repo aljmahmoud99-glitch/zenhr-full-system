@@ -219,6 +219,66 @@
   font-size: 14px;
 }
 
+.filters-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-search .z-input {
+  padding-inline-start: 40px;
+}
+
+.field-label {
+  color: var(--z-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.search-shell {
+  position: relative;
+}
+
+.search-shell .material-icons {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--z-text-muted);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.chip {
+  background: rgba(45, 158, 107, 0.08);
+  color: var(--z-emerald);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .filter-row {
   display: grid;
   gap: var(--z-space-3);

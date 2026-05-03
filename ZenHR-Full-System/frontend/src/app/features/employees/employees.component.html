@@ -97,6 +97,42 @@
           <option value="terminated">{{ t('منتهي الخدمة', 'Terminated') }}</option>
         </select>
       </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الجنس', 'Gender') }}</span>
+        <select class="z-input" [(ngModel)]="filterGender" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الجنسين', 'All Genders') }}</option>
+          <option value="male">{{ t('ذكر', 'Male') }}</option>
+          <option value="female">{{ t('أنثى', 'Female') }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('نوع التوظيف', 'Employment Type') }}</span>
+        <select class="z-input" [(ngModel)]="filterEmploymentType" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الأنواع', 'All Types') }}</option>
+          <option value="fulltime">{{ t('دوام كامل', 'Full-time') }}</option>
+          <option value="parttime">{{ t('دوام جزئي', 'Part-time') }}</option>
+          <option value="contractor">{{ t('متعاقد', 'Contractor') }}</option>
+          <option value="intern">{{ t('متدرب', 'Intern') }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('المسمى الوظيفي', 'Job Title') }}</span>
+        <select class="z-input" [(ngModel)]="filterJobTitle" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل المسميات', 'All Job Titles') }}</option>
+          <option *ngFor="let jt of jobTitles()" [value]="jt.id">{{ lang === 'ar' ? jt.titleAr : jt.titleEn }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الجنسية', 'Nationality') }}</span>
+        <select class="z-input" [(ngModel)]="filterNationality" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الجنسيات', 'All Nationalities') }}</option>
+          <option *ngFor="let n of nationalityOptions" [value]="n">{{ n }}</option>
+        </select>
+      </label>
     </div>
 
     <div class="filter-chips" *ngIf="hasActiveFilters">
@@ -104,6 +140,10 @@
       <span class="chip" *ngIf="filterBranch">{{ t('فرع:', 'Branch:') }} {{ branchNameForFilter() }}</span>
       <span class="chip" *ngIf="filterOrgNode">{{ t('وحدة:', 'Org:') }} {{ orgNodeName(+filterOrgNode) }}</span>
       <span class="chip" *ngIf="filterStatus">{{ t('حالة:', 'Status:') }} {{ empStatus(filterStatus) }}</span>
+      <span class="chip" *ngIf="filterGender">{{ t('الجنس:', 'Gender:') }} {{ genderLabel(filterGender) }}</span>
+      <span class="chip" *ngIf="filterEmploymentType">{{ t('نوع التوظيف:', 'Type:') }} {{ employmentTypeLabel(filterEmploymentType) }}</span>
+      <span class="chip" *ngIf="filterJobTitle">{{ t('المسمى:', 'Job:') }} {{ jobName(+filterJobTitle) }}</span>
+      <span class="chip" *ngIf="filterNationality">{{ t('الجنسية:', 'Nat:') }} {{ filterNationality }}</span>
     </div>
   </section>
 

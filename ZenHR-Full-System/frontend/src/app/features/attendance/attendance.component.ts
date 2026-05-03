@@ -122,7 +122,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     to: '',
     status: '',
     orgUnit: '',
-    attendanceState: ''
+    attendanceState: '',
+    lateMinutes: 0
   };
 
   requestFilter = {
@@ -307,6 +308,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     const status = this.logFilter.status;
     const orgUnit = this.logFilter.orgUnit;
     const attendanceState = this.logFilter.attendanceState;
+    const lateThreshold = this.logFilter.lateMinutes;
 
     const filtered = this.allRecords().filter(row => {
       const rowOrgUnit = this.orgUnitLabel(row);
@@ -325,11 +327,22 @@ export class AttendanceComponent implements OnInit, OnDestroy {
           ? 'late'
           : 'present';
       const matchesState = !attendanceState || state === attendanceState;
+      const matchesLate = !lateThreshold || row.lateMinutes >= lateThreshold;
 
-      return matchesSearch && matchesStatus && matchesOrgUnit && matchesFrom && matchesTo && matchesState;
+      return matchesSearch && matchesStatus && matchesOrgUnit && matchesFrom && matchesTo && matchesState && matchesLate;
     });
 
     this.filteredRecords.set(filtered);
+  }
+
+  get hasActiveLogFilters() {
+    return !!(this.logFilter.search || this.logFilter.from || this.logFilter.to
+      || this.logFilter.status || this.logFilter.orgUnit || this.logFilter.attendanceState
+      || this.logFilter.lateMinutes);
+  }
+
+  get hasActiveRequestFilters() {
+    return !!(this.requestFilter.search || this.requestFilter.status);
   }
 
   resetFilters() {
@@ -339,7 +352,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
       to: '',
       status: '',
       orgUnit: '',
-      attendanceState: ''
+      attendanceState: '',
+      lateMinutes: 0
     };
     this.applyFilters();
   }

@@ -35,6 +35,10 @@ export class EmployeesComponent implements OnInit {
   filterOrgNode = '';
   filterBranch = '';
   filterStatus = '';
+  filterGender = '';
+  filterEmploymentType = '';
+  filterJobTitle = '';
+  filterNationality = '';
 
   showFormModal = signal(false);
   editMode = signal(false);
@@ -97,7 +101,22 @@ export class EmployeesComponent implements OnInit {
   }
 
   get hasActiveFilters() {
-    return !!(this.searchQ || this.filterOrgNode || this.filterBranch || this.filterStatus);
+    return !!(this.searchQ || this.filterOrgNode || this.filterBranch || this.filterStatus
+      || this.filterGender || this.filterEmploymentType || this.filterJobTitle || this.filterNationality);
+  }
+
+  get nationalityOptions(): string[] {
+    return [...new Set(this.employees().map(emp => emp.nationality).filter((n): n is string => !!n))].sort();
+  }
+
+  genderLabel(g: string) {
+    return this.lang === 'ar' ? (g === 'male' ? 'ذكر' : 'أنثى') : (g === 'male' ? 'Male' : 'Female');
+  }
+
+  employmentTypeLabel(type: string) {
+    const ar: Record<string, string> = { fulltime: 'دوام كامل', parttime: 'دوام جزئي', contractor: 'متعاقد', intern: 'متدرب' };
+    const en: Record<string, string> = { fulltime: 'Full-time', parttime: 'Part-time', contractor: 'Contractor', intern: 'Intern' };
+    return this.lang === 'ar' ? (ar[type] || type) : (en[type] || type);
   }
 
   getDescendantIds(nodeId: number): Set<number> {
@@ -160,6 +179,10 @@ export class EmployeesComponent implements OnInit {
     const orgNode = this.filterOrgNode;
     const branchId = this.filterBranch;
     const status = this.filterStatus;
+    const gender = this.filterGender;
+    const empType = this.filterEmploymentType;
+    const jobTitle = this.filterJobTitle;
+    const nationality = this.filterNationality;
 
     const orgNodeDescendants = orgNode ? this.getDescendantIds(+orgNode) : null;
     const branchDescendants = branchId ? this.getDescendantIds(+branchId) : null;
@@ -169,6 +192,10 @@ export class EmployeesComponent implements OnInit {
         const matchesOrgNode = !orgNode || (emp.orgNodeId != null && (orgNodeDescendants?.has(emp.orgNodeId) ?? false));
         const matchesBranch = !branchId || (emp.orgNodeId != null && (branchDescendants?.has(emp.orgNodeId) ?? false));
         const matchesStatus = !status || emp.employmentStatus === status;
+        const matchesGender = !gender || emp.gender === gender;
+        const matchesEmpType = !empType || (emp as any).employmentType === empType;
+        const matchesJobTitle = !jobTitle || String(emp.jobTitleId) === jobTitle;
+        const matchesNationality = !nationality || emp.nationality === nationality;
         const haystack = [
           emp.fullNameAr,
           emp.fullNameEn,
@@ -177,7 +204,7 @@ export class EmployeesComponent implements OnInit {
           emp.personalPhone
         ].join(' ').toLowerCase();
         const matchesSearch = !term || haystack.includes(term);
-        return matchesOrgNode && matchesBranch && matchesStatus && matchesSearch;
+        return matchesOrgNode && matchesBranch && matchesStatus && matchesGender && matchesEmpType && matchesJobTitle && matchesNationality && matchesSearch;
       })
     );
   }
@@ -187,6 +214,10 @@ export class EmployeesComponent implements OnInit {
     this.filterOrgNode = '';
     this.filterBranch = '';
     this.filterStatus = '';
+    this.filterGender = '';
+    this.filterEmploymentType = '';
+    this.filterJobTitle = '';
+    this.filterNationality = '';
     this.applyFilters();
   }
 

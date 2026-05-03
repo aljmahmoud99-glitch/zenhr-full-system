@@ -80,28 +80,77 @@
       </div>
     </div>
 
-    <div class="filter-row" *ngIf="!isEmployee">
-      <input class="z-input" [(ngModel)]="logFilter.search" (ngModelChange)="applyFilters()" [placeholder]="isEmployee ? t('بحث في سجلاتي', 'Search my records') : t('بحث بالاسم أو الكود أو الوحدة', 'Search by name, code, or org unit')">
-      <input class="z-input" type="date" [(ngModel)]="logFilter.from" (ngModelChange)="applyFilters()">
-      <input class="z-input" type="date" [(ngModel)]="logFilter.to" (ngModelChange)="applyFilters()">
-      <select class="z-input" [(ngModel)]="logFilter.status" (ngModelChange)="applyFilters()">
-        <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
-        <option value="present">{{ t('حاضر', 'Present') }}</option>
-        <option value="late">{{ t('متأخر', 'Late') }}</option>
-        <option value="absent">{{ t('غائب', 'Absent') }}</option>
-        <option value="on_leave">{{ t('في إجازة', 'On leave') }}</option>
-      </select>
-      <select class="z-input" *ngIf="!isEmployee" [(ngModel)]="logFilter.orgUnit" (ngModelChange)="applyFilters()">
-        <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
-        <option *ngFor="let orgUnit of orgUnitOptions()" [value]="orgUnit">{{ orgUnit }}</option>
-      </select>
-      <select class="z-input" [(ngModel)]="logFilter.attendanceState" (ngModelChange)="applyFilters()">
-        <option value="">{{ t('كل الأنواع', 'All states') }}</option>
-        <option value="present">{{ t('حاضر', 'Present') }}</option>
-        <option value="late">{{ t('متأخر', 'Late') }}</option>
-        <option value="absent">{{ t('غائب', 'Absent') }}</option>
-      </select>
-      <button class="z-btn-secondary" type="button" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    <div class="filters-head">
+      <div>
+        <p class="z-small">{{ t(filteredRecords().length + ' سجل معروض', filteredRecords().length + ' records shown') }}</p>
+      </div>
+      <button class="z-btn-ghost" type="button" *ngIf="hasActiveLogFilters" (click)="resetFilters()">
+        {{ t('مسح الفلاتر', 'Reset filters') }}
+      </button>
+    </div>
+
+    <div class="filter-grid" *ngIf="!isEmployee">
+      <label class="filter-field filter-search">
+        <span class="field-label">{{ t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input class="z-input" [(ngModel)]="logFilter.search" (ngModelChange)="applyFilters()" [placeholder]="t('الاسم أو الكود أو الوحدة', 'Name, code, or org unit')">
+        </div>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('من تاريخ', 'From') }}</span>
+        <input class="z-input" type="date" [(ngModel)]="logFilter.from" (ngModelChange)="applyFilters()">
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('إلى تاريخ', 'To') }}</span>
+        <input class="z-input" type="date" [(ngModel)]="logFilter.to" (ngModelChange)="applyFilters()">
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" [(ngModel)]="logFilter.status" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="present">{{ t('حاضر', 'Present') }}</option>
+          <option value="late">{{ t('متأخر', 'Late') }}</option>
+          <option value="absent">{{ t('غائب', 'Absent') }}</option>
+          <option value="on_leave">{{ t('في إجازة', 'On leave') }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <select class="z-input" [(ngModel)]="logFilter.orgUnit" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
+          <option *ngFor="let orgUnit of orgUnitOptions()" [value]="orgUnit">{{ orgUnit }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('نوع الحضور', 'Attendance state') }}</span>
+        <select class="z-input" [(ngModel)]="logFilter.attendanceState" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('كل الأنواع', 'All states') }}</option>
+          <option value="present">{{ t('حاضر', 'Present') }}</option>
+          <option value="late">{{ t('متأخر', 'Late') }}</option>
+          <option value="absent">{{ t('غائب', 'Absent') }}</option>
+        </select>
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">{{ t('حد التأخير (دقيقة)', 'Min late (min)') }}</span>
+        <input class="z-input" type="number" min="0" step="5" [(ngModel)]="logFilter.lateMinutes" (ngModelChange)="applyFilters()" [placeholder]="t('0 = بلا حد', '0 = no limit')">
+      </label>
+    </div>
+
+    <div class="filter-chips" *ngIf="hasActiveLogFilters">
+      <span class="chip" *ngIf="logFilter.search">{{ t('بحث:', 'Search:') }} {{ logFilter.search }}</span>
+      <span class="chip" *ngIf="logFilter.from">{{ t('من:', 'From:') }} {{ logFilter.from }}</span>
+      <span class="chip" *ngIf="logFilter.to">{{ t('إلى:', 'To:') }} {{ logFilter.to }}</span>
+      <span class="chip" *ngIf="logFilter.status">{{ attendanceStatusLabel(logFilter.status) }}</span>
+      <span class="chip" *ngIf="logFilter.orgUnit">{{ logFilter.orgUnit }}</span>
+      <span class="chip" *ngIf="logFilter.attendanceState">{{ attendanceStatusLabel(logFilter.attendanceState) }}</span>
+      <span class="chip" *ngIf="logFilter.lateMinutes">{{ t('تأخير ≥ ', 'Late ≥ ') }}{{ logFilter.lateMinutes }}{{ t(' د', ' min') }}</span>
     </div>
 
     <app-skeleton-table *ngIf="logLoading()" [rows]="8" [cols]="8" />
@@ -171,16 +220,36 @@
       <button class="z-btn-primary" type="button" *ngIf="canCreateCorrection" (click)="openRequestModal()">{{ t('طلب جديد', 'New request') }}</button>
     </div>
 
-    <div class="filter-row" *ngIf="!isEmployee">
-      <input class="z-input" [(ngModel)]="requestFilter.search" (ngModelChange)="applyRequestFilters()" [placeholder]="isEmployee ? t('بحث بالسبب أو النوع', 'Search by reason or type') : t('بحث بالاسم أو السبب أو النوع', 'Search by employee, reason, or type')">
-      <select class="z-input" [(ngModel)]="requestFilter.status" (ngModelChange)="applyRequestFilters()">
-        <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
-        <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
-        <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
-        <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
-        <option value="rejected">{{ t('مرفوض', 'Rejected') }}</option>
-      </select>
-      <button class="z-btn-secondary" type="button" (click)="resetRequestFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    <div class="filters-head">
+      <p class="z-small">{{ t(filteredRequests().length + ' طلب معروض', filteredRequests().length + ' requests shown') }}</p>
+      <button class="z-btn-ghost" type="button" *ngIf="hasActiveRequestFilters" (click)="resetRequestFilters()">
+        {{ t('مسح الفلاتر', 'Reset filters') }}
+      </button>
+    </div>
+
+    <div class="filter-grid" *ngIf="!isEmployee">
+      <label class="filter-field filter-search">
+        <span class="field-label">{{ t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input class="z-input" [(ngModel)]="requestFilter.search" (ngModelChange)="applyRequestFilters()" [placeholder]="t('الاسم أو السبب أو النوع', 'Name, reason, or type')">
+        </div>
+      </label>
+      <label class="filter-field">
+        <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" [(ngModel)]="requestFilter.status" (ngModelChange)="applyRequestFilters()">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
+          <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
+          <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
+          <option value="rejected">{{ t('مرفوض', 'Rejected') }}</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="filter-chips" *ngIf="hasActiveRequestFilters">
+      <span class="chip" *ngIf="requestFilter.search">{{ t('بحث:', 'Search:') }} {{ requestFilter.search }}</span>
+      <span class="chip" *ngIf="requestFilter.status">{{ attendanceStatusLabel(requestFilter.status) }}</span>
     </div>
 
     <div class="request-skeletons" *ngIf="requestsLoading()">

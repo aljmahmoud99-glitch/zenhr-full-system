@@ -78,7 +78,7 @@
 
 .filter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 16px;
 }
 

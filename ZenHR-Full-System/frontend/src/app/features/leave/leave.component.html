@@ -82,24 +82,43 @@
   </section>
 
   <section class="z-card filter-card">
-    <div class="filter-row" *ngIf="!isEmployee">
-      <label class="filter-field filter-grow">
-        <span class="z-label">{{ t('بحث', 'Search') }}</span>
-        <input class="z-input" [(ngModel)]="filter.search" (ngModelChange)="applyFilters()" [placeholder]="isEmployeeSelfService ? t('ابحث في السبب أو نوع الإجازة', 'Search by reason or leave type') : t('اسم الموظف أو الكود أو الوحدة التنظيمية', 'Employee, code, or org unit')">
+    <div class="filters-head">
+      <div>
+        <h2 class="z-heading">{{ t('بحث وفلاتر', 'Search & Filters') }}</h2>
+        <p class="z-small">{{ t('فلترة الطلبات حسب الحالة والنوع والتاريخ', 'Filter requests by status, type, and date range') }}</p>
+      </div>
+      <button class="z-btn-ghost" type="button" *ngIf="hasActiveLeaveFilters" (click)="resetFilters()">
+        {{ t('مسح الفلاتر', 'Reset filters') }}
+      </button>
+    </div>
+
+    <div class="filter-grid">
+      <label class="filter-field filter-search" *ngIf="!isEmployeeSelfService">
+        <span class="field-label">{{ t('بحث', 'Search') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">search</span>
+          <input class="z-input" [(ngModel)]="filter.search" (ngModelChange)="applyFilters()" [placeholder]="t('الكود أو الوحدة أو السبب', 'Code, org unit, or reason')">
+        </div>
+      </label>
+
+      <label class="filter-field" *ngIf="!isEmployeeSelfService">
+        <span class="field-label">{{ t('اسم الموظف', 'Employee') }}</span>
+        <div class="search-shell">
+          <span class="material-icons">person_search</span>
+          <input class="z-input" [(ngModel)]="filter.employeeSearch" (ngModelChange)="applyFilters()" [placeholder]="t('ابحث بالاسم أو الكود', 'Search by name or code')">
+        </div>
       </label>
 
       <label class="filter-field">
-        <span class="z-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
-        <select class="z-input" [(ngModel)]="filter.leaveTypeCode" (ngModelChange)="applyFilters()">
-          <option value="">{{ t('كل الأنواع', 'All types') }}</option>
+        <span class="field-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
+        <select class="z-input" multiple [(ngModel)]="filter.leaveTypeCodes" (ngModelChange)="applyFilters()" size="3">
           <option *ngFor="let type of leaveTypes()" [value]="type.code">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</option>
         </select>
       </label>
 
       <label class="filter-field">
-        <span class="z-label">{{ t('الحالة', 'Status') }}</span>
-        <select class="z-input" [(ngModel)]="filter.status" (ngModelChange)="applyFilters()">
-          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+        <span class="field-label">{{ t('الحالة', 'Status') }}</span>
+        <select class="z-input" multiple [(ngModel)]="filter.statusList" (ngModelChange)="applyFilters()" size="5">
           <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
           <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
           <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
@@ -109,7 +128,7 @@
       </label>
 
       <label class="filter-field" *ngIf="!isEmployeeSelfService">
-        <span class="z-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
+        <span class="field-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
         <select class="z-input" [(ngModel)]="filter.orgUnit" (ngModelChange)="applyFilters()">
           <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
           <option *ngFor="let unit of orgUnits()" [value]="unit">{{ unit }}</option>
@@ -117,20 +136,32 @@
       </label>
 
       <label class="filter-field">
-        <span class="z-label">{{ t('من تاريخ', 'From') }}</span>
+        <span class="field-label">{{ t('من تاريخ', 'From') }}</span>
         <input class="z-input" type="date" [(ngModel)]="filter.from" (ngModelChange)="applyFilters()">
       </label>
 
       <label class="filter-field">
-        <span class="z-label">{{ t('إلى تاريخ', 'To') }}</span>
+        <span class="field-label">{{ t('إلى تاريخ', 'To') }}</span>
         <input class="z-input" type="date" [(ngModel)]="filter.to" (ngModelChange)="applyFilters()">
       </label>
+    </div>
 
-      <button class="z-btn-secondary reset-btn" type="button" (click)="resetFilters()">{{ t('مسح الفلاتر', 'Reset filters') }}</button>
+    <div class="filter-chips" *ngIf="hasActiveLeaveFilters">
+      <span class="chip" *ngIf="filter.search">{{ t('بحث:', 'Search:') }} {{ filter.search }}</span>
+      <span class="chip" *ngIf="filter.employeeSearch">{{ t('موظف:', 'Employee:') }} {{ filter.employeeSearch }}</span>
+      <span class="chip" *ngFor="let s of filter.statusList">{{ statusLabel(s) }}</span>
+      <span class="chip" *ngFor="let c of filter.leaveTypeCodes">{{ c }}</span>
+      <span class="chip" *ngIf="filter.orgUnit">{{ t('وحدة:', 'Org:') }} {{ filter.orgUnit }}</span>
+      <span class="chip" *ngIf="filter.from">{{ t('من:', 'From:') }} {{ filter.from }}</span>
+      <span class="chip" *ngIf="filter.to">{{ t('إلى:', 'To:') }} {{ filter.to }}</span>
     </div>
   </section>
 
   <section class="z-card requests-card">
+    <div class="filters-head" *ngIf="!loading()">
+      <p class="z-small">{{ t(filteredLeaveRequests().length + ' طلب معروض', filteredLeaveRequests().length + ' requests shown') }}</p>
+    </div>
+
     <div class="request-skeletons" *ngIf="loading()">
       <app-skeleton-card />
       <app-skeleton-card />

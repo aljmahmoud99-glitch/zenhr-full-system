@@ -52,8 +52,9 @@ export class LeaveComponent implements OnInit {
 
   filter = {
     search: '',
-    status: '',
-    leaveTypeCode: '',
+    employeeSearch: '',
+    statusList: [] as string[],
+    leaveTypeCodes: [] as string[],
     orgUnit: '',
     from: '',
     to: ''
@@ -167,6 +168,7 @@ export class LeaveComponent implements OnInit {
 
   applyFilters() {
     const term = this.filter.search.trim().toLowerCase();
+    const empTerm = this.filter.employeeSearch.trim().toLowerCase();
     const filtered = this.allRequests().filter(request => {
       const haystack = (this.isEmployeeSelfService
         ? [
@@ -191,20 +193,28 @@ export class LeaveComponent implements OnInit {
           ]).join(' ').toLowerCase();
 
       const matchesSearch = !term || haystack.includes(term);
-      const matchesStatus = !this.filter.status || request.status === this.filter.status;
-      const matchesType = !this.filter.leaveTypeCode || (request as any).leaveTypeCode === this.filter.leaveTypeCode;
+      const matchesEmpSearch = this.isEmployeeSelfService || !empTerm
+        || [request.fullNameAr, request.fullNameEn, request.employeeCode].join(' ').toLowerCase().includes(empTerm);
+      const matchesStatus = this.filter.statusList.length === 0 || this.filter.statusList.includes(request.status);
+      const matchesType = this.filter.leaveTypeCodes.length === 0 || this.filter.leaveTypeCodes.includes((request as any).leaveTypeCode);
       const matchesOrgUnit = this.isEmployeeSelfService || !this.filter.orgUnit || request.orgNodeNameAr === this.filter.orgUnit || request.orgNodeNameEn === this.filter.orgUnit;
       const matchesFrom = !this.filter.from || request.startDate >= this.filter.from;
       const matchesTo = !this.filter.to || request.endDate <= this.filter.to;
 
-      return matchesSearch && matchesStatus && matchesType && matchesOrgUnit && matchesFrom && matchesTo;
+      return matchesSearch && matchesEmpSearch && matchesStatus && matchesType && matchesOrgUnit && matchesFrom && matchesTo;
     });
 
     this.filteredLeaveRequests.set(filtered);
   }
 
+  get hasActiveLeaveFilters() {
+    return !!(this.filter.search || this.filter.employeeSearch
+      || this.filter.statusList.length || this.filter.leaveTypeCodes.length
+      || this.filter.orgUnit || this.filter.from || this.filter.to);
+  }
+
   resetFilters() {
-    this.filter = { search: '', status: '', leaveTypeCode: '', orgUnit: '', from: '', to: '' };
+    this.filter = { search: '', employeeSearch: '', statusList: [], leaveTypeCodes: [], orgUnit: '', from: '', to: '' };
     this.applyFilters();
   }
 
