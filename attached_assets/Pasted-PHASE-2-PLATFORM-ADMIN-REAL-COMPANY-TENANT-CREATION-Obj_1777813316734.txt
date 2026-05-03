@@ -1,0 +1,124 @@
+PHASE 2 — PLATFORM ADMIN: REAL COMPANY / TENANT CREATION
+
+Objective:
+System Admin must be able to create a real company on the platform. After creation, that company must be usable immediately by its HR admin, employees, managers, and payroll users.
+
+This is multi-tenant SaaS behavior, not just a UI form.
+
+Do not touch unrelated modules.
+Do not break existing companies.
+Do not remove the public registration approval flow if it exists.
+
+Requirements:
+
+1. System Admin Company Creation UI
+Create/improve the Platform Admin → Companies screen.
+
+Add "Create Company" button.
+
+Form fields:
+Company:
+- Arabic name
+- English name
+- company code
+- commercial registration number
+- tax number
+- email
+- phone
+- country
+- city
+- address
+- status active/inactive
+
+Subscription:
+- plan name
+- subscription start date
+- subscription end date
+- max users
+- max employees
+- trial/paid
+
+Initial structure:
+- allow adding multiple branches dynamically
+Each branch:
+- Arabic name
+- English name
+- branch code
+- city
+- address
+
+Initial HR Admin user:
+- username
+- email
+- password
+- full name
+- phone
+
+2. Backend behavior
+When System Admin submits company creation, backend must create everything in ONE transaction:
+
+- company record
+- root org_node for the company
+- branch org_nodes under root
+- default roles for that company:
+  hradmin
+  hr
+  manager
+  payrolladmin
+  employee
+- default permissions for those roles
+- initial HR Admin user linked to that company
+- employee record for that HR Admin if required by current schema
+
+If any part fails, rollback everything.
+
+3. After creation
+The new HR Admin must be able to log in immediately.
+
+When logged in:
+- they see only their company
+- company name appears in header
+- org structure shows their company and branches
+- users/employees created later belong to this company
+- roles/permissions are company-scoped
+- payroll, reports, employees, attendance, leave all use company_id scope
+
+4. Companies list
+System Admin companies table should show:
+- company name
+- code
+- branches count
+- employees count
+- users count
+- plan
+- subscription status
+- active/inactive
+- created date
+- actions: view, edit, deactivate, impersonate if already supported
+
+5. Validation
+- company code must be unique
+- email must be valid
+- HR admin username/email must be unique
+- at least one branch required unless explicitly allowed
+- show inline errors, no browser alerts
+
+6. Verification
+Test:
+- login as system admin
+- create new company "Test Company"
+- create 2 branches
+- create HR admin user
+- logout
+- login as new HR admin
+- confirm only Test Company data is visible
+- confirm org structure shows the branches
+- confirm employees/users created from this account are scoped to Test Company
+- confirm no console errors
+
+Return:
+- files changed
+- endpoints used/created
+- transaction behavior
+- test login for created HR admin
+- verification result

@@ -6,6 +6,10 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { Company, CompanyRegistration, PlatformStats, ApiResponse, User } from '../../core/models';
 
+interface BranchDraft {
+  nameAr: string; nameEn: string; code: string; city: string; address: string;
+}
+
 @Component({
   selector: 'app-superadmin',
   standalone: true,
@@ -32,6 +36,176 @@ export class SuperadminComponent implements OnInit {
     { value: 'enterprise',   label: 'Enterprise (∞)',         max: 9999 },
   ];
 
+  // ─── Create Company Wizard ──────────────────────────────────────────────────
+  showCreateModal = signal(false);
+  createStep = signal(1);          // 1 Company | 2 Subscription | 3 Branches | 4 Admin | 5 Success
+  createLoading = signal(false);
+  createErrors = signal<Record<string, string>>({});
+
+  companyForm = {
+    nameAr: '', nameEn: '', code: '', commercialRegNo: '', taxNumber: '',
+    email: '', phone: '', country: 'Jordan', city: '', address: '', isActive: true
+  };
+  subForm = {
+    planName: 'trial', subscriptionStart: '', subscriptionEnd: '',
+    maxUsers: 10, maxEmployees: 50, isTrial: true
+  };
+  branches: BranchDraft[] = [];
+  adminForm = {
+    username: '', email: '', password: '', confirmPassword: '',
+    firstNameAr: '', lastNameAr: '', firstNameEn: '', lastNameEn: '', phone: ''
+  };
+  createSaved: { companyNameAr: string; adminUsername: string } | null = null;
+
+  openCreateModal() {
+    this.companyForm = {
+      nameAr: '', nameEn: '', code: '', commercialRegNo: '', taxNumber: '',
+      email: '', phone: '', country: 'Jordan', city: '', address: '', isActive: true
+    };
+    this.subForm = {
+      planName: 'trial', subscriptionStart: '', subscriptionEnd: '',
+      maxUsers: 10, maxEmployees: 50, isTrial: true
+    };
+    this.branches = [{ nameAr: '', nameEn: '', code: '', city: '', address: '' }];
+    this.adminForm = {
+      username: '', email: '', password: '', confirmPassword: '',
+      firstNameAr: '', lastNameAr: '', firstNameEn: '', lastNameEn: '', phone: ''
+    };
+    this.createErrors.set({});
+    this.createSaved = null;
+    this.createStep.set(1);
+    this.showCreateModal.set(true);
+  }
+
+  closeCreateModal() {
+    this.showCreateModal.set(false);
+  }
+
+  addBranch() {
+    this.branches = [...this.branches, { nameAr: '', nameEn: '', code: '', city: '', address: '' }];
+  }
+
+  removeBranch(i: number) {
+    if (this.branches.length <= 1) return;
+    this.branches = this.branches.filter((_, idx) => idx !== i);
+  }
+
+  private validateStep1(): boolean {
+    const e: Record<string, string> = {};
+    if (!this.companyForm.nameAr.trim())  e['nameAr']  = 'الاسم العربي مطلوب';
+    if (!this.companyForm.nameEn.trim())  e['nameEn']  = 'الاسم الإنجليزي مطلوب';
+    if (!this.companyForm.code.trim())    e['code']    = 'رمز الشركة مطلوب';
+    if (this.companyForm.email && !/\S+@\S+\.\S+/.test(this.companyForm.email))
+      e['email'] = 'البريد الإلكتروني غير صالح';
+    this.createErrors.set(e);
+    return !Object.keys(e).length;
+  }
+
+  private validateStep3(): boolean {
+    const e: Record<string, string> = {};
+    this.branches.forEach((br, i) => {
+      if (!br.nameEn.trim()) e[`br_nameEn_${i}`] = 'الاسم الإنجليزي مطلوب';
+      if (!br.nameAr.trim()) e[`br_nameAr_${i}`] = 'الاسم العربي مطلوب';
+    });
+    this.createErrors.set(e);
+    return !Object.keys(e).length;
+  }
+
+  private validateStep4(): boolean {
+    const e: Record<string, string> = {};
+    const a = this.adminForm;
+    if (!a.username.trim() || !/^[a-zA-Z0-9_]{3,}$/.test(a.username))
+      e['adm_username'] = 'اسم المستخدم: أحرف لاتينية وأرقام، 3 على الأقل';
+    if (!a.email.trim() || !/\S+@\S+\.\S+/.test(a.email))
+      e['adm_email'] = 'بريد إلكتروني صالح مطلوب';
+    if (!a.password || a.password.length < 8)
+      e['adm_password'] = 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+    if (a.password !== a.confirmPassword)
+      e['adm_confirm'] = 'كلمة المرور غير متطابقة';
+    if (!a.firstNameEn.trim()) e['adm_firstNameEn'] = 'الاسم الأول بالإنجليزية مطلوب';
+    if (!a.lastNameEn.trim())  e['adm_lastNameEn']  = 'اسم العائلة بالإنجليزية مطلوب';
+    this.createErrors.set(e);
+    return !Object.keys(e).length;
+  }
+
+  nextStep() {
+    this.createErrors.set({});
+    const s = this.createStep();
+    if (s === 1 && !this.validateStep1()) return;
+    if (s === 3 && !this.validateStep3()) return;
+    this.createStep.set(s + 1);
+  }
+
+  prevStep() {
+    this.createErrors.set({});
+    this.createStep.set(this.createStep() - 1);
+  }
+
+  goStep(n: number) {
+    // Only allow clicking a past step directly
+    if (n < this.createStep()) {
+      this.createErrors.set({});
+      this.createStep.set(n);
+    }
+  }
+
+  submitCreate() {
+    if (!this.validateStep4()) return;
+    this.createLoading.set(true);
+    const a = this.adminForm;
+    const payload = {
+      nameAr: this.companyForm.nameAr,
+      nameEn: this.companyForm.nameEn,
+      code: this.companyForm.code,
+      commercialRegNo: this.companyForm.commercialRegNo || null,
+      taxNumber: this.companyForm.taxNumber || null,
+      email: this.companyForm.email || null,
+      phone: this.companyForm.phone || null,
+      country: this.companyForm.country || 'Jordan',
+      city: this.companyForm.city || null,
+      address: this.companyForm.address || null,
+      planName: this.subForm.planName,
+      subscriptionStart: this.subForm.subscriptionStart || null,
+      subscriptionEnd: this.subForm.subscriptionEnd || null,
+      maxUsers: +this.subForm.maxUsers,
+      maxEmployees: +this.subForm.maxEmployees,
+      isTrial: this.subForm.isTrial,
+      branches: this.branches.map(br => ({
+        nameAr: br.nameAr, nameEn: br.nameEn,
+        code: br.code || null, city: br.city || null,
+      })),
+      initialAdmin: {
+        username: a.username,
+        email: a.email,
+        password: a.password,
+        firstNameEn: a.firstNameEn,
+        lastNameEn: a.lastNameEn,
+        firstNameAr: a.firstNameAr || a.firstNameEn,
+        lastNameAr: a.lastNameAr || a.lastNameEn,
+        phone: a.phone || null,
+      }
+    };
+
+    this.http.post<ApiResponse<any>>('/api/admin/companies', payload).subscribe({
+      next: () => {
+        this.createLoading.set(false);
+        this.createSaved = {
+          companyNameAr: this.companyForm.nameAr,
+          adminUsername: this.adminForm.username,
+        };
+        this.createErrors.set({});
+        this.createStep.set(5);
+        this.loadAll();
+      },
+      error: (err) => {
+        this.createLoading.set(false);
+        const msg = err?.error?.message ?? 'حدث خطأ أثناء إنشاء الشركة';
+        this.createErrors.set({ submit: msg });
+      }
+    });
+  }
+
+  // ─── Existing methods ───────────────────────────────────────────────────────
   constructor(private http: HttpClient, public auth: AuthService) {}
 
   ngOnInit() {
@@ -94,7 +268,6 @@ export class SuperadminComponent implements OnInit {
   impersonate(companyId: number) {
     if (!confirm('تسجيل الدخول كمدير هذه الشركة؟')) return;
     this.impersonateLoading.set(companyId);
-    // Save current superadmin session
     const adminToken = this.auth.getToken()!;
     const adminUser = localStorage.getItem('zenjo_user')!;
     localStorage.setItem('zenjo_admin_token', adminToken);

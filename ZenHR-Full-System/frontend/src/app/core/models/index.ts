@@ -7,11 +7,12 @@ export interface User {
 }
 
 export interface Company {
-  id: number; nameAr: string; nameEn: string;
+  id: number; nameAr: string; nameEn: string; code?: string;
   commercialRegNo?: string; taxNumber?: string;
   email?: string; adminEmail?: string; subdomainSlug?: string;
-  phone?: string; website?: string; industryType?: string;
-  isActive: boolean; planType: string; maxEmployees: number;
+  phone?: string; website?: string; industryType?: string; country?: string; city?: string;
+  isActive: boolean; planType: string; planName?: string; maxEmployees: number; maxUsers?: number;
+  isTrial?: boolean; subscriptionStart?: string; subscriptionEnd?: string;
   planExpiryDate?: string; createdAt?: string;
   employeeCount?: number; userCount?: number; branchCount?: number;
 }

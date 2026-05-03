@@ -56,6 +56,10 @@
   tr:hover td { background: #f8fafc; }
 }
 .company-cell { display: flex; flex-direction: column; gap: 2px; }
+.code-badge {
+  display: inline-block; background: #f1f5f9; color: #475569;
+  border-radius: 4px; padding: 2px 7px; font-size: 0.78rem; font-family: monospace;
+}
 .text-muted { color: #94a3b8; font-size: 0.8rem; }
 .text-danger { color: #ef4444; }
 
@@ -101,9 +105,10 @@
 .reg-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; font-size: 0.8rem; color: #64748b; }
 .reg-actions { display: flex; gap: 8px; }
 
+// ─── Base Modal ─────────────────────────────────────────────────────────────
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000;
-  display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .modal {
   background: white; border-radius: 16px; padding: 28px; min-width: 360px; direction: rtl;
@@ -111,10 +116,192 @@
   h3 { margin: 0 0 4px; font-size: 1.1rem; color: #1e293b; }
 }
 .modal-subtitle { color: #64748b; margin: 0 0 20px; font-size: 0.9rem; }
-.form-group { margin-bottom: 16px; label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: #475569; } }
+.form-group {
+  margin-bottom: 14px;
+  label { display: block; font-size: 0.83rem; font-weight: 600; margin-bottom: 5px; color: #475569; }
+}
 .form-control {
   width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: 0.9rem; font-family: inherit;
+  font-size: 0.9rem; font-family: inherit; color: #1e293b;
   &:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  &.invalid { border-color: #ef4444; background: #fff5f5; }
 }
 .modal-footer { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+// ─── Create Company Wizard ──────────────────────────────────────────────────
+.wizard-modal {
+  background: white; border-radius: 16px; direction: rtl;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.25);
+  width: 100%; max-width: 680px; max-height: 92vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.wizard-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  border-radius: 16px 16px 0 0;
+}
+.wizard-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.05rem; font-weight: 700; color: white;
+  .material-icons { font-size: 22px; }
+}
+.wizard-close {
+  background: rgba(255,255,255,0.15); border: none; border-radius: 8px;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: white; transition: background 0.15s;
+  .material-icons { font-size: 18px; }
+  &:hover { background: rgba(255,255,255,0.25); }
+}
+
+// ─── Step Progress ───────────────────────────────────────────────────────────
+.wizard-steps {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: 0; padding: 20px 24px 0; position: relative; flex-shrink: 0;
+}
+.wstep-line {
+  display: none; // handled via ::before on wstep
+}
+.wstep {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1; position: relative; cursor: default;
+
+  &::before {
+    content: ''; position: absolute; top: 16px; left: -50%; width: 100%;
+    height: 2px; background: #e2e8f0; z-index: 0;
+  }
+  &:first-child::before { display: none; }
+
+  &.done {
+    .wstep-circle { background: #22c55e; border-color: #22c55e; color: white; }
+    &::before { background: #22c55e; }
+  }
+  &.active {
+    .wstep-circle { background: #2563eb; border-color: #2563eb; color: white; }
+    .wstep-label { color: #2563eb; font-weight: 700; }
+  }
+  &.clickable { cursor: pointer; &:hover .wstep-circle { box-shadow: 0 0 0 4px rgba(37,99,235,0.15); } }
+}
+.wstep-circle {
+  width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e2e8f0;
+  background: white; color: #94a3b8; font-size: 0.85rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; z-index: 1;
+  position: relative; transition: all 0.2s;
+  .material-icons { font-size: 16px; }
+}
+.wstep-label {
+  font-size: 0.75rem; color: #94a3b8; text-align: center; font-weight: 500;
+}
+
+// ─── Wizard Body ─────────────────────────────────────────────────────────────
+.wizard-body {
+  padding: 20px 24px; overflow-y: auto; flex: 1;
+}
+
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.95rem; font-weight: 700; color: #1e293b; margin-bottom: 18px;
+  padding-bottom: 10px; border-bottom: 2px solid #eff6ff;
+  .material-icons { font-size: 20px; color: #2563eb; }
+}
+
+.form-row-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  @media (max-width: 520px) { grid-template-columns: 1fr; }
+}
+
+.req { color: #ef4444; margin-right: 2px; }
+
+.field-err {
+  font-size: 0.78rem; color: #ef4444; margin-top: 4px;
+  display: flex; align-items: center; gap: 4px;
+}
+
+// ─── Subscription ────────────────────────────────────────────────────────────
+.toggle-group label { margin-bottom: 8px; }
+.toggle-row { display: flex; align-items: center; }
+.toggle-label {
+  display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem; color: #475569;
+  input[type="checkbox"] { display: none; }
+  &:has(input:checked) .toggle-switch { background: #2563eb; }
+  &:has(input:checked) .toggle-switch::after { transform: translateX(-18px); }
+}
+.toggle-switch {
+  width: 42px; height: 22px; border-radius: 11px; background: #e2e8f0;
+  position: relative; transition: background 0.2s; flex-shrink: 0;
+  &::after {
+    content: ''; position: absolute; top: 3px; right: 3px;
+    width: 16px; height: 16px; border-radius: 50%; background: white;
+    transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+}
+.plan-summary {
+  margin-top: 16px; padding: 12px 16px; background: #eff6ff; border-radius: 10px;
+  font-size: 0.87rem; color: #1d4ed8; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  .material-icons { font-size: 18px; }
+}
+
+// ─── Branches ────────────────────────────────────────────────────────────────
+.add-branch-btn { margin-right: auto; margin-left: 0; }
+.branch-list { display: flex; flex-direction: column; gap: 14px; }
+.branch-card {
+  border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;
+  background: #fafafa; transition: border-color 0.15s;
+  &:hover { border-color: #c7d2fe; }
+}
+.branch-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+}
+.branch-num { font-size: 0.85rem; font-weight: 700; color: #2563eb; }
+.btn-icon-danger {
+  background: none; border: none; cursor: pointer; color: #ef4444; padding: 4px;
+  border-radius: 6px; display: flex; align-items: center;
+  &:hover { background: #fee2e2; }
+  .material-icons { font-size: 18px; }
+}
+
+// ─── Admin Note ──────────────────────────────────────────────────────────────
+.admin-note {
+  margin-top: 4px; padding: 12px 14px; background: #fef9c3; border-radius: 10px;
+  font-size: 0.85rem; color: #92400e; display: flex; align-items: flex-start; gap: 8px;
+  .material-icons { font-size: 18px; margin-top: 1px; flex-shrink: 0; }
+}
+.submit-error {
+  margin-top: 14px; padding: 12px 14px; background: #fee2e2; border-radius: 10px;
+  font-size: 0.87rem; color: #b91c1c; display: flex; align-items: flex-start; gap: 8px;
+  .material-icons { font-size: 18px; flex-shrink: 0; }
+}
+
+// ─── Success ─────────────────────────────────────────────────────────────────
+.success-body { text-align: center; padding: 32px 24px; }
+.success-icon {
+  margin-bottom: 16px;
+  .material-icons { font-size: 72px; color: #22c55e; }
+}
+.success-title { font-size: 1.3rem; font-weight: 700; color: #1e293b; margin: 0 0 6px; }
+.success-sub { color: #64748b; font-size: 0.9rem; margin: 0 0 24px; }
+.success-details {
+  text-align: right; background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.success-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  .material-icons { font-size: 20px; color: #2563eb; margin-top: 2px; }
+}
+.success-label { font-size: 0.78rem; color: #94a3b8; }
+.success-val { font-size: 0.95rem; font-weight: 600; color: #1e293b; code { font-size: 0.95em; } }
+.success-hint {
+  display: flex; align-items: flex-start; gap: 10px; text-align: right;
+  padding: 12px 16px; background: #eff6ff; border-radius: 10px;
+  font-size: 0.87rem; color: #1d4ed8;
+  .material-icons { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+}
+
+// ─── Wizard Footer ───────────────────────────────────────────────────────────
+.wizard-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-top: 1px solid #f1f5f9; flex-shrink: 0;
+  background: #fafafa; border-radius: 0 0 16px 16px;
+}
+.footer-right, .footer-left { display: flex; gap: 10px; }
