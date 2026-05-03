@@ -99,7 +99,10 @@ Enterprise-grade HRMS built for Jordanian companies. Full bilingual (Arabic/Engl
   - `GET /api/reports/income-tax-summary?year=` — annual gross + tax per employee from payslips
   - `GET /api/reports/turnover?from=&to=` — hires, exits, turnover rate %
   - `GET /api/reports/compliance-summary` — SSC enrollment, non-Jordanians, expired/expiring work permits
-- **Universal Excel export endpoint**: `GET /api/export/:reportType` — streams .xlsx with ExcelJS Workbook; green header row, alternating row shading, auto-fit columns, totals row; handles all 10 report types + `employees` directory
+- **Shared `ExportService`** (`artifacts/api-server/src/export.service.ts`): `generateExcelBuffer(ExportOptions): Promise<Buffer>` — centralises ALL Excel generation logic. Features: metadata header section (company name row, dark-green report title banner, generation timestamp, yellow filter chips), bold white-text dark-green column headers with bilingual EN/AR two-line labels, alternating row shading (#F0F9F4), thin borders on every cell, Arabic columns right-aligned with RTL reading order, currency columns formatted `#,##0.000`, date columns rendered as `DD/MM/YYYY` strings, auto-width via explicit `ExportColumn.width`, footer row (bold, green top-border, "Total: N records" + currency column sums), frozen header pane, landscape page setup with print header/footer.
+- **`ExportColumn` interface**: `{ key, header, headerAr?, width?, isArabic?, isCurrency?, isDate?, isNumeric? }` — drives all styling decisions without duplicating logic.
+- **`buildReportData()`** refactored: returns `{ columns: ExportColumn[], data: Record<string,unknown>[], titleEn, titleAr, filters }` for all 11 report types (headcount, leave, attendance, overtime, disciplinary, payroll, ssc, income-tax, turnover, compliance, employees). No more 2D array mapping.
+- **Universal Excel export endpoint**: `GET /api/export/:reportType` — looks up company nameEn/nameAr, calls `buildReportData()`, then `generateExcelBuffer()`, streams result as `.xlsx`; handles all 10 report types + `employees` directory
 - **Reports page enhancements**:
   - "Export Excel" button + "Print" button added to viewer header
   - Active filter pill chip shown inline below report title

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import ExcelJS from "exceljs";
+import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
 import { applyBrackets, calculateComponentValueM } from "./salary-calculation.service.js";
@@ -4585,294 +4586,597 @@ app.get("/api/reports/compliance-summary", auth, async (req, res) => {
 });
 
 // ─── Excel Export ──────────────────────────────────────────────────────────────
-async function buildReportData(reportType: string, user: AuthReq["user"], query: Record<string, string>): Promise<{ headers: string[]; rows: (string | number | null)[][] }> {
-  const year = rptSafeInt(query["year"], new Date().getFullYear());
-  const month = rptSafeInt(query["month"], new Date().getMonth() + 1);
-  const from = rptSafeDate(query["from"], `${year}-01-01`);
-  const to = rptSafeDate(query["to"], new Date().toISOString().slice(0, 10));
 
+interface ReportResult {
+  columns: ExportColumn[];
+  data: Record<string, unknown>[];
+  titleEn: string;
+  titleAr: string;
+  filters: Record<string, string>;
+}
+
+async function buildReportData(
+  reportType: string,
+  user: AuthReq["user"],
+  query: Record<string, string>,
+): Promise<ReportResult> {
+  const year  = rptSafeInt(query["year"],  new Date().getFullYear());
+  const month = rptSafeInt(query["month"], new Date().getMonth() + 1);
+  const from  = rptSafeDate(query["from"], `${year}-01-01`);
+  const to    = rptSafeDate(query["to"],   new Date().toISOString().slice(0, 10));
+  const monthLabel = new Date(year, month - 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+
+  // ── Headcount ──────────────────────────────────────────────────────────────
   if (reportType === "headcount") {
-    const byStatus = await db.select({ status: employeesTable.employmentStatus, count: sql<number>`count(*)::int` })
-      .from(employeesTable).where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+    const data = await db
+      .select({ status: employeesTable.employmentStatus, count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
       .groupBy(employeesTable.employmentStatus);
-    return { headers: ["Status", "Count"], rows: byStatus.map(r => [r.status, r.count]) };
+    return {
+      titleEn: "Headcount Report",
+      titleAr: "تقرير الكوادر البشرية",
+      filters: {},
+      columns: [
+        { key: "status", header: "Employment Status", headerAr: "حالة التوظيف", width: 24 },
+        { key: "count",  header: "Count",             headerAr: "العدد",         width: 14, isNumeric: true },
+      ],
+      data: data as Record<string, unknown>[],
+    };
   }
+
+  // ── Leave Summary ──────────────────────────────────────────────────────────
   if (reportType === "leave") {
     const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
-    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
-    const empIds = (await db.select({ id: employeesTable.id }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))).map(e => e.id);
-    if (empIds.length === 0) return { headers: ["Leave Type", "Status", "Requests", "Total Days"], rows: [] };
-    const rows = await db.select({
-      typeEn: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'unknown')`,
-      status: leaveRequestsTable.status,
-      count: sql<number>`count(*)::int`,
-      totalDays: sql<number>`coalesce(sum(${leaveRequestsTable.totalDays}), 0)::numeric(10,2)`,
-    }).from(leaveRequestsTable)
-      .where(and(inArray(leaveRequestsTable.employeeId, empIds), eq(leaveRequestsTable.isDeleted, false),
-        gte(leaveRequestsTable.startDate, startOfMonth), lte(leaveRequestsTable.startDate, endOfMonth)))
+    const endOfMonth   = new Date(year, month, 0).toISOString().slice(0, 10);
+    const empIds = (await db
+      .select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+    ).map(e => e.id);
+    const data = empIds.length === 0 ? [] : await db
+      .select({
+        typeEn:    sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'unknown')`,
+        status:    leaveRequestsTable.status,
+        count:     sql<number>`count(*)::int`,
+        totalDays: sql<number>`coalesce(sum(${leaveRequestsTable.totalDays}), 0)::numeric(10,2)`,
+      })
+      .from(leaveRequestsTable)
+      .where(and(
+        inArray(leaveRequestsTable.employeeId, empIds),
+        eq(leaveRequestsTable.isDeleted, false),
+        gte(leaveRequestsTable.startDate, startOfMonth),
+        lte(leaveRequestsTable.startDate, endOfMonth),
+      ))
       .groupBy(leaveRequestsTable.leaveType, leaveRequestsTable.status)
       .orderBy(desc(sql`count(*)`));
-    return { headers: ["Leave Type", "Status", "Requests", "Total Days"], rows: rows.map(r => [r.typeEn, r.status, r.count, Number(r.totalDays)]) };
+    return {
+      titleEn: "Leave Summary Report",
+      titleAr: "تقرير ملخص الإجازات",
+      filters: { Month: monthLabel },
+      columns: [
+        { key: "typeEn",    header: "Leave Type",  headerAr: "نوع الإجازة",    width: 24 },
+        { key: "status",    header: "Status",      headerAr: "الحالة",         width: 16 },
+        { key: "count",     header: "Requests",    headerAr: "عدد الطلبات",    width: 14, isNumeric: true },
+        { key: "totalDays", header: "Total Days",  headerAr: "إجمالي الأيام", width: 14, isNumeric: true },
+      ],
+      data: data.map(r => ({ ...r, totalDays: Number(r.totalDays) })) as Record<string, unknown>[],
+    };
   }
+
+  // ── Attendance ─────────────────────────────────────────────────────────────
   if (reportType === "attendance") {
     const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
-    const endOfMonth = new Date(year, month, 0).toISOString().slice(0, 10);
-    const rows = await db.select({
-      nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-      nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-      orgNodeNameEn: orgNodesTable.nameEn,
-      presentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'present' then 1 end)::int`,
-      absentDays: sql<number>`count(case when ${attendanceRecordsTable.status} = 'absent' then 1 end)::int`,
-      totalLateMinutes: sql<number>`coalesce(sum(${attendanceRecordsTable.lateMinutes}), 0)::int`,
-    }).from(employeesTable)
-      .leftJoin(attendanceRecordsTable, and(eq(attendanceRecordsTable.employeeId, employeesTable.id),
-        gte(attendanceRecordsTable.date, startOfMonth), lte(attendanceRecordsTable.date, endOfMonth)))
+    const endOfMonth   = new Date(year, month, 0).toISOString().slice(0, 10);
+    const data = await db
+      .select({
+        nameEn:           sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr:           sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        orgNodeNameEn:    orgNodesTable.nameEn,
+        presentDays:      sql<number>`count(case when ${attendanceRecordsTable.status} = 'present' then 1 end)::int`,
+        absentDays:       sql<number>`count(case when ${attendanceRecordsTable.status} = 'absent'  then 1 end)::int`,
+        totalLateMinutes: sql<number>`coalesce(sum(${attendanceRecordsTable.lateMinutes}), 0)::int`,
+      })
+      .from(employeesTable)
+      .leftJoin(attendanceRecordsTable, and(
+        eq(attendanceRecordsTable.employeeId, employeesTable.id),
+        gte(attendanceRecordsTable.date, startOfMonth),
+        lte(attendanceRecordsTable.date, endOfMonth),
+      ))
       .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
-      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, orgNodesTable.nameAr, orgNodesTable.nameEn)
+      .where(and(
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+        eq(employeesTable.employmentStatus, "active"),
+      ))
+      .groupBy(
+        employeesTable.id,
+        employeesTable.firstNameAr, employeesTable.lastNameAr,
+        employeesTable.firstNameEn, employeesTable.lastNameEn,
+        orgNodesTable.nameAr, orgNodesTable.nameEn,
+      )
       .orderBy(asc(employeesTable.firstNameEn));
-    return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Present Days", "Absent Days", "Late Minutes"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", r.presentDays, r.absentDays, r.totalLateMinutes]) };
+    return {
+      titleEn: "Attendance Summary Report",
+      titleAr: "تقرير ملخص الحضور",
+      filters: { Month: monthLabel },
+      columns: [
+        { key: "nameEn",           header: "Name (EN)",     headerAr: "الاسم بالإنجليزية",  width: 28 },
+        { key: "nameAr",           header: "الاسم بالعربية", headerAr: "Name (AR)",           width: 28, isArabic: true },
+        { key: "orgNodeNameEn",    header: "Org Unit",      headerAr: "الوحدة التنظيمية",    width: 22 },
+        { key: "presentDays",      header: "Present Days",  headerAr: "أيام الحضور",         width: 15, isNumeric: true },
+        { key: "absentDays",       header: "Absent Days",   headerAr: "أيام الغياب",         width: 15, isNumeric: true },
+        { key: "totalLateMinutes", header: "Late Minutes",  headerAr: "دقائق التأخير",       width: 15, isNumeric: true },
+      ],
+      data: data.map(r => ({ ...r, orgNodeNameEn: r.orgNodeNameEn ?? "" })) as Record<string, unknown>[],
+    };
   }
+
+  // ── Overtime ───────────────────────────────────────────────────────────────
   if (reportType === "overtime") {
-    const rows = await db.select({
-      nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-      nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-      orgNodeNameEn: orgNodesTable.nameEn,
-      totalHours: sql<number>`coalesce(sum(${overtimeRequestsTable.hours}), 0)::numeric(10,2)`,
-      approvedHours: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours} end), 0)::numeric(10,2)`,
-      totalCost: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours}::numeric * (${employeesTable.basicSalary}::numeric / 176) * 1.5 end), 0)::numeric(12,3)`,
-    }).from(employeesTable)
-      .leftJoin(overtimeRequestsTable, and(eq(overtimeRequestsTable.employeeId, employeesTable.id),
-        gte(overtimeRequestsTable.date, from), lte(overtimeRequestsTable.date, to), eq(overtimeRequestsTable.isDeleted, false)))
+    const data = await db
+      .select({
+        nameEn:        sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr:        sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        orgNodeNameEn: orgNodesTable.nameEn,
+        totalHours:    sql<number>`coalesce(sum(${overtimeRequestsTable.hours}), 0)::numeric(10,2)`,
+        approvedHours: sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours} end), 0)::numeric(10,2)`,
+        totalCost:     sql<number>`coalesce(sum(case when ${overtimeRequestsTable.status} = 'approved' then ${overtimeRequestsTable.hours}::numeric * (${employeesTable.basicSalary}::numeric / 176) * 1.5 end), 0)::numeric(12,3)`,
+      })
+      .from(employeesTable)
+      .leftJoin(overtimeRequestsTable, and(
+        eq(overtimeRequestsTable.employeeId, employeesTable.id),
+        gte(overtimeRequestsTable.date, from),
+        lte(overtimeRequestsTable.date, to),
+        eq(overtimeRequestsTable.isDeleted, false),
+      ))
       .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")))
-      .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.basicSalary, orgNodesTable.nameAr, orgNodesTable.nameEn);
-    return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Total Hours", "Approved Hours", "Cost (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.totalHours), Number(r.approvedHours), Number(r.totalCost)]) };
+      .where(and(
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+        eq(employeesTable.employmentStatus, "active"),
+      ))
+      .groupBy(
+        employeesTable.id,
+        employeesTable.firstNameAr, employeesTable.lastNameAr,
+        employeesTable.firstNameEn, employeesTable.lastNameEn,
+        employeesTable.basicSalary,
+        orgNodesTable.nameAr, orgNodesTable.nameEn,
+      );
+    return {
+      titleEn: "Overtime Summary Report",
+      titleAr: "تقرير ملخص العمل الإضافي",
+      filters: { From: from, To: to },
+      columns: [
+        { key: "nameEn",        header: "Name (EN)",        headerAr: "الاسم بالإنجليزية",  width: 28 },
+        { key: "nameAr",        header: "الاسم بالعربية",   headerAr: "Name (AR)",           width: 28, isArabic: true },
+        { key: "orgNodeNameEn", header: "Org Unit",         headerAr: "الوحدة التنظيمية",    width: 22 },
+        { key: "totalHours",    header: "Total Hours",      headerAr: "إجمالي الساعات",      width: 15, isNumeric: true },
+        { key: "approvedHours", header: "Approved Hours",   headerAr: "ساعات معتمدة",        width: 16, isNumeric: true },
+        { key: "totalCost",     header: "OT Cost (JOD)",    headerAr: "تكلفة إضافي (دينار)", width: 18, isCurrency: true },
+      ],
+      data: data.map(r => ({
+        ...r,
+        orgNodeNameEn: r.orgNodeNameEn ?? "",
+        totalHours:    Number(r.totalHours),
+        approvedHours: Number(r.approvedHours),
+        totalCost:     Number(r.totalCost),
+      })) as Record<string, unknown>[],
+    };
   }
+
+  // ── Disciplinary ───────────────────────────────────────────────────────────
   if (reportType === "disciplinary") {
     const disciplinaryTypes = ["warning_issued", "suspension", "suspension_lift", "termination"];
-    const typeArMap: Record<string, string> = { warning_issued: "إنذار", suspension: "إيقاف", suspension_lift: "رفع الإيقاف", termination: "إنهاء خدمة" };
-    const rows = await db.select({ typeEn: employeeActionsTable.actionType, status: employeeActionsTable.status, count: sql<number>`count(*)::int` })
+    const typeArMap: Record<string, string> = {
+      warning_issued:  "إنذار",
+      suspension:      "إيقاف",
+      suspension_lift: "رفع الإيقاف",
+      termination:     "إنهاء خدمة",
+    };
+    const rows = await db
+      .select({
+        typeEn: employeeActionsTable.actionType,
+        status: employeeActionsTable.status,
+        count:  sql<number>`count(*)::int`,
+      })
       .from(employeeActionsTable)
-      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, disciplinaryTypes),
-        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)))
+      .where(and(
+        eq(employeeActionsTable.companyId, user.companyId),
+        inArray(employeeActionsTable.actionType, disciplinaryTypes),
+        gte(employeeActionsTable.effectiveDate, from),
+        lte(employeeActionsTable.effectiveDate, to),
+      ))
       .groupBy(employeeActionsTable.actionType, employeeActionsTable.status);
-    return { headers: ["Violation Type (EN)", "Violation Type (AR)", "Status", "Count"], rows: rows.map(r => [r.typeEn, typeArMap[r.typeEn] ?? r.typeEn, r.status, r.count]) };
+    return {
+      titleEn: "Disciplinary Summary Report",
+      titleAr: "تقرير ملخص الإجراءات التأديبية",
+      filters: { From: from, To: to },
+      columns: [
+        { key: "typeEn", header: "Violation Type (EN)", headerAr: "نوع المخالفة",    width: 24 },
+        { key: "typeAr", header: "نوع المخالفة",         headerAr: "Violation (AR)", width: 24, isArabic: true },
+        { key: "status", header: "Status",              headerAr: "الحالة",          width: 16 },
+        { key: "count",  header: "Count",               headerAr: "العدد",           width: 12, isNumeric: true },
+      ],
+      data: rows.map(r => ({
+        typeEn: r.typeEn,
+        typeAr: typeArMap[r.typeEn] ?? r.typeEn,
+        status: r.status,
+        count:  r.count,
+      })) as Record<string, unknown>[],
+    };
   }
+
+  // ── Payroll Summary ────────────────────────────────────────────────────────
   if (reportType === "payroll") {
-    const conditions: Parameters<typeof and>[0][] = [eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false), eq(payrollRunsTable.runYear, year)];
+    const conditions: Parameters<typeof and>[0][] = [
+      eq(payrollRunsTable.companyId, user.companyId),
+      eq(payrollRunsTable.isDeleted, false),
+      eq(payrollRunsTable.runYear, year),
+    ];
     if (month > 0) conditions.push(eq(payrollRunsTable.runMonth, month));
     const rows = await db.select().from(payrollRunsTable).where(and(...conditions)).orderBy(desc(payrollRunsTable.runMonth));
-    return { headers: ["Year", "Month", "Employees", "Gross (JOD)", "Net (JOD)", "Deductions (JOD)", "SSC Employee", "SSC Employer", "Income Tax", "Status"], rows: rows.map(r => [r.runYear, r.runMonth, r.employeeCount, Number(r.totalGross), Number(r.totalNet), Number(r.totalDeductions), Number(r.totalSscEmployee), Number(r.totalSscEmployer), Number(r.totalIncomeTax), r.status]) };
+    return {
+      titleEn: "Payroll Summary Report",
+      titleAr: "تقرير ملخص الرواتب",
+      filters: { Year: String(year), ...(month > 0 ? { Month: monthLabel } : {}) },
+      columns: [
+        { key: "runYear",          header: "Year",             headerAr: "السنة",              width: 10, isNumeric: true },
+        { key: "runMonth",         header: "Month",            headerAr: "الشهر",              width: 10, isNumeric: true },
+        { key: "employeeCount",    header: "Employees",        headerAr: "عدد الموظفين",       width: 14, isNumeric: true },
+        { key: "totalGross",       header: "Gross (JOD)",      headerAr: "الإجمالي (دينار)",   width: 18, isCurrency: true },
+        { key: "totalNet",         header: "Net (JOD)",        headerAr: "الصافي (دينار)",     width: 18, isCurrency: true },
+        { key: "totalDeductions",  header: "Deductions (JOD)", headerAr: "الاستقطاعات",        width: 18, isCurrency: true },
+        { key: "totalSscEmployee", header: "SSC Employee",     headerAr: "تأمين الموظف",       width: 18, isCurrency: true },
+        { key: "totalSscEmployer", header: "SSC Employer",     headerAr: "تأمين صاحب العمل",  width: 18, isCurrency: true },
+        { key: "totalIncomeTax",   header: "Income Tax",       headerAr: "ضريبة الدخل",        width: 18, isCurrency: true },
+        { key: "status",           header: "Status",           headerAr: "الحالة",             width: 14 },
+      ],
+      data: rows.map(r => ({
+        ...r,
+        totalGross:       Number(r.totalGross),
+        totalNet:         Number(r.totalNet),
+        totalDeductions:  Number(r.totalDeductions),
+        totalSscEmployee: Number(r.totalSscEmployee),
+        totalSscEmployer: Number(r.totalSscEmployer),
+        totalIncomeTax:   Number(r.totalIncomeTax),
+      })) as Record<string, unknown>[],
+    };
   }
+
+  // ── SSC Contributions ──────────────────────────────────────────────────────
   if (reportType === "ssc") {
-    const runs = await db.select({ id: payrollRunsTable.id }).from(payrollRunsTable)
-      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runMonth, month), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false))).limit(1);
+    const sscCols: ExportColumn[] = [
+      { key: "nameEn",                  header: "Name (EN)",              headerAr: "الاسم بالإنجليزية",   width: 28 },
+      { key: "nameAr",                  header: "الاسم بالعربية",         headerAr: "Name (AR)",            width: 28, isArabic: true },
+      { key: "sscNumber",               header: "SSC Number",             headerAr: "رقم التأمين",         width: 18 },
+      { key: "orgNodeNameEn",           header: "Org Unit",               headerAr: "الوحدة التنظيمية",    width: 22 },
+      { key: "basicSalary",             header: "Basic Salary (JOD)",     headerAr: "الراتب الأساسي",      width: 20, isCurrency: true },
+      { key: "sscDeduction",            header: "Employee SSC (7.5%)",    headerAr: "تأمين الموظف",        width: 20, isCurrency: true },
+      { key: "sscEmployerContribution", header: "Employer SSC (14.25%)",  headerAr: "تأمين صاحب العمل",   width: 22, isCurrency: true },
+    ];
+    const runs = await db
+      .select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(and(
+        eq(payrollRunsTable.companyId, user.companyId),
+        eq(payrollRunsTable.runMonth, month),
+        eq(payrollRunsTable.runYear, year),
+        eq(payrollRunsTable.isDeleted, false),
+      ))
+      .limit(1);
     if (runs.length > 0) {
-      const rows = await db.select({
-        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-        sscNumber: employeesTable.sscNumber,
-        orgNodeNameEn: orgNodesTable.nameEn,
-        basicSalary: payslipsTable.basicSalary,
-        sscDeduction: payslipsTable.sscDeduction,
-        sscEmployerContribution: payslipsTable.sscEmployerContribution,
-      }).from(payslipsTable)
+      const rows = await db
+        .select({
+          nameEn:                  sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          nameAr:                  sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          sscNumber:               employeesTable.sscNumber,
+          orgNodeNameEn:           orgNodesTable.nameEn,
+          basicSalary:             payslipsTable.basicSalary,
+          sscDeduction:            payslipsTable.sscDeduction,
+          sscEmployerContribution: payslipsTable.sscEmployerContribution,
+        })
+        .from(payslipsTable)
         .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
         .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
         .where(and(eq(payslipsTable.payrollRunId, runs[0]!.id), eq(employeesTable.companyId, user.companyId)))
         .orderBy(asc(employeesTable.firstNameEn));
-      return { headers: ["Name (EN)", "Name (AR)", "SSC Number", "Org Unit", "Basic Salary (JOD)", "Employee SSC (7.5%)", "Employer SSC (14.25%)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.sscNumber ?? "", r.orgNodeNameEn ?? "", Number(r.basicSalary), Number(r.sscDeduction), Number(r.sscEmployerContribution)]) };
+      return {
+        titleEn: "SSC Contributions Report",
+        titleAr: "تقرير اشتراكات الضمان الاجتماعي",
+        filters: { Month: monthLabel },
+        columns: sscCols,
+        data: rows.map(r => ({
+          ...r,
+          sscNumber:               r.sscNumber ?? "",
+          orgNodeNameEn:           r.orgNodeNameEn ?? "",
+          basicSalary:             Number(r.basicSalary),
+          sscDeduction:            Number(r.sscDeduction),
+          sscEmployerContribution: Number(r.sscEmployerContribution),
+        })) as Record<string, unknown>[],
+      };
     } else {
-      const rows = await db.select({
-        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-        sscNumber: employeesTable.sscNumber,
-        orgNodeNameEn: orgNodesTable.nameEn,
-        basicSalary: employeesTable.basicSalary,
-        sscDeduction: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.075, 3)`,
-        sscEmployerContribution: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.1425, 3)`,
-      }).from(employeesTable)
+      const rows = await db
+        .select({
+          nameEn:                  sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          nameAr:                  sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          sscNumber:               employeesTable.sscNumber,
+          orgNodeNameEn:           orgNodesTable.nameEn,
+          basicSalary:             employeesTable.basicSalary,
+          sscDeduction:            sql<number>`round(${employeesTable.basicSalary}::numeric * 0.075, 3)`,
+          sscEmployerContribution: sql<number>`round(${employeesTable.basicSalary}::numeric * 0.1425, 3)`,
+        })
+        .from(employeesTable)
         .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), eq(employeesTable.isSSCExempt, false)))
+        .where(and(
+          eq(employeesTable.companyId, user.companyId),
+          eq(employeesTable.isDeleted, false),
+          eq(employeesTable.employmentStatus, "active"),
+          eq(employeesTable.isSSCExempt, false),
+        ))
         .orderBy(asc(employeesTable.firstNameEn));
-      return { headers: ["Name (EN)", "Name (AR)", "SSC Number", "Org Unit", "Basic Salary (JOD)", "Employee SSC (7.5%)", "Employer SSC (14.25%)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.sscNumber ?? "", r.orgNodeNameEn ?? "", Number(r.basicSalary), Number(r.sscDeduction), Number(r.sscEmployerContribution)]) };
+      return {
+        titleEn: "SSC Contributions Report (Estimated)",
+        titleAr: "تقرير اشتراكات الضمان (تقديري)",
+        filters: { Month: monthLabel, Note: "No payroll run found — estimates used" },
+        columns: sscCols,
+        data: rows.map(r => ({
+          ...r,
+          sscNumber:               r.sscNumber ?? "",
+          orgNodeNameEn:           r.orgNodeNameEn ?? "",
+          basicSalary:             Number(r.basicSalary),
+          sscDeduction:            Number(r.sscDeduction),
+          sscEmployerContribution: Number(r.sscEmployerContribution),
+        })) as Record<string, unknown>[],
+      };
     }
   }
+
+  // ── Income Tax ─────────────────────────────────────────────────────────────
   if (reportType === "income-tax") {
-    const checkPayslips = await db.select({ id: payslipsTable.id })
-      .from(payslipsTable).innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
-      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false))).limit(1);
+    const taxCols: ExportColumn[] = [
+      { key: "nameEn",         header: "Name (EN)",              headerAr: "الاسم بالإنجليزية",   width: 28 },
+      { key: "nameAr",         header: "الاسم بالعربية",         headerAr: "Name (AR)",            width: 28, isArabic: true },
+      { key: "orgNodeNameEn",  header: "Org Unit",               headerAr: "الوحدة التنظيمية",    width: 22 },
+      { key: "annualGross",    header: "Annual Gross (JOD)",     headerAr: "الإجمالي السنوي",     width: 22, isCurrency: true },
+      { key: "totalTax",       header: "Income Tax (JOD)",       headerAr: "ضريبة الدخل",         width: 20, isCurrency: true },
+      { key: "extraExemption", header: "Extra Exemption (JOD)",  headerAr: "الإعفاء الإضافي",     width: 22, isCurrency: true },
+    ];
+    const checkPayslips = await db
+      .select({ id: payslipsTable.id })
+      .from(payslipsTable)
+      .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+      .where(and(
+        eq(payrollRunsTable.companyId, user.companyId),
+        eq(payrollRunsTable.runYear, year),
+        eq(payrollRunsTable.isDeleted, false),
+      ))
+      .limit(1);
     if (checkPayslips.length > 0) {
-      const rows = await db.select({
-        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-        orgNodeNameEn: orgNodesTable.nameEn,
-        annualGross: sql<number>`coalesce(sum(${payslipsTable.grossSalary}), 0)::numeric(14,3)`,
-        totalTax: sql<number>`coalesce(sum(${payslipsTable.incomeTaxDeduction}), 0)::numeric(14,3)`,
-        extraExemption: employeesTable.taxExemptionAmount,
-      }).from(payslipsTable)
+      const rows = await db
+        .select({
+          nameEn:         sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          nameAr:         sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          orgNodeNameEn:  orgNodesTable.nameEn,
+          annualGross:    sql<number>`coalesce(sum(${payslipsTable.grossSalary}), 0)::numeric(14,3)`,
+          totalTax:       sql<number>`coalesce(sum(${payslipsTable.incomeTaxDeduction}), 0)::numeric(14,3)`,
+          extraExemption: employeesTable.taxExemptionAmount,
+        })
+        .from(payslipsTable)
         .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
         .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
         .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-        .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.runYear, year), eq(payrollRunsTable.isDeleted, false)))
-        .groupBy(employeesTable.id, employeesTable.firstNameAr, employeesTable.lastNameAr, employeesTable.firstNameEn, employeesTable.lastNameEn, employeesTable.taxExemptionAmount, orgNodesTable.nameAr, orgNodesTable.nameEn)
+        .where(and(
+          eq(payrollRunsTable.companyId, user.companyId),
+          eq(payrollRunsTable.runYear, year),
+          eq(payrollRunsTable.isDeleted, false),
+        ))
+        .groupBy(
+          employeesTable.id,
+          employeesTable.firstNameAr, employeesTable.lastNameAr,
+          employeesTable.firstNameEn, employeesTable.lastNameEn,
+          employeesTable.taxExemptionAmount,
+          orgNodesTable.nameAr, orgNodesTable.nameEn,
+        )
         .orderBy(desc(sql`coalesce(sum(${payslipsTable.grossSalary}), 0)`));
-      return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Annual Gross (JOD)", "Income Tax (JOD)", "Extra Exemption (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.annualGross), Number(r.totalTax), Number(r.extraExemption ?? 0)]) };
+      return {
+        titleEn: "Income Tax Summary Report",
+        titleAr: "تقرير ملخص ضريبة الدخل",
+        filters: { Year: String(year) },
+        columns: taxCols,
+        data: rows.map(r => ({
+          ...r,
+          orgNodeNameEn:  r.orgNodeNameEn ?? "",
+          annualGross:    Number(r.annualGross),
+          totalTax:       Number(r.totalTax),
+          extraExemption: Number(r.extraExemption ?? 0),
+        })) as Record<string, unknown>[],
+      };
     } else {
-      const rows = await db.select({
-        nameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
-        nameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
-        orgNodeNameEn: orgNodesTable.nameEn,
-        annualGross: sql<number>`round((${employeesTable.basicSalary}::numeric + coalesce(${employeesTable.housingAllowance}::numeric, 0) + coalesce(${employeesTable.transportAllowance}::numeric, 0)) * 12, 3)`,
-        extraExemption: employeesTable.taxExemptionAmount,
-      }).from(employeesTable)
+      const rows = await db
+        .select({
+          nameEn:         sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+          nameAr:         sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+          orgNodeNameEn:  orgNodesTable.nameEn,
+          annualGross:    sql<number>`round((${employeesTable.basicSalary}::numeric + coalesce(${employeesTable.housingAllowance}::numeric, 0) + coalesce(${employeesTable.transportAllowance}::numeric, 0)) * 12, 3)`,
+          extraExemption: employeesTable.taxExemptionAmount,
+        })
+        .from(employeesTable)
         .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
-      return { headers: ["Name (EN)", "Name (AR)", "Org Unit", "Est. Annual Gross (JOD)", "Income Tax (JOD)", "Extra Exemption (JOD)"], rows: rows.map(r => [r.nameEn, r.nameAr, r.orgNodeNameEn ?? "", Number(r.annualGross), 0, Number(r.extraExemption ?? 0)]) };
+        .where(and(
+          eq(employeesTable.companyId, user.companyId),
+          eq(employeesTable.isDeleted, false),
+          eq(employeesTable.employmentStatus, "active"),
+        ));
+      return {
+        titleEn: "Income Tax Summary Report (Estimated)",
+        titleAr: "تقرير ضريبة الدخل (تقديري)",
+        filters: { Year: String(year), Note: "No payroll runs found — estimates used" },
+        columns: taxCols,
+        data: rows.map(r => ({
+          ...r,
+          orgNodeNameEn:  r.orgNodeNameEn ?? "",
+          annualGross:    Number(r.annualGross),
+          totalTax:       0,
+          extraExemption: Number(r.extraExemption ?? 0),
+        })) as Record<string, unknown>[],
+      };
     }
   }
+
+  // ── Turnover ───────────────────────────────────────────────────────────────
   if (reportType === "turnover") {
-    const [hireRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+    const [hireRow]    = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), gte(employeesTable.hireDate, from), lte(employeesTable.hireDate, to)));
-    const [exitRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeeActionsTable)
-      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, ["termination", "resignation"]),
-        gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)));
-    const [totalActive] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+    const [exitRow]    = await db.select({ count: sql<number>`count(*)::int` }).from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.companyId, user.companyId), inArray(employeeActionsTable.actionType, ["termination", "resignation"]), gte(employeeActionsTable.effectiveDate, from), lte(employeeActionsTable.effectiveDate, to)));
+    const [activeRow]  = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
-    const avgHeadcount = totalActive?.count ?? 1;
+    const avg  = activeRow?.count ?? 1;
     const exits = exitRow?.count ?? 0;
-    const turnoverRate = avgHeadcount > 0 ? parseFloat(((exits / avgHeadcount) * 100).toFixed(2)) : 0;
-    return { headers: ["Metric", "Value"], rows: [["Hires", hireRow?.count ?? 0], ["Exits", exits], ["Turnover Rate %", turnoverRate], ["Period From", from], ["Period To", to]] };
+    const rate  = avg > 0 ? parseFloat(((exits / avg) * 100).toFixed(2)) : 0;
+    return {
+      titleEn: "Turnover Report",
+      titleAr: "تقرير معدل دوران الموظفين",
+      filters: { From: from, To: to },
+      columns: [
+        { key: "metric", header: "Metric", headerAr: "المؤشر", width: 30 },
+        { key: "value",  header: "Value",  headerAr: "القيمة", width: 20 },
+      ],
+      data: [
+        { metric: "Hires",             value: hireRow?.count ?? 0 },
+        { metric: "Exits",             value: exits },
+        { metric: "Turnover Rate %",   value: rate },
+        { metric: "Period From",       value: from },
+        { metric: "Period To",         value: to },
+        { metric: "Current Headcount", value: avg },
+      ],
+    };
   }
+
+  // ── Compliance ─────────────────────────────────────────────────────────────
   if (reportType === "compliance") {
-    const today = new Date().toISOString().slice(0, 10);
+    const today    = new Date().toISOString().slice(0, 10);
     const soonDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const [totalActiveRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+    const [totalRow]     = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")));
-    const [sscEnrolledRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+    const [sscRow]       = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.sscNumber)));
-    const [nonJordRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
-        ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
-    const [expiredRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
-        isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
-    const [expiringSoonRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
-        isNotNull(employeesTable.workPermitExpiry), gte(sql`${employeesTable.workPermitExpiry}::date`, today), lte(sql`${employeesTable.workPermitExpiry}::date`, soonDate)));
-    const totalActive = totalActiveRow?.count ?? 0;
-    const sscEnrolled = sscEnrolledRow?.count ?? 0;
-    return { headers: ["Metric", "Value"], rows: [["Active Employees", totalActive], ["SSC Enrolled", sscEnrolled], ["SSC Not Enrolled", totalActive - sscEnrolled], ["Non-Jordanians", nonJordRow?.count ?? 0], ["Work Permits Expired", expiredRow?.count ?? 0], ["Work Permits Expiring (30d)", expiringSoonRow?.count ?? 0]] };
+    const [nonJordRow]   = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
+    const [expiredRow]   = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
+    const [expiringSoon] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.workPermitExpiry), gte(sql`${employeesTable.workPermitExpiry}::date`, today), lte(sql`${employeesTable.workPermitExpiry}::date`, soonDate)));
+    const totalActive = totalRow?.count ?? 0;
+    const sscEnrolled = sscRow?.count ?? 0;
+    return {
+      titleEn: "Compliance Summary Report",
+      titleAr: "تقرير الامتثال والمخاطر",
+      filters: { "As Of": today },
+      columns: [
+        { key: "metric", header: "Compliance Metric", headerAr: "مؤشر الامتثال", width: 36 },
+        { key: "value",  header: "Value",             headerAr: "القيمة",         width: 16 },
+      ],
+      data: [
+        { metric: "Active Employees",              value: totalActive },
+        { metric: "SSC Enrolled",                  value: sscEnrolled },
+        { metric: "SSC Not Enrolled",              value: totalActive - sscEnrolled },
+        { metric: "Non-Jordanian Employees",       value: nonJordRow?.count ?? 0 },
+        { metric: "Work Permits Expired",          value: expiredRow?.count ?? 0 },
+        { metric: "Work Permits Expiring (30 d)",  value: expiringSoon?.count ?? 0 },
+      ],
+    };
   }
-  return { headers: [], rows: [] };
+
+  // ── Employee Directory ─────────────────────────────────────────────────────
+  if (reportType === "employees") {
+    const emps = await db
+      .select({
+        employeeCode:    employeesTable.employeeCode,
+        nameEn:          sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        nameAr:          sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        orgNodeNameEn:   orgNodesTable.nameEn,
+        gender:          employeesTable.gender,
+        nationality:     employeesTable.nationality,
+        hireDate:        employeesTable.hireDate,
+        employmentStatus: employeesTable.employmentStatus,
+        basicSalary:     employeesTable.basicSalary,
+        sscNumber:       employeesTable.sscNumber,
+        personalPhone:   employeesTable.personalPhone,
+      })
+      .from(employeesTable)
+      .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+      .orderBy(asc(employeesTable.firstNameEn));
+    return {
+      titleEn: "Employee Directory",
+      titleAr: "دليل الموظفين",
+      filters: {},
+      columns: [
+        { key: "employeeCode",     header: "Emp. Code",        headerAr: "كود الموظف",          width: 14 },
+        { key: "nameEn",           header: "Name (EN)",        headerAr: "الاسم بالإنجليزية",  width: 30 },
+        { key: "nameAr",           header: "الاسم بالعربية",   headerAr: "Name (AR)",           width: 30, isArabic: true },
+        { key: "orgNodeNameEn",    header: "Org Unit",         headerAr: "الوحدة التنظيمية",    width: 24 },
+        { key: "gender",           header: "Gender",           headerAr: "الجنس",               width: 12 },
+        { key: "nationality",      header: "Nationality",      headerAr: "الجنسية",             width: 16 },
+        { key: "hireDate",         header: "Hire Date",        headerAr: "تاريخ التعيين",       width: 14, isDate: true },
+        { key: "employmentStatus", header: "Status",           headerAr: "الحالة",              width: 14 },
+        { key: "basicSalary",      header: "Basic Salary (JOD)", headerAr: "الراتب الأساسي",   width: 20, isCurrency: true },
+        { key: "sscNumber",        header: "SSC Number",       headerAr: "رقم الضمان",         width: 18 },
+        { key: "personalPhone",    header: "Phone",            headerAr: "الهاتف",              width: 16 },
+      ],
+      data: emps.map(r => ({
+        ...r,
+        orgNodeNameEn: r.orgNodeNameEn ?? "",
+        nationality:   r.nationality ?? "",
+        sscNumber:     r.sscNumber ?? "",
+        personalPhone: r.personalPhone ?? "",
+        basicSalary:   Number(r.basicSalary),
+      })) as Record<string, unknown>[],
+    };
+  }
+
+  return { titleEn: "Report", titleAr: "تقرير", filters: {}, columns: [], data: [] };
 }
 
 app.get("/api/export/:reportType", auth, async (req, res) => {
   try {
-    const user = (req as AuthReq).user;
+    const user       = (req as AuthReq).user;
     const reportType = req.params["reportType"]!;
 
-    // ── Employee directory export ──────────────────────────────────────────
-    if (reportType === "employees") {
-      const emps = await db.select({
-        employeeCode: employeesTable.employeeCode,
-        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
-        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
-        gender: employeesTable.gender, nationality: employeesTable.nationality,
-        hireDate: employeesTable.hireDate, employmentStatus: employeesTable.employmentStatus,
-        basicSalary: employeesTable.basicSalary, sscNumber: employeesTable.sscNumber,
-        personalPhone: employeesTable.personalPhone,
-        orgNodeNameEn: orgNodesTable.nameEn, orgNodeNameAr: orgNodesTable.nameAr,
-      }).from(employeesTable)
-        .leftJoin(orgNodesTable, eq(employeesTable.orgNodeId, orgNodesTable.id))
-        .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
-        .orderBy(asc(employeesTable.firstNameEn));
-      const wb2 = new ExcelJS.Workbook();
-      wb2.creator = "ZenJO HRMS";
-      const ws2 = wb2.addWorksheet("Employees");
-      const empHeaders = ["Employee Code", "Name (EN)", "Name (AR)", "Org Unit", "Gender", "Nationality", "Hire Date", "Status", "Basic Salary (JOD)", "SSC Number", "Phone"];
-      const empHeaderRow = ws2.addRow(empHeaders);
-      empHeaderRow.eachCell(cell => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A6B4A" } };
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
-      });
-      empHeaderRow.height = 22;
-      emps.forEach((emp, idx) => {
-        const r = ws2.addRow([emp.employeeCode, `${emp.firstNameEn} ${emp.lastNameEn}`, `${emp.firstNameAr} ${emp.lastNameAr}`, emp.orgNodeNameEn ?? emp.orgNodeNameAr ?? "", emp.gender, emp.nationality ?? "", emp.hireDate, emp.employmentStatus, Number(emp.basicSalary), emp.sscNumber ?? "", emp.personalPhone ?? ""]);
-        if (idx % 2 === 1) r.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F9F4" } }; });
-      });
-      ws2.columns.forEach((col, i) => { col.width = Math.min((empHeaders[i]?.length ?? 10) + 6, 40); });
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename="zenjo-employees.xlsx"`);
-      await wb2.xlsx.write(res);
-      res.end();
+    const allowed = ["headcount", "leave", "attendance", "overtime", "disciplinary", "payroll", "ssc", "income-tax", "turnover", "compliance", "employees"];
+    if (!allowed.includes(reportType)) {
+      res.status(400).json({ success: false, message: "Unknown report type" });
       return;
     }
 
-    const allowed = ["headcount", "leave", "attendance", "overtime", "disciplinary", "payroll", "ssc", "income-tax", "turnover", "compliance"];
-    if (!allowed.includes(reportType)) { res.status(400).json({ success: false, message: "Unknown report type" }); return; }
+    const [company] = await db
+      .select({ nameEn: companiesTable.nameEn, nameAr: companiesTable.nameAr })
+      .from(companiesTable)
+      .where(eq(companiesTable.id, user.companyId))
+      .limit(1);
 
-    const { data: { headers, rows } } = { data: await buildReportData(reportType, user, req.query as Record<string, string>) };
+    const { columns, data, titleEn, titleAr, filters } = await buildReportData(
+      reportType,
+      user,
+      req.query as Record<string, string>,
+    );
 
-    const wb = new ExcelJS.Workbook();
-    wb.creator = "ZenJO HRMS";
-    wb.created = new Date();
-    const ws = wb.addWorksheet("Report", { views: [{ rightToLeft: false }] });
-
-    // Header row — styled
-    const headerRow = ws.addRow(headers);
-    headerRow.eachCell(cell => {
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A6B4A" } };
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-      cell.alignment = { vertical: "middle", horizontal: "center" };
-      cell.border = { bottom: { style: "thin", color: { argb: "FF0F3D2B" } } };
-    });
-    headerRow.height = 22;
-
-    // Data rows
-    rows.forEach((row, idx) => {
-      const r = ws.addRow(row);
-      if (idx % 2 === 1) {
-        r.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F9F4" } }; });
-      }
-      r.eachCell(cell => {
-        if (typeof cell.value === "number") cell.alignment = { horizontal: "right" };
-        else cell.alignment = { horizontal: "left" };
-      });
+    const buffer = await generateExcelBuffer({
+      sheetName:      titleEn,
+      columns,
+      data,
+      companyName:    company?.nameEn ?? "ZenJO HRMS",
+      companyNameAr:  company?.nameAr ?? "",
+      reportTitle:    titleEn,
+      reportTitleAr:  titleAr,
+      filters,
     });
 
-    // Auto-fit columns
-    ws.columns.forEach((col, i) => {
-      let maxLen = headers[i]?.length ?? 10;
-      rows.forEach(row => { const v = String(row[i] ?? ""); if (v.length > maxLen) maxLen = v.length; });
-      col.width = Math.min(maxLen + 4, 45);
-    });
-
-    // Totals row for numeric reports
-    if (rows.length > 0 && rows[0] !== undefined) {
-      const numericCols = rows[0].map((_, ci) => rows.every(r => typeof r[ci] === "number") ? ci : -1).filter(ci => ci >= 0);
-      if (numericCols.length > 0 && rows.length > 1) {
-        const totalsRow = ws.addRow(headers.map((h, ci) => {
-          if (ci === 0) return "TOTAL";
-          if (numericCols.includes(ci)) return rows.reduce((s, r) => s + (typeof r[ci] === "number" ? (r[ci] as number) : 0), 0);
-          return "";
-        }));
-        totalsRow.eachCell(cell => {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5EE" } };
-          cell.font = { bold: true };
-          cell.border = { top: { style: "thin", color: { argb: "FF1A6B4A" } } };
-        });
-      }
-    }
-
-    const filename = `zenjo-${reportType}-report.xlsx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    await wb.xlsx.write(res);
-    res.end();
+    res.setHeader("Content-Disposition", `attachment; filename="zenjo-${reportType}-report.xlsx"`);
+    res.send(buffer);
   } catch (e) {
     console.error("[GET /api/export/:reportType]", e);
     if (!res.headersSent) res.status(500).json({ success: false, message: "Export failed" });
