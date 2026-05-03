@@ -241,3 +241,82 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
 .leave-bal-val { font-size: 28px; font-weight: 800; color: var(--z-emerald); line-height: 1; }
 .leave-bal-label { font-size: 12px; color: var(--z-text-muted); }
 .leave-bal-sub { font-size: 11px; color: var(--z-text-muted); margin-top: 4px; }
+
+/* ── Actions Timeline ─────────────────────────────────────────── */
+.section-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+  .section-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 16px; font-weight: 600; color: var(--z-text);
+    .material-icons { font-size: 20px; color: var(--z-emerald); }
+  }
+}
+.actions-timeline {
+  display: flex; flex-direction: column; gap: 0;
+}
+.action-item {
+  display: flex; gap: 0; min-height: 70px;
+}
+.action-dot-col {
+  display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0;
+}
+.action-dot {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; z-index: 1;
+  .material-icons { font-size: 18px; color: #fff; }
+  &.action-hire           { background: #22c55e; }
+  &.action-transfer       { background: #3b82f6; }
+  &.action-title          { background: #8b5cf6; }
+  &.action-salary         { background: #f59e0b; }
+  &.action-promotion      { background: #10b981; }
+  &.action-demotion       { background: #ef4444; }
+  &.action-termination    { background: #dc2626; }
+  &.action-resignation    { background: #6b7280; }
+  &.action-confirm        { background: #22c55e; }
+  &.action-suspension     { background: #f97316; }
+  &.action-return         { background: #06b6d4; }
+  &.action-warning        { background: #eab308; }
+  &.action-custom         { background: #a78bfa; }
+}
+.action-line {
+  width: 2px; flex: 1; background: var(--z-border); min-height: 20px;
+}
+.action-item:last-child .action-line { display: none; }
+.action-card {
+  flex: 1; background: var(--z-surface); border: 1px solid var(--z-border);
+  border-radius: 10px; padding: 12px 16px; margin: 0 0 12px 12px;
+  [dir=rtl] & { margin: 0 12px 12px 0; }
+}
+.action-card-header {
+  display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap;
+}
+.action-type-chip {
+  font-size: 12px; font-weight: 600; border-radius: 999px;
+  padding: 2px 10px; color: #fff; display: inline-block;
+  &.action-hire           { background: #22c55e; }
+  &.action-transfer       { background: #3b82f6; }
+  &.action-title          { background: #8b5cf6; }
+  &.action-salary         { background: #f59e0b; }
+  &.action-promotion      { background: #10b981; }
+  &.action-demotion       { background: #ef4444; }
+  &.action-termination    { background: #dc2626; }
+  &.action-resignation    { background: #6b7280; }
+  &.action-confirm        { background: #22c55e; }
+  &.action-suspension     { background: #f97316; }
+  &.action-return         { background: #06b6d4; }
+  &.action-warning        { background: #eab308; }
+  &.action-custom         { background: #a78bfa; }
+}
+.action-date {
+  font-size: 12px; color: var(--z-text-muted); font-weight: 500;
+}
+.action-notes {
+  margin-top: 8px; font-size: 13px; color: var(--z-text); line-height: 1.5;
+}
+.action-meta {
+  margin-top: 8px; display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--z-text-muted);
+  .material-icons { font-size: 13px; }
+}

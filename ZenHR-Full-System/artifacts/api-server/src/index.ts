@@ -13,6 +13,7 @@ import {
   orgNodesTable, rolesTable, permissionsTable, rolePermissionsTable,
   jobDescriptionsTable, careerPathsTable,
   employeeQualificationsTable,
+  employeeActionsTable,
 } from "@workspace/db/schema";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
 import {
@@ -728,6 +729,107 @@ app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
   }
 });
 
+// ─── Employee Actions ─────────────────────────────────────────────────────────
+
+app.get("/api/employees/:id/actions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
+      .from(employeesTable).where(eq(employeesTable.id, empId)).limit(1);
+    if (!emp || emp.companyId !== user.companyId) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
+    if (user.role === "employee" && user.employeeId !== empId) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const actions = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.employeeId, empId), eq(employeeActionsTable.isDeleted, false)))
+      .orderBy(desc(employeeActionsTable.effectiveDate), desc(employeeActionsTable.createdAt));
+    res.json({ success: true, data: actions });
+  } catch (e) {
+    console.error("[GET /api/employees/:id/actions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/employees/:id/actions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "manager", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const empId = parseInt(req.params["id"]!);
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId))).limit(1);
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    const { actionType, effectiveDate, notes, metadata } = req.body as {
+      actionType: string;
+      effectiveDate: string;
+      notes?: string;
+      metadata?: Record<string, any>;
+    };
+    if (!actionType || !effectiveDate) {
+      res.status(400).json({ success: false, message: "actionType and effectiveDate are required" }); return;
+    }
+
+    const action = await db.transaction(async (tx) => {
+      const meta = metadata ?? {};
+      const empUpdate: Record<string, any> = {};
+
+      if (actionType === "TRANSFER") {
+        if (meta.newOrgNodeId != null) empUpdate.orgNodeId = meta.newOrgNodeId;
+        if (meta.newDepartmentId != null) empUpdate.departmentId = meta.newDepartmentId;
+      } else if (actionType === "TITLE_CHANGE" || actionType === "PROMOTION" || actionType === "DEMOTION") {
+        if (meta.newJobTitleId != null) empUpdate.jobTitleId = meta.newJobTitleId;
+      } else if (actionType === "SALARY_CHANGE") {
+        if (meta.newBasicSalary != null) empUpdate.basicSalary = String(meta.newBasicSalary);
+        if (meta.newHousingAllowance != null) empUpdate.housingAllowance = String(meta.newHousingAllowance);
+        if (meta.newTransportAllowance != null) empUpdate.transportAllowance = String(meta.newTransportAllowance);
+        if (meta.newMobileAllowance != null) empUpdate.mobileAllowance = String(meta.newMobileAllowance);
+        if (meta.newMealAllowance != null) empUpdate.mealAllowance = String(meta.newMealAllowance);
+        if (meta.newOtherAllowances != null) empUpdate.otherAllowances = String(meta.newOtherAllowances);
+      } else if (actionType === "TERMINATION") {
+        empUpdate.employmentStatus = "terminated";
+        if (meta.terminationDate) empUpdate.terminationDate = meta.terminationDate;
+        if (meta.terminationReason) empUpdate.terminationReason = meta.terminationReason;
+      } else if (actionType === "RESIGNATION") {
+        empUpdate.employmentStatus = "resigned";
+        if (meta.terminationDate) empUpdate.terminationDate = meta.terminationDate;
+      } else if (actionType === "PROBATION_CONFIRMATION") {
+        empUpdate.employmentStatus = "active";
+      } else if (actionType === "SUSPENSION") {
+        empUpdate.employmentStatus = "suspended";
+      } else if (actionType === "RETURN_FROM_SUSPENSION") {
+        empUpdate.employmentStatus = "active";
+      }
+
+      if (Object.keys(empUpdate).length > 0) {
+        await tx.update(employeesTable).set(empUpdate).where(eq(employeesTable.id, empId));
+      }
+
+      const [inserted] = await tx.insert(employeeActionsTable).values({
+        companyId: user.companyId,
+        employeeId: empId,
+        actionType,
+        effectiveDate,
+        performedByUserId: user.userId,
+        performedByName: user.username,
+        notes: notes ?? null,
+        metadata: metadata ?? null,
+      }).returning();
+      return inserted;
+    });
+
+    await logActivity(user.companyId, "employee_action", `Action ${actionType} recorded for employee #${empId}`, null);
+    res.status(201).json({ success: true, data: action });
+  } catch (e) {
+    console.error("[POST /api/employees/:id/actions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // ─── Org Nodes ────────────────────────────────────────────────────────────────
 
 // GET /api/org-nodes — flat list for current company
@@ -978,9 +1080,21 @@ app.delete("/api/job-titles/:id", auth, async (req, res) => {
 // ─── Leave Requests ───────────────────────────────────────────────────────────
 app.get("/api/leave/requests", auth, async (req, res) => {
   try {
-    const { employeeId, status, year } = req.query as Record<string, string>;
-    const conditions = [eq(leaveRequestsTable.isDeleted, false)];
-    if (employeeId) conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId)));
+    const user = (req as AuthReq).user;
+    const { employeeId, status } = req.query as Record<string, string>;
+    const conditions: any[] = [eq(leaveRequestsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(leaveRequestsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(leaveRequestsTable.employeeId, ids));
+    } else if (employeeId) {
+      conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId)));
+    }
     if (status) conditions.push(eq(leaveRequestsTable.status, status));
     const rows = await db.select().from(leaveRequestsTable).where(and(...conditions)).orderBy(desc(leaveRequestsTable.createdAt));
     res.json({ success: true, data: rows });
@@ -1161,8 +1275,14 @@ app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
 
 app.get("/api/payroll/slips", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.employeeId, user.employeeId)).orderBy(desc(payslipsTable.createdAt));
+      res.json({ success: true, data: slips }); return;
+    }
     const { employeeId, year, month } = req.query as Record<string, string>;
-    const conditions = [];
+    const conditions: any[] = [];
     if (employeeId) conditions.push(eq(payslipsTable.employeeId, parseInt(employeeId)));
     if (year) conditions.push(eq(payslipsTable.runYear, parseInt(year)));
     if (month) conditions.push(eq(payslipsTable.runMonth, parseInt(month)));
@@ -1217,9 +1337,21 @@ app.get("/api/payroll/slips/:id", auth, async (req, res) => {
 // ─── Attendance ───────────────────────────────────────────────────────────────
 app.get("/api/attendance", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { employeeId, from, to } = req.query as Record<string, string>;
-    const conditions = [];
-    if (employeeId) conditions.push(eq(attendanceRecordsTable.employeeId, parseInt(employeeId)));
+    const conditions: any[] = [];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(attendanceRecordsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(attendanceRecordsTable.employeeId, ids));
+    } else if (employeeId) {
+      conditions.push(eq(attendanceRecordsTable.employeeId, parseInt(employeeId)));
+    }
     if (from) conditions.push(gte(attendanceRecordsTable.date, from));
     if (to) conditions.push(lte(attendanceRecordsTable.date, to));
     const rows = conditions.length > 0
@@ -1287,9 +1419,21 @@ app.get("/api/attendance/summary", auth, async (req, res) => {
 // ─── Documents ────────────────────────────────────────────────────────────────
 app.get("/api/documents", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { employeeId, expiringWithinDays } = req.query as Record<string, string>;
-    const conditions = [eq(documentsTable.isDeleted, false)];
-    if (employeeId) conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
+    const conditions: any[] = [eq(documentsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(documentsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(documentsTable.employeeId, ids));
+    } else if (employeeId) {
+      conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
+    }
     const docs = await db.select().from(documentsTable).where(and(...conditions)).orderBy(desc(documentsTable.createdAt));
     res.json({ success: true, data: docs });
   } catch (e) {
@@ -1329,8 +1473,18 @@ app.get("/api/assets", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const { employeeId, status } = req.query as Record<string, string>;
-    const conditions = [eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)];
-    if (employeeId) conditions.push(eq(assetsTable.assignedToEmployeeId, parseInt(employeeId)));
+    const conditions: any[] = [eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(assetsTable.assignedToEmployeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length > 0) conditions.push(inArray(assetsTable.assignedToEmployeeId, ids));
+    } else {
+      if (employeeId) conditions.push(eq(assetsTable.assignedToEmployeeId, parseInt(employeeId)));
+    }
     if (status) conditions.push(eq(assetsTable.currentStatus, status));
     const assets = await db.select().from(assetsTable).where(and(...conditions)).orderBy(desc(assetsTable.createdAt));
     const emps = await db.select({ id: employeesTable.id, firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn }).from(employeesTable);
@@ -1659,9 +1813,21 @@ app.post("/api/overtime/calculate", auth, async (req, res) => {
 
 app.get("/api/overtime", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { employeeId, status } = req.query as Record<string, string>;
-    const conditions = [eq(overtimeRequestsTable.isDeleted, false)];
-    if (employeeId) conditions.push(eq(overtimeRequestsTable.employeeId, parseInt(employeeId)));
+    const conditions: any[] = [eq(overtimeRequestsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(overtimeRequestsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(overtimeRequestsTable.employeeId, ids));
+    } else if (employeeId) {
+      conditions.push(eq(overtimeRequestsTable.employeeId, parseInt(employeeId)));
+    }
     if (status) conditions.push(eq(overtimeRequestsTable.status, status));
     const rows = await db.select().from(overtimeRequestsTable).where(and(...conditions)).orderBy(desc(overtimeRequestsTable.date));
     res.json({ success: true, data: rows });
@@ -1735,8 +1901,13 @@ app.post("/api/disciplinary/violations", auth, async (req, res) => {
 const resignationsStore: any[] = [];
 let resignationIdSeq = 1;
 
-app.get("/api/resignations", auth, async (_req, res) => {
-  res.json({ success: true, data: resignationsStore });
+app.get("/api/resignations", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  let result: any[] = resignationsStore;
+  if (user.role === "employee") {
+    result = result.filter((r: any) => r.employeeId === user.employeeId);
+  }
+  res.json({ success: true, data: result });
 });
 
 app.post("/api/resignations", auth, async (req, res) => {
@@ -1768,8 +1939,14 @@ const advancesStore: any[] = [];
 let advanceIdSeq = 1;
 
 app.get("/api/salary-advances", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
   const { employeeId } = req.query as Record<string, string>;
-  const result = advancesStore.filter(a => !employeeId || String(a.employeeId) === employeeId);
+  let result: any[] = advancesStore;
+  if (user.role === "employee") {
+    result = result.filter((a: any) => a.employeeId === user.employeeId);
+  } else if (employeeId) {
+    result = result.filter((a: any) => String(a.employeeId) === employeeId);
+  }
   res.json({ success: true, data: result });
 });
 

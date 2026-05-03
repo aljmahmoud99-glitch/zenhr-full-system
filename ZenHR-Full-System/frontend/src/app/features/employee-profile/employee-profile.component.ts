@@ -71,8 +71,19 @@ export class EmployeeProfileComponent implements OnInit {
     recommendation: 'continue'
   };
 
-  activeTab = signal<'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications'>('personal');
+  activeTab = signal<'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions'>('personal');
   loadedTabs = signal<string[]>(['personal']);
+
+  employeeActions = signal<any[]>([]);
+  loadingActions = signal(false);
+  showActionModal = signal(false);
+  actionSaving = signal(false);
+  actionForm: { actionType: string; effectiveDate: string; notes: string; metadata: Record<string, any> } = {
+    actionType: 'TRANSFER',
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    notes: '',
+    metadata: {}
+  };
 
   constructor(
     private route: ActivatedRoute,
@@ -137,7 +148,7 @@ export class EmployeeProfileComponent implements OnInit {
     });
   }
 
-  onTabChange(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications') {
+  onTabChange(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'payslips' | 'bank-ssc' | 'disciplinary' | 'qualifications' | 'actions') {
     this.activeTab.set(tab);
     if (tab === 'qualifications') this.loadQualifications(this.employeeId);
     if (this.loadedTabs().includes(tab)) return;
@@ -171,11 +182,14 @@ export class EmployeeProfileComponent implements OnInit {
     if (tab === 'disciplinary' && emp) {
       this.loadDisciplinary(emp.id);
     }
+    if (tab === 'actions' && emp) {
+      this.loadActions(emp.id);
+    }
 
     this.loadedTabs.set([...this.loadedTabs(), tab]);
   }
 
-  canSeeTab(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'bank-ssc' | 'salary' | 'payslips' | 'disciplinary' | 'qualifications') {
+  canSeeTab(tab: 'personal' | 'employment' | 'probation' | 'attendance' | 'leave' | 'advances' | 'compliance' | 'documents' | 'assets' | 'bank-ssc' | 'salary' | 'payslips' | 'disciplinary' | 'qualifications' | 'actions') {
     if (tab === 'personal' || tab === 'employment' || tab === 'probation') return true;
     if (tab === 'attendance') return this.access.isAny('hradmin', 'manager', 'employee');
     if (tab === 'leave') return this.access.isAny('hradmin', 'manager', 'employee');
@@ -187,6 +201,7 @@ export class EmployeeProfileComponent implements OnInit {
     if (tab === 'payslips') return this.access.isAny('hradmin', 'payrolladmin', 'employee');
     if (tab === 'disciplinary') return this.access.isAny('hradmin', 'manager', 'employee');
     if (tab === 'qualifications') return this.access.isAny('hradmin', 'manager', 'employee');
+    if (tab === 'actions') return this.access.isAny('hradmin', 'manager', 'payrolladmin', 'employee');
     return false;
   }
 
@@ -953,6 +968,75 @@ export class EmployeeProfileComponent implements OnInit {
     const l = map[s];
     return l ? (this.lang === 'ar' ? l.ar : l.en) : s;
   }
+
+  loadActions(empId: number) {
+    this.loadingActions.set(true);
+    this.api.get<any>(`/api/employees/${empId}/actions`).subscribe({
+      next: r => { this.employeeActions.set(r.data ?? []); this.loadingActions.set(false); },
+      error: () => { this.employeeActions.set([]); this.loadingActions.set(false); }
+    });
+  }
+
+  actionTypeLabel(type: string): { en: string; ar: string; icon: string; cls: string } {
+    const map: Record<string, { en: string; ar: string; icon: string; cls: string }> = {
+      HIRE:                  { en: 'Hired',                    ar: 'تعيين',           icon: 'person_add',       cls: 'action-hire' },
+      TRANSFER:              { en: 'Transfer',                 ar: 'نقل',             icon: 'swap_horiz',       cls: 'action-transfer' },
+      TITLE_CHANGE:          { en: 'Title Change',             ar: 'تغيير المسمى',    icon: 'badge',            cls: 'action-title' },
+      SALARY_CHANGE:         { en: 'Salary Change',            ar: 'تعديل الراتب',    icon: 'payments',         cls: 'action-salary' },
+      PROMOTION:             { en: 'Promotion',                ar: 'ترقية',           icon: 'trending_up',      cls: 'action-promotion' },
+      DEMOTION:              { en: 'Demotion',                 ar: 'خفض درجة',        icon: 'trending_down',    cls: 'action-demotion' },
+      TERMINATION:           { en: 'Termination',              ar: 'إنهاء خدمة',      icon: 'person_remove',    cls: 'action-termination' },
+      RESIGNATION:           { en: 'Resignation',              ar: 'استقالة',         icon: 'exit_to_app',      cls: 'action-resignation' },
+      PROBATION_CONFIRMATION:{ en: 'Probation Confirmed',      ar: 'تثبيت',           icon: 'verified',         cls: 'action-confirm' },
+      SUSPENSION:            { en: 'Suspension',               ar: 'إيقاف',           icon: 'pause_circle',     cls: 'action-suspension' },
+      RETURN_FROM_SUSPENSION:{ en: 'Returned from Suspension', ar: 'عودة من الإيقاف', icon: 'play_circle',      cls: 'action-return' },
+      WARNING:               { en: 'Warning Issued',           ar: 'إنذار',           icon: 'warning',          cls: 'action-warning' },
+      CUSTOM:                { en: 'Custom Action',            ar: 'إجراء مخصص',     icon: 'edit_note',        cls: 'action-custom' },
+    };
+    return map[type] ?? { en: type, ar: type, icon: 'history', cls: 'action-custom' };
+  }
+
+  openActionModal() {
+    this.actionForm = {
+      actionType: 'TRANSFER',
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      notes: '',
+      metadata: {}
+    };
+    this.showActionModal.set(true);
+  }
+
+  closeActionModal() { this.showActionModal.set(false); }
+
+  saveAction() {
+    const emp = this.employee();
+    if (!emp || !this.actionForm.actionType || !this.actionForm.effectiveDate) return;
+    this.actionSaving.set(true);
+    this.api.post<any>(`/api/employees/${emp.id}/actions`, {
+      actionType: this.actionForm.actionType,
+      effectiveDate: this.actionForm.effectiveDate,
+      notes: this.actionForm.notes || null,
+      metadata: Object.keys(this.actionForm.metadata).length ? this.actionForm.metadata : null
+    }).subscribe({
+      next: () => {
+        this.actionSaving.set(false);
+        this.closeActionModal();
+        this.toast.success(this.lang === 'ar' ? 'تم تسجيل الإجراء بنجاح.' : 'Action recorded successfully.');
+        this.loadActions(emp.id);
+        this.loadEmployee(emp.id);
+      },
+      error: e => {
+        this.actionSaving.set(false);
+        this.toast.error(getErrorMessage(e, this.lang === 'ar' ? 'حدث خطأ أثناء حفظ الإجراء.' : 'Failed to save action.'));
+      }
+    });
+  }
+
+  ACTION_TYPES = [
+    'HIRE','TRANSFER','TITLE_CHANGE','SALARY_CHANGE','PROMOTION','DEMOTION',
+    'TERMINATION','RESIGNATION','PROBATION_CONFIRMATION','SUSPENSION',
+    'RETURN_FROM_SUSPENSION','WARNING','CUSTOM'
+  ];
 
   goBack() {
     this.router.navigate(['/app/employees']);

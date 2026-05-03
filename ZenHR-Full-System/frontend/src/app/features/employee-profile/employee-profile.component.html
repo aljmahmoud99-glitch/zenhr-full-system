@@ -141,6 +141,10 @@
       <span class="material-icons">gavel</span>
       {{ lang==='ar' ? 'المخالفات' : 'Disciplinary' }}
     </button>
+    <button class="profile-tab" *ngIf="canSeeTab('actions')" [class.active]="activeTab()==='actions'" (click)="onTabChange('actions')">
+      <span class="material-icons">history</span>
+      {{ lang==='ar' ? 'سجل الإجراءات' : 'Actions' }}
+    </button>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════-->
@@ -1332,5 +1336,99 @@
       </button>
     </div>
   </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <!-- TAB: Actions Timeline -->
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <div *ngIf="activeTab()==='actions'" class="profile-tab-body">
+    <div class="section-header-row">
+      <h3 class="section-title">
+        <span class="material-icons">history</span>
+        {{ lang==='ar' ? 'سجل الإجراءات' : 'Actions History' }}
+      </h3>
+      <button *ngIf="canManage" class="btn btn-primary btn-sm" (click)="openActionModal()">
+        <span class="material-icons">add</span>
+        {{ lang==='ar' ? 'تسجيل إجراء' : 'Record Action' }}
+      </button>
+    </div>
+
+    <div *ngIf="loadingActions()" class="empty-state">
+      <span class="material-icons">sync</span>
+      {{ lang==='ar' ? 'جاري التحميل...' : 'Loading...' }}
+    </div>
+
+    <div *ngIf="!loadingActions() && employeeActions().length === 0" class="empty-state">
+      <span class="material-icons">history_toggle_off</span>
+      {{ lang==='ar' ? 'لا توجد إجراءات مسجلة.' : 'No actions recorded yet.' }}
+    </div>
+
+    <div *ngIf="!loadingActions() && employeeActions().length > 0" class="actions-timeline">
+      <div *ngFor="let action of employeeActions()" class="action-item">
+        <div class="action-dot-col">
+          <div class="action-dot" [ngClass]="actionTypeLabel(action.actionType).cls">
+            <span class="material-icons">{{ actionTypeLabel(action.actionType).icon }}</span>
+          </div>
+          <div class="action-line"></div>
+        </div>
+        <div class="action-card">
+          <div class="action-card-header">
+            <span class="action-type-chip" [ngClass]="actionTypeLabel(action.actionType).cls">
+              {{ lang==='ar' ? actionTypeLabel(action.actionType).ar : actionTypeLabel(action.actionType).en }}
+            </span>
+            <span class="action-date">{{ action.effectiveDate | date:'dd/MM/yyyy' }}</span>
+          </div>
+          <div *ngIf="action.notes" class="action-notes">{{ action.notes }}</div>
+          <div class="action-meta">
+            <span class="material-icons">person_outline</span>
+            {{ action.performedByName || '—' }}
+            &nbsp;·&nbsp;
+            {{ action.createdAt | date:'dd/MM/yyyy HH:mm' }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <!-- MODAL: Record Action -->
+  <!-- ══════════════════════════════════════════════════════════════════-->
+  <div *ngIf="showActionModal()" class="modal-overlay" (click)="closeActionModal()">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span class="material-icons">history</span>
+          {{ lang==='ar' ? 'تسجيل إجراء جديد' : 'Record Employee Action' }}
+        </h3>
+        <button class="modal-close-btn" (click)="closeActionModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ lang==='ar' ? 'نوع الإجراء' : 'Action Type' }}</label>
+          <select class="form-control" [(ngModel)]="actionForm.actionType">
+            <option *ngFor="let t of ACTION_TYPES" [value]="t">
+              {{ lang==='ar' ? actionTypeLabel(t).ar : actionTypeLabel(t).en }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang==='ar' ? 'تاريخ النفاذ' : 'Effective Date' }}</label>
+          <input type="date" class="form-control" [(ngModel)]="actionForm.effectiveDate" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ lang==='ar' ? 'ملاحظات' : 'Notes' }}</label>
+          <textarea class="form-control" rows="3" [(ngModel)]="actionForm.notes"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeActionModal()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+        <button class="btn btn-primary" (click)="saveAction()" [disabled]="actionSaving()">
+          {{ actionSaving() ? (lang==='ar' ? 'جاري الحفظ...' : 'Saving...') : (lang==='ar' ? 'تسجيل' : 'Record') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
