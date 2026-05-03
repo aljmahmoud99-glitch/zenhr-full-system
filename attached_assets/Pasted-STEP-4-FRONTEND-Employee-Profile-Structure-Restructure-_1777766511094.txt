@@ -1,0 +1,95 @@
+STEP 4 — FRONTEND: Employee Profile Structure
+═══════════════════════════════════
+Restructure the profile into a professional card layout.
+
+Overall layout:
+  ┌─ Profile Header Card ─────────────────────────────────────────┐
+  │  [Avatar/Initials Circle]  Full Name (AR)                    │
+  │                            Full Name (EN) · EMP-0001          │
+  │  [Department Badge]  [Job Title Badge]  [Status Badge]        │
+  │  Hired: 01/01/2020 · Reports to: Manager Name                 │
+  │                                         [Edit]  [Actions ▾]  │
+  └───────────────────────────────────────────────────────────────┘
+  
+  Tabs row:
+  [البيانات الشخصية] [التوظيف] [الراتب*] [البنك*] [الحضور] [الإجازات] [الوثائق] [الامتثال] [السجل التأديبي] [الأصول] [السلف] [كشوف الرواتب*] [التاريخ الوظيفي]
+  (* = hidden for employee + manager roles)
+
+  Each tab panel: lazy loads its data only when first activated.
+  Do not load all tabs on page open — too slow.
+
+Personal Tab — Accordion Layout:
+  Each accordion panel has: icon | title | item count badge | expand/collapse arrow
+  Animation: smooth height transition (200ms ease)
+
+  Accordion Panel 1: البيانات الشخصية / Personal Information [open by default]
+    Two-column grid:
+    Full Name (AR) | Full Name (EN)
+    Gender | Date of Birth | Age (calculated)
+    National ID | Nationality | Blood Type
+    Marital Status | Dependents
+
+  Accordion Panel 2: بيانات الاتصال / Contact Details
+    Personal Phone | Work Phone
+    Personal Email | Work Email
+    Emergency Contact: Name | Phone | Relationship
+
+  Accordion Panel 3: عنوان السكن / Address
+    Governorate | City | Address
+
+  Accordion Panel 4: الهوية والتأمين / Identity & Insurance [visible to hr/payroll only]
+    National ID type | Passport No. | Passport Expiry
+    SSC Number | SSC Enrollment Date
+
+Employment Tab — Accordion Layout:
+  Accordion Panel 1: بيانات الوظيفة / Job Details [open by default]
+    Department | Org Unit path (breadcrumb: Company > Branch > Dept > Section)
+    Job Title | Job Grade | Employment Type
+    Direct Manager | Work Location
+
+  Accordion Panel 2: تفاصيل العقد / Contract Details
+    Contract Type | Hire Date | Probation End Date
+    Contract End Date | Notice Period | Status
+
+  Accordion Panel 3: التاريخ الوظيفي / Career History [new feature]
+    Read-only timeline: list of EmployeeActions ordered by date descending
+    Each action: [icon] [date] [action type label in AR] [before → after summary]
+    Empty state: "لا يوجد تاريخ وظيفي مسجل"
+
+Qualifications Tab — Accordion Layout:
+  This tab has 4 accordion sections. Each section loads independently.
+
+  Section 1: المؤهلات العلمية / Education
+    Table: Degree | Institution | Field | Year | GPA
+    [+ إضافة] button (hradmin only) → opens inline form below table (not modal)
+    Each row: [✏️ Edit] [🗑️ Delete] (hradmin only)
+    Inline edit form: expands below the row being edited
+
+  Section 2: الخبرات السابقة / Previous Experience
+    Cards layout (not table — better for long descriptions):
+    Each card: Company Name | Job Title | Duration | Description
+    Current position: highlighted with "الوضع الحالي" badge
+    [+ إضافة] → opens a slide-down inline form
+
+  Section 3: المهارات / Skills
+    Tag cloud layout: each skill is a chip/badge showing name + proficiency dots (●●●○○)
+    [+ إضافة مهارة] → opens small inline form: skill name + level (1–5 star selector)
+    Click existing skill → inline edit mode
+
+  Section 4: الدورات والشهادات / Courses & Certifications
+    List with certificate icon, course name, provider, date, and certificate number
+    If has_certificate=true: show [📄 شهادة] badge
+    [+ إضافة] → inline form
+
+Accordion Component Rules:
+  - Build as a REUSABLE standalone Angular component: <z-accordion-panel>
+  - Inputs: title (string), icon (emoji), count (number), openByDefault (bool)
+  - Animation: CSS height transition — use Angular animations API (not CSS only — need IE11 fallback? No — skip, modern only)
+  - State: each panel tracks its own open/closed — not parent-controlled
+  - Keyboard accessible: Enter/Space toggles open/closed
+
+RTL Support throughout:
+  - Accordion arrow points LEFT in LTR, RIGHT in RTL (and rotates down when open in both)
+  - Two-column grids use logical CSS: margin-inline-start, padding-inline-end
+  - Breadcrumb separator: "←" in LTR, "→" in RTL
+  - All field labels right-aligned in RTL

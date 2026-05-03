@@ -35,7 +35,7 @@ export interface Employee {
   firstNameAr: string; lastNameAr: string; firstNameEn: string; lastNameEn: string;
   middleNameAr?: string; middleNameEn?: string;
   fullNameAr: string; fullNameEn: string;
-  gender: string; dateOfBirth?: string; nationalId?: string;
+  gender: string; dateOfBirth?: string; nationalId?: string; bloodType?: string;
   nationality?: string; nationalityCode?: string; maritalStatus?: string;
   religion?: string; numberOfDependents?: number;
   workEmail?: string; personalEmail?: string;

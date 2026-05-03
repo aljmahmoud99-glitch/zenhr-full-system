@@ -36,22 +36,11 @@ export class EmployeeProfileComponent implements OnInit {
   advances = signal<any[]>([]);
   orgNodesFlat: any[] = [];
   qualifications: any[] = [];
-  showQualModal = false;
-  qualSaving = false;
-  qualForm: any = {
-    qualificationType: 'education',
-    degree: '',
-    institution: '',
-    year: '',
-    jobTitle: '',
-    company: '',
-    years: '',
-    description: '',
-    name: '',
-    level: null,
-    provider: '',
-    date: ''
-  };
+  inlineQualMode: { type: string; id: number | null } | null = null;
+  inlineQualSaving = false;
+  inlineQualForm: any = {};
+  careerHistory: any[] = [];
+  loadingCareerHistory = signal(false);
   employeeId = 0;
   loading = signal(true);
   loadingEvals = signal(false);
@@ -150,6 +139,7 @@ export class EmployeeProfileComponent implements OnInit {
     this.activeTab.set(tab);
     if (tab === 'qualifications') this.loadQualifications(this.employeeId);
     if (this.loadedTabs().includes(tab)) return;
+    if (tab === 'employment' && this.employeeId) this.loadCareerHistory(this.employeeId);
 
     const emp = this.employee();
     if (tab === 'probation' && emp && (emp.employmentStatus === 'probation' || emp.probationEndDate)) {
@@ -257,63 +247,6 @@ export class EmployeeProfileComponent implements OnInit {
     }
   }
 
-  openAddQual(type: string) {
-    this.qualForm = {
-      qualificationType: type,
-      degree: '',
-      institution: '',
-      year: '',
-      jobTitle: '',
-      company: '',
-      years: '',
-      description: '',
-      name: '',
-      level: null,
-      provider: '',
-      date: ''
-    };
-    this.showQualModal = true;
-  }
-
-  closeQualModal() {
-    this.showQualModal = false;
-    this.qualSaving = false;
-  }
-
-  saveQualification() {
-    const type = this.qualForm.qualificationType;
-    const data = this.qualificationPayload(type);
-    this.qualSaving = true;
-    this.http.post<any>(`/api/employees/${this.employeeId}/qualifications`, {
-      qualificationType: type,
-      dataJson: JSON.stringify(data)
-    }).subscribe({
-      next: () => {
-        this.closeQualModal();
-        this.loadQualifications(this.employeeId);
-      },
-      error: () => this.qualSaving = false
-    });
-  }
-
-  qualificationPayload(type: string) {
-    if (type === 'education') {
-      return { degree: this.qualForm.degree, institution: this.qualForm.institution, year: this.qualForm.year };
-    }
-    if (type === 'experience') {
-      return {
-        jobTitle: this.qualForm.jobTitle,
-        company: this.qualForm.company,
-        years: this.qualForm.years,
-        description: this.qualForm.description
-      };
-    }
-    if (type === 'skill') {
-      return { name: this.qualForm.name, level: this.qualForm.level };
-    }
-    return { name: this.qualForm.name, provider: this.qualForm.provider, date: this.qualForm.date };
-  }
-
   qualificationGroups() {
     const groups = new Map<string, any[]>();
     for (const item of this.qualifications) {
@@ -333,18 +266,93 @@ export class EmployeeProfileComponent implements OnInit {
     }
   }
 
-  addQualification() {
-    const qualificationType = prompt('Qualification type');
-    if (!qualificationType) return;
-    const dataJson = prompt('Data JSON', '{}') || '{}';
-    this.http.post<any>(`/api/employees/${this.employeeId}/qualifications`, { qualificationType, dataJson })
-      .subscribe(() => this.loadQualifications(this.employeeId));
-  }
-
   deleteQualification(qualId: number) {
     if (!confirm(this.lang === 'ar' ? 'هل تريد حذف هذا العنصر؟' : 'Delete this item?')) return;
     this.api.delete<any>(`/api/employees/${this.employeeId}/qualifications/${qualId}`)
       .subscribe(() => this.loadQualifications(this.employeeId));
+  }
+
+  startInlineAdd(type: string) {
+    this.inlineQualMode = { type, id: null };
+    this.inlineQualForm = this.blankInlineForm(type);
+  }
+
+  startInlineEdit(item: any) {
+    const type = item.qualificationType ?? item.QualificationType;
+    const data = this.safeParseJson(item.dataJson ?? item.DataJson);
+    this.inlineQualMode = { type, id: item.id ?? item.Id };
+    this.inlineQualForm = { ...this.blankInlineForm(type), ...data };
+  }
+
+  cancelInline() {
+    this.inlineQualMode = null;
+    this.inlineQualForm = {};
+    this.inlineQualSaving = false;
+  }
+
+  isInlineEditing(item: any): boolean {
+    return !!this.inlineQualMode && this.inlineQualMode.id === (item.id ?? item.Id);
+  }
+
+  isInlineAdding(type: string): boolean {
+    return !!this.inlineQualMode && this.inlineQualMode.type === type && this.inlineQualMode.id === null;
+  }
+
+  blankInlineForm(type: string): any {
+    if (type === 'education') return { degree: '', institution: '', field_of_study: '', graduation_year: null, gpa: null };
+    if (type === 'experience') return { jobTitle: '', company: '', startDate: '', endDate: '', isCurrent: false, description: '' };
+    if (type === 'skill') return { name: '', level: 3 };
+    if (type === 'course') return { name: '', provider: '', date: '', has_certificate: false, certificate_number: '' };
+    return {};
+  }
+
+  saveInline() {
+    if (!this.inlineQualMode) return;
+    const { type, id } = this.inlineQualMode;
+    const dataJson = JSON.stringify(this.inlineQualForm);
+    this.inlineQualSaving = true;
+    const obs = id == null
+      ? this.http.post<any>(`/api/employees/${this.employeeId}/qualifications`, { qualificationType: type, dataJson })
+      : this.http.put<any>(`/api/employees/${this.employeeId}/qualifications/${id}`, { dataJson });
+    obs.subscribe({
+      next: () => { this.cancelInline(); this.loadQualifications(this.employeeId); },
+      error: () => { this.inlineQualSaving = false; }
+    });
+  }
+
+  setSkillLevel(n: number) { this.inlineQualForm.level = n; }
+
+  proficiencyDots(level: number | null | undefined): string {
+    const lv = Math.max(0, Math.min(5, +(level || 0)));
+    return '●'.repeat(lv) + '○'.repeat(5 - lv);
+  }
+
+  getAge(): string {
+    const dob = this.employee()?.dateOfBirth;
+    if (!dob) return '—';
+    const d = new Date(dob); const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return this.lang === 'ar' ? `${age} سنة` : `${age} yrs`;
+  }
+
+  experienceDuration(item: any): string {
+    const d = item.data || {};
+    if (d.years) return this.lang === 'ar' ? `${d.years} سنوات` : `${d.years} yrs`;
+    if (d.startDate) {
+      const end = d.isCurrent ? (this.lang === 'ar' ? 'الحالي' : 'Present') : (d.endDate || '—');
+      return `${d.startDate} → ${end}`;
+    }
+    return '—';
+  }
+
+  loadCareerHistory(empId: number) {
+    this.loadingCareerHistory.set(true);
+    this.api.get<any>(`/api/employees/${empId}/career-history`).subscribe({
+      next: r => { this.careerHistory = r.data ?? []; this.loadingCareerHistory.set(false); },
+      error: () => { this.careerHistory = []; this.loadingCareerHistory.set(false); }
+    });
   }
 
   getInitials(): string {

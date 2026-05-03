@@ -164,6 +164,8 @@
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الاسم (إنجليزي)' : 'Name (EN)' }}</span><span class="info-val">{{ employee()!.fullNameEn }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجنس' : 'Gender' }}</span><span class="info-val">{{ employee()!.gender === 'male' ? (lang==='ar'?'ذكر':'Male') : (lang==='ar'?'أنثى':'Female') }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'تاريخ الميلاد' : 'Date of Birth' }}</span><span class="info-val">{{ employee()!.dateOfBirth ? (employee()!.dateOfBirth | date:'dd/MM/yyyy') : '-' }}</span></div>
+          <div class="info-row" *ngIf="employee()!.dateOfBirth"><span class="info-label">{{ lang==='ar' ? 'العمر' : 'Age' }}</span><span class="info-val">{{ getAge() }}</span></div>
+          <div class="info-row" *ngIf="employee()!.bloodType"><span class="info-label">{{ lang==='ar' ? 'فصيلة الدم' : 'Blood Type' }}</span><span class="info-val">{{ employee()!.bloodType }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الجنسية' : 'Nationality' }}</span><span class="info-val">{{ employee()!.nationality || '-' }}</span></div>
           <div class="info-row"><span class="info-label">{{ lang==='ar' ? 'الحالة الاجتماعية' : 'Marital Status' }}</span><span class="info-val">{{ employee()!.maritalStatus || '-' }}</span></div>
           <div class="info-row" *ngIf="employee()!.religion"><span class="info-label">{{ lang==='ar' ? 'الديانة' : 'Religion' }}</span><span class="info-val">{{ employee()!.religion }}</span></div>
@@ -335,6 +337,33 @@
             {{ lang==='ar' ? 'غير محدد' : 'Not assigned' }}
           </div>
         </div>
+      </z-accordion-panel>
+
+      <z-accordion-panel
+        [title]="lang==='ar' ? 'التاريخ الوظيفي' : 'Career History'"
+        icon="history"
+        [count]="careerHistory.length">
+        <div class="loading-wrap" *ngIf="loadingCareerHistory()">
+          <div class="spinner"></div>
+        </div>
+        <div *ngIf="!loadingCareerHistory() && careerHistory.length === 0" class="empty-state-inline">
+          <span class="material-icons">timeline</span>
+          <span>{{ lang==='ar' ? 'لا يوجد تاريخ وظيفي مسجل' : 'No career history recorded' }}</span>
+        </div>
+        <ul class="career-timeline" *ngIf="!loadingCareerHistory() && careerHistory.length > 0">
+          <li class="career-event" *ngFor="let ev of careerHistory">
+            <div class="career-event-dot"><span class="material-icons">{{ ev.icon || 'event' }}</span></div>
+            <div class="career-event-body">
+              <div class="career-event-date">{{ ev.actionDate | date:'dd/MM/yyyy' }}</div>
+              <div class="career-event-title">{{ lang==='ar' ? (ev.actionLabelAr || ev.actionType) : (ev.actionLabelEn || ev.actionType) }}</div>
+              <div class="career-event-summary text-muted fs-13" *ngIf="ev.before || ev.after">
+                <span *ngIf="ev.before">{{ ev.before }}</span>
+                <span *ngIf="ev.before && ev.after"> → </span>
+                <span *ngIf="ev.after">{{ ev.after }}</span>
+              </div>
+            </div>
+          </li>
+        </ul>
       </z-accordion-panel>
     </z-accordion>
   </div>
@@ -660,185 +689,272 @@
 
   <div *ngIf="activeTab()==='qualifications'" class="profile-tab-body">
     <z-accordion>
+
+      <!-- Section 1: Education (table) -->
       <z-accordion-panel
         [title]="lang==='ar' ? 'المؤهلات العلمية' : 'Education'"
         icon="school"
-        [count]="getQualCount('education')">
-        <div *ngFor="let item of getQuals('education')" class="qual-item">
-          <div class="qual-row">
-            <span class="fw-600">{{ item.data?.degree }}</span>
-            <span class="text-muted">{{ item.data?.institution }}</span>
-            <span class="badge badge-neutral">{{ item.data?.year }}</span>
-            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
-              {{ lang==='ar' ? 'حذف' : 'Delete' }}
-            </button>
+        [count]="getQualCount('education')"
+        [openByDefault]="true">
+        <table class="qual-table" *ngIf="getQuals('education').length > 0">
+          <thead>
+            <tr>
+              <th>{{ lang==='ar' ? 'الدرجة' : 'Degree' }}</th>
+              <th>{{ lang==='ar' ? 'المؤسسة' : 'Institution' }}</th>
+              <th>{{ lang==='ar' ? 'التخصص' : 'Field' }}</th>
+              <th>{{ lang==='ar' ? 'السنة' : 'Year' }}</th>
+              <th>{{ lang==='ar' ? 'المعدل' : 'GPA' }}</th>
+              <th *ngIf="canEdit" style="width:80px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let item of getQuals('education')">
+              <tr>
+                <td class="fw-600">{{ item.data?.degree || '—' }}</td>
+                <td>{{ item.data?.institution || '—' }}</td>
+                <td>{{ item.data?.field_of_study || item.data?.field || '—' }}</td>
+                <td>{{ item.data?.graduation_year || item.data?.year || '—' }}</td>
+                <td>{{ item.data?.gpa || '—' }}</td>
+                <td *ngIf="canEdit">
+                  <div class="row-actions">
+                    <button class="icon-btn" type="button" (click)="startInlineEdit(item)" [title]="lang==='ar' ? 'تعديل' : 'Edit'"><span class="material-icons">edit</span></button>
+                    <button class="icon-btn danger" type="button" (click)="deleteQualification(item.id ?? item.Id)" [title]="lang==='ar' ? 'حذف' : 'Delete'"><span class="material-icons">delete</span></button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="canEdit && isInlineEditing(item)">
+                <td [attr.colspan]="6">
+                  <div class="inline-form">
+                    <div class="inline-form-grid">
+                      <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الدرجة' : 'Degree' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.degree"></div>
+                      <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المؤسسة' : 'Institution' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.institution"></div>
+                      <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'التخصص' : 'Field' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.field_of_study"></div>
+                      <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'السنة' : 'Year' }}</label><input class="form-input" type="number" [(ngModel)]="inlineQualForm.graduation_year"></div>
+                      <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المعدل' : 'GPA' }}</label><input class="form-input" type="number" step="0.01" [(ngModel)]="inlineQualForm.gpa"></div>
+                    </div>
+                    <div class="form-actions">
+                      <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+                      <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+        <div *ngIf="getQuals('education').length===0 && !isInlineAdding('education')" class="empty-state-inline">
+          <span class="material-icons">school</span>
+          <span>{{ lang==='ar' ? 'لم يتم إضافة مؤهلات علمية' : 'No education added yet' }}</span>
+        </div>
+        <div *ngIf="isInlineAdding('education')" class="inline-form">
+          <div class="inline-form-grid">
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الدرجة' : 'Degree' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.degree"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المؤسسة' : 'Institution' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.institution"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'التخصص' : 'Field' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.field_of_study"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'السنة' : 'Year' }}</label><input class="form-input" type="number" [(ngModel)]="inlineQualForm.graduation_year"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المعدل' : 'GPA' }}</label><input class="form-input" type="number" step="0.01" [(ngModel)]="inlineQualForm.gpa"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+            <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
           </div>
         </div>
-        <div *ngIf="getQuals('education').length===0" class="text-muted fs-13">
-          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
-        </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px"
-                *ngIf="canEdit" (click)="openAddQual('education')">
+                *ngIf="canEdit && !isInlineAdding('education')" (click)="startInlineAdd('education')">
           + {{ lang==='ar' ? 'إضافة' : 'Add' }}
         </button>
       </z-accordion-panel>
 
+      <!-- Section 2: Experience (cards) -->
       <z-accordion-panel
         [title]="lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience'"
         icon="business_center"
         [count]="getQualCount('experience')">
-        <div *ngFor="let item of getQuals('experience')" class="qual-item">
-          <div class="qual-row">
-            <span class="fw-600">{{ item.data?.jobTitle }}</span>
-            <span class="text-muted">{{ item.data?.company }}</span>
-            <span class="badge badge-neutral">{{ item.data?.years }} {{ lang==='ar' ? 'سنوات' : 'yrs' }}</span>
-            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
-              {{ lang==='ar' ? 'حذف' : 'Delete' }}
-            </button>
-          </div>
-          <p *ngIf="item.data?.description" class="text-muted fs-12" style="margin-top:4px">
-            {{ item.data.description }}
-          </p>
+        <div class="exp-cards">
+          <ng-container *ngFor="let item of getQuals('experience')">
+            <div class="exp-card" [class.is-current]="item.data?.isCurrent">
+              <div *ngIf="!isInlineEditing(item)">
+                <div class="exp-card-header">
+                  <div>
+                    <div class="exp-card-title">{{ item.data?.jobTitle || '—' }}</div>
+                    <div class="exp-card-company">{{ item.data?.company || '—' }}</div>
+                    <div class="exp-card-duration">{{ experienceDuration(item) }}</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span *ngIf="item.data?.isCurrent" class="current-badge">{{ lang==='ar' ? 'الوضع الحالي' : 'Current' }}</span>
+                    <button class="icon-btn" type="button" *ngIf="canEdit" (click)="startInlineEdit(item)" [title]="lang==='ar' ? 'تعديل' : 'Edit'"><span class="material-icons">edit</span></button>
+                    <button class="icon-btn danger" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)" [title]="lang==='ar' ? 'حذف' : 'Delete'"><span class="material-icons">delete</span></button>
+                  </div>
+                </div>
+                <p *ngIf="item.data?.description" class="exp-card-desc">{{ item.data.description }}</p>
+              </div>
+              <div *ngIf="isInlineEditing(item)" class="inline-form" style="margin:0">
+                <div class="inline-form-grid">
+                  <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.jobTitle"></div>
+                  <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الشركة' : 'Company' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.company"></div>
+                  <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'تاريخ البدء' : 'Start Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.startDate"></div>
+                  <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'تاريخ الانتهاء' : 'End Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.endDate" [disabled]="inlineQualForm.isCurrent"></div>
+                </div>
+                <label class="checkbox-label" style="margin-top:8px"><input type="checkbox" [(ngModel)]="inlineQualForm.isCurrent"> {{ lang==='ar' ? 'الوضع الحالي' : 'Current position' }}</label>
+                <div class="form-group" style="margin-top:8px"><label class="form-label">{{ lang==='ar' ? 'الوصف' : 'Description' }}</label><textarea class="form-textarea" rows="2" [(ngModel)]="inlineQualForm.description"></textarea></div>
+                <div class="form-actions">
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+                  <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
+                </div>
+              </div>
+            </div>
+          </ng-container>
         </div>
-        <div *ngIf="getQuals('experience').length===0" class="text-muted fs-13">
-          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+        <div *ngIf="getQuals('experience').length===0 && !isInlineAdding('experience')" class="empty-state-inline">
+          <span class="material-icons">business_center</span>
+          <span>{{ lang==='ar' ? 'لم يتم إضافة خبرات سابقة' : 'No previous experience added' }}</span>
+        </div>
+        <div *ngIf="isInlineAdding('experience')" class="inline-form">
+          <div class="inline-form-grid">
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.jobTitle"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الشركة' : 'Company' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.company"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'تاريخ البدء' : 'Start Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.startDate"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'تاريخ الانتهاء' : 'End Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.endDate" [disabled]="inlineQualForm.isCurrent"></div>
+          </div>
+          <label class="checkbox-label" style="margin-top:8px"><input type="checkbox" [(ngModel)]="inlineQualForm.isCurrent"> {{ lang==='ar' ? 'الوضع الحالي' : 'Current position' }}</label>
+          <div class="form-group" style="margin-top:8px"><label class="form-label">{{ lang==='ar' ? 'الوصف' : 'Description' }}</label><textarea class="form-textarea" rows="2" [(ngModel)]="inlineQualForm.description"></textarea></div>
+          <div class="form-actions">
+            <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+            <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
+          </div>
         </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px"
-                *ngIf="canEdit" (click)="openAddQual('experience')">
+                *ngIf="canEdit && !isInlineAdding('experience')" (click)="startInlineAdd('experience')">
           + {{ lang==='ar' ? 'إضافة' : 'Add' }}
         </button>
       </z-accordion-panel>
 
+      <!-- Section 3: Skills (tag cloud + dots) -->
       <z-accordion-panel
         [title]="lang==='ar' ? 'المهارات' : 'Skills'"
         icon="bolt"
         [count]="getQualCount('skill')">
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <span *ngFor="let item of getQuals('skill')"
-                class="badge badge-info" style="font-size:12px">
-            {{ item.data?.name }}
-            <span *ngIf="item.data?.level" class="text-muted">· {{ item.data.level }}/5</span>
-            <button class="icon-btn danger" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)" [title]="lang==='ar' ? 'حذف' : 'Delete'"><span class="material-icons" style="font-size:14px">close</span></button>
-          </span>
-          <span *ngIf="getQuals('skill').length===0" class="text-muted fs-13">
-            {{ lang==='ar' ? 'لا يوجد' : 'None' }}
+        <div class="skill-cloud">
+          <ng-container *ngFor="let item of getQuals('skill')">
+            <button *ngIf="canEdit"
+                    type="button"
+                    class="skill-chip"
+                    [class.editing]="isInlineEditing(item)"
+                    [attr.aria-label]="(lang==='ar'?'تعديل المهارة ':'Edit skill ') + item.data?.name + ' (' + (item.data?.level || 0) + '/5)'"
+                    [attr.aria-pressed]="isInlineEditing(item)"
+                    (click)="!isInlineEditing(item) && startInlineEdit(item)">
+              <span class="skill-name">{{ item.data?.name }}</span>
+              <span class="skill-dots" aria-hidden="true">{{ proficiencyDots(item.data?.level) }}</span>
+              <span class="visually-hidden">{{ (item.data?.level || 0) }}/5</span>
+              <span class="skill-actions" (click)="$event.stopPropagation()">
+                <button class="icon-btn danger" type="button"
+                        (click)="deleteQualification(item.id ?? item.Id)"
+                        [attr.aria-label]="(lang==='ar'?'حذف ':'Delete ') + item.data?.name"><span class="material-icons" aria-hidden="true">close</span></button>
+              </span>
+            </button>
+            <span *ngIf="!canEdit" class="skill-chip" role="listitem">
+              <span class="skill-name">{{ item.data?.name }}</span>
+              <span class="skill-dots" aria-hidden="true">{{ proficiencyDots(item.data?.level) }}</span>
+              <span class="visually-hidden">{{ (item.data?.level || 0) }}/5</span>
+            </span>
+          </ng-container>
+          <span *ngIf="getQuals('skill').length===0 && !isInlineAdding('skill')" class="empty-state-inline" style="padding:0">
+            <span class="material-icons">bolt</span>
+            <span>{{ lang==='ar' ? 'لم تتم إضافة مهارات' : 'No skills added' }}</span>
           </span>
         </div>
+        <div *ngIf="inlineQualMode && (isInlineAdding('skill') || inlineQualMode.type==='skill')" class="inline-form">
+          <div class="inline-form-grid">
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'المهارة' : 'Skill' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.name"></div>
+            <div class="form-group">
+              <label class="form-label">{{ lang==='ar' ? 'المستوى' : 'Level' }}</label>
+              <div class="star-selector" role="radiogroup" [attr.aria-label]="lang==='ar' ? 'مستوى المهارة' : 'Skill level'">
+                <button *ngFor="let n of [1,2,3,4,5]" type="button"
+                        class="star" [class.filled]="n <= inlineQualForm.level"
+                        role="radio"
+                        [attr.aria-checked]="n === inlineQualForm.level"
+                        [attr.aria-label]="n + '/5'"
+                        (click)="setSkillLevel(n)"
+                        (keydown.enter)="setSkillLevel(n)"
+                        (keydown.space)="$event.preventDefault(); setSkillLevel(n)">★</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+            <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
+          </div>
+        </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px"
-                *ngIf="canEdit" (click)="openAddQual('skill')">
-          + {{ lang==='ar' ? 'إضافة' : 'Add' }}
+                *ngIf="canEdit && !isInlineAdding('skill') && !(inlineQualMode && inlineQualMode.type==='skill')" (click)="startInlineAdd('skill')">
+          + {{ lang==='ar' ? 'إضافة مهارة' : 'Add Skill' }}
         </button>
       </z-accordion-panel>
 
+      <!-- Section 4: Courses & Certifications (list) -->
       <z-accordion-panel
         [title]="lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications'"
         icon="workspace_premium"
         [count]="getQualCount('course')">
-        <div *ngFor="let item of getQuals('course')" class="qual-item">
-          <div class="qual-row">
-            <span class="fw-600">{{ item.data?.name }}</span>
-            <span class="text-muted">{{ item.data?.provider }}</span>
-            <span class="badge badge-neutral">{{ item.data?.date }}</span>
-            <button class="btn btn-danger btn-sm" type="button" *ngIf="canEdit" (click)="deleteQualification(item.id ?? item.Id)">
-              {{ lang==='ar' ? 'حذف' : 'Delete' }}
-            </button>
+        <div class="course-list">
+          <ng-container *ngFor="let item of getQuals('course')">
+            <div class="course-item" *ngIf="!isInlineEditing(item)">
+              <div class="course-icon"><span class="material-icons">workspace_premium</span></div>
+              <div class="course-info">
+                <div class="course-name">
+                  {{ item.data?.name }}
+                  <span *ngIf="item.data?.has_certificate" class="cert-badge"><span class="material-icons">verified</span> {{ lang==='ar' ? 'شهادة' : 'Cert' }}</span>
+                </div>
+                <div class="course-meta">
+                  {{ item.data?.provider }}
+                  <span *ngIf="item.data?.date"> · {{ item.data.date }}</span>
+                  <span *ngIf="item.data?.certificate_number"> · #{{ item.data.certificate_number }}</span>
+                </div>
+              </div>
+              <div class="row-actions" *ngIf="canEdit">
+                <button class="icon-btn" type="button" (click)="startInlineEdit(item)" [title]="lang==='ar' ? 'تعديل' : 'Edit'"><span class="material-icons">edit</span></button>
+                <button class="icon-btn danger" type="button" (click)="deleteQualification(item.id ?? item.Id)" [title]="lang==='ar' ? 'حذف' : 'Delete'"><span class="material-icons">delete</span></button>
+              </div>
+            </div>
+            <div *ngIf="canEdit && isInlineEditing(item)" class="inline-form">
+              <div class="inline-form-grid">
+                <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الاسم' : 'Name' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.name"></div>
+                <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الجهة' : 'Provider' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.provider"></div>
+                <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'التاريخ' : 'Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.date"></div>
+                <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'رقم الشهادة' : 'Certificate #' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.certificate_number"></div>
+              </div>
+              <label class="checkbox-label" style="margin-top:8px"><input type="checkbox" [(ngModel)]="inlineQualForm.has_certificate"> {{ lang==='ar' ? 'يوجد شهادة' : 'Has certificate' }}</label>
+              <div class="form-actions">
+                <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+                <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+        <div *ngIf="getQuals('course').length===0 && !isInlineAdding('course')" class="empty-state-inline">
+          <span class="material-icons">workspace_premium</span>
+          <span>{{ lang==='ar' ? 'لم يتم إضافة دورات' : 'No courses added' }}</span>
+        </div>
+        <div *ngIf="isInlineAdding('course')" class="inline-form">
+          <div class="inline-form-grid">
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الاسم' : 'Name' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.name"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'الجهة' : 'Provider' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.provider"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'التاريخ' : 'Date' }}</label><input class="form-input" type="date" [(ngModel)]="inlineQualForm.date"></div>
+            <div class="form-group"><label class="form-label">{{ lang==='ar' ? 'رقم الشهادة' : 'Certificate #' }}</label><input class="form-input" [(ngModel)]="inlineQualForm.certificate_number"></div>
+          </div>
+          <label class="checkbox-label" style="margin-top:8px"><input type="checkbox" [(ngModel)]="inlineQualForm.has_certificate"> {{ lang==='ar' ? 'يوجد شهادة' : 'Has certificate' }}</label>
+          <div class="form-actions">
+            <button class="btn btn-secondary btn-sm" type="button" (click)="cancelInline()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
+            <button class="btn btn-primary btn-sm" type="button" [disabled]="inlineQualSaving" (click)="saveInline()">{{ lang==='ar' ? 'حفظ' : 'Save' }}</button>
           </div>
         </div>
-        <div *ngIf="getQuals('course').length===0" class="text-muted fs-13">
-          {{ lang==='ar' ? 'لا يوجد' : 'None' }}
-        </div>
         <button class="btn btn-ghost btn-sm" style="margin-top:12px"
-                *ngIf="canEdit" (click)="openAddQual('course')">
+                *ngIf="canEdit && !isInlineAdding('course')" (click)="startInlineAdd('course')">
           + {{ lang==='ar' ? 'إضافة' : 'Add' }}
         </button>
       </z-accordion-panel>
     </z-accordion>
 
-    <div *ngIf="showQualModal" class="modal-overlay" (click)="closeQualModal()">
-      <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:520px">
-        <div class="modal-header">
-          <h3>{{ lang==='ar' ? 'إضافة كفاءة' : 'Add Qualification' }}</h3>
-          <button class="btn-icon" type="button" (click)="closeQualModal()">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">{{ lang==='ar' ? 'النوع' : 'Type' }}</label>
-            <select class="form-select" [(ngModel)]="qualForm.qualificationType">
-              <option value="education">{{ lang==='ar' ? 'المؤهلات العلمية' : 'Education' }}</option>
-              <option value="experience">{{ lang==='ar' ? 'الخبرات السابقة' : 'Previous Experience' }}</option>
-              <option value="skill">{{ lang==='ar' ? 'المهارات' : 'Skills' }}</option>
-              <option value="course">{{ lang==='ar' ? 'الدورات والشهادات' : 'Courses & Certifications' }}</option>
-            </select>
-          </div>
-
-          <ng-container *ngIf="qualForm.qualificationType === 'education'">
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'الدرجة' : 'Degree' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.degree">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'المؤسسة' : 'Institution' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.institution">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'السنة' : 'Year' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.year">
-            </div>
-          </ng-container>
-
-          <ng-container *ngIf="qualForm.qualificationType === 'experience'">
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'المسمى الوظيفي' : 'Job Title' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.jobTitle">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'الشركة' : 'Company' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.company">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'السنوات' : 'Years' }}</label>
-              <input class="form-input" type="number" [(ngModel)]="qualForm.years">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'الوصف' : 'Description' }}</label>
-              <textarea class="form-textarea" rows="2" [(ngModel)]="qualForm.description"></textarea>
-            </div>
-          </ng-container>
-
-          <ng-container *ngIf="qualForm.qualificationType === 'skill'">
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'المهارة' : 'Skill' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.name">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'المستوى' : 'Level' }}</label>
-              <input class="form-input" type="number" min="1" max="5" [(ngModel)]="qualForm.level">
-            </div>
-          </ng-container>
-
-          <ng-container *ngIf="qualForm.qualificationType === 'course'">
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'الاسم' : 'Name' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.name">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'الجهة' : 'Provider' }}</label>
-              <input class="form-input" [(ngModel)]="qualForm.provider">
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ lang==='ar' ? 'التاريخ' : 'Date' }}</label>
-              <input class="form-input" type="date" [(ngModel)]="qualForm.date">
-            </div>
-          </ng-container>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" type="button" (click)="closeQualModal()">{{ lang==='ar' ? 'إلغاء' : 'Cancel' }}</button>
-          <button class="btn btn-primary" type="button" [disabled]="qualSaving" (click)="saveQualification()">
-            {{ qualSaving ? (lang==='ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang==='ar' ? 'حفظ' : 'Save') }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div *ngIf="activeTab()==='assets'" class="profile-tab-body">
