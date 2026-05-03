@@ -487,16 +487,129 @@ app.post("/api/employees", auth, async (req, res) => {
 app.get("/api/employees/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [emp] = await db.select().from(employeesTable).where(and(eq(employeesTable.id, parseInt(req.params["id"]!)), eq(employeesTable.isDeleted, false)));
+    const empId = parseInt(req.params["id"]!);
+
+    const [[emp], quals, maps] = await Promise.all([
+      db.select().from(employeesTable)
+        .where(and(eq(employeesTable.id, empId), eq(employeesTable.isDeleted, false))),
+      db.select().from(employeeQualificationsTable)
+        .where(eq(employeeQualificationsTable.employeeId, empId))
+        .orderBy(asc(employeeQualificationsTable.createdAt)),
+      loadOrgEnrichmentMaps(user.companyId),
+    ]);
+
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
-    const maps = await loadOrgEnrichmentMaps(user.companyId);
+
     let managerMap: Record<number, any> = {};
     if (emp.directManagerId) {
-      const [mgr] = await db.select().from(employeesTable).where(eq(employeesTable.id, emp.directManagerId));
+      const [mgr] = await db.select().from(employeesTable)
+        .where(eq(employeesTable.id, emp.directManagerId));
       if (mgr) managerMap[mgr.id] = mgr;
     }
-    res.json({ success: true, data: enrichEmployee(emp, maps, managerMap) });
+
+    const enriched = enrichEmployee(emp, maps, managerMap);
+
+    // ── Role-based financial masking ─────────────────────────────────────────
+    const canSeeFinancial = ["superadmin", "hradmin", "payrolladmin"].includes(user.role);
+    const msk = <T>(v: T): T | null => canSeeFinancial ? v : null;
+
+    // ── Parse qualification data_json ─────────────────────────────────────────
+    const parsedQuals = quals.map(q => {
+      let data: Record<string, unknown> = {};
+      try { data = JSON.parse(q.dataJson); } catch { /* keep empty */ }
+      return { ...q, data };
+    });
+
+    // ── Structured sections ───────────────────────────────────────────────────
+    const sections = {
+      personal: {
+        employeeCode:    enriched.employeeCode,
+        fullNameAr:      enriched.fullNameAr,
+        fullNameEn:      enriched.fullNameEn,
+        gender:          enriched.gender,
+        dateOfBirth:     enriched.dateOfBirth,
+        nationalId:      enriched.nationalId,
+        nationality:     enriched.nationality,
+        bloodType:       null,
+        maritalStatus:   enriched.maritalStatus,
+        dependents:      enriched.numberOfDependents,
+        religion:        enriched.religion,
+      },
+      contact: {
+        personalPhone:              enriched.personalPhone,
+        workPhone:                  enriched.workPhone,
+        personalEmail:              enriched.personalEmail,
+        workEmail:                  enriched.workEmail,
+        emergencyContactName:       enriched.emergencyContactName,
+        emergencyContactPhone:      enriched.emergencyContactPhone,
+        emergencyContactRelation:   enriched.emergencyContactRelation,
+      },
+      address: {
+        governorate: null,
+        city:        enriched.city,
+        addressAr:   enriched.addressAr,
+      },
+      employment: {
+        departmentId:      enriched.departmentId,
+        departmentName:    enriched.departmentNameEn,
+        orgNodeId:         enriched.orgNodeId,
+        orgNodePath:       enriched.orgBreadcrumb,
+        jobTitleId:        enriched.jobTitleId,
+        jobTitle:          enriched.jobTitleEn,
+        directManagerId:   enriched.directManagerId,
+        directManagerName: enriched.directManagerName,
+        employmentType:    enriched.employmentType,
+        contractType:      enriched.contractType,
+        hireDate:          enriched.hireDate,
+        probationEndDate:  enriched.probationEndDate,
+        contractEndDate:   enriched.contractEndDate,
+        employmentStatus:  enriched.employmentStatus,
+      },
+      financial: {
+        basicSalary:        msk(enriched.basicSalary),
+        housingAllowance:   msk(enriched.housingAllowance),
+        transportAllowance: msk(enriched.transportAllowance),
+        mobileAllowance:    msk(enriched.mobileAllowance),
+        mealAllowance:      msk(enriched.mealAllowance),
+        otherAllowances:    msk(enriched.otherAllowances),
+        bankName:           msk(enriched.bankName),
+        bankAccount:        msk(enriched.bankAccountNumber),
+        iban:               msk(enriched.iban),
+        sscNumber:          msk(enriched.sscNumber),
+        sscEnrollmentDate:  msk(enriched.sscEnrollmentDate),
+      },
+      compliance: {
+        workPermitNumber:         enriched.workPermitNumber,
+        workPermitExpiry:         enriched.workPermitExpiry,
+        residencyNumber:          enriched.residencyNumber,
+        residencyExpiry:          enriched.residencyExpiry,
+        passportNumber:           enriched.passportNumber,
+        passportExpiry:           enriched.passportExpiry,
+        healthCertExpiry:         null,
+        criminalClearanceExpiry:  null,
+      },
+      qualifications: parsedQuals,
+    };
+
+    // ── Build flat response (backward-compat) + mask financial fields ─────────
+    const flatData: any = { ...enriched, sections };
+    if (!canSeeFinancial) {
+      flatData.basicSalary        = null;
+      flatData.housingAllowance   = null;
+      flatData.transportAllowance = null;
+      flatData.mobileAllowance    = null;
+      flatData.mealAllowance      = null;
+      flatData.otherAllowances    = null;
+      flatData.bankName           = null;
+      flatData.bankAccountNumber  = null;
+      flatData.iban               = null;
+      flatData.sscNumber          = null;
+      flatData.sscEnrollmentDate  = null;
+    }
+
+    res.json({ success: true, data: flatData });
   } catch (e) {
+    console.error("GET /api/employees/:id error:", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -551,6 +664,10 @@ app.get("/api/employees/:id/qualifications", auth, async (req, res) => {
 
 app.post("/api/employees/:id/qualifications", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const empId = parseInt(req.params["id"]!);
     const { qualificationType, dataJson } = req.body as { qualificationType: string; dataJson: string };
     if (!qualificationType) { res.status(400).json({ success: false, message: "qualificationType required" }); return; }
@@ -565,8 +682,34 @@ app.post("/api/employees/:id/qualifications", auth, async (req, res) => {
   }
 });
 
+app.put("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const qualId = parseInt(req.params["qualId"]!);
+    const { qualificationType, dataJson } = req.body as { qualificationType?: string; dataJson?: string | object };
+    const updates: Record<string, unknown> = {};
+    if (qualificationType) updates["qualificationType"] = qualificationType;
+    if (dataJson !== undefined) updates["dataJson"] = typeof dataJson === "string" ? dataJson : JSON.stringify(dataJson ?? {});
+    const [row] = await db.update(employeeQualificationsTable)
+      .set(updates)
+      .where(eq(employeeQualificationsTable.id, qualId))
+      .returning();
+    if (!row) { res.status(404).json({ success: false, message: "Qualification not found" }); return; }
+    res.json({ success: true, data: row });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.delete("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     await db.delete(employeeQualificationsTable)
       .where(eq(employeeQualificationsTable.id, parseInt(req.params["qualId"]!)));
     res.status(204).send();
