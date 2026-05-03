@@ -14,6 +14,9 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   totalNet: decimal("total_net", { precision: 14, scale: 3 }).default("0").notNull(),
   totalDeductions: decimal("total_deductions", { precision: 14, scale: 3 }).default("0").notNull(),
   totalOvertimeEarnings: decimal("total_overtime_earnings", { precision: 14, scale: 3 }).default("0").notNull(),
+  totalSscEmployee: decimal("total_ssc_employee", { precision: 14, scale: 3 }).default("0").notNull(),
+  totalSscEmployer: decimal("total_ssc_employer", { precision: 14, scale: 3 }).default("0").notNull(),
+  totalIncomeTax: decimal("total_income_tax", { precision: 14, scale: 3 }).default("0").notNull(),
   employeeCount: integer("employee_count").default(0).notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -47,6 +50,7 @@ export const payslipsTable = pgTable("payslips", {
   netSalary: decimal("net_salary", { precision: 12, scale: 3 }).notNull(),
   bankName: varchar("bank_name", { length: 200 }),
   iban: varchar("iban", { length: 34 }),
+  componentsSnapshot: text("components_snapshot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

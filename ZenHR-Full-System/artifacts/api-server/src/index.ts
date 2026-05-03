@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
+import { runPayroll } from "./payroll-run.service.js";
+import { applyBrackets } from "./salary-calculation.service.js";
 import { db } from "@workspace/db";
 import {
   usersTable, employeesTable, departmentsTable, jobTitlesTable,
@@ -1509,15 +1511,6 @@ function toM(s: string | null | undefined): number {
 function fromM(n: number): string {
   return (Math.round(n) / 1000).toFixed(3);
 }
-function calcAnnualIncomeTax(annualJOD: number, brackets: { from: number; to: number; rate: number }[]): number {
-  let tax = 0;
-  for (const b of brackets) {
-    if (annualJOD <= b.from) break;
-    const slice = Math.min(annualJOD, b.to) - b.from;
-    tax += slice * b.rate;
-  }
-  return tax;
-}
 async function enrichPayslips(slips: any[], db: any): Promise<any[]> {
   if (!slips.length) return [];
   const empIds = [...new Set(slips.map(s => s.employeeId))];
@@ -1578,168 +1571,8 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
       res.status(409).json({ success: false, message: "An approved payroll run already exists for this period. It cannot be replaced." }); return;
     }
 
-    // Load payroll-related system configurations
-    const configs = await db.select().from(systemConfigurationsTable)
-      .where(eq(systemConfigurationsTable.companyId, user.companyId));
-    const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
-
-    const sscEmployeeRate = parseFloat(cfg("ssc_employee_rate", "0.075"));
-    const sscEmployerRate = parseFloat(cfg("ssc_employer_rate", "0.1425"));
-    const sscInsurableCapM = toM(cfg("ssc_insurable_salary_cap", "3000"));
-    const workingHoursPerDay = parseInt(cfg("working_hours_per_day", "8"));
-    const otRateWeekday = parseFloat(cfg("overtime_rate_weekday", "1.5"));
-    const otRateWeekend = parseFloat(cfg("overtime_rate_weekend", "2.0"));
-
-    let taxBrackets: { from: number; to: number; rate: number }[] = [];
-    try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
-    if (!taxBrackets.length) {
-      taxBrackets = [
-        { from: 0, to: 9000, rate: 0 },
-        { from: 9000, to: 20000, rate: 0.05 },
-        { from: 20000, to: 30000, rate: 0.10 },
-        { from: 30000, to: 40000, rate: 0.15 },
-        { from: 40000, to: 50000, rate: 0.20 },
-        { from: 50000, to: 999999999, rate: 0.25 },
-      ];
-    }
-
-    const employees = await db.select().from(employeesTable)
-      .where(and(
-        eq(employeesTable.companyId, user.companyId),
-        eq(employeesTable.isDeleted, false),
-        eq(employeesTable.employmentStatus, "active"),
-      ));
-
-    // Load approved overtime for the payroll period
-    const periodStart = `${runYear}-${String(runMonth).padStart(2, "0")}-01`;
-    const periodEnd = `${runYear}-${String(runMonth).padStart(2, "0")}-31`;
-    const otRows = await db.select().from(overtimeRequestsTable)
-      .where(and(
-        eq(overtimeRequestsTable.status, "approved"),
-        eq(overtimeRequestsTable.isDeleted, false),
-        gte(overtimeRequestsTable.date, periodStart),
-        lte(overtimeRequestsTable.date, periodEnd),
-      ));
-
-    // Load normalized salary components effective during this payroll period
-    const empIds = employees.map((e: any) => e.id);
-    type SalaryMap = Record<string, number>; // code → milli-JOD
-    const salaryByEmployee = new Map<number, SalaryMap>();
-    if (empIds.length > 0) {
-      const escRows = await db
-        .select({
-          employeeId: employeeSalaryComponentsTable.employeeId,
-          code: salaryComponentsTable.code,
-          overrideValue: employeeSalaryComponentsTable.overrideValue,
-          effectiveFrom: employeeSalaryComponentsTable.effectiveFrom,
-          effectiveTo: employeeSalaryComponentsTable.effectiveTo,
-        })
-        .from(employeeSalaryComponentsTable)
-        .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
-        .where(and(
-          inArray(employeeSalaryComponentsTable.employeeId, empIds),
-          lte(employeeSalaryComponentsTable.effectiveFrom, periodEnd),
-        ));
-      for (const row of escRows) {
-        if (row.effectiveTo && row.effectiveTo < periodStart) continue;
-        const m = salaryByEmployee.get(row.employeeId) ?? {};
-        m[row.code] = toM(row.overrideValue ?? "0");
-        salaryByEmployee.set(row.employeeId, m);
-      }
-    }
-
-    // Aggregate overtime per employee
-    const otByEmployee = new Map<number, number>(); // employeeId → total milli-JOD
-    for (const ot of otRows) {
-      const emp = employees.find((e: any) => e.id === ot.employeeId);
-      if (!emp) continue;
-      const empSalary = salaryByEmployee.get(emp.id) ?? {};
-      const basicM = empSalary["BASIC"] ?? toM(emp.basicSalary);
-      const hourlyRateM = Math.round(basicM / 30 / workingHoursPerDay);
-      const hours = parseFloat(ot.hours);
-      const dayOfWeek = new Date(ot.date).getDay(); // 0=Sun, 5=Fri, 6=Sat
-      const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
-      const multiplier = isWeekend ? otRateWeekend : otRateWeekday;
-      const amountM = Math.round(hourlyRateM * hours * multiplier);
-      otByEmployee.set(ot.employeeId, (otByEmployee.get(ot.employeeId) ?? 0) + amountM);
-    }
-
-    let totalGrossM = 0, totalNetM = 0, totalDeductionsM = 0, totalOTM = 0;
-    const payslipValues: any[] = [];
-
-    for (const emp of employees) {
-      const empSalary  = salaryByEmployee.get(emp.id) ?? {};
-      const basicM     = empSalary["BASIC"]     ?? toM(emp.basicSalary);
-      const housingM   = empSalary["HOUSING"]   ?? toM(String(emp.housingAllowance   ?? "0"));
-      const transportM = empSalary["TRANSPORT"] ?? toM(String(emp.transportAllowance ?? "0"));
-      const mealM      = empSalary["MEAL"]      ?? toM(String(emp.mealAllowance      ?? "0"));
-      const mobileM    = empSalary["MOBILE"]    ?? toM(String(emp.mobileAllowance    ?? "0"));
-      const otherM     = toM(String(emp.otherAllowances ?? "0"));
-      const overtimeM = otByEmployee.get(emp.id) ?? 0;
-
-      const grossM = basicM + housingM + transportM + mealM + mobileM + otherM + overtimeM;
-
-      // SSC: calculated on basic salary only, capped at insurable cap
-      const insurableM = Math.min(basicM, sscInsurableCapM);
-      const sscEmployeeM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
-      const sscEmployerM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployerRate);
-
-      // Income tax: progressive, calculated on annual basis
-      const annualTaxableJOD = Math.max(0, (grossM - sscEmployeeM) * 12) / 1000;
-      const annualTaxJOD = calcAnnualIncomeTax(annualTaxableJOD, taxBrackets);
-      const monthlyTaxM = Math.round(annualTaxJOD * 1000 / 12);
-
-      const totalDeductionsEmpM = sscEmployeeM + monthlyTaxM;
-      const netM = grossM - totalDeductionsEmpM;
-
-      totalGrossM      += grossM;
-      totalDeductionsM += totalDeductionsEmpM;
-      totalNetM        += netM;
-      totalOTM         += overtimeM;
-
-      payslipValues.push({
-        runMonth, runYear, employeeId: emp.id,
-        basicSalary:           fromM(basicM),
-        housingAllowance:      fromM(housingM),
-        transportAllowance:    fromM(transportM),
-        mealAllowance:         fromM(mealM),
-        mobileAllowance:       fromM(mobileM),
-        otherAllowances:       fromM(otherM),
-        overtimeEarnings:      fromM(overtimeM),
-        grossSalary:           fromM(grossM),
-        sscDeduction:          fromM(sscEmployeeM),
-        sscEmployerContribution: fromM(sscEmployerM),
-        incomeTaxDeduction:    fromM(monthlyTaxM),
-        loanDeductions:        "0.000",
-        otherDeductions:       "0.000",
-        totalDeductions:       fromM(totalDeductionsEmpM),
-        netSalary:             fromM(netM),
-        bankName:              emp.bankName,
-        iban:                  emp.iban,
-        payrollRunId:          0,
-      });
-    }
-
-    const [run] = await db.insert(payrollRunsTable).values({
-      companyId: user.companyId,
-      runMonth, runYear,
-      status: "draft",
-      totalGross:            fromM(totalGrossM),
-      totalNet:              fromM(totalNetM),
-      totalDeductions:       fromM(totalDeductionsM),
-      totalOvertimeEarnings: fromM(totalOTM),
-      employeeCount:         employees.length,
-      processedAt:           new Date(),
-      notes,
-    }).returning();
-
-    if (run && payslipValues.length > 0) {
-      for (const ps of payslipValues) {
-        ps.payrollRunId = run.id;
-        await db.insert(payslipsTable).values(ps);
-      }
-    }
-    res.status(201).json({ success: true, data: run });
+    const result = await runPayroll(db, { companyId: user.companyId, runMonth, runYear, notes });
+    res.status(201).json({ success: true, data: result.run });
   } catch (e) {
     console.error("[POST /api/payroll/runs]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1910,10 +1743,16 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       { from: 40000, to: 50000, rate: 0.20 }, { from: 50000, to: 999999999, rate: 0.25 },
     ];
 
-    // Load normalized salary components (current as of today)
+    // Load full normalized salary components with catalog data (current as of today)
     const today = new Date().toISOString().slice(0, 10);
     const escRowsPreview = await db
-      .select({ code: salaryComponentsTable.code, overrideValue: employeeSalaryComponentsTable.overrideValue })
+      .select({
+        code:              salaryComponentsTable.code,
+        calculationType:   salaryComponentsTable.calculationType,
+        defaultValue:      salaryComponentsTable.defaultValue,
+        percentageBase:    salaryComponentsTable.percentageBase,
+        overrideValue:     employeeSalaryComponentsTable.overrideValue,
+      })
       .from(employeeSalaryComponentsTable)
       .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
       .where(and(
@@ -1921,24 +1760,56 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
         lte(employeeSalaryComponentsTable.effectiveFrom, today),
         isNull(employeeSalaryComponentsTable.effectiveTo),
       ));
-    const escMapPreview: Record<string, number> = {};
-    for (const r of escRowsPreview) escMapPreview[r.code] = toM(r.overrideValue ?? "0");
 
-    const basicM     = escMapPreview["BASIC"]     ?? toM(emp.basicSalary);
-    const housingM   = escMapPreview["HOUSING"]   ?? toM(String(emp.housingAllowance   ?? "0"));
-    const transportM = escMapPreview["TRANSPORT"] ?? toM(String(emp.transportAllowance ?? "0"));
-    const mealM      = escMapPreview["MEAL"]      ?? toM(String(emp.mealAllowance      ?? "0"));
-    const mobileM    = escMapPreview["MOBILE"]    ?? toM(String(emp.mobileAllowance    ?? "0"));
+    // Resolve each component value respecting fixed/percentage/override semantics
+    const resolveM = (code: string, fallbackJod: string): number => {
+      const row = escRowsPreview.find((r: any) => r.code === code);
+      if (!row) return toM(fallbackJod);
+      if (row.overrideValue !== null && row.overrideValue !== undefined) {
+        // Override is always an absolute JOD amount regardless of calculation type
+        return toM(row.overrideValue);
+      }
+      if (row.calculationType === 'percentage') {
+        // Default: percentage of basic (resolved after basic is known)
+        return -1; // sentinel — resolved below
+      }
+      return toM(row.defaultValue ?? "0");
+    };
+
+    const basicM     = resolveM("BASIC", String(emp.basicSalary ?? "0"));
+    const basicJOD   = basicM / 1000;
+
+    const resolvePercentM = (code: string, fallbackJod: string): number => {
+      const row = escRowsPreview.find((r: any) => r.code === code);
+      if (!row) return toM(fallbackJod);
+      if (row.overrideValue !== null && row.overrideValue !== undefined) return toM(row.overrideValue);
+      if (row.calculationType === 'percentage') {
+        const pct  = parseFloat(row.defaultValue ?? "0");
+        const base = row.percentageBase === 'gross' ? basicJOD : basicJOD;
+        return Math.round((pct / 100) * base * 1000);
+      }
+      return toM(row.defaultValue ?? "0");
+    };
+
+    const housingM   = resolvePercentM("HOUSING",   String(emp.housingAllowance   ?? "0"));
+    const transportM = resolvePercentM("TRANSPORT",  String(emp.transportAllowance ?? "0"));
+    const mealM      = resolvePercentM("MEAL",       String(emp.mealAllowance      ?? "0"));
+    const mobileM    = resolvePercentM("MOBILE",     String(emp.mobileAllowance    ?? "0"));
     const otherM     = toM(String(emp.otherAllowances ?? "0"));
     const grossM     = basicM + housingM + transportM + mealM + mobileM + otherM;
-    const insurableM = Math.min(basicM, sscInsurableCapM);
+
+    const insurableM   = Math.min(basicM, sscInsurableCapM);
     const sscEmployeeM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployeeRate);
     const sscEmployerM = emp.isSSCExempt ? 0 : Math.round(insurableM * sscEmployerRate);
-    const annualTaxableJOD = Math.max(0, (grossM - sscEmployeeM) * 12) / 1000;
-    const annualTaxJOD = calcAnnualIncomeTax(annualTaxableJOD, taxBrackets);
-    const monthlyTaxM = Math.round(annualTaxJOD * 1000 / 12);
-    const totalDeductionsM = sscEmployeeM + monthlyTaxM;
-    const netM = grossM - totalDeductionsM;
+
+    const taxExemptionJOD       = parseFloat(String(emp.taxExemptionAmount ?? "0"));
+    const personalExemptionJOD  = parseFloat(cfg("income_tax_personal_exemption", "9000"));
+    const familyExemptionJOD    = emp.maritalStatus === "married" ? parseFloat(cfg("income_tax_family_exemption", "500")) : 0;
+    const annualTaxableJOD      = Math.max(0, (grossM - sscEmployeeM) * 12 / 1000 - personalExemptionJOD - familyExemptionJOD - taxExemptionJOD);
+    const annualTaxJOD          = applyBrackets(annualTaxableJOD, taxBrackets);
+    const monthlyTaxM           = Math.round(annualTaxJOD * 1000 / 12);
+    const totalDeductionsM      = sscEmployeeM + monthlyTaxM;
+    const netM                  = grossM - totalDeductionsM;
 
     res.json({ success: true, data: {
       employeeId: emp.id,
@@ -1957,6 +1828,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       totalDeductions:         fromM(totalDeductionsM),
       netSalary:               fromM(netM),
       isSSCExempt:             emp.isSSCExempt,
+      components:              escRowsPreview,
     }});
   } catch (e) {
     console.error("[GET /api/payroll/preview/:employeeId]", e);

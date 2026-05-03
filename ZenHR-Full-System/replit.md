@@ -202,6 +202,35 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 ### Updated Action Approval
 - Both `POST /api/employee-actions/:id/approve` and the multi-step workflow approval endpoint now write normalized `employee_salary_components` rows (per-component, per effective date) instead of the old flat-column snapshot.
 
+## Step 3 — Backend Salary Calculation Engine (Completed)
+
+### New Services
+- **`salary-calculation.service.ts`** — Pure calculation, no DB access. Provides:
+  - `evaluateSafeFormula(expr, vars)` — Recursive-descent formula parser (no `eval`). Safely handles arithmetic, XSS attempts return 0.
+  - `calculateComponentValueM(component, overrideValue, basicJOD, currentGrossJOD)` — Resolves fixed/percentage/formula components in milli-JOD. **Key rule**: if a percentage component has an `overrideValue`, the override is treated as an absolute JOD amount (bypasses the percentage), preserving migrated employee-specific values.
+  - `calculateGross(components, assignments, basicJOD)` — Builds the full earnings/deductions snapshot.
+  - `applyBrackets(annualJOD, brackets)` — Progressive tax bracket calculator (replaces old inline `calcAnnualIncomeTax`).
+- **`payroll-run.service.ts`** — Full payroll orchestration with DB access:
+  - Bulk-loads salary components, OT records, and config for all employees in one pass.
+  - Calls calculation service per employee.
+  - Builds `componentsSnapshot` JSON stored on each payslip.
+  - Links approved OT records to payslips via `linked_payslip_id`.
+  - Inserts payroll run + payslips in a single DB transaction.
+  - Returns `RunPayrollResult` with totals (gross, net, ssc employee/employer, income tax, employee count).
+
+### Schema Additions (Step 3)
+- `payroll_runs`: `total_ssc_employee NUMERIC(14,3)`, `total_ssc_employer NUMERIC(14,3)`, `total_income_tax NUMERIC(14,3)` columns added.
+- `payslips`: `components_snapshot TEXT` column added (stores JSON array of component breakdown per payslip).
+
+### Refactored POST /api/payroll/runs
+- Replaced ~100 lines of inline payroll logic with a single call to `runPayroll(db, { companyId, runMonth, runYear, notes })`.
+- Removed duplicate `calcAnnualIncomeTax` helper — replaced by `applyBrackets` from the calculation service.
+
+### Bug Fixes (Step 3)
+- **Month boundary**: `periodEnd` now uses `new Date(year, month, 0).getDate()` — fixes invalid dates for April (30 days), February (28/29 days), etc.
+- **Percentage override**: Employee-specific `overrideValue` on percentage components is now treated as an absolute JOD amount. Default percentage from catalog `defaultValue` is only used when no override exists.
+- **Salary preview**: Updated to use full component catalog (calculationType, defaultValue, percentageBase) so percentage components resolve correctly with the same logic as the run engine.
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
