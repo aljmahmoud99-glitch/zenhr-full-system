@@ -10,6 +10,7 @@ import { debounceTime, Subject, takeUntil } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { ApiService } from '../../../core/services/api.service';
 import { FormRendererComponent, DynamicFormDefinition } from '../form-renderer/form-renderer.component';
+import { FORM_DEFINITIONS } from '../form-definitions';
 
 @Component({
   selector: 'app-form-viewer',
@@ -221,12 +222,7 @@ export class FormViewerComponent implements OnInit, OnDestroy {
     const formId = this.formId ?? '';
     this.recordId = Number(this.route.snapshot.queryParamMap.get('recordId')) || null;
 
-    
-
-    const handle = (r: any) => {
-      const data = r?.data ?? r;
-      
-      this.formDef = data;
+    const bootstrap = () => {
       this.bootstrapForRole();
       this.loadCompanyInfo();
       this.loadExistingRecordIfAny();
@@ -242,12 +238,25 @@ export class FormViewerComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     };
 
-    // Try proxy-friendly route first, then fallback.
+    // Try local FORM_DEFINITIONS first — they have full HTML templates.
+    const localDef = FORM_DEFINITIONS.find(d => d.id === formId);
+    if (localDef) {
+      this.formDef = adaptLocalDef(localDef) as any;
+      bootstrap();
+      return;
+    }
+
+    // Fall back to API for catalog-only forms (no local renderer).
+    const handle = (r: any) => {
+      const data = r?.data ?? r;
+      if (!data?.id) { fail(); return; }
+      this.formDef = data;
+      bootstrap();
+    };
+
     this.api.get<any>(`/api/forms-catalog/${formId}`).subscribe({
       next: handle,
-      error: () => {
-        this.api.get<any>(`/forms/${formId}`).subscribe({ next: handle, error: fail });
-      }
+      error: fail,
     });
   }
 
@@ -378,11 +387,17 @@ export class FormViewerComponent implements OnInit, OnDestroy {
   renderPreview() {
     if (!this.formDef) return;
     try {
-      const html = renderTemplateToHtml(this.formDef.template || '', {
-        ...this.values,
-        employee: this.empData(),
-        company: this.companyInfo
-      });
+      let html: string;
+      const def = this.formDef as any;
+      if (typeof def.getTemplate === 'function') {
+        html = def.getTemplate(this.values || {}, this.empData(), this.companyInfo);
+      } else {
+        html = renderTemplateToHtml(def.template || '', {
+          ...this.values,
+          employee: this.empData(),
+          company: this.companyInfo,
+        });
+      }
       this.previewHtml.set(this.sanitizer.bypassSecurityTrustHtml(html));
     } catch {
       this.previewHtml.set(this.sanitizer.bypassSecurityTrustHtml('<p>خطأ في المعاينة</p>'));
@@ -451,6 +466,33 @@ export class FormViewerComponent implements OnInit, OnDestroy {
   goBack() {
     this.router.navigate(['/app/forms']);
   }
+}
+
+function adaptLocalDef(def: any): DynamicFormDefinition {
+  return {
+    id: def.id,
+    name_ar: def.nameAr ?? def.name_ar ?? '',
+    name_en: def.nameEn ?? def.name_en ?? '',
+    category: def.category ?? '',
+    fields: (def.fields || [])
+      .filter((f: any) => f.type !== 'separator')
+      .map((f: any) => ({
+        key: f.id,
+        label_ar: f.labelAr ?? f.label_ar ?? '',
+        label_en: f.labelEn ?? f.label_en ?? '',
+        type: f.type,
+        required: !!f.required,
+        options: f.options
+          ? f.options.map((o: any) => ({
+              value: o.value,
+              label_ar: o.labelAr ?? o.label_ar ?? o.value,
+              label_en: o.labelEn ?? o.label_en ?? o.labelAr ?? o.value,
+            }))
+          : null,
+      })),
+    template: '',
+    getTemplate: def.getTemplate,
+  } as any;
 }
 
 function getByPath(obj: any, path: string): any {

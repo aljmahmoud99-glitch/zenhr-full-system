@@ -228,21 +228,13 @@ export class FormsComponent implements OnInit {
   allForms: ApiForm[] = [];
   private catalogLoaded = false;
 
-  // Legacy form keys in old records → new catalog ids (so recents show friendly names)
+  // Legacy form keys in old records → current catalog ids
   private readonly legacyIdMap: Record<string, string> = {
-    leave: 'leave_request',
-    'salary-advance': 'loan_request',
-    resignation: 'resignation_letter',
-    'passport-request': 'passport_request'
+    leave_request: 'leave',
+    loan_request: 'salary-advance',
+    resignation_letter: 'resignation',
+    passport_request: 'passport-request',
   };
-
-  // Employee self-service (safe default if backend doesn't provide role access)
-  private readonly employeeAllowedIds = new Set([
-    'leave_request',
-    'loan_request',
-    'resignation_letter',
-    'passport_request'
-  ]);
 
   private readonly fallbackCategories: ApiCategory[] = [
     { id: 'employee', name_ar: 'نماذج الموظفين', name_en: 'Employee Forms', icon: 'person' },
@@ -314,10 +306,7 @@ export class FormsComponent implements OnInit {
   }
 
   private allowedForms(): ApiForm[] {
-    // Employee role should only see self-service forms.
-    if (this.role === 'employee') {
-      return (this.allForms || []).filter(f => this.employeeAllowedIds.has(f.id));
-    }
+    // Backend already role-filters the catalog; return all forms as-is.
     return this.allForms || [];
   }
 

@@ -1,0 +1,238 @@
+Workflow 19 — Official Forms / HR Forms Library QA + Fix
+
+You are working inside ZenHR-Full-System. Focus only on the Official Forms screen:
+
+Frontend route:
+- /app/forms
+
+Main problem observed:
+- The page shows “Unknown Form / نموذج غير معروف”.
+- Categories are empty or inconsistent.
+- HR needs a real official forms library, not placeholder/unknown records.
+- Forms must be visible by role. HR should see all HR/admin forms. Employees should see only self-service forms. Payroll should see payroll-related forms only. Managers should see team/approval forms only.
+- The current UI/data shape seems mismatched or seeded incorrectly.
+
+Your task:
+Run full QA, identify all bugs, fix them, seed a complete useful HR forms catalog, and retest.
+
+Required discovery:
+1. Inspect frontend:
+   - forms component TS/HTML
+   - ApiService calls
+   - expected response fields
+   - category filters
+   - latest forms section
+   - preview/download/save behaviour
+2. Inspect backend:
+   - all /api/forms endpoints
+   - any /api/official-forms, /api/templates, /api/documents/forms aliases
+   - route ordering
+   - auth/role guards
+3. Inspect DB/schema:
+   - forms/templates tables if they exist
+   - seed files
+   - migrations
+   - role/category columns
+   - Arabic/English name fields
+
+Expected backend response shape must match frontend exactly. Fix aliases if needed:
+- id
+- code
+- titleAr
+- titleEn
+- descriptionAr
+- descriptionEn
+- category
+- categoryAr
+- categoryEn
+- fileUrl or templateUrl
+- fileName
+- format: pdf/docx/html
+- rolesAllowed
+- isActive
+- isSystem
+- lastUsedAt / createdAt / updatedAt
+- usageCount if UI expects it
+
+If table does not exist or is wrong:
+- Create/repair official_forms table.
+- Add company_id if forms are tenant-scoped.
+- Add role/category fields.
+- Add soft delete if needed.
+- Update Drizzle schema and exports.
+- Apply migration safely.
+
+Required categories:
+1. employee_forms / نماذج الموظفين
+2. recruitment_onboarding / التوظيف والتعيين
+3. contracts_permits / العقود والتصاريح
+4. legal_admin / قانونية وإدارية
+5. letters_certificates / خطابات وشهادات
+6. payroll_finance / الرواتب والمالية
+7. attendance_leave / الحضور والإجازات
+8. disciplinary_clearance / التأديب وبراءة الذمة
+
+Seed a complete practical HR catalog. Include at minimum:
+
+Employee Forms:
+- Employee Information Update Form
+- Personal Data Change Form
+- Bank Account / IBAN Update Form
+- Emergency Contact Update Form
+- Family / Dependents Declaration Form
+- Document Submission Checklist
+- Employee Acknowledgment Form
+
+Recruitment & Onboarding:
+- Job Application Form
+- Interview Evaluation Form
+- Offer Letter Template
+- New Hire Checklist
+- Employee Onboarding Form
+- Probation Review Form
+- Probation Confirmation Letter
+- Probation Extension Letter
+
+Contracts & Permits:
+- Employment Contract Template
+- Contract Renewal Form
+- Work Permit Request Form
+- Work Permit Renewal Checklist
+- Residency / Iqama Renewal Checklist
+- Social Security Registration Form
+- NDA / Confidentiality Agreement
+- Asset Handover Form
+
+Legal & Administrative:
+- Company Policy Acknowledgment
+- Code of Conduct Acknowledgment
+- Conflict of Interest Declaration
+- Data Privacy Consent Form
+- Authorization Letter Template
+- Internal Memo Template
+- Official Warning Letter Template
+
+Letters & Certificates:
+- Salary Certificate
+- Employment Certificate
+- Experience Letter
+- No Objection Certificate
+- Bank Letter
+- Embassy Letter
+- Recommendation Letter
+- Service Certificate
+
+Payroll & Finance:
+- Salary Adjustment Request
+- Salary Advance Request Form
+- Payroll Deduction Authorization
+- Overtime Claim Form
+- Allowance Request Form
+- Expense Reimbursement Form
+- Final Settlement Form
+
+Attendance & Leave:
+- Leave Request Form
+- Sick Leave Form
+- Unpaid Leave Request
+- Business Trip Request
+- Attendance Correction Form
+- Remote Work Request
+- Shift Change Request
+
+Disciplinary & Clearance:
+- Disciplinary Incident Report
+- Investigation Meeting Minutes
+- Employee Statement Form
+- Disciplinary Decision Form
+- Resignation Form
+- Clearance Checklist
+- Asset Return Form
+- End of Service Clearance Form
+
+Role visibility rules:
+- hradmin / superadmin: see all forms, create/edit/delete/manage all.
+- employee: see only self-service forms:
+  employee_forms, attendance_leave, letters_certificates, payroll_finance limited to request forms only, resignation/clearance self-service if applicable.
+- manager: see employee self-service + team forms:
+  interview evaluation, probation review, disciplinary incident report, leave/attendance/team approval forms.
+- payrolladmin: see payroll_finance + salary certificates + final settlement + clearance finance forms only.
+- unauthorized/no token: 401.
+- role not allowed: 403.
+
+Required functionality:
+1. GET /api/forms
+   - role-scoped list
+   - category filter
+   - search filter
+   - active only by default
+   - no “Unknown Form”
+   - no null Arabic/English names
+2. GET /api/forms/recent
+   - returns latest used or latest created forms
+   - never unknown
+3. GET /api/forms/:id
+   - role-scoped detail
+   - employee cannot access HR-only forms by id
+4. POST /api/forms
+   - HR/superadmin only
+   - validates required fields
+   - duplicate code returns 409, not 500
+5. PUT/PATCH /api/forms/:id
+   - HR/superadmin only
+   - validates fields
+6. DELETE /api/forms/:id
+   - HR/superadmin only
+   - soft delete
+7. Download/preview endpoint if present:
+   - increments usage count
+   - role scoped
+   - returns stable file/template URL or generated HTML/PDF placeholder
+   - no broken links
+
+Frontend fixes:
+- Remove “Unknown Form”.
+- Show Arabic title/description in Arabic mode, English in English mode.
+- Category chips must filter correctly.
+- Empty category should show correct empty message.
+- Latest forms should show real seeded forms.
+- Form cards/buttons should work: preview/download/save/copy link if implemented.
+- HR should see management controls if intended.
+- Employee should not see HR-only forms.
+- No console errors.
+- No failed network calls.
+
+QA tests to run:
+1. HR loads /app/forms: all categories populated.
+2. HR sees all seeded forms.
+3. Employee loads /app/forms: only allowed self-service forms.
+4. Manager loads /app/forms: manager-scoped forms.
+5. Payroll loads /app/forms: payroll-scoped forms.
+6. Search Arabic and English terms.
+7. Filter each category.
+8. Recent forms returns valid names.
+9. Direct access to restricted form id returns 403/404.
+10. HR create valid form.
+11. Missing title/code/category validation returns 400.
+12. Duplicate code returns 409.
+13. HR edit form.
+14. HR soft delete form; deleted form disappears.
+15. Employee cannot create/edit/delete.
+16. Download/preview works and usage count increments.
+17. No “Unknown Form” anywhere.
+18. No 500 errors.
+19. Audit logs created for create/update/delete/download if audit exists.
+20. No cross-company leak if company_id exists.
+
+Expected final report:
+- Current architecture found
+- Bugs found with root cause
+- Files changed
+- DB/schema changes
+- Seeded form list grouped by category
+- Role visibility matrix
+- Retest results
+- Remaining risks
+- Final status
+
+Do not touch unrelated workflows. Fix only the official forms module and shared schema/routes required for it.

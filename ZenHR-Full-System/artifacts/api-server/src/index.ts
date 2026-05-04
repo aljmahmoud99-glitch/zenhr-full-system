@@ -6941,22 +6941,128 @@ app.get("/api/compliance/export", auth, async (req, res) => {
   }
 });
 
-// ─── Forms ────────────────────────────────────────────────────────────────────
-const FORM_TEMPLATES = [
-  { id: 1, nameAr: "طلب إجازة", nameEn: "Leave Request Form", category: "hr", isActive: true },
-  { id: 2, nameAr: "طلب سلفة", nameEn: "Advance Request Form", category: "payroll", isActive: true },
-  { id: 3, nameAr: "تقييم الأداء", nameEn: "Performance Evaluation", category: "hr", isActive: true },
-  { id: 4, nameAr: "طلب تأهيل", nameEn: "Onboarding Form", category: "hr", isActive: true },
+// ─── Forms Catalog ────────────────────────────────────────────────────────────
+const FORMS_CATALOG_CATEGORIES = [
+  { id: 'employee',      name_ar: 'نماذج الموظفين',           name_en: 'Employee Forms',              icon: 'person' },
+  { id: 'recruitment',   name_ar: 'التوظيف والتعيين',          name_en: 'Recruitment & Onboarding',    icon: 'work' },
+  { id: 'contracts',     name_ar: 'العقود والتصاريح',           name_en: 'Contracts & Permits',         icon: 'description' },
+  { id: 'legal',         name_ar: 'قانونية وإدارية',           name_en: 'Legal & Administrative',      icon: 'gavel' },
+  { id: 'certificates',  name_ar: 'خطابات وشهادات',            name_en: 'Letters & Certificates',      icon: 'workspace_premium' },
+  { id: 'payroll',       name_ar: 'الرواتب والمالية',           name_en: 'Payroll & Finance',           icon: 'payments' },
+  { id: 'attendance',    name_ar: 'الحضور والإجازات',           name_en: 'Attendance & Leave',          icon: 'event_available' },
+  { id: 'disciplinary',  name_ar: 'التأديب وبراءة الذمة',      name_en: 'Disciplinary & Clearance',    icon: 'warning_amber' },
 ];
+
+const FORMS_CATALOG_ALL = [
+  // ── Employee Forms ────────────────────────────────────────────────
+  { id: 'employee-info-update',  name_ar: 'نموذج تحديث بيانات الموظف',         name_en: 'Employee Information Update Form',      category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'personal-data-change',  name_ar: 'نموذج تغيير البيانات الشخصية',       name_en: 'Personal Data Change Form',             category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'bank-account-update',   name_ar: 'نموذج تحديث الحساب البنكي / IBAN',  name_en: 'Bank Account / IBAN Update Form',       category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'emergency-contact',     name_ar: 'نموذج تحديث جهة الاتصال الطارئ',   name_en: 'Emergency Contact Update Form',         category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'family-declaration',    name_ar: 'إعلان المعالين والأسرة',             name_en: 'Family / Dependents Declaration Form',  category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'document-checklist',    name_ar: 'قائمة تسليم الوثائق',               name_en: 'Document Submission Checklist',         category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'employee-acknowledgment',name_ar:'نموذج إقرار الموظف',                name_en: 'Employee Acknowledgment Form',          category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  // ── Recruitment & Onboarding ──────────────────────────────────────
+  { id: 'job-application',       name_ar: 'نموذج طلب التوظيف',                 name_en: 'Job Application Form',                  category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'hiring-request',        name_ar: 'طلب احتياج وظيفي',                  name_en: 'Hiring Request',                        category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'interview-evaluation',  name_ar: 'نموذج تقييم المقابلة',              name_en: 'Interview Evaluation Form',             category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'appointment-letter',    name_ar: 'كتاب تعيين',                         name_en: 'Offer / Appointment Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  { id: 'new-hire-checklist',    name_ar: 'قائمة متطلبات الموظف الجديد',       name_en: 'New Hire Checklist',                    category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'onboarding-form',       name_ar: 'نموذج تأهيل الموظف',               name_en: 'Employee Onboarding Form',              category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'probation-review',      name_ar: 'نموذج تقييم فترة التجربة',          name_en: 'Probation Review Form',                 category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'probation-confirmation',name_ar: 'خطاب تثبيت في الوظيفة',            name_en: 'Probation Confirmation Letter',         category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  { id: 'probation-extension',   name_ar: 'خطاب تمديد فترة التجربة',           name_en: 'Probation Extension Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  // ── Contracts & Permits ───────────────────────────────────────────
+  { id: 'employment-contract',   name_ar: 'عقد عمل',                           name_en: 'Employment Contract',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'contract-renewal',      name_ar: 'نموذج تجديد العقد',                 name_en: 'Contract Renewal Form',                 category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'work-permit',           name_ar: 'طلب تصريح عمل',                     name_en: 'Work Permit Request',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'work-permit-renewal',   name_ar: 'قائمة تجديد تصريح العمل',           name_en: 'Work Permit Renewal Checklist',         category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'residency-renewal',     name_ar: 'قائمة تجديد الإقامة',               name_en: 'Residency / Iqama Renewal Checklist',   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'social-security-reg',   name_ar: 'نموذج تسجيل الضمان الاجتماعي',     name_en: 'Social Security Registration Form',     category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'nda',                   name_ar: 'اتفاقية السرية وعدم الإفصاح',       name_en: 'NDA / Confidentiality Agreement',       category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'asset-handover',        name_ar: 'نموذج استلام عهدة / أصول',          name_en: 'Asset Handover Form',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  // ── Legal & Administrative ────────────────────────────────────────
+  { id: 'policy-acknowledgment', name_ar: 'إقرار سياسة الشركة',               name_en: 'Company Policy Acknowledgment',         category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'code-of-conduct',       name_ar: 'إقرار مدونة السلوك',               name_en: 'Code of Conduct Acknowledgment',        category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'conflict-of-interest',  name_ar: 'إقرار تضارب المصالح',              name_en: 'Conflict of Interest Declaration',      category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'data-privacy',          name_ar: 'موافقة خصوصية البيانات',            name_en: 'Data Privacy Consent Form',             category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'authorization-letter',  name_ar: 'نموذج خطاب تفويض',                 name_en: 'Authorization Letter Template',         category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'internal-memo',         name_ar: 'نموذج مذكرة داخلية',               name_en: 'Internal Memo Template',               category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'warning-letter',        name_ar: 'نموذج خطاب تحذير رسمي',            name_en: 'Official Warning Letter Template',      category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'admin-decision',        name_ar: 'نموذج قرار إداري',                  name_en: 'Administrative Decision',               category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'investigation',         name_ar: 'إشعار تحقيق',                       name_en: 'Investigation Notice',                  category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
+  // ── Letters & Certificates ────────────────────────────────────────
+  { id: 'salary-certificate',    name_ar: 'شهادة راتب',                        name_en: 'Salary Certificate',                    category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'employment-certificate',name_ar: 'شهادة عمل',                         name_en: 'Employment Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'experience-certificate',name_ar: 'شهادة خبرة',                        name_en: 'Experience Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'no-objection-letter',   name_ar: 'خطاب عدم ممانعة',                   name_en: 'No Objection Certificate',              category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'bank-letter',           name_ar: 'خطاب للبنك',                         name_en: 'Bank Letter',                           category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'embassy-letter',        name_ar: 'خطاب للسفارة',                       name_en: 'Embassy Letter',                        category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'recommendation-letter', name_ar: 'خطاب توصية',                        name_en: 'Recommendation Letter',                 category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'letterhead',            name_ar: 'خطاب رسمي (ترويسة)',               name_en: 'Official Letterhead',                   category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'service-certificate',   name_ar: 'شهادة انتهاء خدمة',                name_en: 'Service Certificate',                   category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  // ── Payroll & Finance ─────────────────────────────────────────────
+  { id: 'salary-adjustment',     name_ar: 'طلب تعديل الراتب',                  name_en: 'Salary Adjustment Request',             category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  { id: 'salary-advance',        name_ar: 'طلب سلفة راتب',                     name_en: 'Salary Advance Request',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'payroll-deduction',     name_ar: 'تفويض خصم من الراتب',               name_en: 'Payroll Deduction Authorization',       category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'overtime-claim',        name_ar: 'مطالبة ساعات إضافية',               name_en: 'Overtime Claim Form',                   category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
+  { id: 'allowance-request',     name_ar: 'نموذج طلب بدل',                     name_en: 'Allowance Request Form',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'expense-reimbursement', name_ar: 'نموذج سداد المصروفات',              name_en: 'Expense Reimbursement Form',            category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
+  { id: 'final-settlement',      name_ar: 'نموذج التسوية النهائية',            name_en: 'Final Settlement Form',                 category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  // ── Attendance & Leave ────────────────────────────────────────────
+  { id: 'leave',                 name_ar: 'نموذج طلب إجازة',                   name_en: 'Leave Request Form',                    category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'sick-leave',            name_ar: 'نموذج إجازة مرضية',                 name_en: 'Sick Leave Form',                       category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'unpaid-leave',          name_ar: 'طلب إجازة بدون راتب',               name_en: 'Unpaid Leave Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'business-trip',         name_ar: 'نموذج طلب مأمورية',                 name_en: 'Business Trip Request',                 category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'attendance-correction', name_ar: 'نموذج تصحيح الدوام',               name_en: 'Attendance Correction Form',            category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'remote-work',           name_ar: 'طلب العمل عن بُعد',                 name_en: 'Remote Work Request',                   category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'shift-change',          name_ar: 'طلب تغيير الوردية',                 name_en: 'Shift Change Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'exit-permit',           name_ar: 'تصريح خروج',                        name_en: 'Exit Permit',                           category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager'] },
+  // ── Disciplinary & Clearance ──────────────────────────────────────
+  { id: 'disciplinary-report',   name_ar: 'تقرير مخالفة تأديبية',              name_en: 'Disciplinary Incident Report',          category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'investigation-minutes', name_ar: 'محضر اجتماع التحقيق',              name_en: 'Investigation Meeting Minutes',         category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'employee-statement',    name_ar: 'نموذج إفادة الموظف',               name_en: 'Employee Statement Form',               category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'disciplinary-decision', name_ar: 'نموذج قرار تأديبي',                 name_en: 'Disciplinary Decision Form',            category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'resignation',           name_ar: 'خطاب استقالة',                      name_en: 'Resignation Letter',                    category: 'disciplinary', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'clearance',             name_ar: 'نموذج براءة الذمة',                 name_en: 'Clearance Checklist',                   category: 'disciplinary', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'asset-return',          name_ar: 'نموذج إعادة الأصول',               name_en: 'Asset Return Form',                     category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'termination',           name_ar: 'قرار إنهاء الخدمة',                 name_en: 'End of Service / Termination Letter',   category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
+];
+
 const formSubmissionsStore: any[] = [];
 let formSubmissionIdSeq = 1;
 
-app.get("/api/forms", auth, async (_req, res) => {
-  res.json({ success: true, data: FORM_TEMPLATES });
+function filterCatalogByRole(role: string) {
+  const forms = FORMS_CATALOG_ALL.filter(f => (f.roles_allowed as string[]).includes(role));
+  const usedCats = new Set(forms.map(f => f.category));
+  const categories = FORMS_CATALOG_CATEGORIES.filter(c => usedCats.has(c.id));
+  return { categories, forms };
+}
+
+// GET /api/forms — recent submissions for the current user
+app.get("/api/forms", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const userSubs = formSubmissionsStore.filter(s => !s.userId || s.userId === user.id);
+  res.json({ success: true, data: userSubs });
 });
 
-app.get("/api/forms-catalog", auth, async (_req, res) => {
-  res.json({ success: true, data: FORM_TEMPLATES });
+// GET /api/forms-catalog — role-filtered catalog { categories, forms }
+app.get("/api/forms-catalog", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const catalog = filterCatalogByRole(user.role);
+  res.json({ success: true, data: catalog });
+});
+
+// GET /api/forms-catalog/:id — basic DynamicFormDefinition for the form-viewer
+app.get("/api/forms-catalog/:formId", auth, (req, res) => {
+  const user = (req as any).user;
+  const formId = req.params.formId;
+  const form = FORMS_CATALOG_ALL.find(f => f.id === formId);
+  if (!form) { res.status(404).json({ success: false, message: "Form not found" }); return; }
+  if (!(form.roles_allowed as string[]).includes(user.role)) {
+    res.status(403).json({ success: false, message: "Access denied" }); return;
+  }
+  res.json({ success: true, data: { id: form.id, name_ar: form.name_ar, name_en: form.name_en, category: form.category, fields: [], template: '' } });
 });
 
 app.get("/api/forms/company-info", auth, async (req, res) => {
@@ -6970,7 +7076,8 @@ app.get("/api/forms/company-info", auth, async (req, res) => {
 });
 
 app.post("/api/form-submissions", auth, async (req, res) => {
-  const record = { id: formSubmissionIdSeq++, ...req.body, submittedAt: new Date(), status: "submitted" };
+  const user = (req as AuthReq).user;
+  const record = { id: formSubmissionIdSeq++, userId: user.id, ...req.body, submittedAt: new Date(), status: req.body.status || "submitted" };
   formSubmissionsStore.push(record);
   res.status(201).json({ success: true, data: record });
 });
