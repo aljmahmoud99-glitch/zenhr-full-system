@@ -10598,10 +10598,12 @@ app.get("/api/workflow/career-movements", auth, async (req, res) => {
 app.get("/api/workflow/salary-changes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!['hradmin', 'superadmin', 'payrolladmin'].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    let data = await queryWorkflowActions(user.companyId, SALARY_ACTION_TYPES);
+    // Employees can only see their own salary change records — no cross-employee leakage
+    if (user.role === 'employee') {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      data = data.filter(r => r.employeeId === user.employeeId);
     }
-    const data = await queryWorkflowActions(user.companyId, SALARY_ACTION_TYPES);
     res.json({ success: true, data });
   } catch (e) {
     console.error("[GET /api/workflow/salary-changes]", e);
@@ -10676,6 +10678,38 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
     const allWorkflowTypes = [...CAREER_ACTION_TYPES, ...SALARY_ACTION_TYPES, ...STATUS_ACTION_TYPES];
     if (!allWorkflowTypes.includes(actionType)) {
       res.status(400).json({ success: false, message: "Invalid actionType for workflow" }); return;
+    }
+
+    // Salary-change specific validation — must run before DB lookup
+    if (actionType === 'salary_change') {
+      const basicSalary = parseFloat(String(extra.basicSalary ?? ''));
+      if (extra.basicSalary == null || extra.basicSalary === '') {
+        res.status(400).json({ success: false, message: "basicSalary is required for salary_change requests" }); return;
+      }
+      if (isNaN(basicSalary)) {
+        res.status(400).json({ success: false, message: "basicSalary must be a valid number" }); return;
+      }
+      if (basicSalary <= 0) {
+        res.status(400).json({ success: false, message: "basicSalary must be greater than zero" }); return;
+      }
+      if (basicSalary > 999999) {
+        res.status(400).json({ success: false, message: "basicSalary value is unreasonably large" }); return;
+      }
+      const allowanceFields = ['housingAllowance', 'transportAllowance', 'mobileAllowance', 'mealAllowance', 'otherAllowances'];
+      for (const field of allowanceFields) {
+        if (extra[field] != null) {
+          const val = parseFloat(String(extra[field]));
+          if (isNaN(val)) {
+            res.status(400).json({ success: false, message: `${field} must be a valid number` }); return;
+          }
+          if (val < 0) {
+            res.status(400).json({ success: false, message: `${field} cannot be negative` }); return;
+          }
+          if (val > 999999) {
+            res.status(400).json({ success: false, message: `${field} value is unreasonably large` }); return;
+          }
+        }
+      }
     }
 
     const [emp] = await db.select().from(employeesTable)
@@ -10758,7 +10792,9 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
       approvalStepsJson: JSON.stringify(approvalStepsData),
     }).returning();
 
-    const auditCreateType = CAREER_ACTION_TYPES.includes(actionType) ? "movement_created" : "employee_action";
+    const auditCreateType = CAREER_ACTION_TYPES.includes(actionType) ? "movement_created"
+      : SALARY_ACTION_TYPES.includes(actionType) ? "salary_change_created"
+      : "employee_action";
     await logActivity(user.companyId, auditCreateType, `${actionType} workflow request created for employee #${employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
     const wfCrLabelEn = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
@@ -10833,7 +10869,9 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
       await db.update(employeeActionsTable)
         .set({ status: nextStatus, approvalStepsJson: JSON.stringify(approvalData) })
         .where(eq(employeeActionsTable.id, actionId));
-      const auditAdvType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved" : "employee_action";
+      const auditAdvType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
+        : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_approved"
+        : "employee_action";
       await logActivity(user.companyId, auditAdvType, `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
       // ── Notification: next approver role ──────────────────────────────────
       if (nextStatus === 'pending_hr' || nextStatus === 'pending_hradmin') {
@@ -10939,7 +10977,9 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
         }
       });
 
-      const auditFinalType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved" : "employee_action";
+      const auditFinalType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
+        : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_applied"
+        : "employee_action";
       await logActivity(user.companyId, auditFinalType, `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
       // ── Notification: final approval ───────────────────────────────────────
       const wfFinalLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
@@ -11001,7 +11041,9 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
       .set({ status: 'rejected', approvalStepsJson: JSON.stringify(approvalData) })
       .where(eq(employeeActionsTable.id, actionId));
 
-    const auditRejType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_rejected" : "employee_action";
+    const auditRejType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_rejected"
+      : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_rejected"
+      : "employee_action";
     await logActivity(user.companyId, auditRejType, `${action.actionType} rejected for employee #${action.employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
     const wfRejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;

@@ -1,0 +1,190 @@
+Workflow 17 — Salary Changes QA / Payroll Adjustments
+
+You are testing the Salary Changes workflow at:
+Frontend route:
+  /app/employee-actions/salary-changes
+
+Goal:
+Find and fix every issue in salary change requests end-to-end. Do not only inspect the UI. Test frontend, API, DB, workflow approval chain, payroll integration, audit logs, notifications, and role security.
+
+Important:
+The page currently shows "Failed to load data". Start by reproducing that exact issue in the browser, then inspect Network tab and server logs. Identify every API called by this screen and fix the failing endpoint(s). If one request inside Promise.all fails, the whole page shows the toast.
+
+Accounts to test:
+  hr
+  manager.hr
+  payroll
+  employee01
+  employee02
+
+Start with discovery:
+1. Open the Angular salary changes component and template.
+2. List every API endpoint used by:
+   - initial page load
+   - stats/cards
+   - list table
+   - filters
+   - employee dropdown
+   - submit modal
+   - approval/rejection actions
+3. Search backend routes for salary_change, workflow, employee_actions, salary adjustments, salary components, employee salary updates.
+4. Identify DB tables used:
+   - employee_actions
+   - employees
+   - employee_salary_components
+   - salary_components
+   - activity_logs
+   - notifications
+   - any workflow approval table/config
+
+Required QA tests:
+
+A) Page load / Failed data loading
+- Login as hr and open /app/employee-actions/salary-changes.
+- Confirm no "Failed to load data" toast.
+- Network tab must show no 403/404/500 on initial load.
+- Repeat for manager.hr, payroll, employee01, employee02.
+- If any role is not allowed to access the screen, frontend must handle it gracefully, not crash.
+
+B) Role permissions
+Expected:
+- HR can create salary change requests.
+- Manager may view or submit only if business logic allows; otherwise 403 must be handled gracefully.
+- Payroll can approve payroll step if approval chain requires payroll.
+- Employee should not see other employees' salary data.
+- Employee should either be blocked cleanly or only see own allowed requests.
+- No role can create salary change for another company.
+- Body injection must be blocked:
+  companyId, createdByUserId, status, approvedBy, currentSalary, employeeId override.
+
+C) Create salary change request
+Test valid creation:
+- employeeId = employee01
+- effectiveDate = valid future/current date
+- new salary values:
+  basic salary
+  housing
+  transport
+  mobile
+  meals
+  other
+- reason/notes required if frontend requires it.
+Verify:
+- API returns 200/201.
+- DB row created in employee_actions or correct table.
+- actionType = salary_change.
+- status starts with correct first approval stage.
+- old salary snapshot is saved.
+- new salary snapshot is saved.
+- employee name/code returned to frontend.
+- cards/statistics update correctly.
+
+D) Validation tests
+Must return clean 400/409, never 500:
+- missing employeeId
+- invalid employeeId string / NaN
+- employee not found
+- missing effectiveDate
+- invalid date
+- past effectiveDate if business rule forbids it
+- all salary fields empty
+- negative basic salary
+- negative allowances
+- zero basic salary if invalid
+- absurd huge values
+- non-numeric values
+- invalid actionType injection
+- duplicate pending salary change for same employee if business rule requires blocking
+
+E) Workflow approval chain
+Test full chain:
+- HR creates request.
+- Manager approval if required.
+- HR approval if required.
+- Payroll approval if required.
+- Final status becomes applied.
+Verify state machine:
+- wrong role approving wrong step → 403
+- double approve applied request → 409
+- approve rejected request → 409
+- approve cancelled request → 409
+- reject pending request works
+- reject requires reason
+- employee cannot approve/reject
+- payroll cannot approve manager/HR step unless current stage is payroll
+- final approval updates employee salary data exactly once.
+
+F) Salary side effects
+After final approval:
+- employees table salary fields update only after final approval, not before.
+- employee_salary_components update correctly if this app stores salary through components.
+- salary_components catalog must not be modified.
+- old salary values remain in the request snapshot.
+- new salary values become active from effectiveDate.
+- payroll calculation after approval uses the new salary.
+- payroll calculation before approval must use old salary.
+- published payslips must remain immutable and not change retroactively.
+
+G) Scope and data leakage
+- employee01 cannot see employee02 salary change request.
+- employee02 cannot access employee01 request by direct ID.
+- manager sees only scoped team requests if manager scope exists.
+- payroll must not see extra HR-only private employee fields unless needed.
+- GET /api/workflow/requests/:id must enforce employee/company scope.
+- GET salary changes list must enforce company_id.
+
+H) Notifications
+Verify correct notifications:
+- request created → next approver(s), not everyone.
+- manager approved → next approver.
+- payroll/HR final approved → employee notified.
+- rejected → employee notified.
+- employee02 must receive zero notifications for employee01 request.
+- unread count changes after mark-as-read.
+
+I) Audit logs
+Must write semantic audit logs, not generic only:
+- salary_change_created
+- salary_change_approved
+- salary_change_rejected
+- salary_change_applied
+- salary_change_cancelled if supported
+Each log must include:
+- company_id
+- actor user/employee name if available
+- employee affected
+- old salary summary
+- new salary summary
+- request id
+
+J) Frontend QA
+- Arabic RTL layout correct.
+- Modal fields load employees correctly.
+- Employee dropdown is scoped and searchable.
+- Submit button validates before sending.
+- Toast messages are clear.
+- Cards show correct counts:
+  total
+  pending
+  applied
+  rejected
+- Filters work:
+  status
+  search employee/code
+- No console errors.
+- No failed network requests after fixes.
+
+K) Final report format
+After fixing everything, provide:
+1. Failing endpoint(s) causing "Failed to load data"
+2. Root cause for each bug
+3. Exact files changed
+4. DB migrations/schema changes if any
+5. Retest matrix per role
+6. Salary side-effect proof
+7. Notification proof
+8. Audit log proof
+9. Remaining risks
+10. Final status PASS/FAIL
+
+Do not stop at the first bug. Run the full QA battery, fix all issues found, restart the API, hard refresh the frontend, and retest until the page loads cleanly with no console/network errors.
