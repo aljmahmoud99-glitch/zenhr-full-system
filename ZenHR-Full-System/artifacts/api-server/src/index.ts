@@ -1597,6 +1597,9 @@ app.patch("/api/leave/policies/:id", auth, async (req, res) => {
 app.get("/api/payroll/runs", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const { year, month } = req.query as Record<string, string>;
     const conditions = [eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false)];
     if (year) conditions.push(eq(payrollRunsTable.runYear, parseInt(year)));
@@ -3249,6 +3252,10 @@ const disciplinaryStore: any[] = [];
 let disciplinaryIdSeq = 1;
 
 app.get("/api/disciplinary", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "manager"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
   const { employeeId } = req.query as Record<string, string>;
   const result = disciplinaryStore.filter(d => !employeeId || String(d.employeeId) === employeeId);
   res.json({ success: true, data: result });
@@ -3526,6 +3533,9 @@ async function loadScopedUser(callerCompanyId: number, callerRole: string, targe
 app.get("/api/users", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const conditions = [eq(usersTable.isDeleted, false)];
     // Superadmin sees ALL users across the platform; everyone else only their company.
     if (user.role !== "superadmin") {

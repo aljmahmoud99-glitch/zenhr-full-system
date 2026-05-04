@@ -23,10 +23,10 @@ export class LoginComponent {
 
   demoAccounts = [
     { user: 'admin', pass: 'Admin@1234', roleAr: 'مدير النظام', roleEn: 'Super Admin' },
-    { user: 'hr', pass: 'Hr@1234', roleAr: 'مدير الموارد البشرية', roleEn: 'HR Admin' },
-    { user: 'payroll', pass: 'Payroll@1234', roleAr: 'مدير الرواتب', roleEn: 'Payroll Admin' },
-    { user: 'manager', pass: 'Manager@1234', roleAr: 'مدير القسم', roleEn: 'Manager' },
-    { user: 'employee', pass: 'Employee@1234', roleAr: 'موظف', roleEn: 'Employee' }
+    { user: 'hr', pass: 'Test@12345', roleAr: 'مدير الموارد البشرية', roleEn: 'HR Admin' },
+    { user: 'payroll', pass: 'Test@12345', roleAr: 'مدير الرواتب', roleEn: 'Payroll Admin' },
+    { user: 'manager.hr', pass: 'Test@12345', roleAr: 'مدير القسم', roleEn: 'Manager' },
+    { user: 'employee01', pass: 'Test@12345', roleAr: 'موظف', roleEn: 'Employee' }
   ];
 
   constructor(

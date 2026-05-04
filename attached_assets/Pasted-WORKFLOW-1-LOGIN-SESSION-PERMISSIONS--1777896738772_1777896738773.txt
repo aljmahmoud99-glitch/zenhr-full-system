@@ -1,0 +1,332 @@
+WORKFLOW 1 — LOGIN / SESSION / PERMISSIONS
+════════════════════════════════════════════════════════════════
+TITLE:
+QA + Fix — Workflow 1: Login / Session / Permissions
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Test only the login flow, session management, and permission gates.
+- Do NOT touch leave, attendance, payroll, or any other module.
+- Do NOT redesign the login page UI.
+- Fix only confirmed bugs found in THIS workflow.
+- Use the smallest safe code change for every fix.
+- After every fix: retest the full chain from the beginning.
+- Stop and report after all 10 tasks below. Do not continue to Workflow 2.
+
+═══════════════════════════════════
+ACCOUNTS TO TEST (all seeded — use as-is)
+═══════════════════════════════════
+admin        / Admin@1234
+hr           / Test@12345
+payroll      / Test@12345
+manager.hr   / Test@12345
+manager.it   / Test@12345
+employee01   / Test@12345
+employee02   / Test@12345
+
+═══════════════════════════════════
+TASK 1 — IDENTIFY THE LOGIN SYSTEM
+═══════════════════════════════════
+Before testing, read and report:
+
+1. Frontend:
+   - What is the login route? (e.g., /login, /auth/login)
+   - What component handles it? (filename + path)
+   - What HTTP call does it make on submit? (method + URL + body shape)
+   - Where is the token stored after login? (localStorage key name)
+   - Where is the user object stored? (localStorage key? in-memory service? both?)
+
+2. Backend:
+   - What is the login API endpoint? (POST /api/auth/login or similar)
+   - What does a successful response look like? ({ token, user } or { accessToken, refreshToken, ... }?)
+   - What claims are inside the JWT token? (decode and list: userId, employeeId, role, companyId, etc.)
+   - Is there a refresh token mechanism? If yes: how is it used?
+
+3. Permission system:
+   - How does the frontend determine what a user can see?
+   - Is there a permissions API call after login? (GET /api/permissions/my or similar)
+   - Or does the frontend derive permissions from the role string alone?
+   - Is there an Angular AuthGuard? What does it check?
+   - Is there a RoleAccessService or PermissionService?
+
+Report all findings as a structured list before running any tests.
+
+═══════════════════════════════════
+TASK 2 — LOGIN FLOW TESTS
+═══════════════════════════════════
+Run these login tests. For EACH test: report status code, response body summary, and what happened in the UI.
+
+Test 2.1 — Correct credentials (admin):
+  POST /api/auth/login with { username: "admin", password: "Admin@1234" }
+  Expected: 200 with token in response
+  Check: token stored correctly in localStorage (correct key)
+  Check: user object stored (contains role: "superadmin" or "admin")
+  Check: redirected to correct dashboard route
+
+Test 2.2 — Correct credentials (hr):
+  POST /api/auth/login with { username: "hr", password: "Test@12345" }
+  Expected: 200 with token
+  Check: role in stored user object = "hradmin" (or correct role name)
+  Check: redirected to HR dashboard (not admin dashboard)
+
+Test 2.3 — Correct credentials (employee01):
+  POST /api/auth/login with { username: "employee01", password: "Test@12345" }
+  Expected: 200 with token
+  Check: role = "employee"
+  Check: redirected to employee dashboard
+
+Test 2.4 — Wrong password:
+  POST /api/auth/login with { username: "admin", password: "wrongpassword" }
+  Expected: 401 response
+  Check: UI shows error message (not browser alert, not white screen, not redirect)
+  Check: no token stored in localStorage
+
+Test 2.5 — Non-existent username:
+  POST /api/auth/login with { username: "nobody", password: "Test@12345" }
+  Expected: 401 or 404 response
+  Check: UI shows appropriate error message
+
+Test 2.6 — Empty credentials:
+  Submit login form with empty username and empty password
+  Expected: form validation fires BEFORE API call (no network request sent)
+  Check: required field errors shown in UI
+
+═══════════════════════════════════
+TASK 3 — JWT TOKEN VALIDATION
+═══════════════════════════════════
+After logging in as each role, decode the JWT token (without verifying signature — just parse the payload):
+
+For EACH of these accounts: admin, hr, payroll, manager.it, employee01
+
+Decode token and verify it contains:
+  - userId or id (number)
+  - employeeId (number — important for data scoping)
+  - role (string — must match expected value)
+  - companyId (number — critical for multi-tenant isolation)
+  - exp (expiry timestamp — must be in the future)
+
+Report the decoded payload for each account.
+Flag any account where:
+  - employeeId is missing or null
+  - companyId is missing or null
+  - role does not match expected
+
+These are HIGH PRIORITY bugs — they will break every other workflow.
+
+═══════════════════════════════════
+TASK 4 — SESSION PERSISTENCE
+═══════════════════════════════════
+After logging in as employee01:
+
+Test 4.1 — Page refresh:
+  - Hard refresh the browser (F5)
+  - Expected: still logged in, same page or redirected to correct dashboard
+  - NOT expected: redirected to login page on every refresh
+
+Test 4.2 — Navigate to protected route directly:
+  - While logged in as employee01, manually type /app/payroll/runs in address bar
+  - Expected: redirected away (to login or to dashboard with "غير مصرح" message)
+  - NOT expected: payroll runs page loads for an employee
+
+Test 4.3 — Token in requests:
+  - Open browser DevTools → Network tab
+  - Navigate to any data page (e.g., attendance)
+  - Inspect one of the API requests
+  - Expected: Authorization: Bearer [token] header is present on every request
+  - NOT expected: unauthenticated requests to backend
+
+Test 4.4 — Logout:
+  - Click logout button
+  - Expected: token removed from localStorage, redirected to login
+  - After logout: manually navigate to /app/dashboard
+  - Expected: redirected back to login (not served dashboard)
+
+═══════════════════════════════════
+TASK 5 — ROLE-BASED ROUTE PROTECTION
+═══════════════════════════════════
+For each role, attempt to access routes that SHOULD be forbidden.
+
+Log in as employee01 and attempt to access:
+  /app/payroll/runs     → Expected: 403 page OR redirect to dashboard
+  /app/users            → Expected: 403 or redirect
+  /app/settings         → Expected: 403 or redirect
+  /app/reports          → Expected: 403 or redirect (or limited access if employees can view own reports)
+  /app/employees        → Expected: 403 or redirect (employees cannot see full employee list)
+
+Log in as manager.it and attempt to access:
+  /app/payroll/runs     → Expected: 403 or redirect
+  /app/settings         → Expected: 403 or redirect
+  /app/users            → Expected: 403 or redirect
+
+Log in as payroll and attempt to access:
+  /app/settings         → Expected: 403 or redirect
+  /app/disciplinary     → Expected: 403 or redirect
+
+For each test: report what actually happened (403 page shown / blank screen / page loaded / redirect to login).
+A page loading when it should be forbidden is a CRITICAL security bug — flag it immediately.
+
+═══════════════════════════════════
+TASK 6 — SIDEBAR NAVIGATION CORRECTNESS
+═══════════════════════════════════
+Log in as each role and screenshot/describe the sidebar navigation items shown.
+
+Expected sidebar items per role:
+
+admin:
+  Should see: platform-level admin items (companies, users, stats)
+  Should NOT see: individual HR operational screens
+
+hr:
+  Should see: employees, pre-employment, attendance, leave, overtime, compliance, documents, assets, advances, reports, users (within company), settings, forms, payroll (read-only), disciplinary, resignations, clearance, job descriptions
+
+payroll:
+  Should see: payroll runs, payslips, salary components, reports, advances, employees (read-only)
+  Should NOT see: compliance, disciplinary, resignations
+
+manager.it:
+  Should see: team attendance, team leave, team overtime, employees (team only)
+  Should NOT see: settings, users management, payroll runs, salary details
+
+employee01:
+  Should see: my attendance, my leaves, my overtime, my advances, my payslips, my documents, holidays, forms
+  Should NOT see: other employees, settings, payroll runs, salary of others
+
+Report: for each role, list what sidebar items ARE shown vs. what SHOULD be shown.
+Any item visible when it should not be = Permission Bug — flag with role and item name.
+
+═══════════════════════════════════
+TASK 7 — API AUTHORIZATION HEADERS
+═══════════════════════════════════
+With browser DevTools Network tab open:
+
+Test 7.1 — Valid token:
+  Logged in as hr, navigate to /app/employees
+  Inspect the GET /api/employees request
+  Confirm: Authorization: Bearer [valid-token] header present
+  Confirm: response status 200
+
+Test 7.2 — Expired/tampered token:
+  Manually edit localStorage token to be invalid (add "xxx" to the end)
+  Navigate to /app/employees
+  Expected: API returns 401, frontend redirects to login
+  NOT expected: frontend crashes, blank screen, or data loads with invalid token
+
+Test 7.3 — No token (unauthenticated):
+  Clear localStorage completely
+  Navigate to /app/dashboard
+  Expected: redirect to login immediately
+  NOT expected: dashboard loads without authentication
+
+Test 7.4 — Token from different company (if applicable):
+  If system supports multi-company: this test requires two company accounts.
+  Skip this test if only one company is seeded — note it as "SKIPPED - single company environment".
+
+═══════════════════════════════════
+TASK 8 — PERMISSIONS API (if it exists)
+═══════════════════════════════════
+Check if there is a permissions/my endpoint:
+
+  GET /api/permissions/my  OR  GET /api/auth/me  OR  GET /api/users/me
+
+If it exists: call it for each role and verify the response includes correct permissions.
+If it does NOT exist: report "No permissions endpoint found — permissions derived from role string only."
+
+If permissions are derived from role string only:
+  - Locate the RoleAccessService or equivalent in frontend
+  - Verify it correctly maps each role to its allowed screens and actions
+  - Report any missing or incorrect mappings
+
+═══════════════════════════════════
+TASK 9 — FIX ANY BUGS FOUND
+═══════════════════════════════════
+For each bug found in Tasks 1–8:
+
+Before fixing:
+  - Classify the bug type (see list below)
+  - Identify the exact file and line causing it
+  - Describe the minimal fix
+
+Bug types:
+  AUTH_MISSING        — endpoint accessible without authentication
+  ROLE_LEAK           — role can access route/data it should not
+  TOKEN_MISSING       — JWT missing required claim (employeeId, companyId, etc.)
+  SCOPE_MISSING       — data not filtered by company_id or employee scope
+  SESSION_BROKEN      — session lost on refresh, or logout does not clear correctly
+  NAV_VISIBLE         — sidebar shows items the role should not see
+  NAV_MISSING         — sidebar does not show items the role should see
+  REDIRECT_BROKEN     — wrong redirect after login or logout
+  VALIDATION_MISSING  — frontend allows empty form submission to backend
+
+Apply only MINIMAL fixes:
+  - Wrong redirect: change the route string in one place
+  - Missing claim in JWT: add the claim to JwtService in one location
+  - Missing route guard: add canActivate to the route definition
+  - Wrong sidebar items: correct the roles array for that nav item
+
+DO NOT refactor the auth system. DO NOT change the JWT structure beyond adding missing claims.
+DO NOT touch anything not directly causing a confirmed bug.
+
+═══════════════════════════════════
+TASK 10 — RETEST AFTER FIXES
+═══════════════════════════════════
+After applying all fixes:
+
+Repeat these tests in order:
+  ✓ admin login → token valid → JWT has all claims → correct dashboard
+  ✓ employee01 login → token valid → employee dashboard → no access to payroll/settings
+  ✓ manager.it login → token valid → can see team items → no access to settings/users
+  ✓ hr login → token valid → can see all HR screens
+  ✓ Logout clears session → protected routes redirect to login
+  ✓ Sidebar shows correct items per role — no extra items, no missing items
+
+All 6 checks must pass before marking Workflow 1 as complete.
+
+═══════════════════════════════════
+REQUIRED REPORT FORMAT
+═══════════════════════════════════
+Submit EXACTLY this report format — no deviations:
+
+───────────────────────────────────────────────────────────────
+Workflow: 1 — Login / Session / Permissions
+Accounts tested: [list all accounts used]
+Frontend routes tested: [list all routes visited]
+APIs observed: [list all endpoints called — method + URL]
+DB tables checked: [list tables inspected: users, user_roles, etc.]
+
+Bugs found:
+  [If none: write "No bugs found"]
+  [For each bug:]
+  - Bug: [description]
+    Type: [from the type list above]
+    Root cause: [specific file + line or logic error]
+    Fix: [exact change made]
+    File changed: [path to file]
+
+Files changed: [list every file modified — or "No files changed"]
+
+Retest result:
+  admin login: ✅ / ❌
+  employee01 login: ✅ / ❌
+  manager.it login: ✅ / ❌
+  hr login: ✅ / ❌
+  Logout + session: ✅ / ❌
+  Forbidden routes blocked: ✅ / ❌
+
+Scope result:
+  [Did any role access data/routes it should not? Yes/No + details]
+
+Notification result:
+  N/A — this workflow does not involve notifications
+
+Console/network errors:
+  [List any JS console errors or failed network requests observed]
+
+Remaining risks:
+  [Any issues that were found but NOT fixed in this workflow, with reason]
+
+WORKFLOW 1 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP HERE. Do not start Workflow 2.
+Wait for QA director approval before proceeding.
