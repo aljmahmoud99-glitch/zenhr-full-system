@@ -1,0 +1,157 @@
+RESET TEST DATA FOR REAL QA ACCOUNTS
+
+Goal:
+Create a clean, realistic testing environment.
+
+Do NOT delete the platform/system admin account.
+Delete all other users/employees/test data that may conflict.
+Then create one real tenant company with HR, payroll manager, department managers, and employees so I can log in to each account and test workflows end-to-end.
+
+Important safety rules:
+1. Before deleting anything, create a DB backup/export or at least print counts of:
+   - users
+   - companies
+   - employees
+   - org_nodes
+   - leave_requests
+   - notifications
+   - employee_actions
+2. Keep ONLY the platform/system admin user.
+3. Do not delete schema/tables.
+4. Do not break login.
+5. After reset, seed deterministic usernames/passwords and print them clearly.
+6. All accounts must be active and login-ready.
+7. Use one shared simple test password for all new accounts:
+   Test@12345
+8. Make sure every created user is linked correctly to employee/company/role where needed.
+
+Required test tenant:
+
+Company:
+- Arabic name: شركة زنجو للتقنية
+- English name: ZenJO Technology Company
+- Code: ZENJO
+- Status: active
+- Plan: trial or professional
+- Max employees: 100
+
+Org structure:
+Company
+  Branch 1: فرع عمان / Amman Branch
+    Department: Human Resources
+    Department: Payroll
+    Department: Information Technology
+    Department: Operations
+  Branch 2: فرع إربد / Irbid Branch
+    Department: Sales
+    Department: Support
+
+Users to create:
+
+1. HR Admin
+- username: hr
+- email: hr@zenjo.test
+- role: hradmin
+- employee record required
+- department: Human Resources
+
+2. Payroll Admin
+- username: payroll
+- email: payroll@zenjo.test
+- role: payrolladmin
+- employee record required
+- department: Payroll
+
+3. Managers — 4 accounts
+- username: manager.hr
+- email: manager.hr@zenjo.test
+- role: manager
+- department: Human Resources
+
+- username: manager.it
+- email: manager.it@zenjo.test
+- role: manager
+- department: Information Technology
+
+- username: manager.ops
+- email: manager.ops@zenjo.test
+- role: manager
+- department: Operations
+
+- username: manager.sales
+- email: manager.sales@zenjo.test
+- role: manager
+- department: Sales
+
+4. Employees — 12 accounts
+Create 12 employee users with real login accounts:
+- employee01@zenjo.test through employee12@zenjo.test
+- usernames: employee01 through employee12
+- role: employee
+- password: Test@12345
+- distribute them across departments:
+  - HR: 2 employees
+  - IT: 3 employees
+  - Operations: 3 employees
+  - Sales: 2 employees
+  - Support: 2 employees
+
+Manager assignment:
+- HR employees report to manager.hr
+- IT employees report to manager.it
+- Operations employees report to manager.ops
+- Sales employees report to manager.sales
+- Support employees report to manager.sales unless a support manager exists
+
+Employee data:
+For every employee record:
+- employee_code unique: EMP-0001 onward
+- fullNameAr and fullNameEn
+- active status
+- company_id set correctly
+- org_node_id set correctly
+- department_id set if legacy departments still exist
+- job title/job description if available
+- hire date
+- basic salary and allowances if salary columns/components exist
+- work email matching login email
+
+Permissions/roles:
+- Ensure role_id is backfilled if dynamic roles exist.
+- Ensure old role string is also set for backward compatibility.
+- Ensure /api/permissions/my works for every account.
+- Ensure sidebar permissions load correctly.
+
+Notifications:
+- Clear old notifications.
+- Do not seed random notifications unless needed.
+- After account creation, notifications table should be empty or only contain useful welcome/test notifications.
+
+Testing validation:
+After seeding, run and report:
+
+1. Login test:
+- admin can login
+- hr can login
+- payroll can login
+- each manager can login
+- employee01 can login
+- employee12 can login
+
+2. API validation:
+- GET /api/auth/context works for each role
+- GET /api/permissions/my works for each role
+- GET /api/employees:
+  - HR sees all 18 company employees/users with employee records if intended
+  - manager.it sees only IT team
+  - employee01 sees only own data or own profile, depending endpoint behavior
+
+3. Org validation:
+- GET /api/org-nodes/tree returns company → branches → departments
+- employees have correct org_node_id and branch/department names
+
+4. Print final credentials table:
+Columns:
+Role | Username | Email | Password | Department | Expected Scope
+
+Do not continue to notification feature work until this reset and validation pass.
