@@ -10581,10 +10581,12 @@ async function queryWorkflowActions(companyId: number, typeGroup: string[]) {
 app.get("/api/workflow/career-movements", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!['hradmin', 'superadmin', 'manager', 'payrolladmin'].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    let data = await queryWorkflowActions(user.companyId, CAREER_ACTION_TYPES);
+    // Employees can only see their own career movement records
+    if (user.role === 'employee') {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      data = data.filter(r => r.employeeId === user.employeeId);
     }
-    const data = await queryWorkflowActions(user.companyId, CAREER_ACTION_TYPES);
     res.json({ success: true, data });
   } catch (e) {
     console.error("[GET /api/workflow/career-movements]", e);
@@ -10631,6 +10633,10 @@ app.get("/api/workflow/requests/:id", auth, async (req, res) => {
     const [action] = await db.select().from(employeeActionsTable)
       .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
     if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    // Employees can only access their own records — return 404 (not 403) to avoid ID enumeration
+    if (user.role === 'employee' && action.employeeId !== user.employeeId) {
+      res.status(404).json({ success: false, message: "Not found" }); return;
+    }
     res.json({ success: true, data: action });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -10641,15 +10647,29 @@ app.get("/api/workflow/requests/:id", auth, async (req, res) => {
 app.post("/api/workflow/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!['hradmin', 'superadmin', 'manager'].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
 
-    const { employeeId, actionType, effectiveDate, notes, ...extra } = req.body as {
+    const { actionType, effectiveDate, notes, ...extra } = req.body as {
       employeeId: number; actionType: string; effectiveDate: string;
       notes?: string; [k: string]: any;
     };
-    if (!employeeId || !actionType || !effectiveDate) {
+
+    // Employees may only submit career movement requests for themselves
+    let employeeId: number;
+    if (user.role === 'employee') {
+      if (!CAREER_ACTION_TYPES.includes(actionType)) {
+        res.status(403).json({ success: false, message: "Employees can only submit career movement requests" }); return;
+      }
+      if (!user.employeeId) {
+        res.status(403).json({ success: false, message: "No employee record linked to your account" }); return;
+      }
+      employeeId = user.employeeId;
+    } else if (['hradmin', 'superadmin', 'manager'].includes(user.role)) {
+      employeeId = parseInt(String(req.body.employeeId), 10);
+    } else {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    if (!employeeId || isNaN(employeeId) || employeeId <= 0 || !actionType || !effectiveDate) {
       res.status(400).json({ success: false, message: "employeeId, actionType, effectiveDate are required" }); return;
     }
 
@@ -10738,7 +10758,8 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
       approvalStepsJson: JSON.stringify(approvalStepsData),
     }).returning();
 
-    await logActivity(user.companyId, "employee_action", `${actionType} workflow request created for employee #${employeeId}`, null);
+    const auditCreateType = CAREER_ACTION_TYPES.includes(actionType) ? "movement_created" : "employee_action";
+    await logActivity(user.companyId, auditCreateType, `${actionType} workflow request created for employee #${employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
     const wfCrLabelEn = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
     const wfCrLabelAr = ACTION_TYPE_LABELS[actionType]?.ar ?? actionType;
@@ -10772,6 +10793,11 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
     const [action] = await db.select().from(employeeActionsTable)
       .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
     if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+    // Bug 4 fix: already-finalized records return 409 before role check
+    if (['applied', 'rejected', 'cancelled'].includes(action.status)) {
+      res.status(409).json({ success: false, message: `Request is already ${action.status} and cannot be approved` }); return;
+    }
 
     if (!canApproveWorkflowStep(user.role, action.status)) {
       res.status(403).json({ success: false, message: "You are not authorized to approve at this stage" }); return;
@@ -10807,7 +10833,8 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
       await db.update(employeeActionsTable)
         .set({ status: nextStatus, approvalStepsJson: JSON.stringify(approvalData) })
         .where(eq(employeeActionsTable.id, actionId));
-      await logActivity(user.companyId, "employee_action", `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
+      const auditAdvType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved" : "employee_action";
+      await logActivity(user.companyId, auditAdvType, `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
       // ── Notification: next approver role ──────────────────────────────────
       if (nextStatus === 'pending_hr' || nextStatus === 'pending_hradmin') {
         await notifyRole(user.companyId, "hradmin", {
@@ -10912,7 +10939,8 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
         }
       });
 
-      await logActivity(user.companyId, "employee_action", `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
+      const auditFinalType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved" : "employee_action";
+      await logActivity(user.companyId, auditFinalType, `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
       // ── Notification: final approval ───────────────────────────────────────
       const wfFinalLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
       const wfFinalLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
@@ -10973,7 +11001,8 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
       .set({ status: 'rejected', approvalStepsJson: JSON.stringify(approvalData) })
       .where(eq(employeeActionsTable.id, actionId));
 
-    await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
+    const auditRejType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_rejected" : "employee_action";
+    await logActivity(user.companyId, auditRejType, `${action.actionType} rejected for employee #${action.employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
     const wfRejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
     const wfRejLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;

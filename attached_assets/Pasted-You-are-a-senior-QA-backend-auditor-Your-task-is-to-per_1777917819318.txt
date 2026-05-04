@@ -1,0 +1,169 @@
+You are a senior QA + backend auditor.
+
+Your task is to perform a FULL PRODUCTION-GRADE QA on the "Career Movements" module.
+
+Context:
+Frontend route: /app/employee-actions/career-movements
+
+Observed issue:
+- UI loads but shows "Failed to load data"
+- No records displayed
+- Creating new request likely fails
+
+Your mission:
+1) Discover ALL existing APIs related to career movements
+2) If missing → design and implement them from scratch
+3) Perform full QA and return a structured bug report
+
+--------------------------------------------------
+EXPECTED SYSTEM DESIGN (YOU MUST VERIFY OR BUILD)
+--------------------------------------------------
+
+Entities:
+- career_movements table:
+  id
+  company_id
+  employee_id
+  movement_type (transfer, promotion, demotion)
+  effective_date
+  new_department_id
+  new_job_title_id
+  new_salary
+  status (pending, approved, rejected)
+  created_by
+  approved_by
+  approved_at
+  notes
+  is_deleted
+
+--------------------------------------------------
+REQUIRED ENDPOINTS
+--------------------------------------------------
+
+GET    /api/career-movements
+GET    /api/career-movements/summary
+GET    /api/career-movements/:id
+POST   /api/career-movements
+PUT    /api/career-movements/:id/approve
+PUT    /api/career-movements/:id/reject
+
+Employee endpoints:
+GET    /api/employee/career-movements
+
+--------------------------------------------------
+QA CHECKLIST (STRICT)
+--------------------------------------------------
+
+1) AUTH & ROLE SECURITY
+- HR → full access
+- Manager → approve/reject
+- Employee → create + view own only
+- Payroll → read only
+
+Test:
+- employee tries approve → 403
+- manager approves → 200
+- employee sees only own records → PASS
+
+--------------------------------------------------
+
+2) DATA LOADING BUG (IMPORTANT)
+- Investigate why UI shows "Failed to load data"
+- Check:
+  - wrong endpoint URL
+  - missing route
+  - wrong response shape
+  - 500 error
+
+Fix it.
+
+--------------------------------------------------
+
+3) FIELD MAPPING
+Frontend expects:
+- employeeNameAr / En
+- departmentName
+- jobTitleName
+- movementType
+- status
+
+Verify ALL fields exist.
+
+--------------------------------------------------
+
+4) VALIDATION
+- employeeId required
+- movementType required
+- effectiveDate must be valid date
+- cannot create movement in the past (optional rule)
+- promotion must include new salary
+
+--------------------------------------------------
+
+5) STATE MACHINE
+pending → approved → (locked)
+pending → rejected
+
+Test:
+- double approve → 409
+- edit after approve → blocked
+
+--------------------------------------------------
+
+6) COMPANY SCOPE
+ALL queries must include:
+company_id = user.companyId
+
+Test:
+- access another company record → 404 (not 403)
+
+--------------------------------------------------
+
+7) AUDIT LOGS
+Log:
+- movement_created
+- movement_approved
+- movement_rejected
+
+--------------------------------------------------
+
+8) NOTIFICATIONS
+- employee notified on approve/reject
+
+--------------------------------------------------
+
+9) FRONTEND COMPATIBILITY
+Ensure:
+- list loads without errors
+- modal submit works
+- filters work
+
+--------------------------------------------------
+
+10) FINAL OUTPUT FORMAT
+Return:
+
+Workflow 16 — Career Movements QA Report
+
+Bugs found: X
+
+Bug 1: ...
+Type: ...
+Root cause: ...
+Fix: ...
+
+Retest Results:
+- Create → ✅
+- Approve → ✅
+- Reject → ✅
+- Scope → ✅
+
+Final Status: PASS / FAIL
+
+--------------------------------------------------
+
+IMPORTANT:
+- Do NOT assume anything works
+- Break the system aggressively
+- Fix ALL backend issues
+- Ensure production-level quality
