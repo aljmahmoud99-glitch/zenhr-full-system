@@ -21,7 +21,11 @@ import {
   employeeSalaryComponentsTable,
   salaryComponentsTable,
   salaryComponentDefinitionsTable,
+  notificationsTable,
 } from "@workspace/db/schema";
+import {
+  notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
+} from "./notification.service.js";
 import { eq, and, ilike, desc, asc, isNull, isNotNull, sql, gte, lte, ne, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
@@ -986,6 +990,22 @@ app.post("/api/employee-actions", auth, async (req, res) => {
     });
 
     await logActivity(user.companyId, "employee_action", `${actionType} submitted for employee #${employeeId}`, null);
+    // ── Notification ───────────────────────────────────────────────────────
+    const actionLabelEn2 = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
+    const actionLabelAr2 = ACTION_TYPE_LABELS[actionType]?.ar ?? actionType;
+    await notifyRole(user.companyId, "hradmin", {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "employee_action",
+      entityId: action.id,
+      notificationType: "employee_action_created",
+      titleAr: `طلب إجراء موظف: ${actionLabelAr2}`,
+      titleEn: `Employee Action Request: ${actionLabelEn2}`,
+      messageAr: `طلب إجراء "${actionLabelAr2}" للموظف #${employeeId} يحتاج إلى موافقة.`,
+      messageEn: `A "${actionLabelEn2}" action for employee #${employeeId} requires approval.`,
+      priority: "normal",
+      actionUrl: "/app/employee-actions",
+    });
     res.status(201).json({
       success: true,
       data: {
@@ -1105,6 +1125,22 @@ app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
     });
 
     await logActivity(user.companyId, "employee_action", `${action.actionType} approved for employee #${action.employeeId}`, null);
+    // ── Notification ───────────────────────────────────────────────────────
+    const approvedLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
+    const approvedLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
+    await notifyEmployee(action.employeeId, user.companyId, {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "employee_action",
+      entityId: action.id,
+      notificationType: "employee_action_approved",
+      titleAr: `تمت الموافقة على إجراء: ${approvedLabelAr}`,
+      titleEn: `Action Approved: ${approvedLabelEn}`,
+      messageAr: `تمت الموافقة على إجراء "${approvedLabelAr}" الخاص بك.`,
+      messageEn: `Your "${approvedLabelEn}" action has been approved.`,
+      priority: "high",
+      actionUrl: "/app/my-profile",
+    });
     res.json({ success: true });
   } catch (e) {
     console.error("[POST /api/employee-actions/:id/approve]", e);
@@ -1132,6 +1168,22 @@ app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
       .where(eq(employeeActionsTable.id, actionId));
 
     await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
+    // ── Notification ───────────────────────────────────────────────────────
+    const rejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
+    const rejLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
+    await notifyEmployee(action.employeeId, user.companyId, {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "employee_action",
+      entityId: action.id,
+      notificationType: "employee_action_rejected",
+      titleAr: `تم رفض إجراء: ${rejLabelAr}`,
+      titleEn: `Action Rejected: ${rejLabelEn}`,
+      messageAr: `تم رفض إجراء "${rejLabelAr}" الخاص بك.`,
+      messageEn: `Your "${rejLabelEn}" action was rejected.`,
+      priority: "high",
+      actionUrl: "/app/my-profile",
+    });
     res.json({ success: true });
   } catch (e) {
     console.error("[POST /api/employee-actions/:id/reject]", e);
@@ -1418,6 +1470,25 @@ app.post("/api/leave/requests", auth, async (req, res) => {
     const body = req.body;
     const [req2] = await db.insert(leaveRequestsTable).values({ ...body, status: "pending" }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
+    // ── Notifications ──────────────────────────────────────────────────────
+    const empId = body.employeeId ?? user.employeeId;
+    const dateRange = fmtDateRange(body.startDate, body.endDate);
+    const empName = user.username;
+    const notifPayload = {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "leave_request",
+      entityId: req2.id,
+      notificationType: "leave_request_created",
+      titleAr: "طلب إجازة جديد",
+      titleEn: "New Leave Request",
+      messageAr: `قدّم ${empName} طلب إجازة من ${dateRange}.`,
+      messageEn: `${empName} submitted a leave request from ${dateRange}.`,
+      priority: "normal" as const,
+      actionUrl: "/app/leave",
+    };
+    await notifyRole(user.companyId, "hradmin", notifPayload);
+    if (empId) await notifyDirectManager(empId, notifPayload);
     res.status(201).json({ success: true, data: req2 });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1440,6 +1511,22 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
     const [lr] = await db.update(leaveRequestsTable).set({
       status: "approved", approvedById: user.userId, approvedAt: new Date(),
     }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
+    // ── Notification ───────────────────────────────────────────────────────
+    if (lr?.employeeId) {
+      await notifyEmployee(lr.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "leave_request",
+        entityId: lr.id,
+        notificationType: "leave_request_approved",
+        titleAr: "تمت الموافقة على طلب الإجازة",
+        titleEn: "Leave Request Approved",
+        messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(lr.startDate, lr.endDate)}.`,
+        messageEn: `Your leave request from ${fmtDateRange(lr.startDate, lr.endDate)} was approved.`,
+        priority: "high",
+        actionUrl: "/app/my-leave",
+      });
+    }
     res.json({ success: true, data: lr });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1448,10 +1535,27 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
 
 app.post("/api/leave/requests/:id/reject", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { reason } = req.body as { reason: string };
     const [lr] = await db.update(leaveRequestsTable).set({
       status: "rejected", rejectionReason: reason,
     }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
+    // ── Notification ───────────────────────────────────────────────────────
+    if (lr?.employeeId) {
+      await notifyEmployee(lr.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "leave_request",
+        entityId: lr.id,
+        notificationType: "leave_request_rejected",
+        titleAr: "تم رفض طلب الإجازة",
+        titleEn: "Leave Request Rejected",
+        messageAr: `تم رفض طلب إجازتك من ${fmtDateRange(lr.startDate, lr.endDate)}.`,
+        messageEn: `Your leave request from ${fmtDateRange(lr.startDate, lr.endDate)} was rejected.`,
+        priority: "high",
+        actionUrl: "/app/my-leave",
+      });
+    }
     res.json({ success: true, data: lr });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -3060,7 +3164,25 @@ app.get("/api/overtime", auth, async (req, res) => {
 
 app.post("/api/overtime", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const [row] = await db.insert(overtimeRequestsTable).values({ ...req.body, status: "pending" }).returning();
+    // ── Notifications ──────────────────────────────────────────────────────
+    const otEmpId = req.body.employeeId ?? user.employeeId;
+    const otPayload = {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "overtime_request",
+      entityId: row.id,
+      notificationType: "overtime_request_created",
+      titleAr: "طلب عمل إضافي جديد",
+      titleEn: "New Overtime Request",
+      messageAr: `قدّم ${user.username} طلب عمل إضافي بتاريخ ${row.date} (${row.hours} ساعات).`,
+      messageEn: `${user.username} submitted an overtime request on ${row.date} (${row.hours} hrs).`,
+      priority: "normal" as const,
+      actionUrl: "/app/overtime",
+    };
+    await notifyRole(user.companyId, "hradmin", otPayload);
+    if (otEmpId) await notifyDirectManager(otEmpId, otPayload);
     res.status(201).json({ success: true, data: row });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -3072,6 +3194,22 @@ app.post("/api/overtime/:id/approve", auth, async (req, res) => {
     const user = (req as AuthReq).user;
     const [row] = await db.update(overtimeRequestsTable).set({ status: "approved", managerApprovedById: user.userId, managerApprovedAt: new Date() })
       .where(eq(overtimeRequestsTable.id, parseInt(req.params["id"]!))).returning();
+    // ── Notification ───────────────────────────────────────────────────────
+    if (row?.employeeId) {
+      await notifyEmployee(row.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "overtime_request",
+        entityId: row.id,
+        notificationType: "overtime_request_approved",
+        titleAr: "تمت الموافقة على طلب العمل الإضافي",
+        titleEn: "Overtime Request Approved",
+        messageAr: `تمت الموافقة على طلب العمل الإضافي بتاريخ ${row.date}.`,
+        messageEn: `Your overtime request on ${row.date} was approved.`,
+        priority: "high",
+        actionUrl: "/app/my-overtime",
+      });
+    }
     res.json({ success: true, data: row });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -3080,9 +3218,26 @@ app.post("/api/overtime/:id/approve", auth, async (req, res) => {
 
 app.post("/api/overtime/:id/reject", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { reason } = req.body as { reason: string };
     const [row] = await db.update(overtimeRequestsTable).set({ status: "rejected", rejectionReason: reason })
       .where(eq(overtimeRequestsTable.id, parseInt(req.params["id"]!))).returning();
+    // ── Notification ───────────────────────────────────────────────────────
+    if (row?.employeeId) {
+      await notifyEmployee(row.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "overtime_request",
+        entityId: row.id,
+        notificationType: "overtime_request_rejected",
+        titleAr: "تم رفض طلب العمل الإضافي",
+        titleEn: "Overtime Request Rejected",
+        messageAr: `تم رفض طلب العمل الإضافي بتاريخ ${row.date}.`,
+        messageEn: `Your overtime request on ${row.date} was rejected.`,
+        priority: "high",
+        actionUrl: "/app/my-overtime",
+      });
+    }
     res.json({ success: true, data: row });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -6602,6 +6757,22 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
     }).returning();
 
     await logActivity(user.companyId, "employee_action", `${actionType} workflow request created for employee #${employeeId}`, null);
+    // ── Notification ───────────────────────────────────────────────────────
+    const wfCrLabelEn = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
+    const wfCrLabelAr = ACTION_TYPE_LABELS[actionType]?.ar ?? actionType;
+    await notifyRole(user.companyId, "hradmin", {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "workflow_request",
+      entityId: inserted.id,
+      notificationType: "workflow_request_created",
+      titleAr: `طلب سير عمل: ${wfCrLabelAr}`,
+      titleEn: `Workflow Request: ${wfCrLabelEn}`,
+      messageAr: `طلب "${wfCrLabelAr}" للموظف #${employeeId} يحتاج إلى موافقة.`,
+      messageEn: `A "${wfCrLabelEn}" workflow request for employee #${employeeId} requires approval.`,
+      priority: "normal",
+      actionUrl: "/app/workflow-requests",
+    });
     res.status(201).json({ success: true, data: { ...inserted, labelEn: ACTION_TYPE_LABELS[actionType]?.en, labelAr: ACTION_TYPE_LABELS[actionType]?.ar } });
   } catch (e) {
     console.error("[POST /api/workflow/requests]", e);
@@ -6655,6 +6826,22 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
         .set({ status: nextStatus, approvalStepsJson: JSON.stringify(approvalData) })
         .where(eq(employeeActionsTable.id, actionId));
       await logActivity(user.companyId, "employee_action", `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
+      // ── Notification: next approver role ──────────────────────────────────
+      if (nextStatus === 'pending_hr' || nextStatus === 'pending_hradmin') {
+        await notifyRole(user.companyId, "hradmin", {
+          companyId: user.companyId,
+          actorUserId: user.userId,
+          entityType: "workflow_request",
+          entityId: action.id,
+          notificationType: "workflow_step_advanced",
+          titleAr: `طلب سير عمل يحتاج موافقتك`,
+          titleEn: `Workflow Request Needs Your Approval`,
+          messageAr: `طلب "${ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType}" انتقل إلى مرحلة جديدة.`,
+          messageEn: `A "${ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType}" request advanced to the next step.`,
+          priority: "normal",
+          actionUrl: "/app/workflow-requests",
+        });
+      }
       res.json({ success: true, nextStatus });
     } else {
       // Final approval — apply side effects
@@ -6744,6 +6931,22 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
       });
 
       await logActivity(user.companyId, "employee_action", `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
+      // ── Notification: final approval ───────────────────────────────────────
+      const wfFinalLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
+      const wfFinalLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
+      await notifyEmployee(action.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "workflow_request",
+        entityId: action.id,
+        notificationType: "workflow_request_approved",
+        titleAr: `تمت الموافقة النهائية على: ${wfFinalLabelAr}`,
+        titleEn: `Final Approval: ${wfFinalLabelEn}`,
+        messageAr: `تمت الموافقة النهائية وتطبيق إجراء "${wfFinalLabelAr}" الخاص بك.`,
+        messageEn: `Your "${wfFinalLabelEn}" request has been fully approved and applied.`,
+        priority: "high",
+        actionUrl: "/app/my-profile",
+      });
       res.json({ success: true, nextStatus: 'applied' });
     }
   } catch (e) {
@@ -6789,6 +6992,22 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
       .where(eq(employeeActionsTable.id, actionId));
 
     await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
+    // ── Notification ───────────────────────────────────────────────────────
+    const wfRejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
+    const wfRejLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
+    await notifyEmployee(action.employeeId, user.companyId, {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "workflow_request",
+      entityId: action.id,
+      notificationType: "workflow_request_rejected",
+      titleAr: `تم رفض طلب: ${wfRejLabelAr}`,
+      titleEn: `Request Rejected: ${wfRejLabelEn}`,
+      messageAr: `تم رفض طلب "${wfRejLabelAr}" الخاص بك.`,
+      messageEn: `Your "${wfRejLabelEn}" request was rejected.`,
+      priority: "high",
+      actionUrl: "/app/my-profile",
+    });
     res.json({ success: true });
   } catch (e) {
     console.error("[POST /api/workflow/requests/:id/reject]", e);
@@ -6853,6 +7072,104 @@ app.get("/api/workflow/employee-list", auth, async (req, res) => {
     res.json({ success: true, data: emps });
   } catch (e) {
     console.error("[GET /api/employees/active-list]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Notifications API ────────────────────────────────────────────────────────
+
+// GET /api/notifications — list for the authenticated user
+app.get("/api/notifications", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { status, limit: limitStr } = req.query as Record<string, string>;
+    const limitN = Math.min(parseInt(limitStr ?? "20", 10) || 20, 50);
+    const conditions: any[] = [
+      eq(notificationsTable.recipientUserId, user.userId),
+      eq(notificationsTable.isDeleted, false),
+    ];
+    if (status === "unread") conditions.push(eq(notificationsTable.status, "unread"));
+    const rows = await db.select().from(notificationsTable)
+      .where(and(...conditions))
+      .orderBy(desc(notificationsTable.createdAt))
+      .limit(limitN);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/notifications]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/notifications/unread-count
+app.get("/api/notifications/unread-count", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.recipientUserId, user.userId),
+        eq(notificationsTable.status, "unread"),
+        eq(notificationsTable.isDeleted, false)
+      ));
+    res.json({ success: true, data: { count: row?.count ?? 0 } });
+  } catch (e) {
+    console.error("[GET /api/notifications/unread-count]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PATCH /api/notifications/read-all — mark all unread as read
+app.patch("/api/notifications/read-all", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    await db.update(notificationsTable)
+      .set({ status: "read", readAt: new Date() })
+      .where(and(
+        eq(notificationsTable.recipientUserId, user.userId),
+        eq(notificationsTable.status, "unread")
+      ));
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[PATCH /api/notifications/read-all]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PATCH /api/notifications/:id/read — mark single notification as read
+app.patch("/api/notifications/:id/read", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+    await db.update(notificationsTable)
+      .set({ status: "read", readAt: new Date() })
+      .where(and(
+        eq(notificationsTable.id, id),
+        eq(notificationsTable.recipientUserId, user.userId)
+      ));
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[PATCH /api/notifications/:id/read]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// DELETE /api/notifications/:id — soft-delete
+app.delete("/api/notifications/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+    await db.update(notificationsTable)
+      .set({ isDeleted: true })
+      .where(and(
+        eq(notificationsTable.id, id),
+        eq(notificationsTable.recipientUserId, user.userId)
+      ));
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[DELETE /api/notifications/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

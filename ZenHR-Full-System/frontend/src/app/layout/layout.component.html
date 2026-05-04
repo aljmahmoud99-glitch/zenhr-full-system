@@ -93,6 +93,7 @@
             </button>
           </div>
 
+          <!-- ─── Notification Bell ─────────────────────────────────── -->
           <div class="notification-shell">
             <button
               class="surface-icon notif-btn"
@@ -102,32 +103,101 @@
               [attr.aria-label]="'shell.notifications' | translate"
               (click)="toggleNotifications()">
               <span class="material-icons">notifications</span>
-              <span class="notif-count" *ngIf="notificationCount()">{{ notificationCount() }}</span>
+              <span class="notif-count" *ngIf="notificationCount() > 0">
+                {{ notificationCount() > 99 ? '99+' : notificationCount() }}
+              </span>
             </button>
 
             <div class="notification-panel z-card" *ngIf="notificationsOpen()">
+              <!-- Panel Header -->
               <div class="notification-panel-head">
-                <div class="notification-panel-title">{{ 'shell.notifications' | translate }}</div>
+                <div class="notification-panel-title">
+                  {{ i18n.currentLang === 'ar' ? 'الإشعارات' : 'Notifications' }}
+                  <span class="notif-unread-badge" *ngIf="unreadCount() > 0">{{ unreadCount() }}</span>
+                </div>
+                <button
+                  class="notif-mark-all-btn"
+                  type="button"
+                  *ngIf="unreadCount() > 0"
+                  [disabled]="markingAllRead()"
+                  (click)="markAllRead()">
+                  <span class="material-icons">done_all</span>
+                  {{ i18n.currentLang === 'ar' ? 'تعيين الكل مقروءاً' : 'Mark all read' }}
+                </button>
               </div>
 
+              <!-- Loading -->
               <div class="notification-panel-body" *ngIf="notificationsLoading()">
-                <div class="notification-empty-state">{{ 'common.loading' | translate }}</div>
+                <div class="notif-skeleton" *ngFor="let s of [1,2,3]">
+                  <div class="notif-skel-icon"></div>
+                  <div class="notif-skel-lines">
+                    <div class="notif-skel-line notif-skel-line--title"></div>
+                    <div class="notif-skel-line notif-skel-line--meta"></div>
+                  </div>
+                </div>
               </div>
 
-              <div class="notification-panel-body" *ngIf="!notificationsLoading() && notifications().length === 0">
+              <!-- Empty State -->
+              <div class="notification-panel-body notif-empty-wrap" *ngIf="!notificationsLoading() && notifications().length === 0">
+                <span class="material-icons notif-empty-icon">notifications_off</span>
                 <div class="notification-empty-state">
                   {{ i18n.currentLang === 'ar' ? 'لا توجد إشعارات حالياً' : 'No notifications right now' }}
                 </div>
               </div>
 
+              <!-- List -->
               <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
-                <div class="notification-item" *ngFor="let item of notifications()">
-                  <div class="notification-item-icon">
-                    <span class="material-icons">{{ item.icon }}</span>
+                <div
+                  class="notification-item"
+                  [class.notification-item--unread]="item.status === 'unread'"
+                  [class.notification-item--high]="item.priority === 'high' || item.priority === 'urgent'"
+                  *ngFor="let item of notifications()">
+
+                  <!-- Unread dot -->
+                  <span class="notif-unread-dot" *ngIf="item.status === 'unread'" aria-label="unread"></span>
+
+                  <!-- Icon -->
+                  <div class="notification-item-icon" [class]="'notif-icon--' + notifIconColor(item.notificationType)">
+                    <span class="material-icons">{{ notifIcon(item.notificationType) }}</span>
                   </div>
+
+                  <!-- Copy -->
                   <div class="notification-item-copy">
-                    <div class="notification-item-title">{{ notificationLabel(item) }}</div>
-                    <div class="notification-item-meta">{{ notificationMeta(item) }}</div>
+                    <div class="notification-item-title">
+                      {{ i18n.currentLang === 'ar' ? item.titleAr : item.titleEn }}
+                    </div>
+                    <div class="notification-item-meta">
+                      {{ i18n.currentLang === 'ar' ? item.messageAr : item.messageEn }}
+                    </div>
+                    <div class="notif-item-footer">
+                      <span class="notif-time">{{ timeAgo(item.createdAt) }}</span>
+                      <span
+                        class="notif-priority-badge"
+                        *ngIf="item.priority === 'urgent'"
+                        [class.notif-priority-badge--urgent]="true">
+                        {{ i18n.currentLang === 'ar' ? 'عاجل' : 'Urgent' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="notif-item-actions">
+                    <button
+                      class="notif-action-btn"
+                      type="button"
+                      *ngIf="item.actionUrl"
+                      (click)="openNotifAction(item)"
+                      [attr.title]="i18n.currentLang === 'ar' ? 'فتح' : 'Open'">
+                      <span class="material-icons">open_in_new</span>
+                    </button>
+                    <button
+                      class="notif-action-btn notif-read-btn"
+                      type="button"
+                      *ngIf="item.status === 'unread'"
+                      (click)="markRead(item)"
+                      [attr.title]="i18n.currentLang === 'ar' ? 'تعيين مقروء' : 'Mark as read'">
+                      <span class="material-icons">check_circle_outline</span>
+                    </button>
                   </div>
                 </div>
               </div>

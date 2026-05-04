@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -7,19 +7,24 @@ import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../core/services/auth.service';
 import { I18nService } from '../core/services/i18n.service';
 import { NavGroup, NavItem, RoleAccessService } from '../core/services/role-access.service';
-import { ApiResponse, DashboardSummary, User } from '../core/models';
+import { ApiResponse, User } from '../core/models';
 import { AppSettingsService } from '../core/services/app-settings.service';
 import { TenantContextService } from '../core/services/tenant-context.service';
 import { ToastContainerComponent } from '../shared/components/toast-container/toast-container.component';
 
-type LayoutNotification = {
-  id: string;
+export interface DbNotification {
+  id: number;
+  notificationType: string;
   titleAr: string;
   titleEn: string;
-  metaAr: string;
-  metaEn: string;
-  icon: string;
-};
+  messageAr: string;
+  messageEn: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  status: 'unread' | 'read';
+  actionUrl?: string | null;
+  createdAt: string;
+  readAt?: string | null;
+}
 
 @Component({
   selector: 'app-layout',
@@ -29,21 +34,25 @@ type LayoutNotification = {
   styleUrl: './layout.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class LayoutComponent implements OnInit {
+export class LayoutComponent implements OnInit, OnDestroy {
   user = signal<User | null>(null);
   isMobileView = signal(typeof window !== 'undefined' ? window.innerWidth <= 980 : false);
   sidebarOpen = signal(typeof window !== 'undefined' ? window.innerWidth > 980 : true);
   endingImpersonation = signal(false);
   currentPage = signal<NavItem | null>(null);
   today = signal(new Date());
-  notifications = signal<LayoutNotification[]>([]);
+  notifications = signal<DbNotification[]>([]);
   notificationsOpen = signal(false);
   notificationsLoading = signal(false);
+  unreadCount = signal(0);
+  markingAllRead = signal(false);
   avatarLoadFailed = signal(false);
 
   navGroups: NavGroup[] = [];
 
-  readonly notificationCount = computed(() => this.notifications().length);
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  readonly notificationCount = computed(() => this.unreadCount());
 
   constructor(
     public auth: AuthService,
@@ -59,7 +68,7 @@ export class LayoutComponent implements OnInit {
     this.user.set(this.auth.currentUser());
     this.navGroups = this.access.getNavGroups();
     this.syncPageMeta();
-    this.loadNotifications();
+    this.loadUnreadCount();
     const role = this.user()?.role ?? '';
     if (role !== 'superadmin') {
       this.tenant.load();
@@ -68,6 +77,12 @@ export class LayoutComponent implements OnInit {
       this.syncPageMeta();
       this.notificationsOpen.set(false);
     });
+
+    this.pollTimer = setInterval(() => this.loadUnreadCount(), 60_000);
+  }
+
+  ngOnDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
   }
 
   @HostListener('window:resize')
@@ -89,13 +104,9 @@ export class LayoutComponent implements OnInit {
   }
 
   setLang(lang: 'ar' | 'en') {
-    if (lang === this.i18n.currentLang) {
-      return;
-    }
-
+    if (lang === this.i18n.currentLang) return;
     this.i18n.setLanguage(lang);
     this.avatarLoadFailed.set(false);
-    this.loadNotifications();
   }
 
   logout() {
@@ -103,35 +114,87 @@ export class LayoutComponent implements OnInit {
   }
 
   toggleNotifications() {
+    const wasOpen = this.notificationsOpen();
     this.notificationsOpen.update(open => !open);
+    if (!wasOpen) {
+      this.loadNotifications();
+    }
   }
 
   endImpersonation() {
     this.endingImpersonation.set(true);
     this.http.post('/api/admin/impersonate/end', {}).subscribe({
+      next: () => { this.endingImpersonation.set(false); this.auth.endImpersonation(); },
+      error: () => { this.endingImpersonation.set(false); this.auth.endImpersonation(); }
+    });
+  }
+
+  markRead(notif: DbNotification) {
+    if (notif.status === 'read') return;
+    this.http.patch(`/api/notifications/${notif.id}/read`, {}).subscribe({
       next: () => {
-        this.endingImpersonation.set(false);
-        this.auth.endImpersonation();
-      },
-      error: () => {
-        this.endingImpersonation.set(false);
-        this.auth.endImpersonation();
+        this.notifications.update(list =>
+          list.map(n => n.id === notif.id ? { ...n, status: 'read' as const } : n)
+        );
+        this.unreadCount.update(c => Math.max(0, c - 1));
       }
     });
   }
 
+  markAllRead() {
+    if (this.markingAllRead()) return;
+    this.markingAllRead.set(true);
+    this.http.patch('/api/notifications/read-all', {}).subscribe({
+      next: () => {
+        this.notifications.update(list => list.map(n => ({ ...n, status: 'read' as const })));
+        this.unreadCount.set(0);
+        this.markingAllRead.set(false);
+      },
+      error: () => this.markingAllRead.set(false)
+    });
+  }
+
+  openNotifAction(notif: DbNotification) {
+    this.markRead(notif);
+    if (notif.actionUrl) {
+      this.router.navigateByUrl(notif.actionUrl);
+    }
+    this.notificationsOpen.set(false);
+  }
+
   getInitials() {
     const source = this.userDisplayName || this.user()?.username || 'U';
-    return source
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part.charAt(0).toUpperCase())
-      .join('');
+    return source.split(' ').filter(Boolean).slice(0, 2).map(p => p.charAt(0).toUpperCase()).join('');
   }
 
   onAvatarError() {
     this.avatarLoadFailed.set(true);
+  }
+
+  notifIcon(type: string): string {
+    if (type.startsWith('leave')) return 'event_note';
+    if (type.startsWith('overtime')) return 'more_time';
+    if (type.startsWith('employee_action')) return 'manage_accounts';
+    if (type.startsWith('workflow')) return 'account_tree';
+    return 'notifications';
+  }
+
+  notifIconColor(type: string): string {
+    if (type.includes('approved')) return 'emerald';
+    if (type.includes('rejected')) return 'red';
+    return 'blue';
+  }
+
+  timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    const lang = this.i18n.currentLang;
+    if (mins < 1) return lang === 'ar' ? 'الآن' : 'Just now';
+    if (mins < 60) return lang === 'ar' ? `منذ ${mins} د` : `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return lang === 'ar' ? `منذ ${hrs} س` : `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return lang === 'ar' ? `منذ ${days} ي` : `${days}d ago`;
   }
 
   get pageTitle() {
@@ -156,18 +219,13 @@ export class LayoutComponent implements OnInit {
 
   get userDisplayName() {
     const current = this.user();
-    if (!current?.employee) {
-      return current?.username ?? '';
-    }
-
+    if (!current?.employee) return current?.username ?? '';
     return this.i18n.currentLang === 'ar'
       ? (current.employee.fullNameAr || current.username)
       : (current.employee.fullNameEn || current.username);
   }
 
-  get sidebarBadgeLabel() {
-    return this.i18n.instant('app.tagline');
-  }
+  get sidebarBadgeLabel() { return this.i18n.instant('app.tagline'); }
 
   get sidebarToggleLabel() {
     return this.i18n.currentLang === 'ar'
@@ -175,28 +233,15 @@ export class LayoutComponent implements OnInit {
       : (this.sidebarOpen() ? 'Collapse menu' : 'Expand menu');
   }
 
-  get currentLanguageLabel() {
-    return this.languageLabel(this.i18n.currentLang);
-  }
-
-  get nextLanguageLabel() {
-    return this.languageLabel(this.i18n.currentLang === 'ar' ? 'en' : 'ar');
-  }
-
-  get pageEyebrow() {
-    return this.pageGroupTitle;
-  }
-
-  get pageSubtitle() {
-    return this.roleName || this.sidebarBadgeLabel;
-  }
+  get currentLanguageLabel() { return this.languageLabel(this.i18n.currentLang); }
+  get nextLanguageLabel() { return this.languageLabel(this.i18n.currentLang === 'ar' ? 'en' : 'ar'); }
+  get pageEyebrow() { return this.pageGroupTitle; }
+  get pageSubtitle() { return this.roleName || this.sidebarBadgeLabel; }
 
   get tenantScopeLabel(): string {
     const role = this.user()?.role ?? '';
     const lang = this.i18n.currentLang;
-    if (role === 'superadmin') {
-      return lang === 'ar' ? 'مدير المنصة' : 'Platform Admin';
-    }
+    if (role === 'superadmin') return lang === 'ar' ? 'مدير المنصة' : 'Platform Admin';
     const ctx = this.tenant.context();
     if (!ctx) return '';
     const parts: string[] = [];
@@ -214,15 +259,13 @@ export class LayoutComponent implements OnInit {
 
   get todayDayLabel() {
     return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
-      weekday: 'long',
-      day: 'numeric'
+      weekday: 'long', day: 'numeric'
     }).format(this.today());
   }
 
   get todayMonthLabel() {
     return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
-      month: 'long',
-      year: 'numeric'
+      month: 'long', year: 'numeric'
     }).format(this.today());
   }
 
@@ -231,62 +274,29 @@ export class LayoutComponent implements OnInit {
   }
 
   languageLabel(lang: 'ar' | 'en') {
-    return lang === 'ar'
-      ? this.i18n.instant('shell.languageArabic')
-      : this.i18n.instant('shell.languageEnglish');
-  }
-
-  notificationLabel(item: LayoutNotification) {
-    return this.label(item.titleAr, item.titleEn);
-  }
-
-  notificationMeta(item: LayoutNotification) {
-    return this.label(item.metaAr, item.metaEn);
+    return lang === 'ar' ? this.i18n.instant('shell.languageArabic') : this.i18n.instant('shell.languageEnglish');
   }
 
   private syncPageMeta() {
     const url = this.router.url;
-    const page = this.navGroups.flatMap(group => group.items).find(item => url.startsWith(item.path));
+    const page = this.navGroups.flatMap(g => g.items).find(item => url.startsWith(item.path));
     this.currentPage.set(page ?? null);
+  }
+
+  private loadUnreadCount() {
+    this.http.get<ApiResponse<{ count: number }>>('/api/notifications/unread-count').subscribe({
+      next: res => this.unreadCount.set(res.data?.count ?? 0),
+      error: () => {}
+    });
   }
 
   private loadNotifications() {
     this.notificationsLoading.set(true);
-    this.notificationsOpen.set(false);
-
-    const role = this.user()?.role ?? '';
-    if (['superadmin', 'hradmin', 'payrolladmin'].includes(role)) {
-      this.http.get<ApiResponse<any[]>>('/api/dashboard/recent-activity').subscribe({
-        next: response => {
-          const feed = (response.data ?? []).slice(0, 6).map(item => ({
-            id: `activity-${item.id}`,
-            titleAr: item.descriptionAr || item.entityType || 'نشاط جديد',
-            titleEn: item.descriptionEn || item.entityType || 'New activity',
-            metaAr: this.formatDateTime(item.createdAt),
-            metaEn: this.formatDateTime(item.createdAt),
-            icon: 'notifications'
-          }));
-
-          if (feed.length) {
-            this.notifications.set(feed);
-            this.notificationsLoading.set(false);
-            return;
-          }
-
-          this.loadSummaryNotifications();
-        },
-        error: () => this.loadSummaryNotifications()
-      });
-      return;
-    }
-
-    this.loadSummaryNotifications();
-  }
-
-  private loadSummaryNotifications() {
-    this.http.get<ApiResponse<DashboardSummary>>('/api/dashboard/summary').subscribe({
-      next: response => {
-        this.notifications.set(this.buildSummaryNotifications(response.data));
+    this.http.get<ApiResponse<DbNotification[]>>('/api/notifications?limit=15').subscribe({
+      next: res => {
+        this.notifications.set(res.data ?? []);
+        const unread = (res.data ?? []).filter(n => n.status === 'unread').length;
+        this.unreadCount.set(unread);
         this.notificationsLoading.set(false);
       },
       error: () => {
@@ -294,73 +304,5 @@ export class LayoutComponent implements OnInit {
         this.notificationsLoading.set(false);
       }
     });
-  }
-
-  private buildSummaryNotifications(summary?: DashboardSummary | null): LayoutNotification[] {
-    if (!summary) {
-      return [];
-    }
-
-    const items: LayoutNotification[] = [];
-
-    if (this.settings.boolValue('notify_leave_requests', true) && summary.pendingLeaves > 0) {
-      items.push({
-        id: 'pending-leaves',
-        titleAr: `طلبات الإجازة المعلقة: ${summary.pendingLeaves}`,
-        titleEn: `Pending leave requests: ${summary.pendingLeaves}`,
-        metaAr: 'تحتاج إلى متابعة',
-        metaEn: 'Needs attention',
-        icon: 'event_note'
-      });
-    }
-
-    if (this.settings.boolValue('notify_overtime_requests', true) && summary.pendingOvertimes > 0) {
-      items.push({
-        id: 'pending-overtime',
-        titleAr: `طلبات العمل الإضافي المعلقة: ${summary.pendingOvertimes}`,
-        titleEn: `Pending overtime requests: ${summary.pendingOvertimes}`,
-        metaAr: 'تنتظر الإجراء',
-        metaEn: 'Awaiting action',
-        icon: 'more_time'
-      });
-    }
-
-    if (this.settings.boolValue('notify_advance_requests', true) && summary.pendingAdvances > 0) {
-      items.push({
-        id: 'pending-advances',
-        titleAr: `طلبات السلف المعلقة: ${summary.pendingAdvances}`,
-        titleEn: `Pending advances: ${summary.pendingAdvances}`,
-        metaAr: 'تحتاج إلى مراجعة مالية',
-        metaEn: 'Needs finance review',
-        icon: 'payments'
-      });
-    }
-
-    const complianceCount = (summary.sscNotEnrolled || 0) + (summary.wpExpiringSoon || 0) + (summary.healthExpiringSoon || 0);
-    if (this.settings.boolValue('notify_expiring_documents', true) && complianceCount > 0) {
-      items.push({
-        id: 'compliance-alerts',
-        titleAr: `تنبيهات الامتثال: ${complianceCount}`,
-        titleEn: `Compliance alerts: ${complianceCount}`,
-        metaAr: 'تحتاج إلى متابعة مباشرة',
-        metaEn: 'Needs direct follow-up',
-        icon: 'verified_user'
-      });
-    }
-
-    return items.slice(0, 6);
-  }
-
-  private formatDateTime(value?: string) {
-    if (!value) {
-      return this.label('الآن', 'Now');
-    }
-
-    return new Intl.DateTimeFormat(this.i18n.currentLang === 'ar' ? 'ar-JO-u-nu-latn' : 'en-US', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(value));
   }
 }

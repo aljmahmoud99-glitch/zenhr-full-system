@@ -1,0 +1,250 @@
+PHASE — NOTIFICATIONS SYSTEM FIX & ROLE-BASED DELIVERY
+
+Current issue:
+Notifications exist, but they are broken:
+- Notifications are too generic.
+- Some messages are in English.
+- They may appear to users who should not see them.
+- Design is weak and not aligned with the rest of the system.
+- Notifications are not consistently tied to workflows and permissions.
+
+Objective:
+Build/fix a complete permission-aware notification module.
+
+Do NOT make notifications global by default.
+Every notification must have intended recipients based on role, company, org scope, and workflow.
+
+1. Notification delivery rules
+
+Examples:
+
+Leave request created by employee:
+- Notify direct manager
+- Notify HR admins in same company
+- Notify payroll manager only if leave affects payroll or balance/payment
+- Do NOT notify other employees
+
+Overtime request:
+- Notify direct manager
+- Notify HR
+- Notify payroll manager if approved/payment-related
+
+Transfer / Promotion / Demotion workflow:
+- Notify next approver only:
+  - pending_manager → notify direct manager
+  - pending_hr → notify HR admins
+  - pending_payroll → notify payroll admins
+- Notify requester when approved/rejected/applied
+- Notify employee when final applied if the action affects them
+
+Salary change:
+- Notify HR + payroll approver only
+- Employee should not see pending salary change unless policy allows it
+- After approved/applied, employee may receive a generic notification without exposing confidential salary details unless allowed
+
+Disciplinary warning / suspension:
+- Notify HR and assigned approver
+- Notify employee only after final approval/applied
+- Do not expose disciplinary notifications to unrelated managers/employees
+
+Company/platform admin:
+- System admin sees platform-level notifications only
+- Company HR should not see other companies' notifications
+
+2. Backend requirements
+
+Create or fix notifications table/model with at least:
+- id
+- company_id nullable for platform notifications
+- recipient_user_id
+- recipient_role optional
+- actor_user_id nullable
+- entity_type
+- entity_id
+- notification_type
+- title_ar
+- title_en
+- message_ar
+- message_en
+- priority: low | normal | high | urgent
+- status: unread | read
+- action_url nullable
+- created_at
+- read_at
+
+Important:
+- Prefer recipient_user_id for actual delivery.
+- Do NOT rely only on role string unless expanding to concrete users.
+- When notification is created for HR admins, resolve all active HR users in the same company and insert one notification per user.
+
+3. Notification service
+
+Create centralized NotificationService.
+
+It must expose:
+- notifyUsers(userIds, payload)
+- notifyRole(companyId, roleName, payload)
+- notifyDirectManager(employeeId, payload)
+- notifyWorkflowNextApprover(workflowRequest)
+- markRead(notificationId, currentUser)
+- getMyNotifications(currentUser)
+
+Rules:
+- getMyNotifications must return ONLY notifications where recipient_user_id = current user id.
+- Never return notifications for the whole company unless the user is the actual recipient.
+- All queries must be company-scoped.
+
+4. API endpoints
+
+Implement/fix:
+
+GET /api/notifications
+- returns current user's notifications only
+- supports ?status=unread/read/all
+- supports pagination
+- sorted newest first
+
+GET /api/notifications/unread-count
+- returns { count }
+
+PATCH /api/notifications/:id/read
+- only recipient can mark as read
+
+PATCH /api/notifications/read-all
+- marks current user's notifications only
+
+DELETE /api/notifications/:id
+- optional soft delete for recipient only
+
+Response format:
+{ success: true, data: ... }
+Error:
+{ success: false, message: "..." }
+
+5. Integrate with workflows
+
+Add notifications to these events:
+
+Leave:
+- leave_request_created
+- leave_request_approved
+- leave_request_rejected
+
+Overtime:
+- overtime_request_created
+- overtime_approved
+- overtime_rejected
+
+Employee action workflows:
+- workflow_created
+- workflow_pending_manager
+- workflow_pending_hr
+- workflow_pending_payroll
+- workflow_approved
+- workflow_rejected
+- workflow_applied
+
+Payroll:
+- payroll_run_created
+- payroll_run_approved
+- payslip_available
+
+Documents/compliance:
+- document_expiring
+- document_expired
+
+Disciplinary:
+- warning_pending_approval
+- warning_approved
+- suspension_pending_approval
+- suspension_applied
+
+6. Frontend notification dropdown design
+
+Fix current notification dropdown.
+
+Design requirements:
+- Arabic RTL clean layout
+- English digits only
+- Notification title + message
+- Icon based on type
+- Priority badge if urgent/high
+- Status unread indicator
+- Time ago or formatted date
+- Action link button:
+  - "عرض الطلب"
+  - "مراجعة"
+  - "فتح الملف"
+- Mark as read action
+- Mark all as read button
+- Empty state:
+  "لا توجد إشعارات جديدة"
+
+Do not show raw technical text like:
+"transfer advanced to pending_hr"
+Instead show human-readable Arabic:
+
+Example:
+title_ar: "طلب نقل بانتظار موافقة الموارد البشرية"
+message_ar: "تم إرسال طلب نقل الموظف أحمد علي إلى مرحلة موافقة الموارد البشرية."
+
+7. Notification language
+
+Every notification must have Arabic and English text.
+
+Examples:
+
+Leave request:
+AR title: "طلب إجازة جديد"
+AR message: "قدّم أحمد علي طلب إجازة من 01/05/2026 إلى 03/05/2026."
+EN title: "New Leave Request"
+EN message: "Ahmed Al-Ali submitted a leave request from 01/05/2026 to 03/05/2026."
+
+Transfer approved:
+AR title: "تم اعتماد طلب النقل"
+AR message: "تم اعتماد نقل يوسف الراشد وتطبيق التغيير على ملف الموظف."
+EN title: "Transfer Approved"
+EN message: "Yousef Al-Rashid's transfer was approved and applied."
+
+8. Header bell behavior
+
+- Badge shows unread count only for current user
+- Count updates after mark read
+- Clicking notification action navigates to the related screen
+- Dropdown should not overlap badly with cards
+- On mobile, dropdown should fit screen width
+
+9. Security tests
+
+Test these cases:
+
+Employee creates leave:
+- HR receives notification
+- direct manager receives notification
+- employee receives confirmation if needed
+- unrelated employee receives nothing
+
+Transfer workflow:
+- pending_manager: only direct manager sees notification
+- pending_hr: only HR sees notification
+- pending_payroll: only payroll sees notification
+- requester sees final result
+- employee sees only final applied result if policy allows
+
+Cross-company:
+- HR in Company A must never see Company B notifications
+
+10. Verification
+
+Return:
+- notification table/schema used
+- NotificationService methods added
+- endpoints added/fixed
+- events integrated
+- screenshots/verification for:
+  - HR notifications
+  - manager notifications
+  - employee notifications
+  - payroll notifications
+- confirmation that unrelated users do not see notifications
+- confirmation no console errors

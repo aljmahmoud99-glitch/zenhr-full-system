@@ -356,6 +356,63 @@ The app is fully bilingual AR/EN with RTL layout:
 
 ---
 
+---
+
+## Notifications System (COMPLETE)
+
+### Database
+- **New table:** `notifications` — one row per recipient (not broadcast). Schema in `lib/db/src/schema/notifications.ts`, exported from schema index.
+- **Fields:** `id`, `companyId`, `recipientUserId`, `actorUserId`, `entityType`, `entityId`, `notificationType`, `titleAr`, `titleEn`, `messageAr`, `messageEn`, `priority` (low/normal/high/urgent), `status` (unread/read), `actionUrl`, `createdAt`, `readAt`, `isDeleted`
+
+### Backend Service
+- **`artifacts/api-server/src/notification.service.ts`** — centralized delivery layer:
+  - `notifyUsers(userIds[], payload)` — insert one row per user; deduplicates; silent-fail
+  - `notifyRole(companyId, roleName, payload)` — resolves all active users with that role then calls `notifyUsers`
+  - `notifyDirectManager(employeeId, payload)` — resolves `employees.directManagerId` → `users.employeeId` → notifyUsers
+  - `notifyEmployee(employeeId, companyId, payload)` — resolves employee's linked user account → notifyUsers
+  - `fmtDateRange(start, end)` — formats "DD/MM/YYYY – DD/MM/YYYY" strings for notification messages
+
+### Event Hooks Added to `artifacts/api-server/src/index.ts`
+- `POST /api/leave/requests` → notifyRole(hradmin) + notifyDirectManager
+- `POST /api/leave/requests/:id/approve` → notifyEmployee
+- `POST /api/leave/requests/:id/reject` → notifyEmployee
+- `POST /api/overtime` → notifyRole(hradmin) + notifyDirectManager
+- `POST /api/overtime/:id/approve` → notifyEmployee
+- `POST /api/overtime/:id/reject` → notifyEmployee
+- `POST /api/employee-actions` → notifyRole(hradmin)
+- `POST /api/employee-actions/:id/approve` → notifyEmployee
+- `POST /api/employee-actions/:id/reject` → notifyEmployee
+- `POST /api/workflow/requests` → notifyRole(hradmin)
+- `POST /api/workflow/requests/:id/approve` (step advance) → notifyRole(hradmin) if next step is pending_hr/pending_hradmin
+- `POST /api/workflow/requests/:id/approve` (final) → notifyEmployee
+- `POST /api/workflow/requests/:id/reject` → notifyEmployee
+
+### Notification API Endpoints
+- `GET /api/notifications?limit=N&status=unread` — list for authenticated user, ordered by `createdAt DESC`
+- `GET /api/notifications/unread-count` → `{ count: number }`
+- `PATCH /api/notifications/read-all` — mark all unread as read
+- `PATCH /api/notifications/:id/read` — mark single as read
+- `DELETE /api/notifications/:id` — soft-delete
+
+### Frontend Changes
+- **`layout.component.ts`** — replaced fake notification system with real API calls:
+  - `loadUnreadCount()` called on init and polled every 60s
+  - `loadNotifications()` called only when panel is opened (lazy)
+  - `markRead(notif)` / `markAllRead()` methods with optimistic UI update
+  - `openNotifAction(notif)` — marks read + navigates to actionUrl
+  - `notifIcon(type)` — icon per notification type (leave/overtime/employee_action/workflow)
+  - `notifIconColor(type)` — emerald (approved), red (rejected), blue (default)
+  - `timeAgo(dateStr)` — bilingual relative time ("2h ago" / "منذ 2 س")
+- **`layout.component.html`** — redesigned dropdown panel:
+  - Unread count badge in panel header
+  - "Mark all read" button (appears only when unread > 0)
+  - Skeleton loading state (3 animated items)
+  - Empty state with icon
+  - Per-item: unread dot, colored icon, title + message (2-line clamp), time-ago, priority badge (urgent)
+  - Per-item actions: Open (navigates to actionUrl) + Mark-as-read (eye icon)
+  - Unread items have green tint border; high/urgent items have red left border accent
+- **`layout.component.scss`** — new styles for all above elements + skeleton pulse animation
+
 ### Demo Accounts (seeded)
 
 | Username | Password | Role |
