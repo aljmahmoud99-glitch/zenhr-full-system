@@ -1,0 +1,168 @@
+Workflow 20 — User Roles Assignment QA + Fix
+
+You are QA’ing and fixing the User Roles Assignment screen: /app/user-roles.
+
+Goal:
+Test the full role-assignment workflow end-to-end, find all bugs, fix them immediately, then retest and provide a final QA report.
+
+Scope:
+Frontend:
+- /app/user-roles
+- Role dropdowns per user
+- Search/filter
+- Arabic RTL labels
+- Sidebar visibility after role changes
+- Toasts / loading / no console errors
+
+Backend/API:
+Find and test all relevant endpoints, likely:
+- GET /api/users
+- GET /api/user-roles
+- PUT/PATCH /api/users/:id/role
+- PUT/PATCH /api/user-roles/:id
+- GET /api/roles
+- GET /api/permissions
+- GET /api/me or auth profile endpoint
+- Any menu/sidebar permissions endpoint
+
+DB tables:
+Inspect:
+- users
+- employees
+- roles / permissions if present
+- activity_logs
+- notifications if role-change notifications exist
+- any user_permissions / role_permissions tables
+
+Required QA tasks:
+
+1. Discovery
+- Read frontend component + HTML for /app/user-roles.
+- Read all backend routes related to users, roles, permissions, auth profile, and sidebar/menu.
+- Inspect DB schema and current seed users.
+- Identify actual expected field names used by frontend vs backend response shape.
+
+2. Page Load
+- Login as hr/admin/superadmin if available.
+- Open /app/user-roles.
+- Verify data loads without "Failed to load data".
+- Verify every user row has:
+  user id
+  username/name
+  email
+  current role
+  active status
+  role dropdown/action
+- Fix any field mismatch causing blank/unknown users.
+
+3. Role Access
+Test these accounts:
+- superadmin/admin
+- hr
+- payroll
+- manager.hr
+- employee01
+- employee02
+
+Expected:
+- Only admin/superadmin or explicitly authorized HR role can assign roles.
+- Employees cannot access /app/user-roles or role APIs.
+- Managers cannot assign roles unless the product explicitly allows it.
+- Payroll cannot assign HR/admin roles.
+- No unauthenticated access.
+
+4. Role Assignment Flow
+Test changing roles:
+- employee01 employee → manager
+- employee02 employee → payrolladmin
+- payrolladmin → employee
+- manager → hradmin if allowed only by superadmin/admin
+- Attempt invalid role value: "super_hacker"
+- Attempt blank role
+- Attempt role casing mismatch
+- Attempt changing own role
+- Attempt changing last admin/superadmin
+- Attempt assigning superadmin by non-superadmin
+
+Fix:
+- Add backend whitelist validation for allowed roles.
+- Add role hierarchy guard.
+- Prevent self-demotion if it would lock the current user out.
+- Prevent removing the last admin/superadmin.
+- Return 400/403/409 instead of 500.
+
+5. JWT / Session Refresh
+After changing a user's role:
+- Login as that user or refresh profile endpoint.
+- Verify new role appears in /api/me or auth profile.
+- Verify sidebar changes according to new role.
+- Verify protected endpoints now follow the new role.
+- If the frontend uses stored JWT role only and does not refresh, fix it by refreshing current user/profile after role update or requiring re-login with a clear toast.
+
+6. Scope / Tenant Security
+- Verify user list is company-scoped.
+- Try updating a userId from another company if seed data exists.
+- Body injection tests:
+  companyId
+  employeeId
+  isSuperAdmin
+  permissions
+  createdByUserId
+- Backend must ignore or reject injected fields.
+- Return 404 for cross-company user IDs.
+
+7. Audit Logs
+Every successful role change must write activity_logs:
+- type: user_role_changed or role_assigned
+- actor user name/id
+- target user id/name
+- old role
+- new role
+- company_id
+Verify DB rows.
+
+8. Notifications
+If notification pattern exists in this project:
+- Notify affected user that their role changed.
+- Do not notify unrelated users.
+If no notification pattern exists for roles, report N/A clearly.
+
+9. Frontend Behavior
+- Dropdown should show the current role correctly.
+- On save, row updates immediately.
+- On failure, role reverts to previous value.
+- Arabic role labels are correct:
+  admin/superadmin = مدير النظام
+  hradmin = مدير الموارد البشرية
+  payrolladmin = مدير الرواتب
+  manager = مدير القسم
+  employee = موظف
+- No duplicate rows.
+- Search works by username/email/role.
+- No console errors or failed network calls.
+
+10. Regression
+After fixes:
+- HR/admin can still load page.
+- Employees still cannot access.
+- Role update still works.
+- Invalid role blocked.
+- Self-lockout blocked.
+- Last admin removal blocked.
+- Audit logs created.
+- Sidebar/profile reflects updated role.
+
+Final report format:
+Workflow 20 — User Roles Assignment QA Report
+
+Include:
+- Bugs found with root cause, impact, fix, files changed
+- APIs tested
+- DB tables checked
+- Accounts tested
+- Retest table with ✅/❌
+- Scope result
+- Audit result
+- Notification result
+- Remaining risks
+- Final status PASS/FAIL

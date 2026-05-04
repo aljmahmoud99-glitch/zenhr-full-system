@@ -138,10 +138,13 @@ export class UserRolesComponent implements OnInit {
 
   filterUsers() {
     const term = this.searchTerm.toLowerCase();
+    if (!term) { this.filteredUsers.set(this.users()); return; }
     this.filteredUsers.set(
       this.users().filter(u =>
         u.username.toLowerCase().includes(term) ||
-        (u.email ?? '').toLowerCase().includes(term)
+        (u.email ?? '').toLowerCase().includes(term) ||
+        u.role.toLowerCase().includes(term) ||
+        this.roleLabel(u.role).toLowerCase().includes(term)
       )
     );
   }
@@ -167,7 +170,10 @@ export class UserRolesComponent implements OnInit {
         user.role = newRole;
         this.users.set([...this.users()]);
         this.filteredUsers.set([...this.filteredUsers()]);
-        this.toast.success(this.lang === 'ar' ? 'تم تحديث الدور بنجاح' : 'Role updated successfully');
+        const msg = this.lang === 'ar'
+          ? 'تم تحديث الدور بنجاح. قد يحتاج المستخدم إلى إعادة تسجيل الدخول لتفعيل الصلاحيات الجديدة.'
+          : 'Role updated. The user may need to log out and back in for new permissions to take effect.';
+        this.toast.success(msg);
       },
       error: err => {
         this.savingUser.set(null);

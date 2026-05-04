@@ -7214,6 +7214,20 @@ app.post("/api/users", auth, async (req, res) => {
   }
 });
 
+// Allowed role values — reject anything outside this set
+const ALLOWED_ROLES = new Set(["superadmin", "hradmin", "payrolladmin", "manager", "employee", "recruiter"]);
+
+const ROLE_LABEL_AR: Record<string, string> = {
+  superadmin: "مدير النظام", hradmin: "مدير الموارد البشرية",
+  payrolladmin: "مدير الرواتب", manager: "مدير القسم",
+  employee: "موظف", recruiter: "موظف توظيف",
+};
+const ROLE_LABEL_EN: Record<string, string> = {
+  superadmin: "Super Admin", hradmin: "HR Admin",
+  payrolladmin: "Payroll Admin", manager: "Department Manager",
+  employee: "Employee", recruiter: "Recruiter",
+};
+
 app.patch("/api/users/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -7235,11 +7249,38 @@ app.patch("/api/users/:id", auth, async (req, res) => {
     const { password, role, companyId, employeeId } = req.body as any;
     if (password) { updates.passwordHash = hashPassword(password); updates.mustChangePassword = false; }
 
-    if (role) {
+    if (role !== undefined) {
+      // Blank role validation
+      if (!role || !String(role).trim()) {
+        res.status(400).json({ success: false, message: "Role cannot be blank" }); return;
+      }
+      // Role whitelist — reject arbitrary strings
+      if (!ALLOWED_ROLES.has(String(role))) {
+        res.status(400).json({ success: false, message: `Invalid role '${role}'. Allowed: ${[...ALLOWED_ROLES].join(", ")}` }); return;
+      }
+      // Only superadmin can assign superadmin
       if (role === "superadmin" && user.role !== "superadmin") {
         res.status(403).json({ success: false, message: "Cannot assign superadmin role" }); return;
       }
-      updates.role = role;
+      // HR admin cannot escalate to their own level or higher
+      if (user.role === "hradmin" && role === "hradmin") {
+        res.status(403).json({ success: false, message: "HR admin cannot assign the hradmin role" }); return;
+      }
+      // Guard: prevent removing the last superadmin from that role
+      if (loaded.target.role === "superadmin" && role !== "superadmin") {
+        const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)::int` })
+          .from(usersTable)
+          .where(and(
+            eq(usersTable.companyId, user.companyId),
+            eq(usersTable.role, "superadmin"),
+            eq(usersTable.isDeleted, false),
+            eq(usersTable.isActive, true),
+          ));
+        if (cnt <= 1) {
+          res.status(409).json({ success: false, message: "Cannot remove the last superadmin — add another superadmin first" }); return;
+        }
+      }
+      updates.role = String(role);
       const [r] = await db.select({ id: rolesTable.id }).from(rolesTable)
         .where(and(eq(rolesTable.companyId, loaded.target.companyId), eq(rolesTable.name, role))).limit(1);
       updates.roleId = r?.id ?? null;
@@ -7248,13 +7289,17 @@ app.patch("/api/users/:id", auth, async (req, res) => {
     // companyId can only be moved by superadmin
     let effectiveCompanyId = loaded.target.companyId;
     if (companyId && user.role === "superadmin") {
-      updates.companyId = companyId;
-      effectiveCompanyId = companyId;
+      // Validate company exists before attempting move
+      const [targetCo] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, Number(companyId))).limit(1);
+      if (!targetCo) {
+        res.status(400).json({ success: false, message: "Target company not found" }); return;
+      }
+      updates.companyId = Number(companyId);
+      effectiveCompanyId = Number(companyId);
     }
 
     // Cross-tenant guard: if linking to an employee, that employee MUST belong to
-    // the user's (effective) company. Without this check, an HR admin could bind
-    // their own user to another tenant's employee and read their data via /me/* routes.
+    // the user's (effective) company.
     if (employeeId !== undefined && employeeId !== null) {
       const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
         .from(employeesTable).where(eq(employeesTable.id, Number(employeeId))).limit(1);
@@ -7263,7 +7308,45 @@ app.patch("/api/users/:id", auth, async (req, res) => {
       }
     }
 
-    const [u] = await db.update(usersTable).set(updates).where(eq(usersTable.id, targetId)).returning();
+    const oldRole = loaded.target.role;
+    const [u] = await db.update(usersTable).set(updates).where(eq(usersTable.id, targetId)).returning({
+      id: usersTable.id, username: usersTable.username, email: usersTable.email,
+      role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive,
+      companyId: usersTable.companyId, employeeId: usersTable.employeeId,
+      lastLoginAt: usersTable.lastLoginAt,
+    });
+
+    // Audit log + notification only when role actually changed
+    if (updates.role && updates.role !== oldRole) {
+      const oldLabelEn = ROLE_LABEL_EN[oldRole] ?? oldRole;
+      const newLabelEn = ROLE_LABEL_EN[updates.role] ?? updates.role;
+      const oldLabelAr = ROLE_LABEL_AR[oldRole] ?? oldRole;
+      const newLabelAr = ROLE_LABEL_AR[updates.role] ?? updates.role;
+
+      await logActivity(
+        user.companyId,
+        "user_role_changed",
+        `Role changed for user '${loaded.target.username}' (id:${targetId}): ${oldLabelEn} → ${newLabelEn} by ${user.username}`,
+        loaded.target.username,
+      );
+
+      if (loaded.target.employeeId) {
+        await notifyEmployee(loaded.target.employeeId, user.companyId, {
+          companyId: user.companyId,
+          actorUserId: user.userId,
+          entityType: "user",
+          entityId: targetId,
+          notificationType: "role_changed",
+          titleAr: "تم تغيير دورك الوظيفي",
+          titleEn: "Your Role Has Been Updated",
+          messageAr: `تم تغيير دورك من "${oldLabelAr}" إلى "${newLabelAr}". قد تحتاج إلى تسجيل الخروج وإعادة الدخول لتفعيل الصلاحيات الجديدة.`,
+          messageEn: `Your role was changed from "${oldLabelEn}" to "${newLabelEn}". Please log out and log back in for the new permissions to take effect.`,
+          priority: "high",
+          actionUrl: "/app/dashboard",
+        });
+      }
+    }
+
     res.json({ success: true, data: u });
   } catch (e) {
     console.error("[PATCH /api/users/:id]", e);
@@ -10400,7 +10483,7 @@ app.get("/api/user-roles", auth, async (req, res) => {
       .where(and(eq(usersTable.companyId, user.companyId), eq(usersTable.isDeleted, false)))
       .orderBy(asc(usersTable.username));
 
-    const roles = await db.select().from(rolesTable)
+    const rawRoles = await db.select().from(rolesTable)
       .where(eq(rolesTable.companyId, user.companyId))
       .orderBy(asc(rolesTable.name));
 
@@ -10412,6 +10495,14 @@ app.get("/api/user-roles", auth, async (req, res) => {
       isActive: u.isActive,
       employeeId: u.employeeId,
       lastLoginAt: u.lastLoginAt,
+    }));
+
+    // Map DB fields to frontend-expected Role shape: { id, name, labelAr, labelEn }
+    const roles = rawRoles.map(r => ({
+      id: r.id,
+      name: r.name,
+      labelAr: (r as any).nameAr ?? ROLE_LABEL_AR[r.name] ?? r.name,
+      labelEn: ROLE_LABEL_EN[r.name] ?? r.name,
     }));
 
     res.json({ success: true, data: { users: userRows, roles } });
