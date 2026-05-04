@@ -3393,7 +3393,92 @@ app.delete("/api/documents/:id", auth, async (req, res) => {
   }
 });
 
+// ─── Assets helpers ───────────────────────────────────────────────────────────
+async function buildAssetShape(a: typeof assetsTable.$inferSelect, depts: { id: number; nameAr: string; nameEn: string }[], emps: { id: number; employeeCode: string; firstNameAr: string; lastNameAr: string; firstNameEn: string; lastNameEn: string; departmentId: number | null }[], cats: { id: number; nameAr: string; nameEn: string }[]) {
+  const emp = a.assignedToEmployeeId ? emps.find(e => e.id === a.assignedToEmployeeId) : null;
+  const dept = emp?.departmentId ? depts.find(d => d.id === emp.departmentId) : null;
+  const cat = cats.find(c => c.id === a.categoryId);
+  return {
+    id: a.id,
+    companyId: a.companyId,
+    categoryId: a.categoryId,
+    categoryNameAr: cat?.nameAr ?? null,
+    categoryNameEn: cat?.nameEn ?? null,
+    assetNameAr: a.nameAr,
+    assetNameEn: a.nameEn,
+    serialNumber: a.serialNumber ?? null,
+    barcode: a.barcode ?? null,
+    model: a.model ?? null,
+    brand: a.brand ?? null,
+    supplier: a.supplier ?? null,
+    purchaseDate: a.purchaseDate ?? null,
+    purchaseValue: a.purchaseValue ?? null,
+    currentStatus: a.currentStatus,
+    currentCondition: a.currentCondition ?? "good",
+    assignedToEmployeeId: a.assignedToEmployeeId ?? null,
+    assignedToNameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : null,
+    assignedToNameEn: emp ? `${emp.firstNameEn} ${emp.lastNameEn}` : null,
+    assignedEmployeeCode: emp?.employeeCode ?? null,
+    assignedOrgNodeNameAr: dept?.nameAr ?? null,
+    assignedOrgNodeNameEn: dept?.nameEn ?? null,
+    assignedDepartmentAr: dept?.nameAr ?? null,
+    assignedDepartmentEn: dept?.nameEn ?? null,
+    employeeOnLongLeave: false,
+    assignedDate: a.assignedDate ?? null,
+    returnedDate: a.returnedDate ?? null,
+    notes: a.notes ?? null,
+    isActive: a.isActive,
+    isDeleted: a.isDeleted,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+  };
+}
+
+async function loadAssetLookups(companyId: number) {
+  const [cats, emps, depts] = await Promise.all([
+    db.select({ id: assetCategoriesTable.id, nameAr: assetCategoriesTable.nameAr, nameEn: assetCategoriesTable.nameEn }).from(assetCategoriesTable).where(eq(assetCategoriesTable.isActive, true)),
+    db.select({ id: employeesTable.id, employeeCode: employeesTable.employeeCode, firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr, firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn, departmentId: employeesTable.departmentId }).from(employeesTable).where(and(eq(employeesTable.companyId, companyId), eq(employeesTable.isDeleted, false))),
+    db.select({ id: departmentsTable.id, nameAr: departmentsTable.nameAr, nameEn: departmentsTable.nameEn }).from(departmentsTable).where(and(eq(departmentsTable.companyId, companyId), eq(departmentsTable.isDeleted, false))),
+  ]);
+  return { cats, emps, depts };
+}
+
 // ─── Assets ───────────────────────────────────────────────────────────────────
+app.get("/api/assets/export", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { status } = req.query as Record<string, string>;
+    const conditions: any[] = [eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)];
+    if (status) conditions.push(eq(assetsTable.currentStatus, status));
+    const assets = await db.select().from(assetsTable).where(and(...conditions)).orderBy(assetsTable.nameAr);
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await Promise.all(assets.map(a => buildAssetShape(a, depts, emps, cats)));
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/assets/summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const isEmp = user.role === "employee";
+    const conditions: any[] = [eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)];
+    if (isEmp) {
+      if (!user.employeeId) { res.json({ success: true, data: { total: 0, assigned: 0, available: 0 } }); return; }
+      conditions.push(eq(assetsTable.assignedToEmployeeId, user.employeeId));
+    }
+    const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(assetsTable).where(and(...conditions));
+    const [assigned] = await db.select({ count: sql<number>`count(*)::int` }).from(assetsTable).where(and(...conditions, eq(assetsTable.currentStatus, "assigned")));
+    const t = total?.count ?? 0;
+    const a = isEmp ? t : (assigned?.count ?? 0);
+    res.json({ success: true, data: { total: t, assigned: a, available: t - a } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.get("/api/assets", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3406,19 +3491,16 @@ app.get("/api/assets", auth, async (req, res) => {
       const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
       const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
       const ids = deptEmps.map(e => e.id);
-      if (ids.length > 0) conditions.push(inArray(assetsTable.assignedToEmployeeId, ids));
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(assetsTable.assignedToEmployeeId, ids));
     } else {
       if (employeeId) conditions.push(eq(assetsTable.assignedToEmployeeId, parseInt(employeeId)));
     }
     if (status) conditions.push(eq(assetsTable.currentStatus, status));
     const assets = await db.select().from(assetsTable).where(and(...conditions)).orderBy(desc(assetsTable.createdAt));
-    const emps = await db.select({ id: employeesTable.id, firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn }).from(employeesTable);
-    res.json({ success: true, data: assets.map(a => ({
-      ...a,
-      assignedToEmployeeName: a.assignedToEmployeeId
-        ? (() => { const e = emps.find(e => e.id === a.assignedToEmployeeId); return e ? `${e.firstNameEn} ${e.lastNameEn}` : null; })()
-        : null,
-    })) });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await Promise.all(assets.map(a => buildAssetShape(a, depts, emps, cats)));
+    res.json({ success: true, data: shaped });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -3426,28 +3508,111 @@ app.get("/api/assets", auth, async (req, res) => {
 
 app.post("/api/assets", auth, async (req, res) => {
   try {
+    if (!requireHR(req, res)) return;
     const user = (req as AuthReq).user;
-    const [asset] = await db.insert(assetsTable).values({ ...req.body, companyId: user.companyId }).returning();
-    res.status(201).json({ success: true, data: asset });
+    const { assetNameAr, assetNameEn, categoryId, serialNumber, barcode, purchaseDate, purchaseValue, supplier, currentStatus, condition, notes, model, brand } = req.body as Record<string, any>;
+    if (!assetNameAr?.trim()) { res.status(400).json({ success: false, message: "Asset name (Arabic) is required" }); return; }
+    if (!categoryId) { res.status(400).json({ success: false, message: "Category is required" }); return; }
+    if (purchaseValue !== undefined && purchaseValue !== null && Number(purchaseValue) < 0) { res.status(400).json({ success: false, message: "Purchase value cannot be negative" }); return; }
+    if (serialNumber?.trim()) {
+      const [dup] = await db.select({ id: assetsTable.id }).from(assetsTable).where(and(eq(assetsTable.companyId, user.companyId), eq(assetsTable.serialNumber, serialNumber.trim()), eq(assetsTable.isDeleted, false)));
+      if (dup) { res.status(409).json({ success: false, message: "An asset with this serial number already exists" }); return; }
+    }
+    const [asset] = await db.insert(assetsTable).values({
+      companyId: user.companyId,
+      categoryId: Number(categoryId),
+      nameAr: assetNameAr.trim(),
+      nameEn: assetNameEn?.trim() || assetNameAr.trim(),
+      serialNumber: serialNumber?.trim() || null,
+      barcode: barcode?.trim() || null,
+      model: model?.trim() || null,
+      brand: brand?.trim() || null,
+      supplier: supplier?.trim() || null,
+      purchaseDate: purchaseDate || null,
+      purchaseValue: purchaseValue != null ? String(purchaseValue) : null,
+      currentStatus: currentStatus || "available",
+      currentCondition: condition || "good",
+      notes: notes?.trim() || null,
+    }).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_created", description: `Asset "${assetNameAr}" created (serial: ${serialNumber || "N/A"})`, employeeName: user.name || "HR", companyId: user.companyId });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(asset, depts, emps, cats);
+    res.status(201).json({ success: true, data: shaped });
   } catch (e) {
+    console.error("[POST /api/assets]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/assets/:id", auth, async (req, res) => {
   try {
-    const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, parseInt(req.params["id"]!)));
-    if (!asset) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    res.json({ success: true, data: asset });
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid asset ID" }); return; }
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    if (user.role === "employee" && asset.assignedToEmployeeId !== user.employeeId) {
+      res.status(403).json({ success: false, message: "Access denied" }); return;
+    }
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(asset, depts, emps, cats);
+    res.json({ success: true, data: shaped });
   } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/assets/:id", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid asset ID" }); return; }
+    const [existing] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    const { assetNameAr, assetNameEn, categoryId, serialNumber, barcode, purchaseDate, purchaseValue, supplier, currentStatus, condition, notes, model, brand } = req.body as Record<string, any>;
+    if (assetNameAr !== undefined && !assetNameAr?.trim()) { res.status(400).json({ success: false, message: "Asset name cannot be empty" }); return; }
+    if (purchaseValue !== undefined && purchaseValue !== null && Number(purchaseValue) < 0) { res.status(400).json({ success: false, message: "Purchase value cannot be negative" }); return; }
+    if (serialNumber?.trim() && serialNumber.trim() !== existing.serialNumber) {
+      const [dup] = await db.select({ id: assetsTable.id }).from(assetsTable).where(and(eq(assetsTable.companyId, user.companyId), eq(assetsTable.serialNumber, serialNumber.trim()), eq(assetsTable.isDeleted, false)));
+      if (dup) { res.status(409).json({ success: false, message: "An asset with this serial number already exists" }); return; }
+    }
+    const updateFields: Record<string, any> = {};
+    if (assetNameAr !== undefined) updateFields["nameAr"] = assetNameAr.trim();
+    if (assetNameEn !== undefined) updateFields["nameEn"] = assetNameEn?.trim() || existing.nameEn;
+    if (categoryId !== undefined) updateFields["categoryId"] = Number(categoryId);
+    if (serialNumber !== undefined) updateFields["serialNumber"] = serialNumber?.trim() || null;
+    if (barcode !== undefined) updateFields["barcode"] = barcode?.trim() || null;
+    if (model !== undefined) updateFields["model"] = model?.trim() || null;
+    if (brand !== undefined) updateFields["brand"] = brand?.trim() || null;
+    if (supplier !== undefined) updateFields["supplier"] = supplier?.trim() || null;
+    if (purchaseDate !== undefined) updateFields["purchaseDate"] = purchaseDate || null;
+    if (purchaseValue !== undefined) updateFields["purchaseValue"] = purchaseValue != null ? String(purchaseValue) : null;
+    if (currentStatus !== undefined) updateFields["currentStatus"] = currentStatus;
+    if (condition !== undefined) updateFields["currentCondition"] = condition;
+    if (notes !== undefined) updateFields["notes"] = notes?.trim() || null;
+    const [updated] = await db.update(assetsTable).set(updateFields).where(eq(assetsTable.id, id)).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Asset "${updated.nameAr}" updated`, employeeName: user.name || "HR", companyId: user.companyId });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(updated, depts, emps, cats);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/assets/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.patch("/api/assets/:id", auth, async (req, res) => {
   try {
-    const [asset] = await db.update(assetsTable).set(req.body).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json({ success: true, data: asset });
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid asset ID" }); return; }
+    const [existing] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    const [updated] = await db.update(assetsTable).set(req.body).where(eq(assetsTable.id, id)).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Asset "${updated.nameAr}" updated`, employeeName: user.name || "HR", companyId: user.companyId });
+    res.json({ success: true, data: updated });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -3455,7 +3620,17 @@ app.patch("/api/assets/:id", auth, async (req, res) => {
 
 app.delete("/api/assets/:id", auth, async (req, res) => {
   try {
-    await db.update(assetsTable).set({ isDeleted: true }).where(eq(assetsTable.id, parseInt(req.params["id"]!)));
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid asset ID" }); return; }
+    const [existing] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    if (existing.currentStatus === "assigned") {
+      res.status(409).json({ success: false, message: "Cannot delete an assigned asset. Please return it first." }); return;
+    }
+    await db.update(assetsTable).set({ isDeleted: true }).where(eq(assetsTable.id, id));
+    await db.insert(activityLogsTable).values({ type: "asset_deleted", description: `Asset "${existing.nameAr}" deleted (serial: ${existing.serialNumber || "N/A"})`, employeeName: user.name || "HR", companyId: user.companyId });
     res.status(204).send();
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -3464,24 +3639,75 @@ app.delete("/api/assets/:id", auth, async (req, res) => {
 
 app.post("/api/assets/:id/assign", auth, async (req, res) => {
   try {
-    const { employeeId } = req.body as { employeeId: number };
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const { employeeId, assignedDate, condition, notes } = req.body as Record<string, any>;
+    if (!employeeId) { res.status(400).json({ success: false, message: "Employee ID is required" }); return; }
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    if (asset.currentStatus === "assigned") { res.status(409).json({ success: false, message: "Asset is already assigned" }); return; }
+    const [emp] = await db.select({ id: employeesTable.id, firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr }).from(employeesTable).where(and(eq(employeesTable.id, Number(employeeId)), eq(employeesTable.companyId, user.companyId)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
     const today = new Date().toISOString().split("T")[0]!;
-    const [asset] = await db.update(assetsTable).set({
-      assignedToEmployeeId: employeeId, currentStatus: "assigned", assignedDate: today,
-    }).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json({ success: true, data: asset });
+    const [updated] = await db.update(assetsTable).set({
+      assignedToEmployeeId: Number(employeeId),
+      currentStatus: "assigned",
+      assignedDate: assignedDate || today,
+      currentCondition: condition || asset.currentCondition,
+      notes: notes?.trim() || asset.notes,
+    }).where(eq(assetsTable.id, id)).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_assigned", description: `Asset "${asset.nameAr}" assigned to ${emp.firstNameAr} ${emp.lastNameAr}`, employeeName: user.name || "HR", companyId: user.companyId });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(updated, depts, emps, cats);
+    res.json({ success: true, data: shaped });
   } catch (e) {
+    console.error("[POST /api/assets/:id/assign]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.post("/api/assets/:id/return", auth, async (req, res) => {
   try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const { returnDate, condition, notes, isLost } = req.body as Record<string, any>;
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
     const today = new Date().toISOString().split("T")[0]!;
-    const [asset] = await db.update(assetsTable).set({
-      assignedToEmployeeId: null, currentStatus: "available", returnedDate: today,
-    }).where(eq(assetsTable.id, parseInt(req.params["id"]!))).returning();
-    res.json({ success: true, data: asset });
+    const newStatus = isLost ? "lost" : (condition === "damaged" ? "damaged" : "available");
+    const [updated] = await db.update(assetsTable).set({
+      assignedToEmployeeId: null,
+      currentStatus: newStatus,
+      returnedDate: returnDate || today,
+      currentCondition: condition || asset.currentCondition,
+      notes: notes?.trim() || asset.notes,
+    }).where(eq(assetsTable.id, id)).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_returned", description: `Asset "${asset.nameAr}" returned (condition: ${condition || "good"}, status: ${newStatus})`, employeeName: user.name || "HR", companyId: user.companyId });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(updated, depts, emps, cats);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[POST /api/assets/:id/return]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/assets/:id/retire", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const { notes } = req.body as Record<string, any>;
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found" }); return; }
+    if (asset.currentStatus === "assigned") { res.status(409).json({ success: false, message: "Cannot retire an assigned asset. Return it first." }); return; }
+    const [updated] = await db.update(assetsTable).set({ currentStatus: "retired", notes: notes?.trim() || asset.notes }).where(eq(assetsTable.id, id)).returning();
+    await db.insert(activityLogsTable).values({ type: "asset_deleted", description: `Asset "${asset.nameAr}" retired`, employeeName: user.name || "HR", companyId: user.companyId });
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await buildAssetShape(updated, depts, emps, cats);
+    res.json({ success: true, data: shaped });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -3799,10 +4025,6 @@ app.post("/api/documents/upload", auth, (req, res) => {
   });
 });
 
-// ─── Assets extra endpoints ────────────────────────────────────────────────────
-app.get("/api/assets/export", auth, async (_req, res) => {
-  res.json({ success: true, data: { url: null, message: "Export not available in demo" } });
-});
 
 // ─── Overtime ─────────────────────────────────────────────────────────────────
 app.get("/api/overtime/dashboard", auth, async (req, res) => {
@@ -6065,17 +6287,6 @@ app.get("/api/salary-advances/me/summary", auth, async (req, res) => {
   }
 });
 
-app.get("/api/employee/assets", auth, async (req, res) => {
-  try {
-    const user = (req as AuthReq).user;
-    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const assets = await db.select().from(assetsTable).where(and(eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
-    res.json({ success: true, data: assets });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
-
 app.get("/api/employee/assets/summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -6083,6 +6294,49 @@ app.get("/api/employee/assets/summary", auth, async (req, res) => {
     const [count] = await db.select({ count: sql<number>`count(*)::int` }).from(assetsTable)
       .where(and(eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
     res.json({ success: true, data: { total: count?.count ?? 0 } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/employee/assets/:id/confirm-receive", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "Not linked to employee record" }); return; }
+    const id = parseInt(req.params["id"]!);
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found or not assigned to you" }); return; }
+    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Employee confirmed receipt of asset "${asset.nameAr}"`, employeeName: user.name || "Employee", companyId: user.companyId });
+    res.json({ success: true, message: "Receipt confirmed" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/employee/assets/:id/request-return", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "Not linked to employee record" }); return; }
+    const id = parseInt(req.params["id"]!);
+    const { returnDate, notes } = req.body as Record<string, any>;
+    const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
+    if (!asset) { res.status(404).json({ success: false, message: "Asset not found or not assigned to you" }); return; }
+    await db.update(assetsTable).set({ currentStatus: "pending_return" }).where(eq(assetsTable.id, id));
+    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Employee requested return of asset "${asset.nameAr}" (requested date: ${returnDate || "not specified"})${notes ? ` — ${notes}` : ""}`, employeeName: user.name || "Employee", companyId: user.companyId });
+    res.json({ success: true, message: "Return request submitted" });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/employee/assets", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+    const assets = await db.select().from(assetsTable).where(and(eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
+    const { cats, emps, depts } = await loadAssetLookups(user.companyId);
+    const shaped = await Promise.all(assets.map(a => buildAssetShape(a, depts, emps, cats)));
+    res.json({ success: true, data: shaped });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -6244,19 +6498,6 @@ app.get("/api/permissions/check", auth, async (req, res) => {
   res.json({ success: true, data: { allowed: true } });
 });
 
-// ─── Assets summary ───────────────────────────────────────────────────────────
-app.get("/api/assets/summary", auth, async (req, res) => {
-  try {
-    const user = (req as AuthReq).user;
-    const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(assetsTable)
-      .where(and(eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false)));
-    const [assigned] = await db.select({ count: sql<number>`count(*)::int` }).from(assetsTable)
-      .where(and(eq(assetsTable.companyId, user.companyId), eq(assetsTable.isDeleted, false), eq(assetsTable.currentStatus, "assigned")));
-    res.json({ success: true, data: { total: total?.count ?? 0, assigned: assigned?.count ?? 0, available: (total?.count ?? 0) - (assigned?.count ?? 0) } });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
 
 // ─── Org chart ────────────────────────────────────────────────────────────────
 app.get("/api/org-nodes", auth, async (req, res) => {

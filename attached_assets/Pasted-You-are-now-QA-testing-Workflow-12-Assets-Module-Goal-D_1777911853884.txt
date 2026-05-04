@@ -1,0 +1,219 @@
+You are now QA-testing Workflow 12: Assets Module.
+
+Goal:
+Do a full QA pass on /app/assets and all related backend APIs, DB tables, role scopes, validation, audit logs, and UI behavior. If you find bugs, fix them immediately, restart the API, and retest until clean.
+
+Test accounts:
+- hr
+- manager.hr
+- employee01
+- employee02
+- payroll
+
+Frontend route:
+- /app/assets
+
+Required behavior:
+- HR/superadmin can create, view, edit, assign, return, and delete assets.
+- Employee can only view assets assigned to their own employee profile.
+- Employee must not create/edit/delete/assign/return assets.
+- employee01 must not see employee02 assets.
+- employee02 must not see employee01 assets.
+- Manager should not see global company assets unless explicitly scoped to team; if unsure, block global access.
+- Payroll should not manage assets unless backend policy explicitly allows read-only.
+- Assets must be company-scoped.
+- All write actions must be audited.
+
+Run this QA protocol:
+
+TASK 1 — Discovery
+Read and inspect:
+- frontend asset component TS/HTML
+- asset routes in api-server/src/index.ts
+- DB schema for assets
+- any services/helpers used by asset logic
+- activity_logs usage
+- notification usage if any
+
+List:
+- all asset endpoints
+- all DB columns
+- all frontend actions/buttons/forms
+- all roles that can access the screen
+
+TASK 2 — Initial API inventory
+Using real tokens for hr, manager.hr, employee01, employee02, payroll:
+- GET /api/assets
+- GET /api/assets/my-assets if it exists
+- POST /api/assets with valid payload
+- PUT /api/assets/:id
+- DELETE /api/assets/:id
+- POST /api/assets/assign if it exists
+- POST /api/assets/return if it exists
+
+Record status codes and payload shapes.
+
+TASK 3 — Creation validation
+As HR:
+- create a valid asset with Arabic + English name, serial number, category, purchase date, purchase value, supplier, status, technical condition, notes
+- verify DB row matches exactly
+- verify GET /api/assets returns it
+- verify frontend displays it
+
+Try invalid cases:
+- missing name
+- missing serial number
+- duplicate serial number
+- missing category
+- negative purchase value
+- invalid purchase date
+- invalid status
+Expected: 400/409, no bad DB rows.
+
+TASK 4 — Role and scope security
+Verify:
+- employee01 cannot POST/PUT/DELETE global assets
+- employee01 cannot assign/return assets
+- employee01 cannot see employee2 assigned asset
+- employee02 cannot see employee1 assigned asset
+- manager.hr cannot see or manage global assets unless explicitly scoped
+- payroll cannot manage assets
+- no token returns 401
+
+Any unauthorized access returning 200 is a critical ROLE_LEAK or SCOPE_BUG and must be fixed.
+
+TASK 5 — Assignment flow
+As HR:
+- assign asset A to employee01
+- verify DB:
+  - assigned_to / employee_id set correctly
+  - assigned_at set
+  - status becomes assigned or in_use
+- verify employee01 sees it in employee view
+- verify employee02 does not see it
+- verify HR list shows assigned employee name/code
+- verify audit log asset_assigned exists
+
+Then:
+- return asset A
+- verify assigned employee cleared or return fields updated
+- verify status becomes available/returned according to app design
+- verify employee01 no longer sees it if returned
+- verify audit log asset_returned exists
+
+TASK 6 — Update/delete behavior
+As HR:
+- update asset name, condition, status, supplier, notes
+- verify DB and GET reflect changes
+- verify audit log asset_updated exists
+
+Delete:
+- if hard delete is intended, verify row removed
+- if soft delete is intended, verify is_deleted/is_active status changed and asset no longer appears
+- verify audit log asset_deleted exists
+
+If asset is assigned, deletion should either:
+- be blocked with 409, or
+- soft-delete safely without breaking employee view
+Choose the safest behavior and implement if missing.
+
+TASK 7 — Filtering/search UI
+Test filters:
+- search by name
+- search by serial number
+- status filter
+- category filter
+- technical condition filter
+- org unit filter if available
+- assigned/on-long-leave checkbox if available
+
+Verify frontend filtering matches backend data and no console errors occur.
+
+TASK 8 — Data exposure check
+Inspect API response:
+- GET /api/assets
+- GET /api/assets/:id
+- GET /api/assets/my-assets
+
+Ensure employee objects do not leak salary, national ID, private HR data, payroll data, or unrelated fields.
+Only return minimal assignment info:
+- employeeId
+- employeeCode
+- employeeNameAr
+- employeeNameEn
+- orgNode if needed
+
+Fix any overexposure.
+
+TASK 9 — Multi-tenant/company scope
+Verify every asset query/write is filtered by user.companyId.
+If assets table lacks company_id, add migration and schema update.
+Ensure created assets always store companyId from JWT context, not req.body.
+
+TASK 10 — Audit logs
+Confirm activity_logs contains entries for:
+- asset_created
+- asset_updated
+- asset_assigned
+- asset_returned
+- asset_deleted
+
+Each log should include:
+- type
+- description
+- company_id
+- actor/user name if available
+
+TASK 11 — Frontend smoke
+Open /app/assets as:
+- hr
+- manager.hr
+- employee01
+- employee02
+- payroll
+
+Check:
+- correct sidebar label
+- correct buttons shown/hidden by role
+- no broken modals
+- no console errors
+- no failed network requests except expected 403/401
+- RTL Arabic layout acceptable
+- employee sees “my assets” empty state correctly
+
+TASK 12 — Fix all bugs
+For every bug found:
+- classify it: ROLE_LEAK, SCOPE_BUG, MISSING_ENDPOINT, VALIDATION_MISSING, FIELD_MISMATCH, HARD_CODED_DATA, AUDIT_MISSING, DATA_EXPOSURE, SCHEMA_GAP
+- explain root cause
+- implement fix
+- restart API/frontend if needed
+- retest the failing case
+- run full regression
+
+Final output format:
+────────────────────────────────────────────────────────────────────
+Workflow 12 — Assets QA Report
+
+Accounts tested:
+Frontend routes tested:
+APIs tested:
+DB tables checked:
+
+Bugs found:
+- Bug 1:
+  Type:
+  Root cause:
+  Fix:
+  Files changed:
+- Bug 2:
+  ...
+
+Retest results:
+Scope result:
+Validation result:
+Assignment/return result:
+Audit result:
+Frontend result:
+Remaining risks:
+WORKFLOW 12 STATUS: COMPLETE ✅
+────────────────────────────────────────────────────────────────────
