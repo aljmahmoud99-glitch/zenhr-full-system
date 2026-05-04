@@ -1,0 +1,103 @@
+Workflow 11 — Compliance QA + Fixes
+
+ابدأ بفحص كامل لشاشة الامتثال /app/compliance من الصفر، ولا تعدّل أي شيء قبل ما تقرأ المعمارية كاملة.
+
+المطلوب:
+1. اقرأ ملفات الواجهة:
+   - compliance component ts/html/scss
+   - routes
+   - role-access/sidebar permissions
+
+2. اقرأ backend endpoints الخاصة بالامتثال:
+   - /api/compliance
+   - /api/compliance/my-summary
+   - /api/compliance/summary
+   - /api/compliance/alerts
+   - /api/compliance/ssc
+   - /api/compliance/work-permits
+   - /api/compliance/health-certificates
+   - /api/compliance/clearances
+   - أي endpoint يظهر من الكود
+
+3. افحص DB schema والجداول المرتبطة:
+   - employees
+   - documents
+   - document_types
+   - compliance tables إن وجدت
+   - notifications
+   - activity_logs
+
+4. اختبر الصلاحيات:
+   - HR فقط يشوف شاشة الامتثال ويديرها.
+   - employee / manager / payroll ممنوعين من كل API خاص بالامتثال.
+   - non-HR يجب يرجع 403.
+   - لا تظهر شاشة الامتثال في sidebar لغير HR.
+
+5. اختبر كل تبويب:
+   - الضمان الاجتماعي
+   - تصاريح العمل
+   - الشهادات الصحية
+   - براءة الخدمة
+   - التنبيهات الحرجة
+   - الإعدادات
+
+6. اختبر CRUD لكل نوع:
+   - create
+   - update
+   - list
+   - filters
+   - expired / expiring soon / valid status
+   - validation للأرقام والتواريخ والحقول المطلوبة
+
+7. اختبر المنطق:
+   - expiry date قبل issue date ممنوع.
+   - رقم الضمان / التصريح / الشهادة / المرجع لا يتكرر لنفس الموظف.
+   - الحالة تحسب صح حسب تاريخ الانتهاء.
+   - التنبيهات الحرجة تظهر فقط للمنتهي أو القريب من الانتهاء.
+   - إعدادات warning days تؤثر فعلياً على النتائج.
+
+8. اختبر التكامل مع الوثائق:
+   - إذا الامتثال يعتمد على documents/document_types تأكد الربط صحيح.
+   - لا يوجد تعارض مع قاعدة أن الوثائق HR-only.
+   - compliance لا يفتح ملفات لغير HR.
+   - المستندات المطلوبة/المفقودة تنحسب صح إن كانت مدعومة.
+
+9. اختبر notifications/audit:
+   - عند إضافة/تعديل/حذف سجل امتثال يتم كتابة activity_logs.
+   - إذا يوجد notification design للتنبيهات، اختبره.
+   - لا ترسل إشعارات للموظفين إلا إذا النظام مصمم لذلك.
+
+10. أصلح أي bug تجده فوراً ضمن نفس workflow.
+    لا تترك stubs أو hardcoded counters.
+    لا تقبل أي endpoint يرجع fake zeroes إذا فيه بيانات حقيقية في DB.
+    لا تخلّي أي non-HR يقرأ بيانات امتثال.
+
+11. بعد التعديلات شغّل retest كامل:
+    - HR can manage compliance ✅
+    - employee blocked ✅
+    - manager blocked ✅
+    - payroll blocked ✅
+    - counters correct ✅
+    - alerts correct ✅
+    - filters correct ✅
+    - validations correct ✅
+    - audit logs correct ✅
+    - no console errors ✅
+    - no 404/500 unexpected ✅
+
+Final report format:
+- Workflow 11 — Compliance QA Report
+- APIs tested
+- DB tables checked
+- Bugs found
+- Root cause
+- Fix applied
+- Files changed
+- Retest result
+- Scope result
+- Alert/counter result
+- Audit result
+- Remaining risks
+- Final status
+
+ابدأ الآن، اقرأ أولاً، اختبر، أصلح، ثم أعطني التقرير النهائي فقط.

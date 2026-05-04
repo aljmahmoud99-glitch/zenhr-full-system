@@ -26,6 +26,7 @@ import {
   salaryComponentDefinitionsTable,
   notificationsTable,
   salaryAdvancesTable,
+  complianceRecordsTable,
 } from "@workspace/db/schema";
 import {
   notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
@@ -3545,6 +3546,15 @@ const DEFAULT_CONFIGS = [
   { key: "notify_payroll_run", value: "true", category: "notifications", description: "Notify on payroll run" },
   { key: "compliance_enabled", value: "true", category: "compliance", description: "Enable compliance tracking" },
   { key: "ssf_compliance", value: "true", category: "compliance", description: "SSF compliance enabled" },
+  { key: "compliance_warning_days", value: "30", category: "compliance", description: "Days before expiry to show warning" },
+  { key: "health_certificate_required", value: "true", category: "compliance", description: "Health certificate required for all employees" },
+  { key: "criminal_record_required", value: "true", category: "compliance", description: "Criminal record clearance required" },
+  { key: "work_permit_required_non_jordanian", value: "true", category: "compliance", description: "Work permit required for non-Jordanian employees" },
+  { key: "residency_required_non_jordanian", value: "true", category: "compliance", description: "Residency permit required for non-Jordanian employees" },
+  { key: "passport_required_non_jordanian", value: "true", category: "compliance", description: "Passport required for non-Jordanian employees" },
+  { key: "social_security_required_active", value: "true", category: "compliance", description: "SSC registration required for all active employees" },
+  { key: "social_security_portal_url", value: "", category: "compliance", description: "Social Security Portal URL" },
+  { key: "ministry_of_health_portal_url", value: "", category: "compliance", description: "Ministry of Health Portal URL" },
 ];
 
 app.get("/api/config", auth, async (req, res) => {
@@ -4419,33 +4429,404 @@ app.post("/api/shifts/exceptions", auth, async (req, res) => {
 });
 
 // ─── Compliance ───────────────────────────────────────────────────────────────
-app.get("/api/compliance/overview", auth, async (_req, res) => {
-  res.json({ success: true, data: { score: 92, items: 24, compliant: 22, nonCompliant: 2, pending: 0 } });
+// Role guard helper: HR-only
+function requireHR(req: express.Request, res: express.Response): boolean {
+  const role = (req as AuthReq).user.role;
+  if (!["hradmin", "superadmin"].includes(role)) {
+    res.status(403).json({ success: false, message: "Forbidden: HR access only" });
+    return false;
+  }
+  return true;
+}
+
+// Compliance status computation
+function complianceStatus(
+  expiryDate: string | null,
+  referenceNumber: string | null | undefined,
+  warningDays: number
+): { status: "valid" | "expiring_soon" | "expired" | "missing"; daysRemaining: number | null } {
+  if (!referenceNumber && !expiryDate) return { status: "missing", daysRemaining: null };
+  if (!expiryDate) return { status: "valid", daysRemaining: null };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiryDate);
+  const diffMs = expiry.getTime() - today.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (daysRemaining < 0) return { status: "expired", daysRemaining };
+  if (daysRemaining <= warningDays) return { status: "expiring_soon", daysRemaining };
+  return { status: "valid", daysRemaining };
+}
+
+// Build compliance item rows for a list of employees
+async function buildComplianceItems(companyId: number, employeeIdFilter?: number) {
+  // Load warning days from config
+  const [warnCfg] = await db.select({ value: systemConfigurationsTable.value })
+    .from(systemConfigurationsTable)
+    .where(and(eq(systemConfigurationsTable.companyId, companyId), eq(systemConfigurationsTable.key, "compliance_warning_days")));
+  const warningDays = parseInt(warnCfg?.value ?? "30");
+
+  // Load departments for join
+  const depts = await db.select({ id: departmentsTable.id, nameAr: departmentsTable.nameAr, nameEn: departmentsTable.nameEn })
+    .from(departmentsTable).where(eq(departmentsTable.companyId, companyId));
+  const deptMap = new Map(depts.map(d => [d.id, d]));
+
+  // Load active employees
+  const empWhere: any[] = [eq(employeesTable.companyId, companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")];
+  if (employeeIdFilter) empWhere.push(eq(employeesTable.id, employeeIdFilter));
+  const emps = await db.select({
+    id: employeesTable.id,
+    employeeCode: employeesTable.employeeCode,
+    firstNameAr: employeesTable.firstNameAr,
+    lastNameAr: employeesTable.lastNameAr,
+    firstNameEn: employeesTable.firstNameEn,
+    lastNameEn: employeesTable.lastNameEn,
+    nationality: employeesTable.nationality,
+    departmentId: employeesTable.departmentId,
+    sscNumber: employeesTable.sscNumber,
+    sscEnrollmentDate: employeesTable.sscEnrollmentDate,
+    isSscExempt: employeesTable.isSSCExempt,
+    workPermitNumber: employeesTable.workPermitNumber,
+    workPermitExpiry: employeesTable.workPermitExpiry,
+    passportNumber: employeesTable.passportNumber,
+    passportExpiry: employeesTable.passportExpiry,
+    residencyNumber: employeesTable.residencyNumber,
+    residencyExpiry: employeesTable.residencyExpiry,
+  }).from(employeesTable).where(and(...empWhere));
+
+  // Load compliance_records (health_cert + criminal_record)
+  const crWhere: any[] = [eq(complianceRecordsTable.companyId, companyId), eq(complianceRecordsTable.isDeleted, false)];
+  if (employeeIdFilter) crWhere.push(eq(complianceRecordsTable.employeeId, employeeIdFilter));
+  const crRows = await db.select().from(complianceRecordsTable).where(and(...crWhere));
+  const crMap = new Map<string, typeof crRows[0]>();
+  for (const r of crRows) crMap.set(`${r.employeeId}:${r.category}`, r);
+
+  const items: any[] = [];
+  for (const emp of emps) {
+    const dept = emp.departmentId ? deptMap.get(emp.departmentId) : null;
+    const base = {
+      employeeId: emp.id,
+      employeeCode: emp.employeeCode,
+      employeeNameAr: `${emp.firstNameAr} ${emp.lastNameAr}`,
+      employeeNameEn: `${emp.firstNameEn} ${emp.lastNameEn}`,
+      nationalityCode: emp.nationality ?? "",
+      departmentAr: dept?.nameAr ?? "",
+      departmentEn: dept?.nameEn ?? "",
+      orgNodeNameAr: dept?.nameAr ?? "",
+      orgNodeNameEn: dept?.nameEn ?? "",
+    };
+
+    // Social Security
+    const sscRef = emp.isSscExempt ? "EXEMPT" : (emp.sscNumber ?? null);
+    const sscStat = emp.isSscExempt
+      ? { status: "valid" as const, daysRemaining: null }
+      : complianceStatus(null, emp.sscNumber, warningDays);
+    items.push({
+      id: `ss_${emp.id}`, category: "social_security",
+      labelAr: "الضمان الاجتماعي", labelEn: "Social Security",
+      referenceNumber: sscRef, issueDate: emp.sscEnrollmentDate ?? null, expiryDate: null,
+      issuedBy: null, notes: null, ...sscStat, ...base,
+    });
+
+    // Work Permit (only if non-Jordanian or has a permit)
+    const wpRef = emp.workPermitNumber ?? null;
+    const wpStat = complianceStatus(emp.workPermitExpiry ?? null, wpRef, warningDays);
+    items.push({
+      id: `wp_${emp.id}`, category: "work_permit",
+      labelAr: "تصريح العمل", labelEn: "Work Permit",
+      referenceNumber: wpRef, issueDate: null, expiryDate: emp.workPermitExpiry ?? null,
+      issuedBy: null, notes: null, ...wpStat, ...base,
+    });
+
+    // Health Certificate
+    const hc = crMap.get(`${emp.id}:health_certificate`);
+    const hcStat = complianceStatus(hc?.expiryDate ?? null, hc?.referenceNumber, warningDays);
+    items.push({
+      id: hc ? `hc_${hc.id}` : `hc_new_${emp.id}`, category: "health_certificate",
+      labelAr: "الشهادة الصحية", labelEn: "Health Certificate",
+      referenceNumber: hc?.referenceNumber ?? null, issueDate: hc?.issueDate ?? null, expiryDate: hc?.expiryDate ?? null,
+      issuedBy: hc?.issuedBy ?? null, notes: hc?.notes ?? null, ...hcStat, ...base,
+    });
+
+    // Criminal Record
+    const cr = crMap.get(`${emp.id}:criminal_record`);
+    const crStat = complianceStatus(cr?.expiryDate ?? null, cr?.referenceNumber, warningDays);
+    items.push({
+      id: cr ? `cr_${cr.id}` : `cr_new_${emp.id}`, category: "criminal_record",
+      labelAr: "براءة الذمة", labelEn: "Criminal Record",
+      referenceNumber: cr?.referenceNumber ?? null, issueDate: cr?.issueDate ?? null, expiryDate: cr?.expiryDate ?? null,
+      issuedBy: null, notes: cr?.notes ?? null, ...crStat, ...base,
+    });
+  }
+  return { items, warningDays };
+}
+
+// GET /api/compliance/overview — HR only. Real computed summary + alerts
+app.get("/api/compliance/overview", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { items, warningDays } = await buildComplianceItems(user.companyId);
+
+    let compliant = 0, expiringSoon = 0, expired = 0, missing = 0;
+    for (const item of items) {
+      if (item.status === "valid") compliant++;
+      else if (item.status === "expiring_soon") expiringSoon++;
+      else if (item.status === "expired") expired++;
+      else missing++;
+    }
+    const total = items.length;
+    const score = total > 0 ? Math.round((compliant / total) * 100) : 100;
+
+    const alerts = items
+      .filter(i => i.status === "expired" || i.status === "expiring_soon" || i.status === "missing")
+      .sort((a: any, b: any) => {
+        const w: Record<string, number> = { missing: 4, expired: 3, expiring_soon: 2, valid: 1 };
+        const diff = (w[b.status] ?? 0) - (w[a.status] ?? 0);
+        if (diff !== 0) return diff;
+        return (a.daysRemaining ?? Number.MAX_SAFE_INTEGER) - (b.daysRemaining ?? Number.MAX_SAFE_INTEGER);
+      });
+
+    res.json({
+      success: true,
+      data: {
+        score, total, compliant, expiringSoon, expired, missing,
+        warningDays,
+        alerts,
+        links: {
+          socialSecurityPortalUrl: "https://ssc.gov.jo",
+          ministryOfHealthPortalUrl: "https://www.moh.gov.jo",
+        },
+      },
+    });
+  } catch (e) {
+    console.error("[GET /api/compliance/overview]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.get("/api/compliance/items", auth, async (_req, res) => {
-  res.json({ success: true, data: [
-    { id: 1, nameAr: "توثيق العقود", nameEn: "Contract Documentation", status: "compliant", category: "hr" },
-    { id: 2, nameAr: "الاشتراك في الضمان الاجتماعي", nameEn: "SSC Registration", status: "compliant", category: "payroll" },
-    { id: 3, nameAr: "سجلات الحضور", nameEn: "Attendance Records", status: "pending", category: "attendance" },
-  ] });
+// GET /api/compliance/items — HR only. All compliance records with employee details
+app.get("/api/compliance/items", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { items } = await buildComplianceItems(user.companyId);
+    res.json({ success: true, data: items });
+  } catch (e) {
+    console.error("[GET /api/compliance/items]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
+// GET /api/compliance/employee/:id — HR only. One employee's full compliance view
+app.get("/api/compliance/employee/:id", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const [emp] = await db.select().from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+    const { items } = await buildComplianceItems(user.companyId, empId);
+    res.json({ success: true, data: { employee: emp, items } });
+  } catch (e) {
+    console.error("[GET /api/compliance/employee/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/compliance/employees/:id/social-security — HR only
+app.put("/api/compliance/employees/:id/social-security", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const { sscNumber, registrationDate, status, notes } = req.body as Record<string, string | null>;
+
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    const [updated] = await db.update(employeesTable).set({
+      sscNumber: sscNumber ?? null,
+      sscEnrollmentDate: registrationDate ?? null,
+    }).where(eq(employeesTable.id, empId)).returning({ id: employeesTable.id });
+
+    await db.insert(activityLogsTable).values({
+      type: "compliance_updated",
+      description: `SSC record updated for employee ${empId} by user ${user.userId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
+    res.json({ success: true, data: { employeeId: empId, category: "social_security", sscNumber, registrationDate, status } });
+  } catch (e) {
+    console.error("[PUT /api/compliance/employees/:id/social-security]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/compliance/employees/:id/work-permit — HR only
+app.put("/api/compliance/employees/:id/work-permit", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const { workPermitNumber, issueDate, expiryDate, residencyNumber, residencyExpiry, passportNumber, passportExpiry, notes } = req.body as Record<string, string | null>;
+
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    if (issueDate && expiryDate && expiryDate < issueDate) {
+      res.status(400).json({ success: false, message: "Expiry date must be after issue date" }); return;
+    }
+    if (passportExpiry && issueDate && passportExpiry < issueDate) {
+      res.status(400).json({ success: false, message: "Passport expiry must be a future date" }); return;
+    }
+
+    await db.update(employeesTable).set({
+      workPermitNumber: workPermitNumber ?? null,
+      workPermitExpiry: expiryDate ?? null,
+      passportNumber: passportNumber ?? null,
+      passportExpiry: passportExpiry ?? null,
+      residencyNumber: residencyNumber ?? null,
+      residencyExpiry: residencyExpiry ?? null,
+    }).where(eq(employeesTable.id, empId));
+
+    await db.insert(activityLogsTable).values({
+      type: "compliance_updated",
+      description: `Work permit updated for employee ${empId} by user ${user.userId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
+    res.json({ success: true, data: { employeeId: empId, category: "work_permit", workPermitNumber, expiryDate } });
+  } catch (e) {
+    console.error("[PUT /api/compliance/employees/:id/work-permit]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/compliance/employees/:id/health-certificate — HR only (upsert compliance_records)
+app.put("/api/compliance/employees/:id/health-certificate", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const { certificateNumber, issueDate, expiryDate, issuedBy, notes } = req.body as Record<string, string | null>;
+
+    if (!certificateNumber) { res.status(400).json({ success: false, message: "Certificate number is required" }); return; }
+    if (!expiryDate) { res.status(400).json({ success: false, message: "Expiry date is required" }); return; }
+    if (issueDate && expiryDate && expiryDate < issueDate) {
+      res.status(400).json({ success: false, message: "Expiry date must be after issue date" }); return;
+    }
+
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    // Upsert: soft-delete old + insert new
+    await db.update(complianceRecordsTable).set({ isDeleted: true, updatedAt: new Date() })
+      .where(and(eq(complianceRecordsTable.employeeId, empId), eq(complianceRecordsTable.category, "health_certificate"), eq(complianceRecordsTable.isDeleted, false)));
+    const [rec] = await db.insert(complianceRecordsTable).values({
+      companyId: user.companyId, employeeId: empId, category: "health_certificate",
+      referenceNumber: certificateNumber, issueDate: issueDate ?? null,
+      expiryDate: expiryDate, issuedBy: issuedBy ?? null, notes: notes ?? null,
+    }).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "compliance_updated",
+      description: `Health certificate ${certificateNumber} added for employee ${empId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
+    res.json({ success: true, data: rec });
+  } catch (e) {
+    console.error("[PUT /api/compliance/employees/:id/health-certificate]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/compliance/employees/:id/criminal-record — HR only (upsert compliance_records)
+app.put("/api/compliance/employees/:id/criminal-record", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    const { referenceNumber, issueDate, expiryDate, notes } = req.body as Record<string, string | null>;
+
+    if (!referenceNumber) { res.status(400).json({ success: false, message: "Reference number is required" }); return; }
+    if (!expiryDate) { res.status(400).json({ success: false, message: "Expiry date is required" }); return; }
+    if (issueDate && expiryDate && expiryDate < issueDate) {
+      res.status(400).json({ success: false, message: "Expiry date must be after issue date" }); return;
+    }
+
+    const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    await db.update(complianceRecordsTable).set({ isDeleted: true, updatedAt: new Date() })
+      .where(and(eq(complianceRecordsTable.employeeId, empId), eq(complianceRecordsTable.category, "criminal_record"), eq(complianceRecordsTable.isDeleted, false)));
+    const [rec] = await db.insert(complianceRecordsTable).values({
+      companyId: user.companyId, employeeId: empId, category: "criminal_record",
+      referenceNumber, issueDate: issueDate ?? null, expiryDate: expiryDate,
+      notes: notes ?? null,
+    }).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "compliance_updated",
+      description: `Criminal record ${referenceNumber} added for employee ${empId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
+    res.json({ success: true, data: rec });
+  } catch (e) {
+    console.error("[PUT /api/compliance/employees/:id/criminal-record]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/compliance/badge-status — HR only
 app.get("/api/compliance/badge-status", auth, async (req, res) => {
   try {
+    if (!requireHR(req, res)) return;
     const user = (req as AuthReq).user;
-    const emps = await db.select({ id: employeesTable.id }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
+    const { items } = await buildComplianceItems(user.companyId);
     const result: Record<number, string> = {};
-    emps.forEach(e => { result[e.id] = "compliant"; });
+    for (const item of items) {
+      const empId = item.employeeId;
+      if (!result[empId]) result[empId] = "compliant";
+      if (item.status === "missing" || item.status === "expired") result[empId] = "non_compliant";
+      else if (item.status === "expiring_soon" && result[empId] === "compliant") result[empId] = "expiring";
+    }
     res.json({ success: true, data: result });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/compliance/export", auth, async (_req, res) => {
-  res.json({ success: true, data: { url: null, message: "Export not available in demo" } });
+// GET /api/compliance/export — HR only. Per-employee summary for print export
+app.get("/api/compliance/export", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { items } = await buildComplianceItems(user.companyId);
+    // Group by employee
+    const empMap = new Map<number, any>();
+    for (const item of items) {
+      if (!empMap.has(item.employeeId)) {
+        empMap.set(item.employeeId, {
+          employeeId: item.employeeId, employeeCode: item.employeeCode,
+          employeeNameAr: item.employeeNameAr, employeeNameEn: item.employeeNameEn,
+          nationality: item.nationalityCode, orgNodeNameAr: item.orgNodeNameAr, orgNodeNameEn: item.orgNodeNameEn,
+          missingOrExpiredCount: 0,
+        });
+      }
+      if (item.status === "missing" || item.status === "expired") {
+        empMap.get(item.employeeId).missingOrExpiredCount++;
+      }
+    }
+    res.json({ success: true, data: Array.from(empMap.values()) });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Forms ────────────────────────────────────────────────────────────────────
@@ -4840,8 +5221,22 @@ app.get("/api/dashboard/upcoming-probations", auth, async (req, res) => {
   }
 });
 
-app.get("/api/dashboard/compliance-alerts", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+app.get("/api/dashboard/compliance-alerts", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { items } = await buildComplianceItems(user.companyId);
+    const alerts = items
+      .filter((i: any) => i.status === "expired" || i.status === "expiring_soon" || i.status === "missing")
+      .sort((a: any, b: any) => {
+        const w: Record<string, number> = { missing: 4, expired: 3, expiring_soon: 2, valid: 1 };
+        return (w[b.status] ?? 0) - (w[a.status] ?? 0);
+      })
+      .slice(0, 20);
+    res.json({ success: true, data: alerts });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Auth extra endpoints ─────────────────────────────────────────────────────
@@ -5826,7 +6221,22 @@ app.get("/api/overtime/requests", auth, async (req, res) => {
 });
 
 app.get("/api/compliance/my-summary", auth, async (req, res) => {
-  res.json({ success: true, data: { summary: { valid: 0, expiringSoon: 0, expired: 0, missing: 0 }, alerts: [] } });
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: { summary: { valid: 0, expiringSoon: 0, expired: 0, missing: 0 }, alerts: [] } }); return; }
+    const { items } = await buildComplianceItems(user.companyId, user.employeeId);
+    const summary = { valid: 0, expiringSoon: 0, expired: 0, missing: 0 };
+    for (const item of items) {
+      if (item.status === "valid") summary.valid++;
+      else if (item.status === "expiring_soon") summary.expiringSoon++;
+      else if (item.status === "expired") summary.expired++;
+      else summary.missing++;
+    }
+    const alerts = items.filter((i: any) => i.status !== "valid");
+    res.json({ success: true, data: { summary, alerts } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Permissions ──────────────────────────────────────────────────────────────

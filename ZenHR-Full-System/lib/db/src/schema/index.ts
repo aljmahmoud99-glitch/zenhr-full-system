@@ -24,3 +24,4 @@ export * from "./employee-salary-components";
 export * from "./salary-component-definitions";
 export * from "./notifications";
 export * from "./salary-advances";
+export * from "./compliance";
