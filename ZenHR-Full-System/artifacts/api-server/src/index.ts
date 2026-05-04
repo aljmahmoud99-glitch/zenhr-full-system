@@ -3821,9 +3821,15 @@ app.patch("/api/companies/:id", auth, async (req, res) => {
 // ─── Leave Balances ───────────────────────────────────────────────────────────
 app.get("/api/leave/balances", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { employeeId, year } = req.query as Record<string, string>;
     const conditions = [];
-    if (employeeId) conditions.push(eq(leaveBalancesTable.employeeId, parseInt(employeeId)));
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(leaveBalancesTable.employeeId, user.employeeId));
+    } else if (employeeId) {
+      conditions.push(eq(leaveBalancesTable.employeeId, parseInt(employeeId)));
+    }
     if (year) conditions.push(eq(leaveBalancesTable.year, parseInt(year)));
     const rows = conditions.length > 0
       ? await db.select().from(leaveBalancesTable).where(and(...conditions))
@@ -4395,7 +4401,7 @@ app.get("/api/overtime/requests", auth, async (req, res) => {
 });
 
 app.get("/api/compliance/my-summary", auth, async (req, res) => {
-  res.json({ success: true, data: { score: 100, items: 5, compliant: 5, nonCompliant: 0 } });
+  res.json({ success: true, data: { summary: { valid: 0, expiringSoon: 0, expired: 0, missing: 0 }, alerts: [] } });
 });
 
 // ─── Permissions ──────────────────────────────────────────────────────────────

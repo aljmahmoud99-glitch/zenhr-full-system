@@ -1,0 +1,171 @@
+WORKFLOW 2 PROMPT
+(Release ONLY after Workflow 1 passes)
+TITLE:
+QA + Fix — Workflow 2: Employee Dashboard
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Test only the employee dashboard and the data it displays.
+- Do NOT touch login, leave approval, payroll, or any other workflow.
+- Fix only confirmed bugs in THIS workflow.
+- Minimal code changes only.
+- Retest full chain after every fix.
+- Stop and report after all tasks. Do not continue to Workflow 3.
+
+═══════════════════════════════════
+ACCOUNTS TO USE
+═══════════════════════════════════
+Primary: employee01 / Test@12345
+Secondary: employee02 / Test@12345 (to verify scoping — should see different data)
+HR view: hr / Test@12345 (to verify dashboard is role-differentiated)
+
+═══════════════════════════════════
+TASK 1 — IDENTIFY DASHBOARD COMPONENTS
+═══════════════════════════════════
+Read and report:
+
+1. What route serves the employee dashboard? (/app/dashboard or /app/employee-dashboard?)
+2. What component file renders it?
+3. Does the dashboard check role and render different views? (DashboardShellComponent pattern or single template?)
+4. What API calls does the employee dashboard make on load?
+   (Open DevTools Network tab, log in as employee01, note all GET requests)
+5. What data does the employee dashboard show?
+   List each section/widget visible to employee01.
+
+═══════════════════════════════════
+TASK 2 — CHAIN VALIDATION FOR EACH WIDGET
+═══════════════════════════════════
+For each widget/section on the employee dashboard, validate the full chain:
+
+Widget 1: Today's Attendance Status
+  1. What API is called? (GET /api/attendance/my-today or similar)
+  2. What does the API return? (status code + response shape)
+  3. Does the UI correctly display: present/absent/late/on_leave?
+  4. Does it show clock-in time if clocked in?
+  5. Scope: does the API return ONLY this employee's record? No other employee data?
+
+Widget 2: Leave Balance Summary
+  1. What API is called? (GET /api/leave/balances or /api/leave/balances/my)
+  2. Response: array of { leaveType, totalDays, usedDays, remainingDays }?
+  3. Does the UI correctly display remaining days per leave type?
+  4. Scope: does it return ONLY this employee's balances?
+
+Widget 3: Pending Requests Count / List
+  1. What API is called for pending leave? (GET /api/leave/requests?status=pending)
+  2. What API for pending overtime?
+  3. What API for pending advances?
+  4. Are the counts correct? (compare to DB)
+  5. Scope: only own pending requests visible?
+
+Widget 4: Latest Payslip
+  1. What API is called? (GET /api/payroll/slips/my?limit=1 or similar)
+  2. Does it return the most recent payslip? (check against DB)
+  3. Does it show: period (month/year), net salary amount?
+  4. Scope: strictly own payslip only?
+
+Widget 5: Quick Action Buttons
+  1. What buttons are visible? (Request Leave, Request Overtime, etc.)
+  2. Do the buttons navigate to correct routes?
+  3. Are any buttons visible that should NOT be for employee role?
+
+═══════════════════════════════════
+TASK 3 — SCOPE ISOLATION TEST
+═══════════════════════════════════
+Log in as employee01, note their data.
+Log out. Log in as employee02.
+
+Verify:
+  - employee02's attendance status is different (or independently correct)
+  - employee02's leave balances are their own (not employee01's)
+  - employee02's pending requests are their own
+
+If employee02 sees employee01's data: CRITICAL scope bug — report immediately with exact API response.
+
+═══════════════════════════════════
+TASK 4 — HR DASHBOARD SEPARATION
+═══════════════════════════════════
+Log in as hr.
+
+Verify:
+  - Dashboard is different from employee dashboard
+  - Shows: total employee count, pending approvals queue, compliance alerts
+  - Does NOT show personal clock-in/out widget
+  - Does NOT show personal leave balance widget (these are employee-specific)
+
+If hr sees the same dashboard as employee01: ROLE_MISMATCH bug — report.
+
+═══════════════════════════════════
+TASK 5 — LOADING STATES AND ERROR STATES
+═══════════════════════════════════
+1. Log in as employee01 with network throttled (DevTools → Slow 3G)
+   - Does the dashboard show loading skeletons or spinners while data loads?
+   - Does it crash or show blank sections while loading?
+
+2. Simulate API failure:
+   - Temporarily block one API call (DevTools → block request URL)
+   - Does the dashboard handle the failure gracefully?
+   - Expected: error message or empty state in that widget — NOT entire page crash
+
+3. First-time user (no data):
+   - If employee01 has no leave requests and no payslips:
+   - Does the dashboard show appropriate empty states?
+   - Expected: "لا توجد طلبات معلقة" or similar — NOT blank space or JS error
+
+═══════════════════════════════════
+TASK 6 — FIX BUGS
+═══════════════════════════════════
+For each bug found:
+  - Classify by type
+  - Identify exact file and cause
+  - Apply minimal fix
+  - Retest that widget's full chain
+
+═══════════════════════════════════
+TASK 7 — RETEST
+═══════════════════════════════════
+After all fixes:
+  ✓ employee01 dashboard loads without errors
+  ✓ All widgets show correct data for employee01
+  ✓ employee02 dashboard shows different (own) data
+  ✓ HR dashboard is visually distinct from employee dashboard
+  ✓ No JS console errors on dashboard load
+  ✓ Loading states work correctly
+  ✓ No cross-employee data visible
+
+═══════════════════════════════════
+REQUIRED REPORT FORMAT
+═══════════════════════════════════
+───────────────────────────────────────────────────────────────
+Workflow: 2 — Employee Dashboard
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+
+Bugs found:
+  [list bugs or "No bugs found"]
+  - Bug:
+    Type:
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  employee01 dashboard loads: ✅ / ❌
+  All widgets show correct data: ✅ / ❌
+  employee02 shows own data: ✅ / ❌
+  HR dashboard differentiated: ✅ / ❌
+  No JS console errors: ✅ / ❌
+
+Scope result:
+Notification result: N/A
+Console/network errors:
+Remaining risks:
+
+WORKFLOW 2 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP. Wait for QA director approval before Workflow 3.
