@@ -3270,84 +3270,134 @@ app.get("/api/overtime", auth, async (req, res) => {
 app.post("/api/overtime", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [row] = await db.insert(overtimeRequestsTable).values({ ...req.body, status: "pending" }).returning();
-    // ── Notifications ──────────────────────────────────────────────────────
-    const otEmpId = req.body.employeeId ?? user.employeeId;
+    // Enforce employeeId from JWT for employee role — prevent forging
+    const employeeId = user.role === "employee"
+      ? user.employeeId
+      : (req.body.employeeId ?? user.employeeId);
+    if (!employeeId) { res.status(400).json({ success: false, message: "employeeId is required" }); return; }
+    const { date, hours, reason } = req.body;
+    if (!date) { res.status(400).json({ success: false, message: "Date is required" }); return; }
+    if (!hours || Number(hours) <= 0) { res.status(400).json({ success: false, message: "Hours must be greater than 0" }); return; }
+    const [row] = await db.insert(overtimeRequestsTable).values({ employeeId, date, hours: Number(hours), reason, status: "pending" }).returning();
     const otPayload = {
-      companyId: user.companyId,
-      actorUserId: user.userId,
-      entityType: "overtime_request",
-      entityId: row.id,
+      companyId: user.companyId, actorUserId: user.userId,
+      entityType: "overtime_request", entityId: row.id,
       notificationType: "overtime_request_created",
-      titleAr: "طلب عمل إضافي جديد",
-      titleEn: "New Overtime Request",
+      titleAr: "طلب عمل إضافي جديد", titleEn: "New Overtime Request",
       messageAr: `قدّم ${user.username} طلب عمل إضافي بتاريخ ${row.date} (${row.hours} ساعات).`,
       messageEn: `${user.username} submitted an overtime request on ${row.date} (${row.hours} hrs).`,
-      priority: "normal" as const,
-      actionUrl: "/app/overtime",
+      priority: "normal" as const, actionUrl: "/app/overtime",
     };
     await notifyRole(user.companyId, "hradmin", otPayload);
-    if (otEmpId) await notifyDirectManager(otEmpId, otPayload);
+    await notifyDirectManager(employeeId, otPayload);
     res.status(201).json({ success: true, data: row });
   } catch (e) {
+    console.error("[POST /api/overtime]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.post("/api/overtime/:id/approve", auth, async (req, res) => {
+// ── Shared handler: approve overtime request ────────────────────────────────
+async function handleOvertimeApprove(req: any, res: any) {
   try {
     const user = (req as AuthReq).user;
-    const [row] = await db.update(overtimeRequestsTable).set({ status: "approved", managerApprovedById: user.userId, managerApprovedAt: new Date() })
-      .where(eq(overtimeRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    // ── Notification ───────────────────────────────────────────────────────
-    if (row?.employeeId) {
-      await notifyEmployee(row.employeeId, user.companyId, {
-        companyId: user.companyId,
-        actorUserId: user.userId,
-        entityType: "overtime_request",
-        entityId: row.id,
+    if (user.role !== "manager" && user.role !== "hradmin") {
+      res.status(403).json({ success: false, message: "Only managers or HR administrators can approve overtime requests" }); return;
+    }
+    const requestId = parseInt(req.params["id"]!);
+    const [ot] = await db.select().from(overtimeRequestsTable).where(eq(overtimeRequestsTable.id, requestId));
+    if (!ot) { res.status(404).json({ success: false, message: "Overtime request not found" }); return; }
+
+    if (user.role === "manager") {
+      if (ot.status !== "pending") {
+        res.status(400).json({ success: false, message: "Only pending requests can be approved by a manager" }); return;
+      }
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(eq(employeesTable.id, ot.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
+      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return; }
+      const [updated] = await db.update(overtimeRequestsTable).set({ status: "manager_approved", managerApprovedById: user.userId, managerApprovedAt: new Date() })
+        .where(eq(overtimeRequestsTable.id, requestId)).returning();
+      await notifyRole(user.companyId, "hradmin", {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "overtime_request", entityId: requestId,
+        notificationType: "overtime_manager_approved",
+        titleAr: "طلب عمل إضافي بانتظار موافقة الموارد البشرية",
+        titleEn: "Overtime Request Awaiting HR Approval",
+        messageAr: `وافق المدير على طلب عمل إضافي بتاريخ ${ot.date}. يحتاج إلى موافقة الموارد البشرية.`,
+        messageEn: `Manager approved an overtime request on ${ot.date}. Awaiting HR approval.`,
+        priority: "normal" as const, actionUrl: "/app/overtime",
+      });
+      res.json({ success: true, data: updated }); return;
+    }
+    // hradmin
+    if (ot.status !== "pending" && ot.status !== "manager_approved") {
+      res.status(400).json({ success: false, message: "Request cannot be approved in its current state" }); return;
+    }
+    const [updated] = await db.update(overtimeRequestsTable).set({ status: "approved", hrApprovedById: user.userId, hrApprovedAt: new Date() })
+      .where(eq(overtimeRequestsTable.id, requestId)).returning();
+    if (updated?.employeeId) {
+      await notifyEmployee(updated.employeeId, user.companyId, {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "overtime_request", entityId: updated.id,
         notificationType: "overtime_request_approved",
         titleAr: "تمت الموافقة على طلب العمل الإضافي",
         titleEn: "Overtime Request Approved",
-        messageAr: `تمت الموافقة على طلب العمل الإضافي بتاريخ ${row.date}.`,
-        messageEn: `Your overtime request on ${row.date} was approved.`,
-        priority: "high",
-        actionUrl: "/app/my-overtime",
+        messageAr: `تمت الموافقة على طلب العمل الإضافي بتاريخ ${updated.date}.`,
+        messageEn: `Your overtime request on ${updated.date} was approved.`,
+        priority: "high", actionUrl: "/app/overtime",
       });
     }
-    res.json({ success: true, data: row });
+    res.json({ success: true, data: updated });
   } catch (e) {
+    console.error("[overtime/approve]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
-});
+}
 
-app.post("/api/overtime/:id/reject", auth, async (req, res) => {
+// ── Shared handler: reject overtime request ─────────────────────────────────
+async function handleOvertimeReject(req: any, res: any) {
   try {
     const user = (req as AuthReq).user;
-    const { reason } = req.body as { reason: string };
-    const [row] = await db.update(overtimeRequestsTable).set({ status: "rejected", rejectionReason: reason })
-      .where(eq(overtimeRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    // ── Notification ───────────────────────────────────────────────────────
-    if (row?.employeeId) {
-      await notifyEmployee(row.employeeId, user.companyId, {
-        companyId: user.companyId,
-        actorUserId: user.userId,
-        entityType: "overtime_request",
-        entityId: row.id,
+    if (user.role !== "manager" && user.role !== "hradmin") {
+      res.status(403).json({ success: false, message: "Only managers or HR administrators can reject overtime requests" }); return;
+    }
+    const requestId = parseInt(req.params["id"]!);
+    const [ot] = await db.select().from(overtimeRequestsTable).where(eq(overtimeRequestsTable.id, requestId));
+    if (!ot) { res.status(404).json({ success: false, message: "Overtime request not found" }); return; }
+    if (["approved", "rejected", "cancelled"].includes(ot.status)) {
+      res.status(400).json({ success: false, message: "Request cannot be rejected in its current state" }); return;
+    }
+    if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(eq(employeesTable.id, ot.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
+      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to reject this employee's request" }); return; }
+    }
+    const reason = req.body.reason ?? req.body.notes;
+    const [updated] = await db.update(overtimeRequestsTable).set({ status: "rejected", rejectionReason: reason })
+      .where(eq(overtimeRequestsTable.id, requestId)).returning();
+    if (updated?.employeeId) {
+      await notifyEmployee(updated.employeeId, user.companyId, {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "overtime_request", entityId: updated.id,
         notificationType: "overtime_request_rejected",
         titleAr: "تم رفض طلب العمل الإضافي",
         titleEn: "Overtime Request Rejected",
-        messageAr: `تم رفض طلب العمل الإضافي بتاريخ ${row.date}.`,
-        messageEn: `Your overtime request on ${row.date} was rejected.`,
-        priority: "high",
-        actionUrl: "/app/my-overtime",
+        messageAr: `تم رفض طلب العمل الإضافي بتاريخ ${updated.date}.`,
+        messageEn: `Your overtime request on ${updated.date} was rejected.`,
+        priority: "high", actionUrl: "/app/overtime",
       });
     }
-    res.json({ success: true, data: row });
+    res.json({ success: true, data: updated });
   } catch (e) {
+    console.error("[overtime/reject]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
-});
+}
+
+app.post("/api/overtime/:id/approve", auth, handleOvertimeApprove);
+app.post("/api/overtime/:id/reject", auth, handleOvertimeReject);
 
 // ─── Disciplinary ─────────────────────────────────────────────────────────────
 const disciplinaryStore: any[] = [];
@@ -4497,6 +4547,65 @@ app.get("/api/overtime/me/requests", auth, async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
+
+// POST /api/overtime/me/requests — employee self-service submit (must be before /:id routes)
+app.post("/api/overtime/me/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "Not linked to an employee record" }); return; }
+    const { date, hours, reason } = req.body;
+    if (!date) { res.status(400).json({ success: false, message: "Date is required" }); return; }
+    const calcHours = Number(hours);
+    if (!calcHours || calcHours <= 0) { res.status(400).json({ success: false, message: "Hours must be greater than 0" }); return; }
+    if (!reason || !String(reason).trim()) { res.status(400).json({ success: false, message: "Reason is required" }); return; }
+    const [row] = await db.insert(overtimeRequestsTable).values({
+      employeeId: user.employeeId, date, hours: calcHours, reason: String(reason).trim(), status: "pending",
+    }).returning();
+    const otPayload = {
+      companyId: user.companyId, actorUserId: user.userId,
+      entityType: "overtime_request", entityId: row.id,
+      notificationType: "overtime_request_created",
+      titleAr: "طلب عمل إضافي جديد", titleEn: "New Overtime Request",
+      messageAr: `قدّم ${user.username} طلب عمل إضافي بتاريخ ${row.date} (${row.hours} ساعات).`,
+      messageEn: `${user.username} submitted an overtime request on ${row.date} (${row.hours} hrs).`,
+      priority: "normal" as const, actionUrl: "/app/overtime",
+    };
+    await notifyRole(user.companyId, "hradmin", otPayload);
+    await notifyDirectManager(user.employeeId, otPayload);
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/overtime/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT routes — frontend calls PUT /api/overtime/requests/:id/approve|reject
+app.get("/api/overtime/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { employeeId, status } = req.query as Record<string, string>;
+    const conditions: any[] = [eq(overtimeRequestsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(overtimeRequestsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(overtimeRequestsTable.employeeId, ids));
+    } else if (employeeId) {
+      conditions.push(eq(overtimeRequestsTable.employeeId, parseInt(employeeId)));
+    }
+    if (status) conditions.push(eq(overtimeRequestsTable.status, status));
+    const rows = await db.select().from(overtimeRequestsTable).where(and(...conditions)).orderBy(desc(overtimeRequestsTable.date));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+app.put("/api/overtime/requests/:id/approve", auth, handleOvertimeApprove);
+app.put("/api/overtime/requests/:id/reject", auth, handleOvertimeReject);
 
 app.get("/api/overtime/me/log", auth, async (req, res) => {
   try {

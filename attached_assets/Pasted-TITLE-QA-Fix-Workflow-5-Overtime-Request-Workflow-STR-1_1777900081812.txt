@@ -1,0 +1,516 @@
+TITLE:
+QA + Fix — Workflow 5: Overtime Request Workflow
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Test ONLY the overtime workflow.
+- Do NOT touch leave, payroll, attendance, employee profile, or unrelated modules.
+- Do NOT redesign UI.
+- Fix only confirmed bugs in THIS workflow.
+- Use the smallest safe code change.
+- After every fix, retest the full chain:
+  UI → POST → DB → GET → UI → Scope → Notifications.
+- If a bug requires broad refactor, database schema change, authentication redesign, or changes more than 3 files: flag it as Major Bug and stop before fixing.
+- Stop after the final report. Do not continue to Attendance.
+
+═══════════════════════════════════
+ACCOUNTS
+═══════════════════════════════════
+Submitter:
+- employee01 / Test@12345
+
+Wrong-scope employee:
+- employee02 / Test@12345
+
+Manager:
+- manager.hr / Test@12345
+  Use this if employee01 reports to HR department.
+
+HR:
+- hr / Test@12345
+
+Payroll:
+- payroll / Test@12345
+
+═══════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════
+Stabilize overtime request workflow end-to-end.
+
+Expected final behavior:
+1. employee01 creates overtime request.
+2. The request is saved in DB.
+3. The request appears in employee01's overtime list.
+4. The request appears for the correct manager.
+5. The request appears for HR and/or payroll if the system requires them.
+6. employee02 does NOT see employee01's request.
+7. Manager can approve/reject if approval flow exists.
+8. HR/payroll can approve/finalize if the system requires it.
+9. Notifications are created for correct recipients only.
+10. No 404/500.
+11. No console errors.
+
+═══════════════════════════════════
+TASK 1 — IDENTIFY OVERTIME SYSTEM
+═══════════════════════════════════
+Before testing, read and report:
+
+Frontend:
+1. What route serves overtime?
+   Example: /app/overtime
+2. What component renders the page?
+   Provide file path.
+3. What component/form/modal handles overtime creation?
+4. What API endpoint is called when employee submits overtime?
+   Method + URL + body shape.
+5. What API endpoint is called to load overtime requests?
+   Method + URL + query params.
+6. Does frontend use:
+   - /api/overtime/requests
+   - /api/overtime/me/requests
+   - another path?
+7. What response shape does frontend expect?
+   Example: { success:true, data:[...] } or raw array.
+8. What fields does frontend expect on each overtime request?
+   Example:
+   id, employeeId, employeeName, date, startTime, endTime, hours, compensationType, dayType, reason, status.
+
+Backend:
+1. Find all overtime routes in artifacts/api-server/src/index.ts.
+2. List:
+   - GET routes
+   - POST routes
+   - approve/reject routes
+   - cancel routes if any
+3. What DB table stores overtime?
+4. What are required DB columns?
+5. Does backend use employeeId from JWT for employee self-service?
+6. Does backend currently create notifications?
+
+Report findings before modifying code.
+
+═══════════════════════════════════
+TASK 2 — INITIAL UI + NETWORK TEST
+═══════════════════════════════════
+Log in as employee01.
+
+Navigate to:
+  /app/overtime
+
+Verify:
+1. Page loads.
+2. No 404/500 on load.
+3. No JS console errors.
+4. Existing list loads.
+5. Empty state appears if no requests.
+6. New overtime form/modal opens correctly.
+7. All required fields are visible:
+   - date
+   - from/start time
+   - to/end time
+   - hours if present
+   - day type
+   - compensation type
+   - reason
+
+Open DevTools Network tab.
+Submit a valid overtime request:
+- Date: next working day
+- From: 05:00 PM
+- To: 08:00 PM
+- Expected hours: 3
+- Day type: working day
+- Compensation type: payment / بدل مالي
+- Reason: "اختبار QA للعمل الإضافي"
+
+Record:
+- Exact POST URL
+- Request body
+- Response status
+- Response body
+
+If POST returns 404:
+- Classify as MISSING_ENDPOINT.
+- Identify whether frontend path is logical.
+- If frontend calls /api/overtime/me/requests and backend lacks it, add backend compatibility endpoint following the leave workflow pattern.
+- Do NOT change frontend path unless backend already has a correct equivalent.
+
+If POST returns 500:
+- Classify as API_ERROR.
+- Inspect backend logs and DB constraints.
+- Fix exact field mapping.
+
+═══════════════════════════════════
+TASK 3 — POST → DB VALIDATION
+═══════════════════════════════════
+After submitting as employee01:
+
+Check DB:
+SELECT latest overtime row for employee01.
+
+Verify:
+- id exists
+- employee_id = employee01 employee id
+- company_id = employee01 company id
+- date correct
+- start/from time correct
+- end/to time correct
+- hours = 3 or calculated correctly
+- day_type correct if column exists
+- compensation_type correct
+- reason saved
+- status = pending
+- created_at populated
+
+If POST says success but DB row does not exist:
+- Type: FAKE_SUCCESS
+- Critical bug.
+
+If DB insert fails due to column mismatch:
+- Type: FIELD_MISMATCH
+- Fix backend mapping explicitly.
+- Do not spread req.body directly into DB insert.
+
+Required backend behavior for employee self-service:
+- employeeId MUST come from JWT user.employeeId.
+- companyId MUST come from JWT user.companyId.
+- Employee must not be allowed to submit overtime for someone else.
+
+═══════════════════════════════════
+TASK 4 — READ API VALIDATION
+═══════════════════════════════════
+Still as employee01:
+
+Call the GET endpoint used by frontend.
+
+Verify:
+1. The newly created overtime request is returned.
+2. Response shape matches frontend expectation.
+3. Returned row includes all fields needed for UI rendering:
+   - id
+   - date
+   - startTime/fromTime
+   - endTime/toTime
+   - hours
+   - compensationType
+   - dayType
+   - reason
+   - status
+   - employeeName if shown
+4. Status is pending.
+5. Date/time display is correct.
+6. Western digits are used for numbers.
+
+If DB has row but GET does not return it:
+- Type: READ_MISMATCH.
+
+If GET returns row but UI does not display it:
+- Type: FRONTEND_MAPPING.
+
+If status exists but hidden by frontend filter:
+- Type: STATUS_FILTER_BUG.
+
+Fix minimally and retest.
+
+═══════════════════════════════════
+TASK 5 — UI RENDER VALIDATION
+═══════════════════════════════════
+After successful submit:
+
+Verify in the UI:
+1. Modal closes or success state appears.
+2. Request appears in employee01 list without page reload OR after automatic refresh.
+3. Status badge shows pending / قيد الانتظار.
+4. Hours show as 3.
+5. Date/time format is readable.
+6. Compensation type displays correctly.
+7. No console errors.
+8. No failed network requests.
+
+If success toast appears but list does not update:
+- Check if frontend reloads list after POST.
+- If not, call reload method after successful submit.
+- If reload calls wrong endpoint, fix endpoint mapping.
+
+═══════════════════════════════════
+TASK 6 — SCOPE VALIDATION
+═══════════════════════════════════
+Log out employee01.
+
+Log in as employee02.
+Call the overtime list endpoint from UI and API.
+
+Expected:
+- employee02 must NOT see employee01's overtime request.
+
+If employee02 sees it:
+- Type: SCOPE_BUG.
+- Critical security bug.
+- Fix backend query to force employeeId = currentUser.employeeId for employee role.
+- Ignore any employeeId query param from employee users.
+
+Log in as manager.hr.
+Expected:
+- manager.hr sees employee01's request ONLY if employee01 reports to manager.hr or is in manager.hr scope.
+- manager.hr must not see unrelated department requests.
+
+Log in as hr.
+Expected:
+- HR sees company overtime requests.
+
+Log in as payroll.
+Expected:
+- Payroll sees overtime requests only if payroll role is supposed to process payment overtime.
+- If payroll should not see all overtime in current design, document expected behavior and enforce it.
+
+Report exact scope behavior by role.
+
+═══════════════════════════════════
+TASK 7 — APPROVAL / REJECTION FLOW
+═══════════════════════════════════
+Determine current intended approval flow from frontend/backend.
+
+Possible flows:
+A. employee submits → manager approves → HR approves → payroll sees for payment
+B. employee submits → manager approves/rejects only
+C. employee submits → HR approves only
+D. no approval implemented yet
+
+Do NOT assume. Inspect code and UI.
+
+If approve/reject buttons exist:
+
+Test manager approval:
+1. Log in as manager.hr.
+2. Open overtime list.
+3. Approve employee01's pending request.
+4. Verify API endpoint called:
+   POST /api/overtime/requests/:id/approve or equivalent.
+5. Verify DB status transition:
+   pending → manager_approved OR approved depending current design.
+6. Verify employee01 sees updated status.
+7. Verify notification sent to next approver or employee.
+
+Test rejection:
+1. Create a second overtime request as employee01.
+2. Log in as manager.hr.
+3. Reject with reason.
+4. Verify DB status = rejected.
+5. Verify rejection reason saved if column exists.
+6. Verify employee01 receives notification.
+7. Verify rejected request still appears in employee01 history.
+
+Security checks:
+- employee01 must NOT be able to approve own overtime via direct API.
+- employee02 must NOT be able to approve employee01 overtime.
+- manager from wrong scope must NOT approve it.
+- payroll must NOT approve unless explicitly allowed.
+- approving already approved/rejected request must return 400/409.
+
+If approval endpoint missing but frontend calls it:
+- Type: MISSING_ENDPOINT.
+- Add minimal backend endpoint only if UI clearly requires it.
+
+If endpoint exists but lacks role checks:
+- Type: ROLE_LEAK.
+- Fix immediately.
+
+═══════════════════════════════════
+TASK 8 — NOTIFICATION VALIDATION
+═══════════════════════════════════
+After employee01 submits overtime:
+
+Check DB notifications:
+SELECT notifications where entity_type='overtime_request' and entity_id=[request_id].
+
+Expected recipients:
+- direct manager
+- HR if required
+- payroll if compensation type is payment and payroll needs visibility
+- NOT unrelated employees
+
+Verify:
+1. Notification rows exist.
+2. recipient_user_id values are correct.
+3. Titles/messages readable in Arabic.
+4. HR bell count updates if HR is recipient.
+5. Manager bell count updates if manager is recipient.
+6. employee02 receives zero notifications for employee01 request.
+
+After approval/rejection:
+- employee01 receives notification.
+- Next approver receives notification if there is another approval step.
+- No unrelated user receives it.
+
+If notifications missing:
+- Type: NOTIFICATION_MISSING.
+
+If notifications sent to too many users:
+- Type: NOTIFICATION_SCOPE.
+
+Fix minimally using existing notification service/pattern from leave workflow.
+Do not create a new notification system.
+
+═══════════════════════════════════
+TASK 9 — VALIDATION RULES
+═══════════════════════════════════
+Test invalid submissions:
+
+1. End time before start time.
+Expected: blocked with validation error; no DB insert.
+
+2. Missing date.
+Expected: blocked.
+
+3. Missing start time.
+Expected: blocked.
+
+4. Missing end time.
+Expected: blocked.
+
+5. Missing reason if reason required.
+Expected: blocked.
+
+6. Zero or negative hours.
+Expected: blocked.
+
+7. Extremely large hours, e.g. 18 hours.
+Expected: blocked or warning based on policy.
+
+8. Duplicate overtime request for same date/time.
+Expected: conflict or validation error if overlap prevention exists.
+If not implemented, report as remaining risk, not blocker.
+
+For each failed validation:
+- Confirm no DB row created.
+- Confirm no notification created.
+
+═══════════════════════════════════
+TASK 10 — FIX BUGS
+═══════════════════════════════════
+For every bug found:
+1. Classify type:
+   - MISSING_ENDPOINT
+   - FAKE_SUCCESS
+   - API_ERROR
+   - FIELD_MISMATCH
+   - READ_MISMATCH
+   - FRONTEND_MAPPING
+   - STATUS_FILTER_BUG
+   - SCOPE_BUG
+   - ROLE_LEAK
+   - NOTIFICATION_MISSING
+   - NOTIFICATION_SCOPE
+   - VALIDATION_MISSING
+   - DB_INTEGRITY
+   - MAJOR_BUG
+2. Identify exact file and function/endpoint/component.
+3. Apply minimal safe fix.
+4. Retest full chain after fix.
+
+Do not touch unrelated modules.
+
+═══════════════════════════════════
+TASK 11 — FULL RETEST
+═══════════════════════════════════
+After fixes, create a NEW overtime request and verify:
+
+Submission:
+  ✓ POST returns 200/201
+  ✓ DB row created correctly
+  ✓ GET returns record
+  ✓ UI shows record
+  ✓ status = pending
+
+Scope:
+  ✓ employee01 sees own request
+  ✓ employee02 does not see it
+  ✓ correct manager sees it
+  ✓ HR sees it
+  ✓ payroll behavior matches intended design
+
+Approval:
+  ✓ manager approve works if implemented
+  ✓ manager reject works if implemented
+  ✓ employee cannot approve/reject
+  ✓ wrong manager cannot approve/reject
+  ✓ terminal states cannot be re-approved
+
+Notifications:
+  ✓ notification created on submit
+  ✓ correct recipients only
+  ✓ notification created on approval/rejection
+  ✓ employee02 not notified
+  ✓ bell count updates
+  ✓ dropdown text readable
+
+Validation:
+  ✓ invalid time range blocked
+  ✓ missing fields blocked
+  ✓ no DB insert on invalid form
+  ✓ no notification on invalid form
+
+Console:
+  ✓ no JS console errors
+  ✓ no 404/500 for visible UI actions
+
+═══════════════════════════════════
+REQUIRED REPORT FORMAT
+═══════════════════════════════════
+Submit EXACTLY this report format:
+
+───────────────────────────────────────────────────────────────
+Workflow: 5 — Overtime Request Workflow
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+
+System findings:
+  Frontend component:
+  Submit endpoint:
+  Read endpoint:
+  Approval endpoints:
+  Notification behavior:
+
+Bugs found:
+  [If none: write "No bugs found"]
+  - Bug:
+    Type:
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  POST 200/201: ✅ / ❌
+  DB record correct: ✅ / ❌
+  GET returns record: ✅ / ❌
+  UI shows request: ✅ / ❌
+  employee02 cannot see: ✅ / ❌
+  manager can see: ✅ / ❌
+  HR can see: ✅ / ❌
+  approval works: ✅ / ❌ / N/A
+  rejection works: ✅ / ❌ / N/A
+  validation works: ✅ / ❌
+
+Scope result:
+
+Notification result:
+  Notification in DB: ✅ / ❌
+  Manager bell updated: ✅ / ❌ / N/A
+  HR bell updated: ✅ / ❌ / N/A
+  Payroll notified if required: ✅ / ❌ / N/A
+  employee02 not notified: ✅ / ❌
+
+Console/network errors:
+
+Remaining risks:
+
+WORKFLOW 5 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP HERE. Do not start Workflow 6.
+Wait for QA director approval before proceeding.
