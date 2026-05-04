@@ -1,0 +1,155 @@
+You are a senior backend + payroll system architect.
+
+Your task is to IMPLEMENT a complete Payroll Run + Payslip system.
+
+IMPORTANT:
+The current payroll feature is mostly a stub (UI exists but backend logic is missing or incomplete).
+You must NOT patch — you must build it properly end-to-end.
+
+────────────────────────
+STEP 1 — DATABASE DESIGN
+────────────────────────
+
+Create full schema:
+
+1. payroll_runs
+- id
+- company_id
+- year
+- month
+- status (draft, calculated, approved, published)
+- total_gross
+- total_deductions
+- total_net
+- created_by
+- created_at
+
+2. payroll_slips
+- id
+- payroll_run_id
+- employee_id
+- basic_salary
+- allowances
+- overtime_amount
+- deductions
+- advance_deduction
+- net_salary
+- status (draft, final)
+- created_at
+
+3. payroll_components (optional but preferred)
+- id
+- slip_id
+- type (earning/deduction)
+- name
+- amount
+
+────────────────────────
+STEP 2 — BUSINESS LOGIC
+────────────────────────
+
+Implement full payroll calculation:
+
+For each employee:
+
+net_salary =
+  basic_salary
++ allowances
++ overtime
+- deductions
+- advance deductions
+
+Integrate with:
+
+- attendance_records → overtime (if exists)
+- salary_advances → ONLY approved advances should be deducted
+
+Advance deduction rules:
+- if lump sum → deduct full amount
+- if installments → deduct monthly installment
+
+────────────────────────
+STEP 3 — API ENDPOINTS
+────────────────────────
+
+Implement:
+
+POST /api/payroll/runs
+→ create run (draft)
+→ prevent duplicate for same (month + year)
+
+POST /api/payroll/runs/:id/calculate
+→ generate slips for all employees
+→ status → calculated
+
+POST /api/payroll/runs/:id/approve
+→ HR only
+→ status → approved
+
+POST /api/payroll/runs/:id/publish
+→ makes slips visible to employees
+→ status → published
+
+GET /api/payroll/runs
+→ list runs (role scoped)
+
+GET /api/payroll/runs/:id/slips
+→ HR: all
+→ manager: team
+→ employee: forbidden
+
+GET /api/payroll/slips/me
+→ employee sees only their slips
+
+────────────────────────
+STEP 4 — SECURITY
+────────────────────────
+
+- employee cannot see others
+- manager sees only team
+- payroll/HR sees all
+- no employeeId in body allowed (JWT only)
+
+────────────────────────
+STEP 5 — NOTIFICATIONS
+────────────────────────
+
+- on publish → notify employee:
+  type: payroll_published
+
+────────────────────────
+STEP 6 — AUDIT LOGS
+────────────────────────
+
+- payroll_run_created
+- payroll_calculated
+- payroll_approved
+- payroll_published
+
+────────────────────────
+STEP 7 — RETURN SHAPE
+────────────────────────
+
+Slip response must include:
+- employeeName
+- netSalary
+- deductions breakdown
+- advance deduction clearly shown
+
+────────────────────────
+CONSTRAINTS
+────────────────────────
+
+- Do NOT break existing modules
+- Follow existing Drizzle ORM style
+- Follow existing notification + audit patterns
+- No stub logic allowed
+
+OUTPUT:
+- schema
+- migrations
+- endpoints
+- helpers
+- fixes
+
+Think step-by-step, then implement everything cleanly.

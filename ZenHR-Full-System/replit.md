@@ -281,10 +281,38 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - **Percentage override**: Employee-specific `overrideValue` on percentage components is now treated as an absolute JOD amount. Default percentage from catalog `defaultValue` is only used when no override exists.
 - **Salary preview**: Updated to use full component catalog (calculationType, defaultValue, percentageBase) so percentage components resolve correctly with the same logic as the run engine.
 
+## Workflow 8 — Payroll Run + Payslip System (Completed)
+
+### 4-Step State Machine
+`draft` → `calculated` → `approved` → `published`
+
+| Step | Endpoint | Guard |
+|------|----------|-------|
+| Create draft | `POST /api/payroll/runs` | Blocks duplicate month+year |
+| Calculate | `POST /api/payroll/runs/:id/calculate` | Requires `draft` or `calculated` |
+| Approve | `POST /api/payroll/runs/:id/approve` | Requires `calculated` |
+| Publish | `POST /api/payroll/runs/:id/publish` | Requires `approved` |
+
+### Features Implemented
+- **Draft-only creation**: `POST /api/payroll/runs` creates a shell run with no slips; calculation is a separate step.
+- **Idempotent recalculation**: can be re-run from `calculated` status before approval (deletes stale slips and rebuilds).
+- **Salary advance deductions**: On calculate, each employee's approved advances are included. Monthly installments parsed from `repayment_plan` text (regex `/(\d+)/`); one-time advances deduct full remaining balance.
+- **Advance settlement on publish**: `remaining_balance` reduced for each linked advance ID stored in `componentsSnapshot`. Advances with zero remaining are set to `settled`.
+- **Employee notifications on publish**: Each affected employee receives a `payroll_published` notification with net salary.
+- **Audit logs**: `payroll_run_created`, `payroll_calculated`, `payroll_approved`, `payroll_published` logged to `activity_logs`.
+- **Frontend**: Calculate button (draft), Approve button (calculated), Publish button (approved). Status labels and badges for `calculated`, `published`, `settled`. Three confirm dialogs.
+
+### Schema Additions (Workflow 8)
+- `payroll_runs`: `created_by_id`, `published_at`, `published_by_id` columns added.
+- `payslips`: `advance_deduction NUMERIC(12,3)` column added.
+
+### Service Refactor
+- `payroll-run.service.ts` rewritten: `calculatePayroll(db, { companyId, runId, runMonth, runYear })` accepts an existing draft run ID. Returns `CalculatePayrollResult` with all totals. Uses transaction to atomically delete stale slips, insert new ones, and update run totals + status.
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types
-- payroll_runs, payslips (+ `overtime_earnings`, `ssc_employer_contribution` columns added Phase 5)
+- payroll_runs (+ `created_by_id`, `published_at`, `published_by_id` Workflow 8), payslips (+ `advance_deduction` Workflow 8)
 - attendance_records
 - documents, document_types
 - assets, asset_categories
@@ -296,3 +324,4 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - **salary_component_definitions** (Phase 5 — HR-configurable earnings/deductions catalog)
 - **salary_components** (Step 2 — company salary component catalog, normalized)
 - **employee_salary_components** (Step 2 — per-employee salary assignments with effective date ranges)
+- **salary_advances** (Workflow 7 — advance requests with manager→HR two-step approval, installment deduction on payroll)

@@ -1765,26 +1765,37 @@ app.post("/api/payroll/runs", auth, async (req, res) => {
     const runMonth = Number(req.body.month ?? req.body.runMonth);
     const runYear = Number(req.body.year ?? req.body.runYear);
     const notes: string | undefined = req.body.notes;
-    if (!runMonth || !runYear) {
-      res.status(400).json({ success: false, message: "month and year are required" }); return;
+    if (!runMonth || runMonth < 1 || runMonth > 12 || !runYear) {
+      res.status(400).json({ success: false, message: "Valid month (1-12) and year are required" }); return;
     }
 
-    // Immutability guard: block if an approved run exists for this period
-    const [existingApproved] = await db.select({ id: payrollRunsTable.id })
+    // Block any duplicate for same month+year (regardless of status)
+    const [existing] = await db.select({ id: payrollRunsTable.id, status: payrollRunsTable.status })
       .from(payrollRunsTable)
       .where(and(
         eq(payrollRunsTable.companyId, user.companyId),
         eq(payrollRunsTable.runMonth, runMonth),
         eq(payrollRunsTable.runYear, runYear),
-        eq(payrollRunsTable.status, "approved"),
         eq(payrollRunsTable.isDeleted, false),
       ));
-    if (existingApproved) {
-      res.status(409).json({ success: false, message: "An approved payroll run already exists for this period. It cannot be replaced." }); return;
+    if (existing) {
+      res.status(409).json({ success: false, message: `A payroll run already exists for this period (status: ${existing.status}).` }); return;
     }
 
-    const result = await runPayroll(db, { companyId: user.companyId, runMonth, runYear, notes });
-    res.status(201).json({ success: true, data: result.run });
+    const [run] = await db.insert(payrollRunsTable).values({
+      companyId:    user.companyId,
+      runMonth,
+      runYear,
+      status:       "draft",
+      notes:        notes?.trim() || null,
+      createdById:  user.userId,
+    }).returning();
+
+    await logActivity(user.companyId, "payroll_run_created",
+      `Payroll run created for ${runYear}-${String(runMonth).padStart(2,"0")} by ${user.username}`,
+      user.username);
+
+    res.status(201).json({ success: true, data: run });
   } catch (e) {
     console.error("[POST /api/payroll/runs]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1825,6 +1836,35 @@ app.get("/api/payroll/runs/:id/payslips", auth, async (req, res) => {
   }
 });
 
+app.post("/api/payroll/runs/:id/calculate", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden: payroll admin required" }); return;
+    }
+    const runId = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, runId), eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Payroll run not found" }); return; }
+    if (!["draft", "calculated"].includes(existing.status)) {
+      res.status(409).json({ success: false, message: `Cannot calculate a run with status '${existing.status}'` }); return;
+    }
+    const result = await runPayroll(db, {
+      companyId: user.companyId,
+      runId,
+      runMonth: existing.runMonth,
+      runYear:  existing.runYear,
+    });
+    await logActivity(user.companyId, "payroll_calculated",
+      `Payroll run #${runId} calculated: ${result.payslipCount} slips, gross=${result.totalGross} JOD by ${user.username}`,
+      user.username);
+    res.json({ success: true, data: result.run });
+  } catch (e) {
+    console.error("[POST /api/payroll/runs/:id/calculate]", e);
+    res.status(500).json({ success: false, message: (e as Error).message || "Internal server error" });
+  }
+});
+
 app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1835,15 +1875,111 @@ app.post("/api/payroll/runs/:id/approve", auth, async (req, res) => {
     const [existing] = await db.select().from(payrollRunsTable)
       .where(and(eq(payrollRunsTable.id, runId), eq(payrollRunsTable.companyId, user.companyId)));
     if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    if (existing.status === "approved") {
-      res.status(409).json({ success: false, message: "This payroll run is already approved and immutable." }); return;
+    if (existing.status === "approved" || existing.status === "published") {
+      res.status(409).json({ success: false, message: `This payroll run is already ${existing.status}.` }); return;
+    }
+    if (existing.status !== "calculated") {
+      res.status(409).json({ success: false, message: "Run must be calculated before approval." }); return;
     }
     const [run] = await db.update(payrollRunsTable).set({
       status: "approved", approvedAt: new Date(), approvedById: user.userId,
     }).where(eq(payrollRunsTable.id, runId)).returning();
+    await logActivity(user.companyId, "payroll_approved",
+      `Payroll run #${runId} (${existing.runYear}-${String(existing.runMonth).padStart(2,"0")}) approved by ${user.username}`,
+      user.username);
     res.json({ success: true, data: run });
   } catch (e) {
     console.error("[POST /api/payroll/runs/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/payroll/runs/:id/publish", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden: payroll admin required" }); return;
+    }
+    const runId = parseInt(req.params["id"]!);
+    const [existing] = await db.select().from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.id, runId), eq(payrollRunsTable.companyId, user.companyId)));
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+    if (existing.status === "published") {
+      res.status(409).json({ success: false, message: "Run is already published." }); return;
+    }
+    if (existing.status !== "approved") {
+      res.status(409).json({ success: false, message: "Run must be approved before publishing." }); return;
+    }
+
+    const [run] = await db.update(payrollRunsTable).set({
+      status: "published", publishedAt: new Date(), publishedById: user.userId,
+    }).where(eq(payrollRunsTable.id, runId)).returning();
+
+    // Notify employees and settle advance deductions
+    const slips = await db.select().from(payslipsTable).where(eq(payslipsTable.payrollRunId, runId));
+    const empIds = [...new Set(slips.map((s: any) => s.employeeId))];
+
+    // Get user IDs for all affected employees
+    const empUsers = empIds.length > 0
+      ? await db.select({ userId: usersTable.id, employeeId: usersTable.employeeId })
+          .from(usersTable)
+          .where(and(inArray(usersTable.employeeId, empIds as number[]), eq(usersTable.isDeleted, false)))
+      : [];
+
+    // Notify each employee
+    for (const eu of empUsers) {
+      const slip = slips.find((s: any) => s.employeeId === eu.employeeId);
+      const netAmt = slip ? parseFloat(String(slip.netSalary)).toFixed(3) : "0.000";
+      await notifyUsers([eu.userId], {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "payroll",
+        entityId: runId,
+        notificationType: "payroll_published",
+        titleAr: "تم نشر كشف الراتب",
+        titleEn: "Payslip Published",
+        messageAr: `كشف راتب ${existing.runYear}/${String(existing.runMonth).padStart(2,"0")} جاهز. صافي الراتب: ${netAmt} د.أ`,
+        messageEn: `Your payslip for ${existing.runYear}/${String(existing.runMonth).padStart(2,"0")} is ready. Net salary: ${netAmt} JOD`,
+        priority: "normal",
+        actionUrl: "/app/payroll/slips",
+      });
+    }
+
+    // Settle advance deductions: reduce remaining_balance for each advance
+    for (const slip of slips) {
+      const advDeductionM = Math.round(parseFloat(String(slip.advanceDeduction ?? "0")) * 1000);
+      if (advDeductionM <= 0) continue;
+      let snapshot: any = {};
+      try { snapshot = JSON.parse(slip.componentsSnapshot ?? "{}"); } catch {}
+      const advIds: number[] = snapshot.advanceIds ?? [];
+      if (!advIds.length) continue;
+
+      // Distribute the deduction across the linked advances
+      let remainingToSettle = advDeductionM;
+      for (const advId of advIds) {
+        if (remainingToSettle <= 0) break;
+        const [adv] = await db.select().from(salaryAdvancesTable).where(eq(salaryAdvancesTable.id, advId));
+        if (!adv) continue;
+        const currentRemM = Math.round(parseFloat(String(adv.remainingBalance ?? "0")) * 1000);
+        if (currentRemM <= 0) continue;
+        const settleM = Math.min(remainingToSettle, currentRemM);
+        const newRemM = currentRemM - settleM;
+        const newStatus = newRemM <= 0 ? "settled" : "approved";
+        await db.update(salaryAdvancesTable).set({
+          remainingBalance: (newRemM / 1000).toFixed(3),
+          status: newStatus,
+        }).where(eq(salaryAdvancesTable.id, advId));
+        remainingToSettle -= settleM;
+      }
+    }
+
+    await logActivity(user.companyId, "payroll_published",
+      `Payroll run #${runId} (${existing.runYear}-${String(existing.runMonth).padStart(2,"0")}) published by ${user.username}`,
+      user.username);
+
+    res.json({ success: true, data: run });
+  } catch (e) {
+    console.error("[POST /api/payroll/runs/:id/publish]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

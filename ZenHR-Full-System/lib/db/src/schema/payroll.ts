@@ -21,6 +21,9 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   processedAt: timestamp("processed_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedById: integer("approved_by_id"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  publishedById: integer("published_by_id"),
+  createdById: integer("created_by_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -50,6 +53,7 @@ export const payslipsTable = pgTable("payslips", {
   netSalary: decimal("net_salary", { precision: 12, scale: 3 }).notNull(),
   bankName: varchar("bank_name", { length: 200 }),
   iban: varchar("iban", { length: 34 }),
+  advanceDeduction: decimal("advance_deduction", { precision: 12, scale: 3 }).default("0").notNull(),
   componentsSnapshot: text("components_snapshot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

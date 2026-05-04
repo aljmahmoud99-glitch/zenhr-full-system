@@ -1,6 +1,6 @@
 // ─── PayrollRunService ────────────────────────────────────────────────────────
-// Orchestrates a full payroll run for all active employees in a company.
-// Depends on SalaryCalculationService for all arithmetic.
+// Orchestrates payroll calculation for all active employees in a company.
+// Call calculatePayroll() after a draft run has been created.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
@@ -11,6 +11,7 @@ import {
   payrollRunsTable,
   payslipsTable,
   salaryComponentsTable,
+  salaryAdvancesTable,
   systemConfigurationsTable,
 } from "@workspace/db/schema";
 import {
@@ -25,14 +26,14 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface RunPayrollInput {
+export interface CalculatePayrollInput {
   companyId: number;
+  runId: number;
   runMonth: number;
   runYear: number;
-  notes?: string;
 }
 
-export interface RunPayrollResult {
+export interface CalculatePayrollResult {
   run: Record<string, any>;
   payslipCount: number;
   totalGross: string;
@@ -82,16 +83,41 @@ function buildConfig(configs: { key: string; value: string }[]): PayrollConfig {
   };
 }
 
+// ─── Advance deduction helper ─────────────────────────────────────────────────
+
+function resolveInstallmentM(adv: any): number {
+  const remaining = Math.round(parseFloat(String(adv.remainingBalance ?? adv.remaining_balance ?? "0")) * 1000);
+  if (remaining <= 0) return 0;
+
+  const method: string = adv.repaymentMethod ?? adv.repayment_method ?? "monthly";
+  if (method === "one_time") return remaining;
+
+  // Monthly: try to parse installment count from repayment_plan text
+  const plan: string = adv.repaymentPlan ?? adv.repayment_plan ?? "";
+  const match = plan.match(/(\d+)/);
+  if (match) {
+    const count = parseInt(match[1]);
+    if (count > 0) {
+      const approved = Math.round(parseFloat(String(adv.approvedAmount ?? adv.approved_amount ?? "0")) * 1000);
+      const installment = Math.round(approved / count);
+      return Math.min(installment, remaining);
+    }
+  }
+
+  // Fallback: deduct all remaining (treat as one-time)
+  return remaining;
+}
+
 // ─── Main service function ────────────────────────────────────────────────────
 
-export async function runPayroll(
+export async function calculatePayroll(
   db: any,
-  input: RunPayrollInput,
-): Promise<RunPayrollResult> {
-  const { companyId, runMonth, runYear, notes } = input;
+  input: CalculatePayrollInput,
+): Promise<CalculatePayrollResult> {
+  const { companyId, runId, runMonth, runYear } = input;
 
   const periodStart = `${runYear}-${String(runMonth).padStart(2, "0")}-01`;
-  const lastDay     = new Date(runYear, runMonth, 0).getDate(); // actual last day of month
+  const lastDay     = new Date(runYear, runMonth, 0).getDate();
   const periodEnd   = `${runYear}-${String(runMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
   // ── 1. Load active employees ──────────────────────────────────────────────
@@ -113,24 +139,23 @@ export async function runPayroll(
   // ── 2. Bulk-load salary component assignments (effective in period) ────────
   const escRows: any[] = await db
     .select({
-      employeeId:       employeeSalaryComponentsTable.employeeId,
-      overrideValue:    employeeSalaryComponentsTable.overrideValue,
-      effectiveFrom:    employeeSalaryComponentsTable.effectiveFrom,
-      effectiveTo:      employeeSalaryComponentsTable.effectiveTo,
-      // Component catalog fields
-      componentId:      salaryComponentsTable.id,
-      code:             salaryComponentsTable.code,
-      nameAr:           salaryComponentsTable.nameAr,
-      nameEn:           salaryComponentsTable.nameEn,
-      componentType:    salaryComponentsTable.componentType,
-      calculationType:  salaryComponentsTable.calculationType,
-      defaultValue:     salaryComponentsTable.defaultValue,
-      formulaExpression:salaryComponentsTable.formulaExpression,
-      percentageBase:   salaryComponentsTable.percentageBase,
-      isTaxable:        salaryComponentsTable.isTaxable,
-      isSscApplicable:  salaryComponentsTable.isSscApplicable,
-      isRecurring:      salaryComponentsTable.isRecurring,
-      sortOrder:        salaryComponentsTable.sortOrder,
+      employeeId:        employeeSalaryComponentsTable.employeeId,
+      overrideValue:     employeeSalaryComponentsTable.overrideValue,
+      effectiveFrom:     employeeSalaryComponentsTable.effectiveFrom,
+      effectiveTo:       employeeSalaryComponentsTable.effectiveTo,
+      componentId:       salaryComponentsTable.id,
+      code:              salaryComponentsTable.code,
+      nameAr:            salaryComponentsTable.nameAr,
+      nameEn:            salaryComponentsTable.nameEn,
+      componentType:     salaryComponentsTable.componentType,
+      calculationType:   salaryComponentsTable.calculationType,
+      defaultValue:      salaryComponentsTable.defaultValue,
+      formulaExpression: salaryComponentsTable.formulaExpression,
+      percentageBase:    salaryComponentsTable.percentageBase,
+      isTaxable:         salaryComponentsTable.isTaxable,
+      isSscApplicable:   salaryComponentsTable.isSscApplicable,
+      isRecurring:       salaryComponentsTable.isRecurring,
+      sortOrder:         salaryComponentsTable.sortOrder,
     })
     .from(employeeSalaryComponentsTable)
     .innerJoin(salaryComponentsTable, eq(salaryComponentsTable.id, employeeSalaryComponentsTable.salaryComponentId))
@@ -140,10 +165,8 @@ export async function runPayroll(
       lte(employeeSalaryComponentsTable.effectiveFrom, periodEnd),
     ));
 
-  // Build per-employee assignment map
   const assignmentsByEmployee = new Map<number, EmployeeComponentAssignment[]>();
   for (const row of escRows) {
-    // Skip if effectiveTo is before period start
     if (row.effectiveTo && row.effectiveTo < periodStart) continue;
 
     const comp: SalaryComponentConfig = {
@@ -159,7 +182,6 @@ export async function runPayroll(
       isRecurring:       row.isRecurring,
       sortOrder:         row.sortOrder,
     };
-    // Attach nameEn for snapshot
     (comp as any).nameEn = row.nameEn;
     (comp as any).nameAr = row.nameAr;
 
@@ -181,10 +203,9 @@ export async function runPayroll(
       isNull(overtimeRequestsTable.linkedPayslipId),
     ));
 
-  // Aggregate OT per employee — will compute amount after knowing basic
   const otHoursByEmployee = new Map<number, { weekday: number; weekend: number; rowIds: number[] }>();
   for (const ot of otRows) {
-    const dayOfWeek = new Date(ot.date).getDay(); // 0=Sun, 5=Fri, 6=Sat
+    const dayOfWeek = new Date(ot.date).getDay();
     const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
     const hours = parseFloat(ot.hours);
     const prev = otHoursByEmployee.get(ot.employeeId) ?? { weekday: 0, weekend: 0, rowIds: [] };
@@ -193,25 +214,48 @@ export async function runPayroll(
     otHoursByEmployee.set(ot.employeeId, prev);
   }
 
-  // ── 4. Load payroll config ────────────────────────────────────────────────
+  // ── 4. Load approved salary advances with remaining balance > 0 ───────────
+  const advanceRows: any[] = await db
+    .select()
+    .from(salaryAdvancesTable)
+    .where(and(
+      inArray(salaryAdvancesTable.employeeId, empIds),
+      eq(salaryAdvancesTable.companyId, companyId),
+      eq(salaryAdvancesTable.isDeleted, false),
+      eq(salaryAdvancesTable.status, "approved"),
+    ));
+
+  // Aggregate advance deductions per employee
+  const advancesByEmployee = new Map<number, { totalM: number; ids: number[] }>();
+  for (const adv of advanceRows) {
+    const remainingM = Math.round(parseFloat(String(adv.remainingBalance ?? "0")) * 1000);
+    if (remainingM <= 0) continue;
+    const installmentM = resolveInstallmentM(adv);
+    if (installmentM <= 0) continue;
+    const prev = advancesByEmployee.get(adv.employeeId) ?? { totalM: 0, ids: [] };
+    prev.totalM += installmentM;
+    prev.ids.push(adv.id);
+    advancesByEmployee.set(adv.employeeId, prev);
+  }
+
+  // ── 5. Load payroll config ────────────────────────────────────────────────
   const configRows: any[] = await db
     .select()
     .from(systemConfigurationsTable)
     .where(eq(systemConfigurationsTable.companyId, companyId));
   const config = buildConfig(configRows);
 
-  // ── 5. Per-employee calculation ───────────────────────────────────────────
+  // ── 6. Per-employee calculation ───────────────────────────────────────────
   let totalGrossM = 0, totalNetM = 0, totalDeductionsM = 0;
   let totalSscEmployeeM = 0, totalSscEmployerM = 0, totalIncomeTaxM = 0, totalOTM = 0;
   const payslipValues: any[] = [];
-  const otLinkMap = new Map<number, number[]>(); // payslip-index → otRowIds
+  const otLinkMap = new Map<number, number[]>();
 
   for (const emp of employees) {
     const assignments = assignmentsByEmployee.get(emp.id) ?? [];
 
-    // Fall back to flat employee columns if no normalized components found
     if (assignments.length === 0) {
-      const fallbackBasicM   = toM(emp.basicSalary);
+      const fallbackBasicM = toM(emp.basicSalary);
       const fallbackComponents: EmployeeComponentAssignment[] = [
         { component: { id: 0, code: 'BASIC',     componentType: 'earning', calculationType: 'fixed', defaultValue: fromM(fallbackBasicM),                  formulaExpression: null, percentageBase: null, isTaxable: true,  isSscApplicable: true,  isRecurring: true, sortOrder: 1, nameEn: 'Basic Salary' } as any, overrideValue: null },
         { component: { id: 0, code: 'HOUSING',   componentType: 'earning', calculationType: 'fixed', defaultValue: String(emp.housingAllowance   ?? '0'), formulaExpression: null, percentageBase: null, isTaxable: false, isSscApplicable: false, isRecurring: true, sortOrder: 2, nameEn: 'Housing Allowance' } as any, overrideValue: null },
@@ -222,7 +266,6 @@ export async function runPayroll(
       assignments.push(...fallbackComponents);
     }
 
-    // Calculate overtime amount using basic salary
     const basicAssignment = assignments.find(a => a.component.code === 'BASIC');
     const basicJOD = basicAssignment
       ? parseFloat(basicAssignment.overrideValue ?? basicAssignment.component.defaultValue)
@@ -237,7 +280,6 @@ export async function runPayroll(
         )
       : 0;
 
-    // Calculate gross (components only, no OT)
     const { totalM: componentGrossM, breakdown } = calculateGross(assignments, {
       hours: (otData?.weekday ?? 0) + (otData?.weekend ?? 0),
       rate: config.overtimeRateWeekday,
@@ -245,11 +287,9 @@ export async function runPayroll(
     });
     const grossM = componentGrossM + overtimeM;
 
-    // Extract basic from breakdown for SSC base
     const basicBreakdown = breakdown.find(b => b.code === 'BASIC');
     const basicM = basicBreakdown?.calculatedValueM ?? toM(String(emp.basicSalary ?? '0'));
 
-    // Calculate deductions
     const hasFamily = emp.maritalStatus === 'married';
     const taxExemptionJOD = parseFloat(String(emp.taxExemptionAmount ?? '0'));
     const deductions = calculateDeductions(
@@ -262,9 +302,12 @@ export async function runPayroll(
       hasFamily,
     );
 
-    const netM = grossM - deductions.totalM;
+    // Advance deductions
+    const advData = advancesByEmployee.get(emp.id);
+    const advanceDeductionM = advData?.totalM ?? 0;
 
-    // Component snapshot for auditing
+    const netM = grossM - deductions.totalM - advanceDeductionM;
+
     const snapshot = {
       components: breakdown.map(b => ({
         code: b.code,
@@ -277,20 +320,21 @@ export async function runPayroll(
       overtimeJOD: fromM(overtimeM),
       overtimeHoursWeekday: otData?.weekday ?? 0,
       overtimeHoursWeekend: otData?.weekend ?? 0,
+      advanceDeductionJOD: fromM(advanceDeductionM),
+      advanceIds: advData?.ids ?? [],
     };
 
-    // Build payslip value object matching payslips table columns
-    const housingBreakdown  = breakdown.find(b => b.code === 'HOUSING');
+    const housingBreakdown   = breakdown.find(b => b.code === 'HOUSING');
     const transportBreakdown = breakdown.find(b => b.code === 'TRANSPORT');
-    const mobileBreakdown   = breakdown.find(b => b.code === 'MOBILE');
-    const mealBreakdown     = breakdown.find(b => b.code === 'MEAL');
-    // Sum any other earnings (not named components) into otherAllowances
+    const mobileBreakdown    = breakdown.find(b => b.code === 'MOBILE');
+    const mealBreakdown      = breakdown.find(b => b.code === 'MEAL');
     const knownCodes = new Set(['BASIC','HOUSING','TRANSPORT','MOBILE','MEAL']);
     const otherEarningsM = breakdown
       .filter(b => b.componentType === 'earning' && !knownCodes.has(b.code))
       .reduce((s, b) => s + b.calculatedValueM, 0);
 
     payslipValues.push({
+      payrollRunId:            runId,
       runMonth,
       runYear,
       employeeId:              emp.id,
@@ -306,39 +350,43 @@ export async function runPayroll(
       sscEmployerContribution: fromM(deductions.sscEmployerM),
       incomeTaxDeduction:      fromM(deductions.incomeTaxM),
       loanDeductions:          fromM(deductions.componentDeductionsM),
+      advanceDeduction:        fromM(advanceDeductionM),
       otherDeductions:         "0.000",
-      totalDeductions:         fromM(deductions.totalM),
-      netSalary:               fromM(netM),
+      totalDeductions:         fromM(deductions.totalM + advanceDeductionM),
+      netSalary:               fromM(Math.max(0, netM)),
       bankName:                emp.bankName ?? null,
       iban:                    emp.iban ?? null,
       componentsSnapshot:      JSON.stringify(snapshot),
-      payrollRunId:            0, // filled after run insert
     });
 
-    // Track OT row IDs for linking
     if (otData?.rowIds?.length) {
       otLinkMap.set(payslipValues.length - 1, otData.rowIds);
     }
 
     totalGrossM       += grossM;
-    totalNetM         += netM;
-    totalDeductionsM  += deductions.totalM;
+    totalNetM         += Math.max(0, netM);
+    totalDeductionsM  += deductions.totalM + advanceDeductionM;
     totalSscEmployeeM += deductions.sscEmployeeM;
     totalSscEmployerM += deductions.sscEmployerM;
     totalIncomeTaxM   += deductions.incomeTaxM;
     totalOTM          += overtimeM;
   }
 
-  // ── 6. Insert payroll run + payslips in a transaction ─────────────────────
-  let insertedRun: any;
+  // ── 7. Insert payslips and update payroll run in a transaction ─────────────
+  let updatedRun: any;
   const insertedPayslipIds: number[] = [];
 
   await db.transaction(async (tx: any) => {
-    const [run] = await tx.insert(payrollRunsTable).values({
-      companyId,
-      runMonth,
-      runYear,
-      status:                "draft",
+    // Delete any stale slips from a previous calculation of this run
+    await tx.delete(payslipsTable).where(eq(payslipsTable.payrollRunId, runId));
+
+    for (const pv of payslipValues) {
+      const [slip] = await tx.insert(payslipsTable).values(pv).returning({ id: payslipsTable.id });
+      insertedPayslipIds.push(slip.id);
+    }
+
+    const [run] = await tx.update(payrollRunsTable).set({
+      status:                "calculated",
       totalGross:            fromM(totalGrossM),
       totalNet:              fromM(totalNetM),
       totalDeductions:       fromM(totalDeductionsM),
@@ -348,19 +396,12 @@ export async function runPayroll(
       totalIncomeTax:        fromM(totalIncomeTaxM),
       employeeCount:         employees.length,
       processedAt:           new Date(),
-      notes:                 notes ?? null,
-    }).returning();
+    }).where(eq(payrollRunsTable.id, runId)).returning();
 
-    insertedRun = run;
-
-    for (let i = 0; i < payslipValues.length; i++) {
-      payslipValues[i].payrollRunId = run.id;
-      const [slip] = await tx.insert(payslipsTable).values(payslipValues[i]).returning({ id: payslipsTable.id });
-      insertedPayslipIds.push(slip.id);
-    }
+    updatedRun = run;
   });
 
-  // ── 7. Link OT records to their payslips (outside transaction for speed) ──
+  // ── 8. Link OT records to their payslips ──────────────────────────────────
   for (const [psIndex, otRowIds] of otLinkMap.entries()) {
     const payslipId = insertedPayslipIds[psIndex];
     if (!payslipId || !otRowIds.length) continue;
@@ -371,7 +412,7 @@ export async function runPayroll(
   }
 
   return {
-    run: insertedRun,
+    run:                   updatedRun,
     payslipCount:          payslipValues.length,
     totalGross:            fromM(totalGrossM),
     totalNet:              fromM(totalNetM),
@@ -382,3 +423,6 @@ export async function runPayroll(
     totalOvertimeEarnings: fromM(totalOTM),
   };
 }
+
+// Keep legacy export name for any other callers
+export { calculatePayroll as runPayroll };

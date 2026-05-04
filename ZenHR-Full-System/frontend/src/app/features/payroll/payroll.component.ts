@@ -13,7 +13,7 @@ import { getErrorMessage } from '../../core/utils/error-message';
 import { openPrintDoc } from '../../core/utils/print-doc.util';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 
-type PayrollStatus = 'draft' | 'approved' | 'paid' | 'unpaid' | string;
+type PayrollStatus = 'draft' | 'calculated' | 'approved' | 'published' | 'paid' | 'unpaid' | string;
 
 @Component({
   selector: 'app-payroll',
@@ -38,6 +38,10 @@ export class PayrollComponent implements OnInit {
   saving = signal(false);
   approvingRunId = signal<number | null>(null);
   confirmApproveRunId = signal<number | null>(null);
+  calculatingRunId = signal<number | null>(null);
+  confirmCalculateRunId = signal<number | null>(null);
+  publishingRunId = signal<number | null>(null);
+  confirmPublishRunId = signal<number | null>(null);
   selectedRunId = signal<number | null>(null);
   showCreateModal = signal(false);
   showSlipsModal = signal(false);
@@ -241,21 +245,27 @@ export class PayrollComponent implements OnInit {
 
   statusLabel(status: string) {
     const map: Record<string, { ar: string; en: string }> = {
-      draft: { ar: 'مسودة', en: 'Draft' },
-      approved: { ar: 'معتمد', en: 'Approved' },
-      paid: { ar: 'مدفوع', en: 'Paid' },
-      pending: { ar: 'قيد الانتظار', en: 'Pending' },
-      unpaid: { ar: 'غير مدفوع', en: 'Unpaid' }
+      draft:      { ar: 'مسودة',           en: 'Draft' },
+      calculated: { ar: 'محسوب',           en: 'Calculated' },
+      approved:   { ar: 'معتمد',           en: 'Approved' },
+      published:  { ar: 'منشور',           en: 'Published' },
+      paid:       { ar: 'مدفوع',           en: 'Paid' },
+      pending:    { ar: 'قيد الانتظار',    en: 'Pending' },
+      unpaid:     { ar: 'غير مدفوع',       en: 'Unpaid' },
+      settled:    { ar: 'مُسوَّى',         en: 'Settled' },
     };
     return this.lang === 'ar' ? (map[status]?.ar ?? status) : (map[status]?.en ?? status);
   }
 
   statusClass(status: string) {
     const map: Record<string, string> = {
-      draft: 'warning',
-      approved: 'success',
-      paid: 'success',
-      unpaid: 'neutral'
+      draft:      'warning',
+      calculated: 'info',
+      approved:   'success',
+      published:  'success',
+      paid:       'success',
+      unpaid:     'neutral',
+      settled:    'neutral',
     };
     return `z-badge ${map[status] ?? 'neutral'}`;
   }
@@ -464,6 +474,35 @@ export class PayrollComponent implements OnInit {
     this.selectedSlip.set(null);
   }
 
+  calculate(id: number) {
+    if (this.calculatingRunId() === id) return;
+    this.confirmCalculateRunId.set(id);
+  }
+
+  closeCalculateDialog() {
+    if (this.confirmCalculateRunId() !== null && this.calculatingRunId() !== this.confirmCalculateRunId()) {
+      this.confirmCalculateRunId.set(null);
+    }
+  }
+
+  submitCalculate() {
+    const id = this.confirmCalculateRunId();
+    if (!id || this.calculatingRunId() === id) return;
+    this.calculatingRunId.set(id);
+    this.api.post<ApiResponse<any>>(`/api/payroll/runs/${id}/calculate`, {}).subscribe({
+      next: () => {
+        this.calculatingRunId.set(null);
+        this.confirmCalculateRunId.set(null);
+        this.toast.success(this.label('تم حساب المسير بنجاح', 'Payroll run calculated successfully'));
+        this.loadRuns();
+      },
+      error: error => {
+        this.calculatingRunId.set(null);
+        this.toast.error(getErrorMessage(error, this.label('تعذر حساب المسير', 'Failed to calculate payroll run')));
+      }
+    });
+  }
+
   approve(id: number) {
     if (this.approvingRunId() === id) return;
     this.confirmApproveRunId.set(id);
@@ -490,6 +529,35 @@ export class PayrollComponent implements OnInit {
       error: error => {
         this.approvingRunId.set(null);
         this.toast.error(getErrorMessage(error, this.label('تعذر اعتماد المسير', 'Failed to approve payroll run')));
+      }
+    });
+  }
+
+  publish(id: number) {
+    if (this.publishingRunId() === id) return;
+    this.confirmPublishRunId.set(id);
+  }
+
+  closePublishDialog() {
+    if (this.confirmPublishRunId() !== null && this.publishingRunId() !== this.confirmPublishRunId()) {
+      this.confirmPublishRunId.set(null);
+    }
+  }
+
+  submitPublish() {
+    const id = this.confirmPublishRunId();
+    if (!id || this.publishingRunId() === id) return;
+    this.publishingRunId.set(id);
+    this.api.post<ApiResponse<any>>(`/api/payroll/runs/${id}/publish`, {}).subscribe({
+      next: () => {
+        this.publishingRunId.set(null);
+        this.confirmPublishRunId.set(null);
+        this.toast.success(this.label('تم نشر المسير وإشعار الموظفين', 'Payroll run published and employees notified'));
+        this.loadRuns();
+      },
+      error: error => {
+        this.publishingRunId.set(null);
+        this.toast.error(getErrorMessage(error, this.label('تعذر نشر المسير', 'Failed to publish payroll run')));
       }
     });
   }

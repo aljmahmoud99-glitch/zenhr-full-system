@@ -51,9 +51,9 @@
           <select class="z-input" [(ngModel)]="runStatusFilter" (ngModelChange)="applyRunFilters()">
             <option value="">{{ label('كل الحالات', 'All statuses') }}</option>
             <option value="draft">{{ statusLabel('draft') }}</option>
+            <option value="calculated">{{ statusLabel('calculated') }}</option>
             <option value="approved">{{ statusLabel('approved') }}</option>
-            <option value="paid">{{ statusLabel('paid') }}</option>
-            <option value="unpaid">{{ statusLabel('unpaid') }}</option>
+            <option value="published">{{ statusLabel('published') }}</option>
           </select>
         </label>
         <label class="field">
@@ -120,9 +120,17 @@
               <span class="material-icons">print</span>
               <span>{{ label('طباعة الملخص', 'Print summary') }}</span>
             </button>
-            <button class="z-btn-primary btn-sm" *ngIf="run.status === 'draft' && isPayrollAdmin" (click)="approve(run.id)" [disabled]="approvingRunId() === run.id">
+            <button class="z-btn-secondary btn-sm" *ngIf="run.status === 'draft' && isPayrollAdmin" (click)="calculate(run.id)" [disabled]="calculatingRunId() === run.id">
+              <span class="material-icons">calculate</span>
+              <span>{{ calculatingRunId() === run.id ? '...' : label('حساب المسير', 'Calculate run') }}</span>
+            </button>
+            <button class="z-btn-primary btn-sm" *ngIf="run.status === 'calculated' && isPayrollAdmin" (click)="approve(run.id)" [disabled]="approvingRunId() === run.id">
               <span class="material-icons">check_circle</span>
               <span>{{ approvingRunId() === run.id ? '...' : label('اعتماد المسير', 'Approve run') }}</span>
+            </button>
+            <button class="z-btn-primary btn-sm" *ngIf="run.status === 'approved' && isPayrollAdmin" (click)="publish(run.id)" [disabled]="publishingRunId() === run.id">
+              <span class="material-icons">publish</span>
+              <span>{{ publishingRunId() === run.id ? '...' : label('نشر المسير', 'Publish run') }}</span>
             </button>
           </div>
         </article>
@@ -403,6 +411,18 @@
   </div>
 
   <app-confirm-dialog
+    [open]="confirmCalculateRunId() !== null"
+    [title]="label('حساب مسير الرواتب', 'Calculate payroll run')"
+    [message]="label('سيتم حساب الرواتب لجميع الموظفين النشطين مع السلف والعمل الإضافي المعتمد. يمكن إعادة الحساب قبل الاعتماد.', 'Payroll will be calculated for all active employees including approved advances and overtime. You can recalculate before approving.')"
+    [confirmLabel]="label('حساب', 'Calculate')"
+    [cancelLabel]="label('إلغاء', 'Cancel')"
+    [loading]="confirmCalculateRunId() !== null && calculatingRunId() === confirmCalculateRunId()"
+    [tone]="'primary'"
+    (confirm)="submitCalculate()"
+    (cancel)="closeCalculateDialog()"
+  />
+
+  <app-confirm-dialog
     [open]="confirmApproveRunId() !== null"
     [title]="label('اعتماد مسير الرواتب', 'Approve payroll run')"
     [message]="label('هل تريد اعتماد هذا المسير الآن؟ بعد الاعتماد يصبح غير قابل للتعديل.', 'Do you want to approve this payroll run now? Once approved, it becomes immutable.')"
@@ -412,5 +432,17 @@
     [tone]="'primary'"
     (confirm)="submitApprove()"
     (cancel)="closeApproveDialog()"
+  />
+
+  <app-confirm-dialog
+    [open]="confirmPublishRunId() !== null"
+    [title]="label('نشر مسير الرواتب', 'Publish payroll run')"
+    [message]="label('سيتم نشر الكشوف وإشعار الموظفين وخصم السلف المعتمدة. هذا الإجراء لا يمكن التراجع عنه.', 'Payslips will be published, employees notified, and approved advance deductions settled. This action cannot be undone.')"
+    [confirmLabel]="label('نشر', 'Publish')"
+    [cancelLabel]="label('إلغاء', 'Cancel')"
+    [loading]="confirmPublishRunId() !== null && publishingRunId() === confirmPublishRunId()"
+    [tone]="'primary'"
+    (confirm)="submitPublish()"
+    (cancel)="closePublishDialog()"
   />
 </section>
