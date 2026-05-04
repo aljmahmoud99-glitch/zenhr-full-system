@@ -30,6 +30,8 @@ import {
   violationTypesTable,
   disciplinaryCasesTable,
   disciplinaryInvestigationsTable,
+  resignationsTable,
+  resignationApprovalsTable,
 } from "@workspace/db/schema";
 import {
   notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
@@ -5019,26 +5021,705 @@ app.put("/api/disciplinary/:id/acknowledge", auth, async (req, res) => {
 });
 
 // ─── Resignations ─────────────────────────────────────────────────────────────
-const resignationsStore: any[] = [];
-let resignationIdSeq = 1;
+// Approval workflow steps:
+//   step 1 — HR (hradmin)        : pending       → hr_approved
+//   step 2 — Manager (manager)   : hr_approved   → manager_approved
+//   step 3 — Finance (payroll)   : manager_approved → active_notice
+// Start clearance  (HR only)     : active_notice → clearance
+// Complete         (HR only)     : clearance     → completed
+// Reject (any active step)       : any → rejected
+//
+// Status set that counts as terminal (no transitions out):
+const RESIGNATION_TERMINAL = new Set(["completed", "rejected", "withdrawn"]);
 
+// Build joined resignation list row shape from a raw DB row + joined data
+async function buildResignationRow(r: any, userId: number, userRole: string, userEmpId: number | null) {
+  const [emp] = await db.select({
+    id: employeesTable.id,
+    code: employeesTable.employeeCode,
+    nameAr: sql<string>`${employeesTable.firstNameAr} || ' ' || ${employeesTable.lastNameAr}`,
+    departmentId: employeesTable.departmentId,
+    orgNodeId: employeesTable.orgNodeId,
+    jobTitleId: employeesTable.jobTitleId,
+    directManagerId: employeesTable.directManagerId,
+  }).from(employeesTable).where(eq(employeesTable.id, r.employeeId)).limit(1);
+
+  const dept = emp?.departmentId
+    ? (await db.select({ nameAr: departmentsTable.nameAr, nameEn: departmentsTable.nameEn }).from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1))[0]
+    : null;
+
+  const orgNode = emp?.orgNodeId
+    ? (await db.select({ nameAr: orgNodesTable.nameAr, nameEn: orgNodesTable.nameEn, nodeType: orgNodesTable.nodeType }).from(orgNodesTable).where(eq(orgNodesTable.id, emp.orgNodeId)).limit(1))[0]
+    : null;
+
+  const jobTitle = emp?.jobTitleId
+    ? (await db.select({ titleAr: jobTitlesTable.titleAr }).from(jobTitlesTable).where(eq(jobTitlesTable.id, emp.jobTitleId)).limit(1))[0]
+    : null;
+
+  // notice progress (0-100)
+  let noticeProgress = 0;
+  if (r.noticeTimerStart && r.noticeTimerEnd) {
+    const start = new Date(r.noticeTimerStart).getTime();
+    const end = new Date(r.noticeTimerEnd).getTime();
+    const now = Date.now();
+    if (end > start) noticeProgress = Math.min(100, Math.max(0, Math.round((now - start) / (end - start) * 100)));
+  }
+
+  // canCurrentUserApprove/Reject
+  let canCurrentUserApprove = false;
+  let canCurrentUserReject = false;
+  let currentApprovalStep: number | null = r.currentApprovalStep;
+  let currentApprovalLabel: string | null = null;
+
+  if (!RESIGNATION_TERMINAL.has(r.status) && currentApprovalStep) {
+    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
+    const stepLabels: Record<number, string> = { 1: "مراجعة الموارد البشرية", 2: "موافقة المدير", 3: "اعتماد المالية" };
+    const expectedRole = stepRoleMap[currentApprovalStep];
+    currentApprovalLabel = stepLabels[currentApprovalStep] ?? null;
+    if (userRole === expectedRole) {
+      canCurrentUserApprove = true;
+      canCurrentUserReject = true;
+    }
+  }
+
+  return {
+    id: r.id,
+    employeeId: r.employeeId,
+    employeeCode: emp?.code ?? "",
+    employeeNameAr: emp?.nameAr ?? "",
+    departmentAr: dept?.nameAr ?? "",
+    departmentEn: dept?.nameEn ?? "",
+    departmentId: emp?.departmentId ?? null,
+    orgNodeId: emp?.orgNodeId ?? null,
+    orgNodeNameAr: orgNode?.nameAr ?? null,
+    orgNodeNameEn: orgNode?.nameEn ?? null,
+    orgNodeType: orgNode?.nodeType ?? null,
+    jobTitleAr: jobTitle?.titleAr ?? "",
+    resignationDate: r.resignationDate,
+    lastWorkingDay: r.lastWorkingDay ?? null,
+    noticePeriodDays: r.noticePeriodDays ?? 30,
+    noticeTimerStart: r.noticeTimerStart ?? null,
+    noticeTimerEnd: r.noticeTimerEnd ?? null,
+    reason: r.reason ?? null,
+    status: r.status,
+    noticeProgress,
+    currentApprovalStep,
+    currentApprovalLabel,
+    canCurrentUserApprove,
+    canCurrentUserReject,
+  };
+}
+
+// GET /api/resignations — list
 app.get("/api/resignations", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  let result: any[] = resignationsStore;
-  if (user.role === "employee") {
-    result = result.filter((r: any) => r.employeeId === user.employeeId);
+  try {
+    const conditions: any[] = [
+      eq(resignationsTable.companyId, user.companyId),
+      eq(resignationsTable.isDeleted, false),
+    ];
+    // employees see only own resignations; payroll → 403
+    if (user.role === "employee") {
+      if (!user.employeeId) return res.status(403).json({ success: false, message: "No employee record" });
+      conditions.push(eq(resignationsTable.employeeId, user.employeeId));
+    } else if (user.role === "payrolladmin") {
+      // payroll can see resignations in read-only (they approve step 3) — allow list
+    } else if (!["hradmin", "manager"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const rows = await db.select().from(resignationsTable).where(and(...conditions)).orderBy(desc(resignationsTable.createdAt));
+    const data = await Promise.all(rows.map(r => buildResignationRow(r, user.id, user.role, user.employeeId ?? null)));
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/resignations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
-  res.json({ success: true, data: result });
 });
 
+// GET /api/resignations/stats
+app.get("/api/resignations/stats", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  try {
+    const rows = await db.select({ status: resignationsTable.status })
+      .from(resignationsTable)
+      .where(and(eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)));
+
+    const total = rows.length;
+    const pending = rows.filter(r => r.status === "pending").length;
+    const activeNotice = rows.filter(r => r.status === "active_notice").length;
+    const clearance = rows.filter(r => r.status === "clearance").length;
+    const completed = rows.filter(r => r.status === "completed").length;
+    const rejected = rows.filter(r => r.status === "rejected").length;
+
+    res.json({ success: true, data: { total, pending, activeNotice, clearance, completed, rejected } });
+  } catch (e) {
+    console.error("[GET /api/resignations/stats]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/resignations/:id — detail with nested objects
+app.get("/api/resignations/:id", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select().from(resignationsTable).where(and(
+      eq(resignationsTable.id, id),
+      eq(resignationsTable.companyId, user.companyId),
+      eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+
+    // employees can only see their own
+    if (user.role === "employee") {
+      if (r.employeeId !== user.employeeId) return res.status(404).json({ success: false, message: "Resignation not found" });
+    } else if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    // employee info
+    const [emp] = await db.select({
+      id: employeesTable.id,
+      code: employeesTable.employeeCode,
+      nameAr: sql<string>`${employeesTable.firstNameAr} || ' ' || ${employeesTable.lastNameAr}`,
+      departmentId: employeesTable.departmentId,
+      orgNodeId: employeesTable.orgNodeId,
+      jobTitleId: employeesTable.jobTitleId,
+    }).from(employeesTable).where(eq(employeesTable.id, r.employeeId)).limit(1);
+
+    const dept = emp?.departmentId
+      ? (await db.select({ nameAr: departmentsTable.nameAr, nameEn: departmentsTable.nameEn }).from(departmentsTable).where(eq(departmentsTable.id, emp.departmentId)).limit(1))[0]
+      : null;
+
+    const orgNode = emp?.orgNodeId
+      ? (await db.select({ nameAr: orgNodesTable.nameAr, nameEn: orgNodesTable.nameEn }).from(orgNodesTable).where(eq(orgNodesTable.id, emp.orgNodeId)).limit(1))[0]
+      : null;
+
+    const jobTitle = emp?.jobTitleId
+      ? (await db.select({ titleAr: jobTitlesTable.titleAr }).from(jobTitlesTable).where(eq(jobTitlesTable.id, emp.jobTitleId)).limit(1))[0]
+      : null;
+
+    // approvals
+    const approvalRows = await db.select().from(resignationApprovalsTable)
+      .where(and(eq(resignationApprovalsTable.resignationId, id), eq(resignationApprovalsTable.companyId, user.companyId)))
+      .orderBy(asc(resignationApprovalsTable.approvalStep));
+
+    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
+    const approvals = approvalRows.map(a => ({
+      approvalStep: a.approvalStep,
+      stepLabel: a.stepLabel,
+      approverRole: a.approverRole,
+      decision: a.decision,
+      notes: a.notes,
+      decidedAt: a.decidedAt,
+      canAct: a.decision === "pending" && a.approvalStep === r.currentApprovalStep && user.role === stepRoleMap[a.approvalStep ?? 0],
+    }));
+
+    // pending assets (currently assigned to this employee)
+    const pendingAssets = await db.select({
+      id: assetsTable.id,
+      assetNameAr: assetsTable.nameAr,
+      assetNameEn: assetsTable.nameEn,
+      serialNumber: assetsTable.serialNumber,
+      categoryId: assetsTable.categoryId,
+      assignedDate: assetsTable.assignedDate,
+    }).from(assetsTable).where(and(
+      eq(assetsTable.assignedToEmployeeId, r.employeeId),
+      eq(assetsTable.companyId, user.companyId),
+      eq(assetsTable.currentStatus, "assigned"),
+      eq(assetsTable.isDeleted, false)
+    ));
+
+    // attach category names
+    const assetsWithCat = await Promise.all(pendingAssets.map(async a => {
+      const cat = a.categoryId
+        ? (await db.select({ nameAr: assetCategoriesTable.nameAr, nameEn: assetCategoriesTable.nameEn }).from(assetCategoriesTable).where(eq(assetCategoriesTable.id, a.categoryId)).limit(1))[0]
+        : null;
+      return { ...a, categoryNameAr: cat?.nameAr ?? null, categoryNameEn: cat?.nameEn ?? null };
+    }));
+
+    // notice progress
+    let noticeProgress = 0;
+    if (r.noticeTimerStart && r.noticeTimerEnd) {
+      const start = new Date(r.noticeTimerStart).getTime();
+      const end = new Date(r.noticeTimerEnd).getTime();
+      const now = Date.now();
+      if (end > start) noticeProgress = Math.min(100, Math.max(0, Math.round((now - start) / (end - start) * 100)));
+    }
+
+    const detail = {
+      id: r.id,
+      employeeId: r.employeeId,
+      employeeCode: emp?.code ?? "",
+      employeeNameAr: emp?.nameAr ?? "",
+      departmentAr: dept?.nameAr ?? "",
+      departmentEn: dept?.nameEn ?? "",
+      departmentId: emp?.departmentId ?? null,
+      orgNodeId: emp?.orgNodeId ?? null,
+      orgNodeNameAr: orgNode?.nameAr ?? null,
+      orgNodeNameEn: orgNode?.nameEn ?? null,
+      jobTitleAr: jobTitle?.titleAr ?? "",
+      resignationDate: r.resignationDate,
+      lastWorkingDay: r.lastWorkingDay ?? null,
+      noticePeriodDays: r.noticePeriodDays ?? 30,
+      noticeTimerStart: r.noticeTimerStart ?? null,
+      noticeTimerEnd: r.noticeTimerEnd ?? null,
+      reason: r.reason ?? null,
+      status: r.status,
+      noticeProgress,
+      currentApprovalStep: r.currentApprovalStep,
+      pendingAssetsCount: assetsWithCat.length,
+      pendingAssets: assetsWithCat,
+      employee: {
+        nameAr: emp?.nameAr ?? "",
+        code: emp?.code ?? "",
+        jobTitle: jobTitle?.titleAr ?? "",
+        department: dept?.nameAr ?? "",
+        orgNodeNameAr: orgNode?.nameAr ?? null,
+        orgNodeNameEn: orgNode?.nameEn ?? null,
+      },
+      approvals,
+      exitInterview: {
+        leavingReason: r.leavingReason ?? "",
+        companyFeedback: r.companyFeedback ?? "",
+        interviewDate: r.interviewDate ?? null,
+      },
+      clearance: {
+        remainingSalary: Number(r.remainingSalary ?? 0),
+        leavePayout: Number(r.leavePayout ?? 0),
+        eosbAmount: Number(r.eosbAmount ?? 0),
+        noticeCompensation: Number(r.noticeCompensation ?? 0),
+        otherDeductions: Number(r.otherDeductions ?? 0),
+        settlementNotes: r.settlementNotes ?? "",
+        clearanceItemsJson: r.clearanceItemsJson ?? "[]",
+      },
+    };
+
+    res.json({ success: true, data: detail });
+  } catch (e) {
+    console.error("[GET /api/resignations/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/resignations — create
 app.post("/api/resignations", auth, async (req, res) => {
-  const record = { id: resignationIdSeq++, ...req.body, status: "pending", createdAt: new Date() };
-  resignationsStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  const user = (req as AuthReq).user;
+  // employees can create for themselves; HR can create for any employee
+  if (!["hradmin", "employee"].includes(user.role)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  try {
+    const { employeeId: bodyEmpId, resignationDate, lastWorkingDay, noticePeriodDays, reason } = req.body;
+
+    // resolve employeeId
+    let resolvedEmpId: number;
+    if (user.role === "employee") {
+      if (!user.employeeId) return res.status(400).json({ success: false, message: "No employee record linked to your account" });
+      resolvedEmpId = user.employeeId;
+    } else {
+      if (!bodyEmpId) return res.status(400).json({ success: false, message: "employeeId is required" });
+      resolvedEmpId = Number(bodyEmpId);
+    }
+
+    if (!resignationDate) return res.status(400).json({ success: false, message: "resignationDate is required" });
+    if (!reason || !String(reason).trim()) return res.status(400).json({ success: false, message: "reason is required" });
+
+    // validate employee in company
+    const [empCheck] = await db.select({ id: employeesTable.id, employmentStatus: employeesTable.employmentStatus })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, resolvedEmpId), eq(employeesTable.companyId, user.companyId)))
+      .limit(1);
+    if (!empCheck) return res.status(400).json({ success: false, message: "Employee not found in your company" });
+    if (empCheck.employmentStatus !== "active") return res.status(400).json({ success: false, message: "Employee is not currently active" });
+
+    // validate lastWorkingDay >= resignationDate (field validation before duplicate check)
+    const noticeDays = Math.max(0, Number(noticePeriodDays ?? 30));
+    let resolvedLWD = lastWorkingDay ?? null;
+    if (resolvedLWD && resolvedLWD < resignationDate) {
+      return res.status(400).json({ success: false, message: "lastWorkingDay cannot be before resignationDate" });
+    }
+
+    // block duplicate active resignation
+    const existing = await db.select({ id: resignationsTable.id, status: resignationsTable.status })
+      .from(resignationsTable).where(and(
+        eq(resignationsTable.employeeId, resolvedEmpId),
+        eq(resignationsTable.companyId, user.companyId),
+        eq(resignationsTable.isDeleted, false),
+      )).limit(1);
+    if (existing.length > 0 && !RESIGNATION_TERMINAL.has(existing[0].status)) {
+      return res.status(409).json({ success: false, message: "Employee already has an active resignation in progress" });
+    }
+    // compute LWD from notice if not supplied
+    if (!resolvedLWD && noticeDays > 0) {
+      const d = new Date(resignationDate);
+      d.setDate(d.getDate() + noticeDays);
+      resolvedLWD = d.toISOString().substring(0, 10);
+    }
+
+    const [inserted] = await db.insert(resignationsTable).values({
+      companyId: user.companyId,
+      employeeId: resolvedEmpId,
+      resignationDate,
+      lastWorkingDay: resolvedLWD,
+      noticePeriodDays: noticeDays,
+      noticeTimerStart: resignationDate,
+      noticeTimerEnd: resolvedLWD,
+      reason: String(reason).substring(0, 2000),
+      status: "pending",
+      currentApprovalStep: 1,
+      createdByUserId: user.id,
+    }).returning();
+
+    // create 3 approval stub rows
+    const stepDefs = [
+      { step: 1, label: "مراجعة الموارد البشرية", role: "hradmin" },
+      { step: 2, label: "موافقة المدير", role: "manager" },
+      { step: 3, label: "اعتماد المالية", role: "payrolladmin" },
+    ];
+    for (const s of stepDefs) {
+      await db.insert(resignationApprovalsTable).values({
+        companyId: user.companyId,
+        resignationId: inserted.id,
+        approvalStep: s.step,
+        stepLabel: s.label,
+        approverRole: s.role,
+        decision: "pending",
+      });
+    }
+
+    // audit log
+    await db.insert(activityLogsTable).values({
+      type: "resignation_created",
+      description: `تم تسجيل استقالة جديدة للموظف ID ${resolvedEmpId} (الاستقالة #${inserted.id})`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    // notify employee (confirmation of submission)
+    await notifyEmployee(resolvedEmpId, user.companyId, {
+      notificationType: "resignation_submitted",
+      titleAr: "تم استلام طلب استقالتك",
+      titleEn: "Resignation Request Received",
+      messageAr: `تم تسجيل طلب استقالتك بتاريخ ${resignationDate}. سيتم مراجعته من قبل الموارد البشرية.`,
+      messageEn: `Your resignation request dated ${resignationDate} has been recorded and is pending HR review.`,
+      priority: "normal",
+      entityType: "resignation",
+      entityId: inserted.id,
+    });
+
+    const row = await buildResignationRow(inserted, user.id, user.role, user.employeeId ?? null);
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error("[POST /api/resignations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.get("/api/resignations/stats", auth, async (_req, res) => {
-  res.json({ success: true, data: { total: resignationsStore.length, pending: resignationsStore.filter(r => r.status === "pending").length, approved: 0, rejected: 0 } });
+// PUT /api/resignations/:id/approve — approve current step
+app.put("/api/resignations/:id/approve", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select().from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+    if (RESIGNATION_TERMINAL.has(r.status)) return res.status(409).json({ success: false, message: "Resignation is already in a terminal state" });
+
+    const step = r.currentApprovalStep ?? 1;
+    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
+    const stepStatusMap: Record<number, string> = { 1: "hr_approved", 2: "manager_approved", 3: "active_notice" };
+    if (user.role !== stepRoleMap[step]) {
+      return res.status(403).json({ success: false, message: `This step requires role: ${stepRoleMap[step]}` });
+    }
+
+    const newStatus = stepStatusMap[step];
+    const nextStep = step < 3 ? step + 1 : null;
+
+    await db.update(resignationsTable).set({
+      status: newStatus,
+      currentApprovalStep: nextStep,
+      updatedAt: new Date(),
+    }).where(eq(resignationsTable.id, id));
+
+    await db.update(resignationApprovalsTable).set({
+      decision: "approved",
+      approverUserId: user.id,
+      notes: req.body.notes ?? null,
+      decidedAt: new Date(),
+    }).where(and(eq(resignationApprovalsTable.resignationId, id), eq(resignationApprovalsTable.approvalStep, step)));
+
+    await db.insert(activityLogsTable).values({
+      type: "resignation_approved",
+      description: `تمت الموافقة على المرحلة ${step} للاستقالة #${id} — الحالة الجديدة: ${newStatus}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    // notify employee of approval
+    await notifyEmployee(r.employeeId, user.companyId, {
+      notificationType: "resignation_step_approved",
+      titleAr: "تمت الموافقة على مرحلة استقالتك",
+      titleEn: "Resignation Step Approved",
+      messageAr: `تمت الموافقة على المرحلة ${step} من استقالتك. الحالة الحالية: ${newStatus}.`,
+      messageEn: `Step ${step} of your resignation was approved. New status: ${newStatus}.`,
+      priority: "normal",
+      entityType: "resignation",
+      entityId: id,
+    });
+
+    res.json({ success: true, data: { id, status: newStatus, currentApprovalStep: nextStep } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/reject — reject at current step
+app.put("/api/resignations/:id/reject", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select().from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+    if (RESIGNATION_TERMINAL.has(r.status)) return res.status(409).json({ success: false, message: "Resignation is already in a terminal state" });
+
+    const notes = req.body.notes?.trim();
+    if (!notes) return res.status(400).json({ success: false, message: "Rejection reason (notes) is required" });
+
+    const step = r.currentApprovalStep ?? 1;
+    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
+    if (user.role !== stepRoleMap[step]) {
+      return res.status(403).json({ success: false, message: `This step requires role: ${stepRoleMap[step]}` });
+    }
+
+    await db.update(resignationsTable).set({ status: "rejected", currentApprovalStep: null, updatedAt: new Date() }).where(eq(resignationsTable.id, id));
+    await db.update(resignationApprovalsTable).set({
+      decision: "rejected",
+      approverUserId: user.id,
+      notes,
+      decidedAt: new Date(),
+    }).where(and(eq(resignationApprovalsTable.resignationId, id), eq(resignationApprovalsTable.approvalStep, step)));
+
+    await db.insert(activityLogsTable).values({
+      type: "resignation_rejected",
+      description: `تم رفض الاستقالة #${id} في المرحلة ${step} — السبب: ${notes}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    await notifyEmployee(r.employeeId, user.companyId, {
+      notificationType: "resignation_rejected",
+      titleAr: "تم رفض استقالتك",
+      titleEn: "Resignation Rejected",
+      messageAr: `تم رفض طلب استقالتك في المرحلة ${step}. السبب: ${notes}`,
+      messageEn: `Your resignation was rejected at step ${step}. Reason: ${notes}`,
+      priority: "high",
+      entityType: "resignation",
+      entityId: id,
+    });
+
+    res.json({ success: true, data: { id, status: "rejected" } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/reject]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/start-clearance — active_notice → clearance (HR only)
+app.put("/api/resignations/:id/start-clearance", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!requireHR(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select().from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+    if (r.status !== "active_notice") return res.status(409).json({ success: false, message: `Cannot start clearance from status: ${r.status}` });
+
+    await db.update(resignationsTable).set({ status: "clearance", updatedAt: new Date() }).where(eq(resignationsTable.id, id));
+    await db.insert(activityLogsTable).values({
+      type: "resignation_clearance_started",
+      description: `تم بدء إجراءات التسليم للاستقالة #${id}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: { id, status: "clearance" } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/start-clearance]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/complete — clearance → completed (HR only)
+app.put("/api/resignations/:id/complete", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!requireHR(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select().from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+    if (r.status !== "clearance") return res.status(409).json({ success: false, message: `Cannot complete resignation from status: ${r.status}` });
+
+    await db.update(resignationsTable).set({ status: "completed", currentApprovalStep: null, updatedAt: new Date() }).where(eq(resignationsTable.id, id));
+    await db.insert(activityLogsTable).values({
+      type: "resignation_completed",
+      description: `تم إنهاء الاستقالة #${id} بنجاح`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    await notifyEmployee(r.employeeId, user.companyId, {
+      notificationType: "resignation_completed",
+      titleAr: "تم إنهاء استقالتك",
+      titleEn: "Resignation Completed",
+      messageAr: "تم إنهاء إجراءات استقالتك رسمياً. نتمنى لك التوفيق.",
+      messageEn: "Your resignation process has been officially completed. Best of luck!",
+      priority: "normal",
+      entityType: "resignation",
+      entityId: id,
+    });
+
+    res.json({ success: true, data: { id, status: "completed" } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/complete]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/exit-interview — save exit interview (HR only)
+app.put("/api/resignations/:id/exit-interview", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!requireHR(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select({ id: resignationsTable.id }).from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+
+    const { leavingReason, companyFeedback, interviewDate } = req.body;
+    await db.update(resignationsTable).set({
+      leavingReason: leavingReason ?? null,
+      companyFeedback: companyFeedback ?? null,
+      interviewDate: interviewDate ?? null,
+      updatedAt: new Date(),
+    }).where(eq(resignationsTable.id, id));
+
+    await db.insert(activityLogsTable).values({
+      type: "resignation_interview_saved",
+      description: `تم حفظ بيانات مقابلة الخروج للاستقالة #${id}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: { id } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/exit-interview]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/clearance — save clearance items (HR only)
+app.put("/api/resignations/:id/clearance", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!requireHR(req, res)) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select({ id: resignationsTable.id }).from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+
+    const { clearanceItemsJson } = req.body;
+    await db.update(resignationsTable).set({
+      clearanceItemsJson: clearanceItemsJson ?? "[]",
+      updatedAt: new Date(),
+    }).where(eq(resignationsTable.id, id));
+
+    await db.insert(activityLogsTable).values({
+      type: "resignation_clearance_saved",
+      description: `تم حفظ بنود التسليم للاستقالة #${id}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: { id } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/clearance]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/resignations/:id/settlement — save settlement (HR or Finance)
+app.put("/api/resignations/:id/settlement", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "payrolladmin"].includes(user.role)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
+  try {
+    const [r] = await db.select({ id: resignationsTable.id }).from(resignationsTable).where(and(
+      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
+    )).limit(1);
+    if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
+
+    const { remainingSalary, leavePayout, eosbAmount, noticeCompensation, otherDeductions, settlementNotes } = req.body;
+    const rs = Number(remainingSalary ?? 0);
+    const lp = Number(leavePayout ?? 0);
+    const eosb = Number(eosbAmount ?? 0);
+    const nc = Number(noticeCompensation ?? 0);
+    const od = Number(otherDeductions ?? 0);
+    const finalAmount = rs + lp + eosb + nc - od;
+
+    await db.update(resignationsTable).set({
+      remainingSalary: String(rs),
+      leavePayout: String(lp),
+      eosbAmount: String(eosb),
+      noticeCompensation: String(nc),
+      otherDeductions: String(od),
+      settlementNotes: settlementNotes ?? null,
+      updatedAt: new Date(),
+    }).where(eq(resignationsTable.id, id));
+
+    await db.insert(activityLogsTable).values({
+      type: "resignation_settlement_saved",
+      description: `تم حفظ بيانات التسوية للاستقالة #${id} — المبلغ الإجمالي: ${finalAmount.toFixed(3)}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: { id, finalAmount } });
+  } catch (e) {
+    console.error("[PUT /api/resignations/:id/settlement]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Clearance ────────────────────────────────────────────────────────────────
