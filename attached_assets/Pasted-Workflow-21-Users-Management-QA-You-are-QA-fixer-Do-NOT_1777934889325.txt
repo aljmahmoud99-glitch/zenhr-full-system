@@ -1,0 +1,163 @@
+Workflow 21 — Users Management QA
+
+You are QA + fixer. Do NOT assume the Users screen works. Fully inspect frontend, backend, DB schema, auth guards, role guards, field mapping, and live API behavior before changing code.
+
+Target screen:
+- /app/users
+- Users Management / المستخدمون
+
+Goal:
+Run complete QA for user management: list, search, create user, edit user, activate/deactivate, role assignment integration, employee linking, security, scope, audit logs, notifications if applicable. If any endpoint is stubbed, broken, unscoped, leaking fields, or mismatched with frontend expectations, fix it immediately and retest.
+
+Use accounts:
+- superadmin/admin
+- hr
+- payroll
+- manager.hr
+- employee01
+- employee02
+
+Required discovery:
+1. Find the frontend component/html/service for /app/users.
+2. List every API call the page makes.
+3. Inspect backend handlers for those APIs.
+4. Inspect users table schema and relations with employees/roles/companies.
+5. Identify exact frontend expected fields.
+6. Check if passwordHash, refreshToken, reset tokens, or sensitive fields leak anywhere.
+
+QA tasks:
+
+A. Page loading
+- Login as superadmin/hr and open /app/users.
+- Verify list loads with real DB users.
+- No “failed loading data”.
+- No 404/500.
+- Search works by username, email, employee name, role.
+- Filters work if present: role/status/company/employee linked.
+
+B. Role access
+- superadmin can view/manage users.
+- hradmin can view/manage allowed users only.
+- payrolladmin cannot manage users unless explicitly intended.
+- manager cannot view full users list.
+- employee cannot view full users list.
+- unauthenticated returns 401.
+- unauthorized roles return 403, not data.
+
+C. Data leakage
+- GET /api/users must never return:
+  passwordHash
+  refreshToken
+  resetPasswordToken
+  verificationToken
+  MFA secrets
+  internal tokens
+- Single-user endpoint also must not leak them.
+- PATCH/POST responses must return safe user shape only.
+
+D. Create user
+Test valid creation:
+- username required
+- email required and valid
+- password required or generated according to system design
+- role required and must be whitelisted
+- companyId forced from requester context unless superadmin intentionally supports cross-company
+- employeeId optional but must belong to same company
+- duplicate username → 409
+- duplicate email → 409
+- invalid role → 400
+- invalid employeeId → 404/400
+- employee already linked to another user → 409
+- body injection ignored:
+  companyId
+  id
+  passwordHash
+  refreshToken
+  isSuperAdmin
+  permissions
+  createdAt
+  lastLoginAt
+
+E. Edit user
+Test:
+- update username/email/role/isActive/employee link according to UI.
+- duplicate email/username blocked.
+- invalid role blocked.
+- cannot edit user from other company.
+- cannot update protected fields from body.
+- cannot demote/deactivate last active superadmin.
+- cannot deactivate yourself if you are last superadmin.
+- hradmin cannot escalate themselves or others to superadmin.
+- hradmin cannot create or assign hradmin/superadmin unless policy explicitly allows it.
+
+F. Activate/deactivate
+- deactivate normal user works.
+- deactivated user cannot login.
+- reactivated user can login.
+- current active session behavior documented.
+- self-deactivation guard exists where needed.
+- last admin lockout guard exists.
+
+G. Employee linking
+- link user to employee works.
+- user response includes employeeNameAr/employeeNameEn/employeeCode if frontend expects it.
+- employee cannot be linked to two active users.
+- unlink works if UI supports it.
+- employee from other company cannot be linked.
+- employee user should only see self data.
+
+H. Password behavior
+If reset/change password exists:
+- password hashing is correct.
+- plaintext password never returned.
+- weak/empty password rejected.
+- reset tokens not leaked.
+If not implemented:
+- explicitly report missing password management endpoints/buttons.
+
+I. Audit logs
+Every successful create/update/role-change/activate/deactivate/password-reset should write semantic activity log types, for example:
+- user_created
+- user_updated
+- user_role_changed
+- user_deactivated
+- user_activated
+- user_password_reset_requested or user_password_changed
+Verify DB rows in activity_logs with actor, companyId, and useful description.
+
+J. Notifications
+If policy exists:
+- affected user gets notification on role change, activation/deactivation, password reset.
+If no policy exists:
+- report N/A, but ensure no wrong notification leakage.
+
+K. Frontend integration
+- UI field names match API response.
+- Role labels show Arabic/English correctly.
+- Dropdown options are not blank.
+- Loading/empty/error states are correct.
+- Create/edit modal validation matches backend.
+- After save, list refreshes and toasts show correct bilingual message.
+- No console errors.
+
+Fix rules:
+- Fix backend first: validation, role guard, company scope, safe response shape.
+- Then fix frontend field mapping/UI if needed.
+- Do not use in-memory stores for users.
+- Do not return raw DB user rows.
+- Prefer shared helper buildSafeUser().
+- Use transactions for last-superadmin guard if needed.
+- Preserve existing working flows from Workflow 20 role assignment.
+
+Final report format:
+1. Files inspected
+2. APIs tested
+3. Bugs found with root cause + fix
+4. Files changed
+5. Retest table
+6. Scope/security result
+7. Data leakage result
+8. Audit result
+9. Notification result
+10. Remaining risks
+11. Final status: PASS/FAIL

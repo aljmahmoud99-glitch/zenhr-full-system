@@ -47,8 +47,8 @@ interface TemporaryCredential {
   mustChangePassword?: boolean;
 }
 
-type RoleKey = 'all' | 'superadmin' | 'hradmin' | 'payrolladmin' | 'manager' | 'employee';
-type CreatableRole = 'hradmin' | 'payrolladmin' | 'manager' | 'employee';
+type RoleKey = 'all' | 'superadmin' | 'hradmin' | 'payrolladmin' | 'manager' | 'employee' | 'recruiter';
+type CreatableRole = 'superadmin' | 'hradmin' | 'payrolladmin' | 'manager' | 'employee' | 'recruiter';
 
 @Component({
   selector: 'app-users',
@@ -73,6 +73,7 @@ export class UsersComponent implements OnInit {
   showModal = signal(false);
   temporaryCredential = signal<TemporaryCredential | null>(null);
   submitted = signal(false);
+  resetTarget = signal<UserRow | null>(null);
 
   form = {
     username: '',
@@ -84,11 +85,18 @@ export class UsersComponent implements OnInit {
   };
 
   readonly roleLabels = ROLE_LABELS;
-  readonly roleOptions: RoleKey[] = ['all', 'superadmin', 'hradmin', 'payrolladmin', 'manager', 'employee'];
+  readonly roleOptions: RoleKey[] = ['all', 'superadmin', 'hradmin', 'payrolladmin', 'manager', 'employee', 'recruiter'];
   readonly callerRole = computed(() => this.auth.currentUser()?.role ?? '');
   readonly isSuperAdmin = computed(() => this.callerRole() === 'superadmin');
   readonly isHrAdmin = computed(() => this.callerRole() === 'hradmin');
-  readonly creatableRoles = computed<CreatableRole[]>(() => this.isSuperAdmin() ? ['hradmin', 'payrolladmin'] : ['manager', 'employee']);
+
+  readonly creatableRoles = computed<CreatableRole[]>(() => {
+    if (this.isSuperAdmin()) {
+      return ['superadmin', 'hradmin', 'payrolladmin', 'manager', 'employee', 'recruiter'];
+    }
+    return ['manager', 'employee', 'recruiter'];
+  });
+
   readonly selectedEmployee = computed(() => this.employeeOptions().find(employee => employee.id === this.form.employeeId) ?? null);
   readonly selectedDepartmentName = computed(() => {
     const employee = this.selectedEmployee();
@@ -180,7 +188,12 @@ export class UsersComponent implements OnInit {
   }
 
   loadEmployeeOptions(companyId?: number | null) {
-    const query = this.isSuperAdmin() && companyId ? `?companyId=${companyId}` : '';
+    const params = new URLSearchParams();
+    if (this.isSuperAdmin() && companyId) params.set('companyId', String(companyId));
+    if (this.form.role && this.form.role !== 'hradmin' && this.form.role !== 'payrolladmin' && this.form.role !== 'superadmin') {
+      params.set('role', this.form.role);
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
     this.api.get<ApiResponse<EmployeeOption[]>>(`/api/users/employee-options${query}`).subscribe({
       next: response => this.employeeOptions.set(response.data ?? [])
     });
@@ -190,7 +203,7 @@ export class UsersComponent implements OnInit {
     this.form = {
       username: '',
       email: '',
-      role: this.creatableRoles()[0],
+      role: this.creatableRoles()[this.isSuperAdmin() ? 2 : 0],
       employeeId: null,
       companyId: this.isSuperAdmin() ? null : (this.auth.currentUser()?.companyId ?? null),
       departmentId: null
@@ -237,10 +250,13 @@ export class UsersComponent implements OnInit {
     this.form.employeeId = null;
     if (this.form.role !== 'manager') {
       this.form.departmentId = null;
-      return;
     }
-    const employee = this.selectedEmployee();
-    this.form.departmentId = employee?.departmentId ?? null;
+    // Reload employee options with the new role filter
+    if (!this.isSuperAdmin()) {
+      this.loadEmployeeOptions();
+    } else if (this.form.companyId) {
+      this.loadEmployeeOptions(this.form.companyId);
+    }
   }
 
   onEmployeeChange() {
@@ -334,10 +350,23 @@ export class UsersComponent implements OnInit {
     });
   }
 
-  resetPassword(id: number) {
-    if (this.resetting() === id) {
-      return;
-    }
+  openResetConfirm(user: UserRow) {
+    this.resetTarget.set(user);
+  }
+
+  cancelReset() {
+    this.resetTarget.set(null);
+  }
+
+  confirmReset() {
+    const target = this.resetTarget();
+    if (!target) return;
+    this.resetTarget.set(null);
+    this.doResetPassword(target.id);
+  }
+
+  private doResetPassword(id: number) {
+    if (this.resetting() === id) return;
     this.resetting.set(id);
     this.api.patch<ApiResponse<{ temporaryPassword: string; mustChangePassword?: boolean }>>(`/api/users/${id}/reset-password`, {}).subscribe({
       next: response => {

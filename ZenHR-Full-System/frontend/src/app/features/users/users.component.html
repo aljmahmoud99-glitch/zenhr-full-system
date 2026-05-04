@@ -145,7 +145,7 @@
                 <button class="z-btn-secondary" type="button" (click)="toggle(user.id)" [disabled]="toggling() === user.id">
                   {{ toggling() === user.id ? '...' : (user.isActive ? t('إيقاف', 'Deactivate') : t('تفعيل', 'Activate')) }}
                 </button>
-                <button class="z-btn-ghost" type="button" (click)="resetPassword(user.id)" [disabled]="resetting() === user.id">
+                <button class="z-btn-ghost" type="button" (click)="openResetConfirm(user)" [disabled]="resetting() === user.id">
                   {{ resetting() === user.id ? '...' : t('إعادة تعيين المرور', 'Reset password') }}
                 </button>
               </div>
@@ -237,6 +237,36 @@
         <button class="z-btn-secondary" type="button" (click)="closeModal()">{{ t('إلغاء', 'Cancel') }}</button>
         <button class="z-btn-primary" type="button" (click)="create()" [disabled]="saving()">
           {{ saving() ? t('جارٍ الإنشاء...', 'Creating...') : t('إنشاء المستخدم', 'Create user') }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" *ngIf="resetTarget()" (click)="cancelReset()">
+    <section class="modal-card z-card" (click)="$event.stopPropagation()" style="max-width:440px">
+      <header class="modal-head">
+        <div>
+          <h2 class="z-heading">{{ t('تأكيد إعادة تعيين كلمة المرور', 'Confirm Password Reset') }}</h2>
+          <p class="z-small">{{ t('سيتم إنشاء كلمة مرور مؤقتة جديدة وسيُطلب من المستخدم تغييرها عند أول دخول.', 'A new temporary password will be generated. The user must change it on first login.') }}</p>
+        </div>
+        <button class="close-btn" type="button" (click)="cancelReset()">
+          <span class="material-icons">close</span>
+        </button>
+      </header>
+      <div class="z-form-grid modal-grid">
+        <label class="field">
+          <span class="z-label">{{ t('اسم المستخدم', 'Username') }}</span>
+          <input class="z-input" [value]="resetTarget()?.username" readonly>
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('البريد الإلكتروني', 'Email') }}</span>
+          <input class="z-input" [value]="resetTarget()?.email || '—'" readonly>
+        </label>
+      </div>
+      <footer class="modal-actions">
+        <button class="z-btn-secondary" type="button" (click)="cancelReset()">{{ t('إلغاء', 'Cancel') }}</button>
+        <button class="z-btn-danger" type="button" (click)="confirmReset()" [disabled]="resetting() === resetTarget()?.id">
+          {{ resetting() === resetTarget()?.id ? t('جارٍ الإعادة...', 'Resetting...') : t('إعادة تعيين كلمة المرور', 'Reset Password') }}
         </button>
       </footer>
     </section>

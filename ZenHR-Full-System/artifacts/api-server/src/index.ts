@@ -7101,34 +7101,62 @@ app.get("/api/users", auth, async (req, res) => {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const conditions = [eq(usersTable.isDeleted, false)];
-    // Superadmin sees ALL users across the platform; everyone else only their company.
     if (user.role !== "superadmin") {
       conditions.push(eq(usersTable.companyId, user.companyId));
     } else if (req.query["companyId"]) {
       conditions.push(eq(usersTable.companyId, parseInt(String(req.query["companyId"]))));
     }
-    const users = await db.select({
-      id: usersTable.id, username: usersTable.username, email: usersTable.email,
-      role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive,
-      companyId: usersTable.companyId, employeeId: usersTable.employeeId,
-      lastLoginAt: usersTable.lastLoginAt, mustChangePassword: usersTable.mustChangePassword,
-    }).from(usersTable).where(and(...conditions)).orderBy(asc(usersTable.companyId), asc(usersTable.id));
-    res.json({ success: true, data: users });
+    const rows = await db
+      .select({
+        id: usersTable.id, username: usersTable.username, email: usersTable.email,
+        role: usersTable.role, roleId: usersTable.roleId, isActive: usersTable.isActive,
+        companyId: usersTable.companyId, employeeId: usersTable.employeeId,
+        lastLoginAt: usersTable.lastLoginAt, mustChangePassword: usersTable.mustChangePassword,
+        createdAt: usersTable.createdAt,
+        // Employee fields (null when no link)
+        employeeCode: employeesTable.employeeCode,
+        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+        // Company fields
+        companyNameAr: companiesTable.nameAr,
+        companyNameEn: companiesTable.nameEn,
+      })
+      .from(usersTable)
+      .leftJoin(employeesTable, eq(usersTable.employeeId, employeesTable.id))
+      .leftJoin(companiesTable, eq(usersTable.companyId, companiesTable.id))
+      .where(and(...conditions))
+      .orderBy(asc(usersTable.companyId), asc(usersTable.id));
+
+    const data = rows.map(u => ({
+      id: u.id, username: u.username, email: u.email,
+      role: u.role, roleId: u.roleId, isActive: u.isActive,
+      companyId: u.companyId, employeeId: u.employeeId,
+      lastLoginAt: u.lastLoginAt, mustChangePassword: u.mustChangePassword,
+      createdAt: u.createdAt,
+      employeeCode: u.employeeCode ?? null,
+      fullNameAr: (u.firstNameAr && u.lastNameAr) ? `${u.firstNameAr} ${u.lastNameAr}` : null,
+      fullNameEn: (u.firstNameEn && u.lastNameEn) ? `${u.firstNameEn} ${u.lastNameEn}` : null,
+      companyNameAr: u.companyNameAr ?? null,
+      companyNameEn: u.companyNameEn ?? null,
+    }));
+    res.json({ success: true, data });
   } catch (e) {
     console.error("[GET /api/users]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// Employees in the caller's company that DON'T already have a user account
-// (used by Users screen "link to employee" dropdown).
+// Employees available for linking — not already linked, with department + job grade.
+// Optional: ?companyId= (superadmin only), ?role= for role-aware filtering.
 app.get("/api/users/employee-options", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const targetCompanyId = (user.role === "superadmin" && req.query["companyId"])
       ? parseInt(String(req.query["companyId"]))
       : user.companyId;
+    const roleFilter = req.query["role"] as string | undefined;
 
+    // Collect employee IDs already linked to active user accounts in this company
     const linked = await db.select({ employeeId: usersTable.employeeId })
       .from(usersTable)
       .where(and(
@@ -7136,23 +7164,70 @@ app.get("/api/users/employee-options", auth, async (req, res) => {
         eq(usersTable.isDeleted, false),
         isNotNull(usersTable.employeeId),
       ));
-    const linkedIds = linked.map(r => r.employeeId!).filter(Boolean);
+    const linkedSet = new Set(linked.map(r => r.employeeId!).filter(Boolean));
 
-    let baseConds = [
+    // Fetch all non-deleted, non-terminated employees with dept + job title joins
+    const baseConds = [
       eq(employeesTable.companyId, targetCompanyId),
       eq(employeesTable.isDeleted, false),
-      eq(employeesTable.employmentStatus, "active"),
     ];
-    const emps = await db.select({
-      id: employeesTable.id,
-      employeeCode: employeesTable.employeeCode,
-      firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
-      firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
-      workEmail: employeesTable.workEmail,
-    }).from(employeesTable).where(and(...baseConds))
+    const emps = await db
+      .select({
+        id: employeesTable.id,
+        employeeCode: employeesTable.employeeCode,
+        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+        departmentId: employeesTable.departmentId,
+        departmentNameAr: departmentsTable.nameAr,
+        departmentNameEn: departmentsTable.nameEn,
+        jobTitleGrade: jobTitlesTable.jobGrade,
+        employmentStatus: employeesTable.employmentStatus,
+      })
+      .from(employeesTable)
+      .leftJoin(departmentsTable, eq(employeesTable.departmentId, departmentsTable.id))
+      .leftJoin(jobTitlesTable, eq(employeesTable.jobTitleId, jobTitlesTable.id))
+      .where(and(...baseConds))
       .orderBy(asc(employeesTable.firstNameEn));
-    const filtered = emps.filter(e => !linkedIds.includes(e.id));
-    res.json({ success: true, data: filtered });
+
+    // Exclude terminated/resigned employees and already-linked ones
+    let available = emps.filter(e =>
+      !linkedSet.has(e.id) &&
+      !["terminated", "resigned"].includes(e.employmentStatus ?? ""),
+    );
+
+    // Build result with combined name fields
+    let result = available.map(e => ({
+      id: e.id,
+      employeeCode: e.employeeCode,
+      fullNameAr: [e.firstNameAr, e.lastNameAr].filter(Boolean).join(" ") || null,
+      fullNameEn: [e.firstNameEn, e.lastNameEn].filter(Boolean).join(" ") || null,
+      departmentId: e.departmentId ?? null,
+      departmentNameAr: e.departmentNameAr ?? null,
+      departmentNameEn: e.departmentNameEn ?? null,
+      jobTitleGrade: e.jobTitleGrade ?? null,
+    }));
+
+    // Role-aware filtering with fallback to prevent empty dropdown
+    if (roleFilter === "manager") {
+      const managers = result.filter(e => {
+        const g = String(e.jobTitleGrade ?? "").toUpperCase();
+        const m = /(\d+)/.exec(g);
+        return m ? Number(m[1]) >= 5 : false;
+      });
+      if (managers.length > 0) result = managers;
+      // else: fallback — show all (no eligible grade data for strict filtering)
+    } else if (roleFilter === "employee") {
+      const nonManagers = result.filter(e => {
+        const g = String(e.jobTitleGrade ?? "").toUpperCase();
+        if (!g) return true; // no grade → treat as regular employee
+        const m = /(\d+)/.exec(g);
+        return m ? Number(m[1]) < 5 : true;
+      });
+      if (nonManagers.length > 0) result = nonManagers;
+      // else: fallback — show all
+    }
+
+    res.json({ success: true, data: result });
   } catch (e) {
     console.error("[/api/users/employee-options]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -7165,50 +7240,129 @@ app.post("/api/users", auth, async (req, res) => {
     if (!["superadmin", "hradmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
     }
-    const { username, email, password, role, employeeId, companyId } = req.body as {
-      username: string; email: string; password: string; role: string;
-      employeeId?: number; companyId?: number;
-    };
-    if (!username || !email || !password || !role) {
-      res.status(400).json({ success: false, message: "username, email, password, role required" }); return;
+    const { username, email, password, role, employeeId, companyId } = req.body as any;
+
+    // Required fields
+    if (!username?.trim() || !email?.trim() || !role) {
+      res.status(400).json({ success: false, message: "username, email, and role are required" }); return;
     }
-    // Block escalation: only superadmin can grant superadmin
+    // Username format
+    if (!/^[A-Za-z0-9._-]{3,}$/.test(username.trim())) {
+      res.status(400).json({ success: false, message: "Username must be at least 3 characters (letters, numbers, dot, underscore, dash)" }); return;
+    }
+    // Email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      res.status(400).json({ success: false, message: "Invalid email format" }); return;
+    }
+    // Role whitelist
+    if (!ALLOWED_ROLES.has(String(role))) {
+      res.status(400).json({ success: false, message: `Invalid role '${role}'. Allowed: ${[...ALLOWED_ROLES].join(", ")}` }); return;
+    }
+    // Escalation guard
     if (role === "superadmin" && user.role !== "superadmin") {
       res.status(403).json({ success: false, message: "Cannot assign superadmin role" }); return;
     }
-    // Scope: hradmin always to own company; superadmin can target any company via body
-    const targetCompanyId = (user.role === "superadmin" && companyId) ? companyId : user.companyId;
+    if (role === "hradmin" && user.role === "hradmin") {
+      res.status(403).json({ success: false, message: "HR admin cannot create hradmin accounts" }); return;
+    }
 
-    // Cross-tenant guard: validate employeeId belongs to the target company
+    // Scope: hradmin always to own company; superadmin can target any company via body
+    let targetCompanyId = user.companyId;
+    if (user.role === "superadmin" && companyId) {
+      const [co] = await db.select({ id: companiesTable.id }).from(companiesTable)
+        .where(eq(companiesTable.id, Number(companyId))).limit(1);
+      if (!co) { res.status(400).json({ success: false, message: "Company not found" }); return; }
+      targetCompanyId = Number(companyId);
+    }
+
+    // Employee linking validations
+    let linkedEmployeeName: string | null = null;
     if (employeeId !== undefined && employeeId !== null) {
-      const [emp] = await db.select({ id: employeesTable.id, companyId: employeesTable.companyId })
-        .from(employeesTable).where(eq(employeesTable.id, Number(employeeId))).limit(1);
+      const [emp] = await db.select({
+        id: employeesTable.id, companyId: employeesTable.companyId,
+        firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn,
+        firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr,
+        jobTitleId: employeesTable.jobTitleId,
+        employmentStatus: employeesTable.employmentStatus,
+      }).from(employeesTable).where(eq(employeesTable.id, Number(employeeId))).limit(1);
       if (!emp || emp.companyId !== targetCompanyId) {
         res.status(400).json({ success: false, message: "Employee does not belong to the target company" }); return;
       }
+      if (["terminated", "resigned"].includes(emp.employmentStatus ?? "")) {
+        res.status(400).json({ success: false, message: "Cannot link to a terminated or resigned employee" }); return;
+      }
+      // Check not already linked to another user
+      const [existingLink] = await db.select({ id: usersTable.id })
+        .from(usersTable)
+        .where(and(eq(usersTable.employeeId, Number(employeeId)), eq(usersTable.isDeleted, false)))
+        .limit(1);
+      if (existingLink) {
+        res.status(409).json({ success: false, message: "This employee is already linked to another user account" }); return;
+      }
+      // Role-eligibility check for manager
+      if (role === "manager" && emp.jobTitleId) {
+        const [jt] = await db.select({ grade: jobTitlesTable.jobGrade }).from(jobTitlesTable)
+          .where(eq(jobTitlesTable.id, emp.jobTitleId)).limit(1);
+        if (jt?.grade) {
+          const m = /(\d+)/.exec(jt.grade.toUpperCase());
+          if (m && Number(m[1]) < 3) {
+            res.status(400).json({ success: false, message: "Employee's job grade is not eligible for manager role" }); return;
+          }
+        }
+      }
+      linkedEmployeeName = [emp.firstNameEn, emp.lastNameEn].filter(Boolean).join(" ") || null;
     }
 
-    // Resolve roleId from rolesTable for that company
+    // Generate a secure temp password if none provided
+    const tempPassword = password?.trim() ||
+      Array.from({ length: 12 }, () =>
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 62)],
+      ).join("");
+
+    // Resolve roleId
     const [r] = await db.select({ id: rolesTable.id }).from(rolesTable)
       .where(and(eq(rolesTable.companyId, targetCompanyId), eq(rolesTable.name, role))).limit(1);
 
     const [newUser] = await db.insert(usersTable).values({
-      username, email, role,
+      username: username.trim(), email: email.trim(), role,
       roleId: r?.id ?? null,
       employeeId: employeeId ?? null,
-      passwordHash: hashPassword(password),
+      passwordHash: hashPassword(tempPassword),
       companyId: targetCompanyId,
       mustChangePassword: true,
-    }).returning();
+    }).returning({
+      id: usersTable.id, username: usersTable.username, email: usersTable.email,
+      role: usersTable.role, companyId: usersTable.companyId, employeeId: usersTable.employeeId,
+    });
+
+    await logActivity(
+      targetCompanyId,
+      "user_created",
+      `New user '${username.trim()}' (role: ${ROLE_LABEL_EN[role] ?? role}) created by ${user.username}`,
+      username.trim(),
+    );
+
     res.status(201).json({
       success: true,
-      data: { id: newUser!.id, username: newUser!.username, email: newUser!.email, role: newUser!.role },
-      tempPassword: password,
+      data: {
+        id: newUser!.id,
+        username: newUser!.username,
+        email: newUser!.email,
+        role: newUser!.role,
+        temporaryPassword: tempPassword,
+        mustChangePassword: true,
+        linkedEmployee: linkedEmployeeName ?? undefined,
+      },
     });
   } catch (e: any) {
     console.error("[POST /api/users]", e);
     if (String(e?.message || "").includes("duplicate") || e?.code === "23505") {
-      res.status(409).json({ success: false, message: "Username or email already exists" }); return;
+      const msg = String(e?.message || "").includes("email")
+        ? "Email already in use"
+        : String(e?.message || "").includes("username")
+        ? "Username already taken"
+        : "Username or email already exists";
+      res.status(409).json({ success: false, message: msg }); return;
     }
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -7366,9 +7520,56 @@ app.patch("/api/users/:id/toggle-active", auth, async (req, res) => {
       res.status(loaded.error === "User not found" ? 404 : 403)
         .json({ success: false, message: loaded.error }); return;
     }
+    const willDeactivate = loaded.target.isActive;
+    // Guard: cannot deactivate the last active superadmin
+    if (willDeactivate && loaded.target.role === "superadmin") {
+      const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.companyId, user.companyId),
+          eq(usersTable.role, "superadmin"),
+          eq(usersTable.isActive, true),
+          eq(usersTable.isDeleted, false),
+        ));
+      if (cnt <= 1) {
+        res.status(409).json({ success: false, message: "Cannot deactivate the last active superadmin" }); return;
+      }
+    }
     const [u] = await db.update(usersTable)
       .set({ isActive: !loaded.target.isActive })
-      .where(eq(usersTable.id, targetId)).returning();
+      .where(eq(usersTable.id, targetId))
+      .returning({
+        id: usersTable.id, username: usersTable.username, isActive: usersTable.isActive,
+        role: usersTable.role, employeeId: usersTable.employeeId,
+      });
+
+    const action = u!.isActive ? "user_activated" : "user_deactivated";
+    const actionLabelEn = u!.isActive ? "activated" : "deactivated";
+    await logActivity(
+      user.companyId,
+      action,
+      `User '${loaded.target.username}' (id:${targetId}) ${actionLabelEn} by ${user.username}`,
+      loaded.target.username,
+    );
+    if (loaded.target.employeeId) {
+      await notifyEmployee(loaded.target.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "user",
+        entityId: targetId,
+        notificationType: action,
+        titleAr: u!.isActive ? "تم تفعيل حسابك" : "تم إيقاف حسابك",
+        titleEn: u!.isActive ? "Your account has been activated" : "Your account has been deactivated",
+        messageAr: u!.isActive
+          ? "تم تفعيل حسابك وأصبح بإمكانك تسجيل الدخول."
+          : "تم إيقاف حسابك مؤقتاً. تواصل مع مدير النظام للمزيد من المعلومات.",
+        messageEn: u!.isActive
+          ? "Your account has been activated. You can now log in."
+          : "Your account has been deactivated. Contact your system administrator for more information.",
+        priority: "high",
+        actionUrl: "/login",
+      });
+    }
     res.json({ success: true, data: { id: u!.id, isActive: u!.isActive } });
   } catch (e) {
     console.error("[PATCH /api/users/:id/toggle-active]", e);
@@ -7388,15 +7589,38 @@ app.patch("/api/users/:id/reset-password", auth, async (req, res) => {
       res.status(loaded.error === "User not found" ? 404 : 403)
         .json({ success: false, message: loaded.error }); return;
     }
-    // 12-char alphanumeric temp password
-    const temp = Array.from({ length: 12 }, () =>
+    // Generate 12-char mixed-case alphanumeric temp password
+    const temporaryPassword = Array.from({ length: 12 }, () =>
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 62)],
     ).join("");
     await db.update(usersTable).set({
-      passwordHash: hashPassword(temp),
+      passwordHash: hashPassword(temporaryPassword),
       mustChangePassword: true,
     }).where(eq(usersTable.id, targetId));
-    res.json({ success: true, tempPassword: temp });
+
+    await logActivity(
+      user.companyId,
+      "user_password_reset",
+      `Password reset for user '${loaded.target.username}' (id:${targetId}) by ${user.username}`,
+      loaded.target.username,
+    );
+    if (loaded.target.employeeId) {
+      await notifyEmployee(loaded.target.employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "user",
+        entityId: targetId,
+        notificationType: "password_reset",
+        titleAr: "تمت إعادة تعيين كلمة مرورك",
+        titleEn: "Your Password Has Been Reset",
+        messageAr: "قام مدير النظام بإعادة تعيين كلمة مرورك. ستحتاج إلى تغييرها عند تسجيل الدخول التالي.",
+        messageEn: "Your password has been reset by an administrator. You will need to change it on your next login.",
+        priority: "high",
+        actionUrl: "/login",
+      });
+    }
+    // Return temp password inside data object — matches frontend expectation
+    res.json({ success: true, data: { temporaryPassword, mustChangePassword: true } });
   } catch (e) {
     console.error("[PATCH /api/users/:id/reset-password]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -7415,7 +7639,26 @@ app.delete("/api/users/:id", auth, async (req, res) => {
       res.status(loaded.error === "User not found" ? 404 : 403)
         .json({ success: false, message: loaded.error }); return;
     }
+    // Cannot delete the last superadmin
+    if (loaded.target.role === "superadmin") {
+      const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(and(
+          eq(usersTable.companyId, user.companyId),
+          eq(usersTable.role, "superadmin"),
+          eq(usersTable.isDeleted, false),
+        ));
+      if (cnt <= 1) {
+        res.status(409).json({ success: false, message: "Cannot delete the last superadmin account" }); return;
+      }
+    }
     await db.update(usersTable).set({ isDeleted: true, isActive: false }).where(eq(usersTable.id, targetId));
+    await logActivity(
+      user.companyId,
+      "user_deleted",
+      `User '${loaded.target.username}' (id:${targetId}) deleted by ${user.username}`,
+      loaded.target.username,
+    );
     res.status(204).send();
   } catch (e) {
     console.error("[DELETE /api/users/:id]", e);
