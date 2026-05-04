@@ -1,0 +1,211 @@
+WORKFLOW 3 PROMPT
+(Release ONLY after Workflow 2 passes)
+TITLE:
+QA + Fix — Workflow 3: Leave Request Workflow (Submit)
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Test only the leave REQUEST submission by employee.
+- Workflow 4 (manager approval) is a separate prompt — do NOT test it here.
+- Fix only confirmed bugs in this workflow.
+- Minimal changes only.
+- Full chain validation: UI → POST → DB → GET → UI → Scope → Notifications.
+- Stop after report. Wait for approval.
+
+═══════════════════════════════════
+ACCOUNTS
+═══════════════════════════════════
+Submitter:  employee01 / Test@12345
+Observer:   hr / Test@12345 (to verify notification received)
+Observer:   manager.hr / Test@12345 (to verify notification received if employee01 reports to manager.hr)
+Verify scope: employee02 / Test@12345 (should NOT see employee01's request)
+
+═══════════════════════════════════
+TASK 1 — IDENTIFY LEAVE SYSTEM
+═══════════════════════════════════
+Read and report:
+1. Leave request route for employee: /app/leave or /app/my-leaves?
+2. Component file for leave request form/modal
+3. POST endpoint called when submitting: URL + request body shape
+4. GET endpoint used to display requests list: URL + parameters
+5. What leave types are available? (call GET /api/leave/types)
+6. Are leave balances checked before submission? Where?
+
+═══════════════════════════════════
+TASK 2 — SUBMISSION CHAIN TEST
+═══════════════════════════════════
+Log in as employee01.
+
+Step 2.1 — Navigate to leave screen:
+  - Route loads without 404 or 500
+  - Leave balance summary visible
+  - Leave request list visible (may be empty initially)
+
+Step 2.2 — Submit a leave request:
+  - Click "طلب إجازة" or equivalent
+  - Select leave type: Annual Leave / الإجازة السنوية
+  - Select start date: next working day
+  - Select end date: 3 days after start
+  - Add reason: "اختبار نظام QA"
+  - Click submit
+
+Step 2.3 — POST API validation:
+  - Confirm network request: POST /api/leave/requests (or similar)
+  - Status code: expected 200 or 201
+  - Response body: should contain { success: true, data: { id, employeeId, status: "pending", ... } }
+  - If status code ≠ 200/201: classify as API_ERROR
+
+Step 2.4 — Database check:
+  - Query DB: SELECT * FROM leave_requests WHERE employee_id = [employee01_id] ORDER BY created_at DESC LIMIT 1
+  - Confirm: id exists, employee_id correct, company_id correct, status = 'pending', dates correct, created_at populated
+  - If record missing from DB despite 200 response: FAKE_SUCCESS bug — critical
+
+Step 2.5 — Read API validation:
+  - Call GET /api/leave/requests (as employee01)
+  - Confirm the newly created request appears in the response
+  - If missing: classify as READ_MISMATCH (DB has it but GET doesn't return it)
+
+Step 2.6 — UI rendering:
+  - After submission, request must appear in the leave requests list
+  - Status badge must show: "قيد الانتظار / Pending"
+  - If request not visible: classify the bug (filter bug? mapping bug? cache issue?)
+
+Step 2.7 — Balance check:
+  - After submission: pending_days in leave_balances should increase by 3
+  - Call GET /api/leave/balances for employee01
+  - Confirm pending_days updated
+  - If NOT updated: BALANCE_NOT_UPDATED bug
+
+═══════════════════════════════════
+TASK 3 — SCOPE VALIDATION
+═══════════════════════════════════
+Log in as employee02.
+  - Call GET /api/leave/requests (as employee02)
+  - Confirm employee01's request does NOT appear
+  - If it does: CRITICAL scope bug — report immediately
+
+Log in as hr.
+  - Call GET /api/leave/requests (as hr)
+  - Confirm employee01's request IS visible (hr sees all company requests)
+
+Log in as manager.hr.
+  - Call GET /api/leave/requests (as manager.hr)
+  - Confirm: only requests from manager.hr's team are visible
+  - employee01's request visible ONLY if employee01 reports to manager.hr
+
+═══════════════════════════════════
+TASK 4 — NOTIFICATION CHAIN
+═══════════════════════════════════
+After employee01 submits a leave request:
+
+Step 4.1 — DB check for notifications:
+  Query: SELECT * FROM notifications WHERE entity_type = 'leave_request' AND entity_id = [request_id]
+  Expected: at least one row for the manager recipient, one for hr recipient
+  Confirm: recipient_user_id is correct user (not employee01 themselves)
+
+Step 4.2 — Notification visible to correct recipients:
+  Log in as hr:
+    - Bell icon badge count: should have increased
+    - Notification dropdown: should show "طلب إجازة جديد من [employee01 name]" or similar
+    - Text readable in Arabic
+
+  Log in as manager.hr (if employee01 reports to them):
+    - Same check as hr
+
+Step 4.3 — Wrong recipient check:
+  Log in as employee02:
+    - Bell icon should NOT show a notification for employee01's request
+    - If it does: NOTIFICATION_SCOPE_BUG
+
+Step 4.4 — Bell count accuracy:
+  Mark notification as read (click it or "mark all read")
+  Confirm: bell badge count decreases by correct number
+
+═══════════════════════════════════
+TASK 5 — VALIDATION RULES
+═══════════════════════════════════
+Test edge cases for leave submission:
+
+Test 5.1 — Date validation:
+  Try submitting with end date BEFORE start date
+  Expected: frontend validation error shown, no API call made
+
+Test 5.2 — Past date:
+  Try submitting with start date in the past
+  Expected: blocked (frontend or backend error)
+
+Test 5.3 — Insufficient balance:
+  If employee01 has 14 days annual leave remaining:
+  Try submitting 20 days request
+  Expected: error: "رصيد الإجازة غير كافٍ" or similar
+
+Test 5.4 — Empty fields:
+  Submit with no leave type selected
+  Expected: frontend validation — no API call
+
+Test 5.5 — Duplicate request on same dates:
+  Try submitting another leave request with overlapping dates
+  Expected: backend rejects with conflict error
+
+═══════════════════════════════════
+TASK 6 — FIX BUGS
+═══════════════════════════════════
+For each confirmed bug: classify → identify root cause → apply minimal fix → note file changed.
+
+═══════════════════════════════════
+TASK 7 — RETEST FULL CHAIN
+═══════════════════════════════════
+After all fixes, submit a NEW leave request and retest:
+  ✓ POST returns 200/201
+  ✓ DB record created with correct data
+  ✓ GET returns the record for employee01
+  ✓ UI shows request with "قيد الانتظار" badge
+  ✓ Balance pending_days updated
+  ✓ employee02 cannot see this request
+  ✓ HR can see this request
+  ✓ Notification created for hr (and manager if applicable)
+  ✓ Bell badge updated for hr
+  ✓ Validation rules enforced
+
+═══════════════════════════════════
+REQUIRED REPORT FORMAT
+═══════════════════════════════════
+───────────────────────────────────────────────────────────────
+Workflow: 3 — Leave Request Submission
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked: leave_requests, leave_balances, notifications
+
+Bugs found:
+  - Bug:
+    Type: [FAKE_SUCCESS / READ_MISMATCH / SCOPE_BUG / BALANCE_NOT_UPDATED / NOTIFICATION_SCOPE_BUG / VALIDATION_MISSING / other]
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  POST 200/201: ✅ / ❌
+  DB record correct: ✅ / ❌
+  GET returns record: ✅ / ❌
+  UI shows request: ✅ / ❌
+  Balance pending updated: ✅ / ❌
+  employee02 cannot see: ✅ / ❌
+  HR can see: ✅ / ❌
+
+Scope result:
+Notification result:
+  Notification in DB: ✅ / ❌
+  HR bell updated: ✅ / ❌
+  employee02 not notified: ✅ / ❌
+
+Console/network errors:
+Remaining risks:
+
+WORKFLOW 3 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP. Wait for QA director approval before Workflow 4.

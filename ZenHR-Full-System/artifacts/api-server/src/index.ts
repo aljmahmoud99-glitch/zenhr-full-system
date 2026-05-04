@@ -1468,10 +1468,22 @@ app.post("/api/leave/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const body = req.body;
-    const [req2] = await db.insert(leaveRequestsTable).values({ ...body, status: "pending" }).returning();
+    const leaveType = body.leaveTypeId ?? body.leaveType;
+    const empId = body.employeeId ?? user.employeeId;
+    const start = new Date(body.startDate);
+    const end = new Date(body.endDate);
+    const totalDays = body.totalDays ?? Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+    const [req2] = await db.insert(leaveRequestsTable).values({
+      employeeId: empId,
+      leaveType,
+      startDate: body.startDate,
+      endDate: body.endDate,
+      totalDays,
+      reason: body.reason || null,
+      status: "pending",
+    }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
     // ── Notifications ──────────────────────────────────────────────────────
-    const empId = body.employeeId ?? user.employeeId;
     const dateRange = fmtDateRange(body.startDate, body.endDate);
     const empName = user.username;
     const notifPayload = {
@@ -1489,8 +1501,9 @@ app.post("/api/leave/requests", auth, async (req, res) => {
     };
     await notifyRole(user.companyId, "hradmin", notifPayload);
     if (empId) await notifyDirectManager(empId, notifPayload);
-    res.status(201).json({ success: true, data: req2 });
+    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType } });
   } catch (e) {
+    console.error("[POST /api/leave/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -4260,11 +4273,67 @@ app.get("/api/leave/me/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const rows = await db.select().from(leaveRequestsTable)
-      .where(and(eq(leaveRequestsTable.employeeId, user.employeeId), eq(leaveRequestsTable.isDeleted, false)))
-      .orderBy(desc(leaveRequestsTable.createdAt));
-    res.json({ success: true, data: rows });
+    const [rows, types] = await Promise.all([
+      db.select().from(leaveRequestsTable)
+        .where(and(eq(leaveRequestsTable.employeeId, user.employeeId), eq(leaveRequestsTable.isDeleted, false)))
+        .orderBy(desc(leaveRequestsTable.createdAt)),
+      db.select().from(leaveTypesTable),
+    ]);
+    const typeMap = Object.fromEntries(types.map(t => [String(t.id), t]));
+    const enriched = rows.map(r => {
+      const lt = typeMap[String(r.leaveType)];
+      return { ...r, leaveTypeId: Number(r.leaveType) || r.leaveType, leaveTypeNameAr: lt?.nameAr ?? null, leaveTypeNameEn: lt?.nameEn ?? null };
+    });
+    res.json({ success: true, data: enriched });
   } catch (e) {
+    console.error("[GET /api/leave/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/leave/me/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const { leaveTypeId, startDate, endDate, reason, attachmentUrl } = req.body;
+    if (!leaveTypeId || !startDate || !endDate) {
+      res.status(400).json({ success: false, message: "leaveTypeId, startDate, and endDate are required" }); return;
+    }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      res.status(400).json({ success: false, message: "Invalid date range" }); return;
+    }
+    const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+    const [req2] = await db.insert(leaveRequestsTable).values({
+      employeeId: user.employeeId,
+      leaveType: leaveTypeId,
+      startDate,
+      endDate,
+      totalDays,
+      reason: reason || null,
+      status: "pending",
+    }).returning();
+    await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
+    const dateRange = fmtDateRange(startDate, endDate);
+    const notifPayload = {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "leave_request",
+      entityId: req2.id,
+      notificationType: "leave_request_created",
+      titleAr: "طلب إجازة جديد",
+      titleEn: "New Leave Request",
+      messageAr: `قدّم ${user.username} طلب إجازة من ${dateRange}.`,
+      messageEn: `${user.username} submitted a leave request from ${dateRange}.`,
+      priority: "normal" as const,
+      actionUrl: "/app/leave",
+    };
+    await notifyRole(user.companyId, "hradmin", notifPayload);
+    await notifyDirectManager(user.employeeId, notifPayload);
+    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType } });
+  } catch (e) {
+    console.error("[POST /api/leave/me/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
