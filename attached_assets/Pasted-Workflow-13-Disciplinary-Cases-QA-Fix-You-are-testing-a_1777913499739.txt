@@ -1,0 +1,274 @@
+Workflow 13 — Disciplinary Cases QA + Fix
+
+You are testing and fixing the disciplinary workflow end-to-end.
+
+Scope:
+- Frontend route: /app/disciplinary
+- Disciplinary cases list
+- Violation types page
+- Create new case form
+- Case status flow
+- Role permissions
+- Notifications
+- Audit logs
+- DB persistence
+
+Run full discovery first before changing code:
+1. Inspect DB schema/tables for disciplinary cases and violation types.
+2. Inspect backend API routes related to disciplinary/violations.
+3. Inspect frontend component/service/template for /app/disciplinary.
+4. Compare frontend payload fields with backend expected fields and DB columns.
+5. Identify stub/hardcoded endpoints, field mismatches, missing routes, missing role guards, missing joins, missing audit, missing notifications.
+
+Required accounts to test:
+- hr
+- manager.hr
+- employee01
+- employee02
+- payroll
+
+Expected permissions:
+- HR/admin/superadmin can create, view, edit, investigate, close, and manage violation types.
+- Manager may view only team-related cases if the business logic supports manager access; otherwise block with 403. Do not allow manager to manage global violation types unless explicitly intended.
+- Employee can only see their own disciplinary cases, if employee self-view exists. Employee must NOT create, edit, delete, close, or manage violation types.
+- Payroll must be blocked from disciplinary management and sensitive employee disciplinary data unless explicitly intended.
+- No unauthenticated access.
+
+Test and fix these areas:
+
+A) Violation Types
+- GET violation types must return real DB rows, not stub data.
+- POST create violation type must validate required fields:
+  - code
+  - nameAr
+  - nameEn
+- Duplicate code must return 409, not 500.
+- PUT/PATCH update must persist changes.
+- DELETE should soft-delete or deactivate if used by cases; must not break existing case history.
+- Only HR/admin/superadmin can manage types.
+- Employee, manager, payroll must get 403 for create/update/delete.
+- Response shape must match frontend fields:
+  - id
+  - code
+  - nameAr
+  - nameEn
+  - isActive/status
+  - createdAt/updatedAt if used
+
+B) Disciplinary Cases — Create
+Open a new case through API and verify UI-compatible payload.
+Validate required fields:
+- employeeId
+- violationTypeId or violationType/code depending frontend
+- violationDate
+- description
+- proposedPenalty / action / penaltyType if required by UI
+- amount only if penalty requires amount
+- notes optional
+
+Reject:
+- missing employee
+- missing violation type
+- missing description
+- invalid violationDate
+- future violationDate if not allowed
+- negative amount
+- employee from another company
+- invalid violation type
+- unauthenticated request
+- unauthorized role
+
+Expected create result:
+- Case inserted in DB.
+- companyId saved from JWT, not body.
+- createdBy/createdById saved from JWT.
+- Initial status is open or draft depending button:
+  - “Save as draft” should create draft status.
+  - “Open case” should create open/investigation-ready status.
+- Activity log written.
+- Employee and/or manager notification created only if product logic expects it. If notification is designed, route it precisely, not broadcast.
+
+C) Disciplinary Cases — Read/List
+GET list must:
+- Return real DB rows.
+- Join employee details:
+  - employeeCode
+  - employeeNameAr
+  - employeeNameEn
+  - department/org node if frontend expects it
+- Join violation type:
+  - violationTypeCode
+  - violationTypeNameAr
+  - violationTypeNameEn
+- Return UI-compatible fields:
+  - id
+  - employeeId
+  - employeeNameAr/En
+  - violationTypeId
+  - violationTypeNameAr/En
+  - violationDate
+  - description
+  - status
+  - penalty/proposedPenalty
+  - amount
+  - notes
+  - createdAt
+  - updatedAt
+  - createdBy
+- HR sees company-scoped all cases.
+- Manager sees only team cases, or 403 if manager access is not intended.
+- Employee sees only own cases, or 403 if employee access is not intended.
+- Payroll blocked unless explicitly intended.
+- No cross-company leakage.
+- Filters must work:
+  - search employee/description
+  - status
+  - violation type
+  - violation date
+- Summary counters must be real:
+  - total cases
+  - open cases
+  - under investigation
+  - overdue
+  - closed/resolved
+
+D) Case Detail + Status Flow
+Test and fix endpoints/actions if frontend calls them:
+- GET /api/disciplinary/:id or equivalent
+- update case
+- start investigation
+- close/resolve case
+- reject/cancel case
+- delete/soft-delete case
+- save draft
+- open draft
+
+State machine must be enforced:
+- draft → open
+- open → under_investigation
+- under_investigation → resolved/closed
+- closed is terminal
+- cannot close without final decision/penalty if required
+- cannot modify closed cases except allowed admin correction
+- double-close returns 409
+- invalid transition returns 409 or 400, not silent success
+
+E) Penalty / Amount Logic
+If penalties affect payroll or employee records, verify integration.
+If not integrated yet, explicitly report as remaining risk.
+Test:
+- verbal warning
+- written warning
+- deduction amount
+- suspension if present
+- termination recommendation if present
+Rules:
+- amount required only for monetary deduction
+- amount must be positive
+- deduction must not hit payroll unless a designed integration exists
+- all penalty fields must persist and return in GET
+
+F) Notifications
+Verify notification behavior:
+- employee notified when case opened/closed if intended
+- manager notified for team member case if intended
+- HR notifies are not broadcast unless intended
+- employee02 must not receive employee01 case notifications
+- notification entityType should be disciplinary_case
+- entityId should be case id
+- unread count should update after mark-as-read
+
+If notifications are missing but product logic requires them, implement them.
+If no notification design exists, state N/A clearly.
+
+G) Audit Logs
+Every write action must log:
+- violation_type_created
+- violation_type_updated
+- violation_type_deleted/deactivated
+- disciplinary_case_created
+- disciplinary_case_updated
+- disciplinary_case_opened
+- disciplinary_case_investigation_started
+- disciplinary_case_closed
+- disciplinary_case_deleted/cancelled if applicable
+
+Audit logs must include:
+- type
+- description with case id / employee id / violation type
+- actor username/name
+- companyId
+- createdAt
+
+H) Security Tests
+Run direct API calls, not only UI:
+- No token → 401
+- employee tries POST case → 403
+- employee tries edit other employee case → 403/404
+- employee02 cannot see employee01 case
+- manager cannot see employee outside team
+- payroll cannot create/edit/delete/view sensitive data unless explicitly allowed
+- body companyId injection ignored
+- body createdBy injection ignored
+- body employeeId injection checked against company scope
+- invalid id returns 404, not 500
+
+I) Frontend Checks
+Verify /app/disciplinary:
+- Page loads with no console errors.
+- Empty state works.
+- Summary cards update after creating a case.
+- Filters update list correctly.
+- “Violation Types” page opens and lists DB types.
+- Add type form saves and refreshes list.
+- New case form populates employees and violation types.
+- Save as draft works if present.
+- Open case works.
+- Arabic RTL labels render correctly.
+- No 404/500 network errors.
+
+J) Database Checks
+After test run, inspect DB:
+- Cases persisted with correct fields.
+- Violation type persisted.
+- company_id correct.
+- created_by correct.
+- deleted/deactivated rows handled correctly.
+- No duplicate codes.
+- No orphaned cases.
+- Audit logs present.
+- Notifications present only for expected recipients.
+
+Important implementation rules:
+- Do not leave in-memory arrays or stub endpoints.
+- Do not return hardcoded counters.
+- Do not trust req.body.companyId, req.body.createdBy, req.body.createdById, req.body.employeeName.
+- Always derive companyId and actor from JWT.
+- Use company scope on every query.
+- Use employee/team scope on manager and employee queries.
+- Match frontend field names exactly.
+- Keep old snapshots/history stable if violation type is edited later.
+- If schema is missing, add migration and Drizzle schema updates.
+- Restart API after fixes and rerun the full QA.
+
+Final output must be a QA report in this exact style:
+- Workflow: 13 — Disciplinary Cases
+- Accounts tested
+- Frontend routes tested
+- APIs tested
+- DB tables checked
+- Bugs found, with:
+  - Bug title
+  - Type
+  - Root cause
+  - Fix
+  - Files changed
+- Retest result
+- Scope result
+- Notification result
+- Audit result
+- Frontend result
+- Remaining risks
+- WORKFLOW 13 STATUS: COMPLETE ✅ or BLOCKED ❌
+
+Do not stop at reporting bugs. Fix all bugs you can safely fix, restart, retest, and only then produce the final report.

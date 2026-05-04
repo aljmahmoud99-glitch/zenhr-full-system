@@ -27,6 +27,9 @@ import {
   notificationsTable,
   salaryAdvancesTable,
   complianceRecordsTable,
+  violationTypesTable,
+  disciplinaryCasesTable,
+  disciplinaryInvestigationsTable,
 } from "@workspace/db/schema";
 import {
   notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
@@ -3738,14 +3741,23 @@ app.get("/api/lookups/asset-categories", async (_req, res) => {
   const rows = await db.select().from(assetCategoriesTable).where(eq(assetCategoriesTable.isActive, true));
   res.json({ success: true, data: rows });
 });
-app.get("/api/lookups/violation-types", async (_req, res) => {
-  res.json({ success: true, data: [
-    { id: 1, nameAr: "التغيب عن العمل", nameEn: "Absence", code: "absence" },
-    { id: 2, nameAr: "التأخر عن العمل", nameEn: "Tardiness", code: "tardiness" },
-    { id: 3, nameAr: "سوء السلوك", nameEn: "Misconduct", code: "misconduct" },
-    { id: 4, nameAr: "الإهمال في العمل", nameEn: "Negligence", code: "negligence" },
-    { id: 5, nameAr: "مخالفة السياسات", nameEn: "Policy Violation", code: "policy_violation" },
-  ] });
+app.get("/api/lookups/violation-types", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const rows = await db
+      .select()
+      .from(violationTypesTable)
+      .where(and(
+        eq(violationTypesTable.companyId, user.companyId),
+        eq(violationTypesTable.isActive, true),
+        eq(violationTypesTable.isDeleted, false)
+      ))
+      .orderBy(asc(violationTypesTable.nameAr));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/lookups/violation-types]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Config / System Settings ─────────────────────────────────────────────────
@@ -4227,37 +4239,783 @@ app.post("/api/overtime/:id/approve", auth, handleOvertimeApprove);
 app.post("/api/overtime/:id/reject", auth, handleOvertimeReject);
 
 // ─── Disciplinary ─────────────────────────────────────────────────────────────
-const disciplinaryStore: any[] = [];
-let disciplinaryIdSeq = 1;
 
-app.get("/api/disciplinary", auth, async (req, res) => {
-  const user = (req as AuthReq).user;
-  if (!["hradmin", "manager"].includes(user.role)) {
-    res.status(403).json({ success: false, message: "Forbidden" }); return;
+// Helper: build a full case shape with JOINs
+async function buildCaseShape(caseRow: any, companyId: number) {
+  const [emp] = await db
+    .select({
+      id: employeesTable.id,
+      employeeCode: employeesTable.employeeCode,
+      firstNameAr: employeesTable.firstNameAr,
+      lastNameAr: employeesTable.lastNameAr,
+      firstNameEn: employeesTable.firstNameEn,
+      lastNameEn: employeesTable.lastNameEn,
+      departmentId: employeesTable.departmentId,
+      directManagerId: employeesTable.directManagerId,
+    })
+    .from(employeesTable)
+    .where(eq(employeesTable.id, caseRow.employeeId));
+
+  const [vt] = await db
+    .select()
+    .from(violationTypesTable)
+    .where(eq(violationTypesTable.id, caseRow.violationTypeId));
+
+  let departmentAr = '';
+  if (emp?.departmentId) {
+    const [dept] = await db
+      .select({ nameAr: departmentsTable.nameAr })
+      .from(departmentsTable)
+      .where(eq(departmentsTable.id, emp.departmentId));
+    departmentAr = dept?.nameAr ?? '';
   }
-  const { employeeId } = req.query as Record<string, string>;
-  const result = disciplinaryStore.filter(d => !employeeId || String(d.employeeId) === employeeId);
-  res.json({ success: true, data: result });
+
+  return {
+    id: caseRow.id,
+    employeeId: caseRow.employeeId,
+    employeeCode: emp?.employeeCode ?? '',
+    employeeNameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : '',
+    employeeNameEn: emp ? `${emp.firstNameEn} ${emp.lastNameEn}` : '',
+    departmentAr,
+    violationTypeId: caseRow.violationTypeId,
+    violationNameAr: vt?.nameAr ?? '',
+    violationNameEn: vt?.nameEn ?? '',
+    violationCode: vt?.code ?? '',
+    availablePenaltiesJson: vt?.availablePenaltiesJson ?? null,
+    violationDate: caseRow.violationDate,
+    violationDescription: caseRow.violationDescription,
+    penaltyType: caseRow.penaltyType,
+    penaltyDays: caseRow.penaltyDays,
+    salaryDeductionAmount: caseRow.salaryDeductionAmount,
+    actionDeadline: caseRow.actionDeadline,
+    issuedDate: caseRow.issuedDate,
+    status: caseRow.status,
+    employeeAcknowledgment: caseRow.employeeAcknowledgment,
+    previousViolationsCount: caseRow.previousViolationsCount,
+    decisionDate: caseRow.decisionDate,
+    notes: caseRow.notes,
+    reportedBy: caseRow.reportedBy,
+    createdByUserId: caseRow.createdByUserId,
+    createdAt: caseRow.createdAt,
+    updatedAt: caseRow.updatedAt,
+  };
+}
+
+// GET /api/disciplinary — list cases (HR: all company; employee: own; manager: 403 by default)
+app.get("/api/disciplinary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    let conditions: any[] = [
+      eq(disciplinaryCasesTable.companyId, user.companyId),
+      eq(disciplinaryCasesTable.isDeleted, false),
+    ];
+
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+      conditions.push(eq(disciplinaryCasesTable.employeeId, user.employeeId));
+    } else if (!["hradmin", "superadmin", "admin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    const { status, violationTypeId, employeeId } = req.query as Record<string, string>;
+    if (status) conditions.push(eq(disciplinaryCasesTable.status, status));
+    if (violationTypeId) conditions.push(eq(disciplinaryCasesTable.violationTypeId, +violationTypeId));
+    if (employeeId && user.role !== "employee") conditions.push(eq(disciplinaryCasesTable.employeeId, +employeeId));
+
+    const rows = await db
+      .select()
+      .from(disciplinaryCasesTable)
+      .where(and(...conditions))
+      .orderBy(desc(disciplinaryCasesTable.createdAt));
+
+    const shaped = await Promise.all(rows.map(r => buildCaseShape(r, user.companyId)));
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[GET /api/disciplinary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.post("/api/disciplinary", auth, async (req, res) => {
-  const record = { id: disciplinaryIdSeq++, ...req.body, createdAt: new Date() };
-  disciplinaryStore.push(record);
-  res.status(201).json({ success: true, data: record });
+// GET /api/disciplinary/stats
+app.get("/api/disciplinary/stats", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "admin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    const rows = await db
+      .select({ status: disciplinaryCasesTable.status, actionDeadline: disciplinaryCasesTable.actionDeadline })
+      .from(disciplinaryCasesTable)
+      .where(and(
+        eq(disciplinaryCasesTable.companyId, user.companyId),
+        eq(disciplinaryCasesTable.isDeleted, false)
+      ));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const total = rows.length;
+    const open = rows.filter(r => r.status === "open").length;
+    const investigating = rows.filter(r => r.status === "investigating").length;
+    const overdue = rows.filter(r =>
+      ["open", "investigating"].includes(r.status) &&
+      r.actionDeadline && String(r.actionDeadline) < today
+    ).length;
+
+    res.json({ success: true, data: { total, open, investigating, overdue } });
+  } catch (e) {
+    console.error("[GET /api/disciplinary/stats]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.get("/api/disciplinary/stats", auth, async (_req, res) => {
-  res.json({ success: true, data: { total: disciplinaryStore.length, pending: 0, resolved: 0, warnings: 0 } });
+// GET /api/disciplinary/violations — list violation types for settings page (HR only)
+app.get("/api/disciplinary/violations", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!requireHR(req, res)) return;
+    const rows = await db
+      .select()
+      .from(violationTypesTable)
+      .where(and(
+        eq(violationTypesTable.companyId, user.companyId),
+        eq(violationTypesTable.isDeleted, false)
+      ))
+      .orderBy(asc(violationTypesTable.nameAr));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/disciplinary/violations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.get("/api/disciplinary/violations", auth, async (_req, res) => {
-  res.json({ success: true, data: disciplinaryStore });
-});
-
+// POST /api/disciplinary/violations — create violation type (HR only)
 app.post("/api/disciplinary/violations", auth, async (req, res) => {
-  const record = { id: disciplinaryIdSeq++, ...req.body, createdAt: new Date() };
-  disciplinaryStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const { nameAr, nameEn, code } = req.body;
+
+    if (!nameAr?.trim()) { res.status(400).json({ success: false, message: "Arabic name is required" }); return; }
+    if (!code?.trim()) { res.status(400).json({ success: false, message: "Code is required" }); return; }
+
+    const normalizedCode = String(code).trim().toLowerCase().replace(/\s+/g, '_');
+    const [existing] = await db
+      .select({ id: violationTypesTable.id })
+      .from(violationTypesTable)
+      .where(and(
+        eq(violationTypesTable.companyId, user.companyId),
+        eq(violationTypesTable.code, normalizedCode),
+        eq(violationTypesTable.isDeleted, false)
+      ));
+    if (existing) { res.status(409).json({ success: false, message: "A violation type with this code already exists" }); return; }
+
+    const [created] = await db.insert(violationTypesTable).values({
+      companyId: user.companyId,
+      code: normalizedCode,
+      nameAr: nameAr.trim(),
+      nameEn: nameEn?.trim() || null,
+    }).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "violation_type_created",
+      description: `Violation type "${nameAr}" (${normalizedCode}) created`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.status(201).json({ success: true, data: created });
+  } catch (e) {
+    console.error("[POST /api/disciplinary/violations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/violations/:id — update violation type (HR only)
+app.put("/api/disciplinary/violations/:id", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+    const { nameAr, nameEn } = req.body;
+
+    const [vt] = await db
+      .select()
+      .from(violationTypesTable)
+      .where(and(eq(violationTypesTable.id, id), eq(violationTypesTable.companyId, user.companyId), eq(violationTypesTable.isDeleted, false)));
+    if (!vt) { res.status(404).json({ success: false, message: "Violation type not found" }); return; }
+
+    const [updated] = await db.update(violationTypesTable)
+      .set({ nameAr: nameAr?.trim() || vt.nameAr, nameEn: nameEn?.trim() || vt.nameEn, updatedAt: new Date() })
+      .where(eq(violationTypesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "violation_type_updated",
+      description: `Violation type "${updated.nameAr}" (${updated.code}) updated`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/violations/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/violations/:id/toggle — toggle active status (HR only)
+app.put("/api/disciplinary/violations/:id/toggle", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+
+    const [vt] = await db
+      .select()
+      .from(violationTypesTable)
+      .where(and(eq(violationTypesTable.id, id), eq(violationTypesTable.companyId, user.companyId), eq(violationTypesTable.isDeleted, false)));
+    if (!vt) { res.status(404).json({ success: false, message: "Violation type not found" }); return; }
+
+    const [updated] = await db.update(violationTypesTable)
+      .set({ isActive: !vt.isActive, updatedAt: new Date() })
+      .where(eq(violationTypesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "violation_type_updated",
+      description: `Violation type "${vt.nameAr}" ${updated.isActive ? 'activated' : 'deactivated'}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/violations/:id/toggle]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/disciplinary/employee/:id/history — employee violation history (HR only)
+app.get("/api/disciplinary/employee/:id/history", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const empId = +req.params.id;
+
+    // Verify employee belongs to company
+    const [emp] = await db
+      .select({ id: employeesTable.id, companyId: employeesTable.companyId })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId)));
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+
+    const cases = await db
+      .select({
+        id: disciplinaryCasesTable.id,
+        violationDate: disciplinaryCasesTable.violationDate,
+        penaltyType: disciplinaryCasesTable.penaltyType,
+        status: disciplinaryCasesTable.status,
+        violationTypeId: disciplinaryCasesTable.violationTypeId,
+      })
+      .from(disciplinaryCasesTable)
+      .where(and(
+        eq(disciplinaryCasesTable.employeeId, empId),
+        eq(disciplinaryCasesTable.companyId, user.companyId),
+        eq(disciplinaryCasesTable.isDeleted, false)
+      ))
+      .orderBy(desc(disciplinaryCasesTable.violationDate));
+
+    const totalCases = cases.length;
+    // Suggest next penalty level based on previous warnings
+    const penaltyOrder = ['warning_verbal','warning_written','warning_written_2','warning_final','termination'];
+    const warnings = cases.filter(c => c.penaltyType?.startsWith('warning_')).length;
+    const suggested = penaltyOrder[Math.min(warnings, penaltyOrder.length - 1)];
+
+    res.json({ success: true, data: { totalCases, suggested, cases } });
+  } catch (e) {
+    console.error("[GET /api/disciplinary/employee/:id/history]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/disciplinary/:id — case detail (HR or own employee)
+app.get("/api/disciplinary/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+
+    const conditions: any[] = [
+      eq(disciplinaryCasesTable.id, id),
+      eq(disciplinaryCasesTable.companyId, user.companyId),
+      eq(disciplinaryCasesTable.isDeleted, false),
+    ];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+      conditions.push(eq(disciplinaryCasesTable.employeeId, user.employeeId));
+    } else if (!["hradmin", "superadmin", "admin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable).where(and(...conditions));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+
+    const base = await buildCaseShape(caseRow, user.companyId);
+
+    // Get employee details
+    const [emp] = await db
+      .select({
+        id: employeesTable.id,
+        employeeCode: employeesTable.employeeCode,
+        firstNameAr: employeesTable.firstNameAr,
+        lastNameAr: employeesTable.lastNameAr,
+        directManagerId: employeesTable.directManagerId,
+        departmentId: employeesTable.departmentId,
+      })
+      .from(employeesTable)
+      .where(eq(employeesTable.id, caseRow.employeeId));
+
+    let managerDetail = null;
+    if (emp?.directManagerId) {
+      const [mgr] = await db
+        .select({ id: employeesTable.id, firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr })
+        .from(employeesTable)
+        .where(eq(employeesTable.id, emp.directManagerId));
+      if (mgr) managerDetail = { id: mgr.id, nameAr: `${mgr.firstNameAr} ${mgr.lastNameAr}` };
+    }
+
+    // Get investigation if exists
+    const [inv] = await db
+      .select()
+      .from(disciplinaryInvestigationsTable)
+      .where(eq(disciplinaryInvestigationsTable.caseId, id));
+
+    // Get previous cases for this employee (excluding current)
+    const prevCases = await db
+      .select({
+        id: disciplinaryCasesTable.id,
+        violationDate: disciplinaryCasesTable.violationDate,
+        penaltyType: disciplinaryCasesTable.penaltyType,
+        status: disciplinaryCasesTable.status,
+        violationTypeId: disciplinaryCasesTable.violationTypeId,
+      })
+      .from(disciplinaryCasesTable)
+      .where(and(
+        eq(disciplinaryCasesTable.employeeId, caseRow.employeeId),
+        eq(disciplinaryCasesTable.companyId, user.companyId),
+        eq(disciplinaryCasesTable.isDeleted, false),
+        ne(disciplinaryCasesTable.id, id)
+      ))
+      .orderBy(desc(disciplinaryCasesTable.violationDate));
+
+    const vtRows = prevCases.length > 0
+      ? await db.select().from(violationTypesTable)
+          .where(inArray(violationTypesTable.id, prevCases.map(p => p.violationTypeId)))
+      : [];
+    const vtMap = Object.fromEntries(vtRows.map(v => [v.id, v]));
+
+    res.json({
+      success: true,
+      data: {
+        ...base,
+        reportedBy: caseRow.reportedBy,
+        employee: {
+          employeeId: emp?.id,
+          employeeCode: emp?.employeeCode,
+          nameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : '',
+          department: base.departmentAr,
+          manager: managerDetail,
+        },
+        investigation: inv ? {
+          id: inv.id,
+          hrNotes: inv.hrNotes,
+          employeeStatement: inv.employeeStatement,
+          managerStatement: inv.managerStatement,
+          investigationDate: inv.investigationDate,
+          outcome: inv.outcome,
+        } : null,
+        previousCases: prevCases.map(p => ({
+          id: p.id,
+          violationDate: p.violationDate,
+          penaltyType: p.penaltyType,
+          status: p.status,
+          violationNameAr: vtMap[p.violationTypeId]?.nameAr ?? '',
+        })),
+      },
+    });
+  } catch (e) {
+    console.error("[GET /api/disciplinary/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/disciplinary — create case (HR only)
+app.post("/api/disciplinary", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const {
+      employeeId, violationTypeId, violationDate, violationDescription,
+      penaltyType, notes, reportedBy, asDraft
+    } = req.body;
+
+    if (!employeeId) { res.status(400).json({ success: false, message: "Employee is required" }); return; }
+    if (!violationTypeId) { res.status(400).json({ success: false, message: "Violation type is required" }); return; }
+    if (!violationDate) { res.status(400).json({ success: false, message: "Violation date is required" }); return; }
+    if (!violationDescription?.trim()) { res.status(400).json({ success: false, message: "Description is required" }); return; }
+
+    // Verify employee belongs to company
+    const [emp] = await db
+      .select({ id: employeesTable.id, companyId: employeesTable.companyId })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, +employeeId), eq(employeesTable.companyId, user.companyId)));
+    if (!emp) { res.status(400).json({ success: false, message: "Employee not found in your company" }); return; }
+
+    // Verify violation type belongs to company
+    const [vt] = await db
+      .select({ id: violationTypesTable.id })
+      .from(violationTypesTable)
+      .where(and(eq(violationTypesTable.id, +violationTypeId), eq(violationTypesTable.companyId, user.companyId), eq(violationTypesTable.isDeleted, false)));
+    if (!vt) { res.status(400).json({ success: false, message: "Invalid violation type" }); return; }
+
+    // Count previous cases for this employee
+    const prevCount = await db.$count(disciplinaryCasesTable,
+      and(
+        eq(disciplinaryCasesTable.employeeId, +employeeId),
+        eq(disciplinaryCasesTable.companyId, user.companyId),
+        eq(disciplinaryCasesTable.isDeleted, false)
+      )
+    );
+
+    const status = asDraft ? "draft" : "open";
+    const issuedDate = new Date().toISOString().slice(0, 10);
+    // Action deadline: 14 days from violation date
+    const vDate = new Date(`${violationDate}T00:00:00`);
+    const deadline = new Date(vDate.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+
+    const [created] = await db.insert(disciplinaryCasesTable).values({
+      companyId: user.companyId,
+      employeeId: +employeeId,
+      violationTypeId: +violationTypeId,
+      violationDate,
+      violationDescription: violationDescription.trim(),
+      penaltyType: penaltyType || "warning_verbal",
+      notes: notes || null,
+      reportedBy: reportedBy || null,
+      actionDeadline: deadline,
+      issuedDate,
+      status,
+      previousViolationsCount: prevCount,
+      createdByUserId: user.userId,
+    }).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_created",
+      description: `Disciplinary case #${created.id} created for employee ID ${employeeId} (${status})`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    // Notify employee if case is open (not draft)
+    if (status === "open") {
+      await notifyEmployee(+employeeId, user.companyId, {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "disciplinary_case",
+        entityId: created.id,
+        notificationType: "disciplinary_case_opened",
+        titleAr: "قضية تأديبية جديدة",
+        titleEn: "New Disciplinary Case",
+        messageAr: "تم فتح قضية تأديبية بحقك. يرجى مراجعة قسم الموارد البشرية.",
+        messageEn: "A disciplinary case has been opened against you. Please contact HR.",
+        priority: "high",
+        actionUrl: `/app/disciplinary`,
+      });
+    }
+
+    const shaped = await buildCaseShape(created, user.companyId);
+    res.status(201).json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[POST /api/disciplinary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/investigation — save investigation notes (HR only)
+app.put("/api/disciplinary/:id/investigation", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+    const { hrNotes, employeeStatement, managerStatement, investigationDate, outcome } = req.body;
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable)
+      .where(and(eq(disciplinaryCasesTable.id, id), eq(disciplinaryCasesTable.companyId, user.companyId), eq(disciplinaryCasesTable.isDeleted, false)));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+    if (caseRow.status === "closed" || caseRow.status === "cancelled") {
+      res.status(409).json({ success: false, message: "Cannot modify a closed or cancelled case" }); return;
+    }
+
+    // Upsert investigation
+    const [existing] = await db.select({ id: disciplinaryInvestigationsTable.id })
+      .from(disciplinaryInvestigationsTable)
+      .where(eq(disciplinaryInvestigationsTable.caseId, id));
+
+    if (existing) {
+      await db.update(disciplinaryInvestigationsTable)
+        .set({ hrNotes, employeeStatement, managerStatement, investigationDate: investigationDate || null, outcome: outcome || "pending", updatedAt: new Date() })
+        .where(eq(disciplinaryInvestigationsTable.id, existing.id));
+    } else {
+      await db.insert(disciplinaryInvestigationsTable).values({
+        caseId: id, companyId: user.companyId, hrNotes, employeeStatement, managerStatement,
+        investigationDate: investigationDate || null, outcome: outcome || "pending",
+      });
+    }
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_investigation_started",
+      description: `Investigation for case #${id} updated (outcome: ${outcome || 'pending'})`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    res.json({ success: true, message: "Investigation saved successfully" });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/investigation]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/decision — record final decision (HR only)
+app.put("/api/disciplinary/:id/decision", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+    const { penaltyType, penaltyDays, salaryDeductionAmount, decisionDate, notes } = req.body;
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable)
+      .where(and(eq(disciplinaryCasesTable.id, id), eq(disciplinaryCasesTable.companyId, user.companyId), eq(disciplinaryCasesTable.isDeleted, false)));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+    if (caseRow.status === "closed" || caseRow.status === "cancelled") {
+      res.status(409).json({ success: false, message: "Cannot modify a closed or cancelled case" }); return;
+    }
+
+    const [updated] = await db.update(disciplinaryCasesTable)
+      .set({
+        penaltyType: penaltyType || caseRow.penaltyType,
+        penaltyDays: penaltyDays ?? caseRow.penaltyDays,
+        salaryDeductionAmount: salaryDeductionAmount ?? caseRow.salaryDeductionAmount,
+        decisionDate: decisionDate || null,
+        notes: notes || caseRow.notes,
+        status: "decided",
+        updatedAt: new Date(),
+      })
+      .where(eq(disciplinaryCasesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_updated",
+      description: `Decision recorded for case #${id}: ${penaltyType} (status: decided)`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    // Notify employee of decision
+    await notifyEmployee(caseRow.employeeId, user.companyId, {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "disciplinary_case",
+      entityId: id,
+      notificationType: "disciplinary_case_decided",
+      titleAr: "قرار في قضيتك التأديبية",
+      titleEn: "Decision on Your Disciplinary Case",
+      messageAr: "تم اتخاذ قرار في القضية التأديبية المتعلقة بك.",
+      messageEn: "A decision has been made on your disciplinary case.",
+      priority: "high",
+      actionUrl: `/app/disciplinary`,
+    });
+
+    const shaped = await buildCaseShape(updated, user.companyId);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/decision]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/status — change status (e.g. open → investigating) (HR only)
+app.put("/api/disciplinary/:id/status", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+    const { status } = req.body;
+
+    const allowedStatuses = ["draft","open","investigating","decided","closed","cancelled"];
+    if (!status || !allowedStatuses.includes(status)) {
+      res.status(400).json({ success: false, message: "Invalid status" }); return;
+    }
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable)
+      .where(and(eq(disciplinaryCasesTable.id, id), eq(disciplinaryCasesTable.companyId, user.companyId), eq(disciplinaryCasesTable.isDeleted, false)));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+    if (caseRow.status === "closed" || caseRow.status === "cancelled") {
+      res.status(409).json({ success: false, message: "Cannot change status of a closed or cancelled case" }); return;
+    }
+
+    // State machine transitions
+    const validTransitions: Record<string, string[]> = {
+      draft: ["open", "cancelled"],
+      open: ["investigating", "cancelled"],
+      investigating: ["decided", "cancelled"],
+      decided: ["closed", "cancelled"],
+      closed: [],
+      cancelled: [],
+    };
+    if (!validTransitions[caseRow.status]?.includes(status)) {
+      res.status(409).json({ success: false, message: `Invalid transition: ${caseRow.status} → ${status}` }); return;
+    }
+
+    const [updated] = await db.update(disciplinaryCasesTable)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(disciplinaryCasesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: `disciplinary_case_${status === "investigating" ? "investigation_started" : status === "decided" ? "updated" : status}`,
+      description: `Case #${id} status changed: ${caseRow.status} → ${status}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    const shaped = await buildCaseShape(updated, user.companyId);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/status]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/close — close a case (HR only)
+app.put("/api/disciplinary/:id/close", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable)
+      .where(and(eq(disciplinaryCasesTable.id, id), eq(disciplinaryCasesTable.companyId, user.companyId), eq(disciplinaryCasesTable.isDeleted, false)));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+    if (caseRow.status === "closed") { res.status(409).json({ success: false, message: "Case is already closed" }); return; }
+    if (caseRow.status === "cancelled") { res.status(409).json({ success: false, message: "Cannot close a cancelled case" }); return; }
+
+    const [updated] = await db.update(disciplinaryCasesTable)
+      .set({ status: "closed", updatedAt: new Date() })
+      .where(eq(disciplinaryCasesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_closed",
+      description: `Case #${id} closed`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    // Notify employee
+    await notifyEmployee(caseRow.employeeId, user.companyId, {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "disciplinary_case",
+      entityId: id,
+      notificationType: "disciplinary_case_closed",
+      titleAr: "تم إغلاق قضيتك التأديبية",
+      titleEn: "Your Disciplinary Case Has Been Closed",
+      messageAr: "تم إغلاق القضية التأديبية المتعلقة بك.",
+      messageEn: "Your disciplinary case has been closed.",
+      priority: "normal",
+      actionUrl: `/app/disciplinary`,
+    });
+
+    const shaped = await buildCaseShape(updated, user.companyId);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/close]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/cancel — cancel a case (HR only)
+app.put("/api/disciplinary/:id/cancel", auth, async (req, res) => {
+  try {
+    if (!requireHR(req, res)) return;
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable)
+      .where(and(eq(disciplinaryCasesTable.id, id), eq(disciplinaryCasesTable.companyId, user.companyId), eq(disciplinaryCasesTable.isDeleted, false)));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+    if (caseRow.status === "closed") { res.status(409).json({ success: false, message: "Cannot cancel a closed case" }); return; }
+    if (caseRow.status === "cancelled") { res.status(409).json({ success: false, message: "Case is already cancelled" }); return; }
+
+    const [updated] = await db.update(disciplinaryCasesTable)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(disciplinaryCasesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_cancelled",
+      description: `Case #${id} cancelled`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    const shaped = await buildCaseShape(updated, user.companyId);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/cancel]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/disciplinary/:id/acknowledge — employee acknowledges case (HR or self)
+app.put("/api/disciplinary/:id/acknowledge", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = +req.params.id;
+
+    const conditions: any[] = [
+      eq(disciplinaryCasesTable.id, id),
+      eq(disciplinaryCasesTable.companyId, user.companyId),
+      eq(disciplinaryCasesTable.isDeleted, false),
+    ];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+      conditions.push(eq(disciplinaryCasesTable.employeeId, user.employeeId));
+    } else if (!["hradmin", "superadmin", "admin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    const [caseRow] = await db.select().from(disciplinaryCasesTable).where(and(...conditions));
+    if (!caseRow) { res.status(404).json({ success: false, message: "Case not found" }); return; }
+
+    const [updated] = await db.update(disciplinaryCasesTable)
+      .set({ employeeAcknowledgment: true, updatedAt: new Date() })
+      .where(eq(disciplinaryCasesTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "disciplinary_case_updated",
+      description: `Employee acknowledged case #${id}`,
+      employeeName: user.username,
+      companyId: user.companyId,
+    });
+
+    const shaped = await buildCaseShape(updated, user.companyId);
+    res.json({ success: true, data: shaped });
+  } catch (e) {
+    console.error("[PUT /api/disciplinary/:id/acknowledge]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Resignations ─────────────────────────────────────────────────────────────
