@@ -1,0 +1,513 @@
+TITLE:
+Refactor + Fix — Attendance Core Logic & Correction Requests
+Strong Business Logic First, Testing Later
+
+═══════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════
+Fix the Attendance module logic properly before QA testing.
+
+The attendance module must become a real HR-grade system, not just UI cards.
+Focus on:
+1. Reliable attendance state machine.
+2. Correct check-in / check-out behavior.
+3. Work-hours calculation.
+4. Correction request workflow linked to attendance records.
+5. Role-based visibility and approval logic.
+6. Audit trail for every attendance change.
+
+Do NOT redesign the UI.
+Do NOT touch overtime, leave, payroll, or unrelated modules.
+Do NOT start broad testing yet.
+This task is implementation/fix only.
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Work only on Attendance + Attendance Corrections.
+- Do not rewrite the whole module.
+- Use minimal but complete backend-first fixes.
+- Backend must be source of truth.
+- Frontend must reflect backend state, not invent state locally.
+- Employee scope must be server-enforced.
+- Manager scope must be server-enforced.
+- HR scope must be company-wide.
+- Every mutation must create an audit/activity log.
+- If schema is missing required columns, add a safe migration or schema update.
+- Do not silently drop frontend fields.
+- Do not return fake success.
+- Do not proceed to QA testing prompt after this. Stop and report.
+
+═══════════════════════════════════
+PART 1 — ANALYZE CURRENT ATTENDANCE SYSTEM
+═══════════════════════════════════
+Before changing code, inspect and report:
+
+Frontend:
+1. Attendance route.
+2. Attendance component file path.
+3. Tabs currently shown:
+   - Summary
+   - My records
+   - Correction requests
+   - Records
+   - Requests
+   - Map / work locations
+4. What API is called for:
+   - today summary
+   - check-in
+   - check-out
+   - my records
+   - team/company records
+   - correction request create
+   - correction request approve/reject
+5. What fields the UI expects for an attendance record.
+6. What fields the UI expects for correction requests.
+
+Backend:
+1. List all attendance-related endpoints.
+2. List all attendance correction endpoints.
+3. Identify tables used:
+   - attendance records table
+   - correction requests table
+   - work locations table if any
+   - activity logs table
+   - notifications table
+4. Identify missing columns or mismatched field names.
+5. Identify current role/scope logic.
+
+Database:
+Report actual schema columns for:
+- attendance
+- attendance_corrections or correction requests
+- employees
+- users
+- notifications
+- activity_logs
+
+Do not modify code until this analysis is complete.
+
+═══════════════════════════════════
+PART 2 — DEFINE ATTENDANCE STATE MACHINE
+═══════════════════════════════════
+Implement or enforce this attendance state model.
+
+For each employee per date, there should be at most ONE primary attendance record.
+
+Statuses:
+- pending / not_started: no check-in yet
+- present: checked in, not checked out
+- completed: checked in and checked out
+- absent: no check-in by end of day or manually marked
+- late: checked in after allowed grace period
+- corrected: record updated through approved correction
+- cancelled / invalid: if record is voided by HR
+
+Rules:
+1. Employee cannot check in twice on same date.
+2. Employee cannot check out without check-in.
+3. Employee cannot check out twice.
+4. Check-out time must be after check-in time.
+5. Work hours must be calculated on backend.
+6. Late flag must be calculated on backend using configured shift/start time if available.
+7. If shift config is missing, use safe default:
+   - work start: 09:00
+   - grace period: 15 minutes
+   - work day: 8 hours
+8. Never rely on frontend calculation for final stored values.
+
+Expected attendance record fields returned to UI:
+{
+  id,
+  employeeId,
+  employeeName,
+  employeeCode,
+  departmentName,
+  date,
+  checkInTime,
+  checkOutTime,
+  workHours,
+  status,
+  isLate,
+  lateMinutes,
+  attendanceType,
+  locationName,
+  correctionStatus,
+  correctedAt,
+  correctedByName,
+  createdAt,
+  updatedAt
+}
+
+If DB has different column names, map them consistently in API responses.
+
+═══════════════════════════════════
+PART 3 — FIX CHECK-IN / CHECK-OUT BACKEND
+═══════════════════════════════════
+Fix or add these endpoints.
+
+Employee endpoints:
+POST /api/attendance/check-in
+POST /api/attendance/check-out
+GET  /api/attendance/my-today
+GET  /api/attendance/my-records
+
+Required check-in behavior:
+1. Auth required.
+2. user.employeeId required.
+3. Use employeeId from JWT only.
+4. companyId from JWT if table supports it.
+5. Date = today server-side unless explicitly supported.
+6. If today's record already has checkInTime:
+   return 409 with message "Already checked in".
+7. Create or update today's attendance record:
+   - employeeId
+   - date
+   - checkInTime = now
+   - status = present or late
+   - isLate
+   - lateMinutes
+   - attendanceType = office/default
+   - createdAt/updatedAt
+8. Create activity log:
+   action = attendance_check_in
+   entityType = attendance
+   entityId = record.id
+   actorUserId = current user
+9. Return { success:true, data: normalizedAttendanceRecord }
+
+Required check-out behavior:
+1. Auth required.
+2. user.employeeId required.
+3. Find today's attendance record for current employee.
+4. If no check-in: return 400.
+5. If already checked out: return 409.
+6. Set checkOutTime = now.
+7. Calculate workHours = decimal hours rounded to 2 decimals.
+8. Set status:
+   - completed if not late
+   - late if late but checked out
+   or preserve status late with completed flag if schema supports.
+9. Create activity log:
+   action = attendance_check_out
+10. Return normalized record.
+
+GET /api/attendance/my-today:
+Must return today's record for current employee only.
+If no record:
+return state:
+{
+  status: "pending",
+  checkInTime: null,
+  checkOutTime: null,
+  workHours: null,
+  isLate: false,
+  lateMinutes: 0
+}
+
+GET /api/attendance/my-records:
+Must return current employee records only.
+
+═══════════════════════════════════
+PART 4 — FIX MANAGER / HR ATTENDANCE VISIBILITY
+═══════════════════════════════════
+Fix or enforce these list endpoints:
+
+GET /api/attendance
+GET /api/attendance/records
+GET /api/attendance/team
+
+Scope rules:
+- employee:
+  return own records only, ignore employeeId query params.
+- manager:
+  return direct reports / department scope only.
+  Must not return full company records.
+- hradmin:
+  return company records.
+- payrolladmin:
+  read-only company records if current system allows payroll attendance access.
+- superadmin:
+  platform/company-scoped only if tenant selected.
+
+Filters:
+- dateFrom
+- dateTo
+- status
+- employeeId
+- departmentId/orgNodeId
+- attendanceType
+- lateOnly
+
+All filters must be sanitized and must NOT override scope.
+
+Every record returned must include normalized display fields:
+employeeName, employeeCode, departmentName, date, checkInTime, checkOutTime, workHours, status, isLate, lateMinutes, correctionStatus.
+
+═══════════════════════════════════
+PART 5 — FIX CORRECTION REQUESTS LOGIC
+═══════════════════════════════════
+Correction requests must be linked to attendance records where possible.
+
+Correction types:
+- missing_check_in
+- missing_check_out
+- time_correction
+- absence_correction
+- location_correction
+
+Expected correction request fields:
+{
+  id,
+  employeeId,
+  employeeName,
+  attendanceId,
+  correctionType,
+  date,
+  currentCheckInTime,
+  currentCheckOutTime,
+  requestedCheckInTime,
+  requestedCheckOutTime,
+  reason,
+  status,
+  managerApprovedById,
+  managerApprovedAt,
+  hrApprovedById,
+  hrApprovedAt,
+  rejectionReason,
+  createdAt,
+  updatedAt
+}
+
+Employee create endpoint:
+POST /api/attendance/corrections
+or existing frontend path if different.
+
+Required create behavior:
+1. Auth required.
+2. employeeId from JWT only.
+3. Date required.
+4. Reason required.
+5. At least one requested time/change required.
+6. Find existing attendance record for employee + date if present.
+7. Store attendanceId if found.
+8. Store current values snapshot:
+   - currentCheckInTime
+   - currentCheckOutTime
+9. Store requested values.
+10. status = pending.
+11. Create notifications:
+   - direct manager
+   - HR if current policy requires immediate visibility
+12. Create activity log:
+   action = attendance_correction_requested.
+13. Return created request.
+
+Validation:
+- requestedCheckOutTime must be after requestedCheckInTime if both provided.
+- Cannot create duplicate pending correction for same employee/date/type.
+- Employee cannot create correction for another employee.
+- Employee cannot correct future dates unless policy explicitly allows it.
+
+Manager approval:
+PUT /api/attendance/corrections/:id/approve
+or existing route if different.
+
+Behavior:
+1. manager can approve only direct reports / scoped team.
+2. pending → manager_approved.
+3. Notify HR.
+4. Do NOT apply correction to attendance record yet unless current policy says manager-only approval.
+5. Activity log action = attendance_correction_manager_approved.
+
+HR final approval:
+If request status = manager_approved or pending if HR bypass allowed:
+1. Apply requested correction to linked attendance record.
+2. If attendance record does not exist, create one for employee/date.
+3. Recalculate:
+   - workHours
+   - status
+   - isLate
+   - lateMinutes
+4. Set correctionStatus = approved/corrected if schema supports.
+5. Mark request approved.
+6. Store hrApprovedById/hrApprovedAt.
+7. Notify employee.
+8. Activity log:
+   - attendance_correction_hr_approved
+   - attendance_record_corrected
+9. Return updated request + updated attendance record.
+
+Reject:
+1. manager/hr can reject according to scope.
+2. Save rejectionReason.
+3. status = rejected.
+4. Notify employee.
+5. Do not modify attendance record.
+6. Activity log action = attendance_correction_rejected.
+
+Security:
+- Employee cannot approve/reject.
+- Employee cannot see others' correction requests.
+- Wrong manager cannot approve/reject.
+- Approved/rejected/cancelled correction cannot be approved again.
+
+═══════════════════════════════════
+PART 6 — FRONTEND ALIGNMENT ONLY
+═══════════════════════════════════
+After backend fixes, align frontend minimally:
+
+1. Make summary cards read backend normalized fields:
+   - status
+   - checkInTime
+   - checkOutTime
+   - workHours
+   - isLate
+   - lateMinutes
+2. After check-in:
+   - refresh today summary
+   - refresh my records
+   - show success toast
+3. After check-out:
+   - refresh today summary
+   - refresh my records
+4. My records tab:
+   - show actual records returned by backend.
+5. Correction form:
+   - send field names backend expects.
+6. Correction requests tab:
+   - show request status correctly:
+     pending, manager_approved, approved, rejected.
+7. HR/manager records tab:
+   - display employee name/code/department from API.
+8. Do not hide records because of mismatched status strings.
+9. Use western digits for all numbers.
+10. Preserve RTL layout.
+
+Do not redesign cards/tabs.
+
+═══════════════════════════════════
+PART 7 — NOTIFICATIONS
+═══════════════════════════════════
+Use existing notification service/pattern.
+
+Required notifications:
+1. Employee correction request submitted:
+   recipients: direct manager + HR if required.
+2. Manager approves correction:
+   recipient: HR.
+3. HR approves correction:
+   recipient: employee.
+4. Any rejection:
+   recipient: employee.
+5. Optional:
+   HR notification for repeated late/absent events only if already supported.
+
+Notification rules:
+- Do not notify unrelated employees.
+- Do not notify all users blindly.
+- Notification entityType should be:
+  attendance_correction
+  or attendance_record if correction is not involved.
+- entityId must be the correction request id or attendance record id.
+- Titles/messages must be readable Arabic.
+- Bell count must reflect unread notifications.
+
+═══════════════════════════════════
+PART 8 — AUDIT LOGGING
+═══════════════════════════════════
+Every mutation must create audit/activity log:
+
+Required actions:
+- attendance_check_in
+- attendance_check_out
+- attendance_correction_requested
+- attendance_correction_manager_approved
+- attendance_correction_hr_approved
+- attendance_correction_rejected
+- attendance_record_corrected
+
+Each log should include:
+- actorUserId
+- companyId if available
+- entityType
+- entityId
+- previousValueJson
+- newValueJson
+- createdAt
+
+If activity_logs table schema is different, map to existing columns safely.
+
+═══════════════════════════════════
+PART 9 — DO NOT FAKE RESULTS
+═══════════════════════════════════
+Do not return mock/stub data for attendance.
+Do not show success if DB insert/update failed.
+Do not calculate UI-only values that are not stored or returned by backend.
+Do not suppress backend errors.
+Do not swallow DB errors silently.
+
+If a feature is not supported by schema:
+- report it as MAJOR_SCHEMA_GAP
+- do not fake it.
+
+═══════════════════════════════════
+PART 10 — REQUIRED FINAL REPORT
+═══════════════════════════════════
+When done, report exactly:
+
+────────────────────────────────────────
+Attendance Logic Fix Report
+
+Files inspected:
+- ...
+
+Current endpoints found:
+- ...
+
+Schema findings:
+- ...
+
+Bugs / gaps fixed:
+1.
+Type:
+Root cause:
+Fix:
+Files changed:
+
+2.
+...
+
+Schema gaps remaining:
+- ...
+
+Final implemented behavior:
+- Check-in:
+- Check-out:
+- My records:
+- HR records:
+- Manager records:
+- Correction create:
+- Correction approve:
+- Correction reject:
+- Notifications:
+- Audit logs:
+
+Files changed:
+- ...
+
+Manual verification performed:
+- Server starts: yes/no
+- TypeScript/build passes: yes/no
+- No unrelated modules changed: yes/no
+
+Remaining risks:
+- ...
+
+STATUS:
+Attendance core logic ready for QA testing ✅ / blocked ❌
+────────────────────────────────────────
+
+STOP HERE.
+Do not run the full QA workflow yet.
+Do not start Workflow 6 testing prompt.

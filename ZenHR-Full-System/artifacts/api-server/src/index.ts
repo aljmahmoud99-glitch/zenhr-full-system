@@ -9,7 +9,7 @@ import { db } from "@workspace/db";
 import {
   usersTable, employeesTable, departmentsTable, jobTitlesTable,
   leaveRequestsTable, leavePoliciesTable, leaveBalancesTable,
-  payrollRunsTable, payslipsTable, attendanceRecordsTable,
+  payrollRunsTable, payslipsTable, attendanceRecordsTable, attendanceCorrectionsTable,
   documentsTable, documentTypesTable, assetsTable, assetCategoriesTable,
   nationalitiesTable, citiesTable, banksTable, leaveTypesTable,
   companiesTable, activityLogsTable, systemConfigurationsTable,
@@ -2783,11 +2783,34 @@ app.get("/api/attendance", auth, async (req, res) => {
     }
     if (from) conditions.push(gte(attendanceRecordsTable.date, from));
     if (to) conditions.push(lte(attendanceRecordsTable.date, to));
-    const rows = conditions.length > 0
-      ? await db.select().from(attendanceRecordsTable).where(and(...conditions)).orderBy(desc(attendanceRecordsTable.date))
-      : await db.select().from(attendanceRecordsTable).orderBy(desc(attendanceRecordsTable.date)).limit(100);
+    const rows = await db
+      .select({
+        id: attendanceRecordsTable.id,
+        employeeId: attendanceRecordsTable.employeeId,
+        date: attendanceRecordsTable.date,
+        clockIn: attendanceRecordsTable.clockIn,
+        clockOut: attendanceRecordsTable.clockOut,
+        workedMinutes: attendanceRecordsTable.workedMinutes,
+        status: attendanceRecordsTable.status,
+        lateMinutes: attendanceRecordsTable.lateMinutes,
+        overtimeMinutes: attendanceRecordsTable.overtimeMinutes,
+        attendanceType: attendanceRecordsTable.attendanceType,
+        notes: attendanceRecordsTable.notes,
+        createdAt: attendanceRecordsTable.createdAt,
+        updatedAt: attendanceRecordsTable.updatedAt,
+        employeeCode: employeesTable.employeeCode,
+        fullNameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        fullNameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+        orgNodeId: employeesTable.orgNodeId,
+      })
+      .from(attendanceRecordsTable)
+      .leftJoin(employeesTable, eq(attendanceRecordsTable.employeeId, employeesTable.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(attendanceRecordsTable.date))
+      .limit(200);
     res.json({ success: true, data: rows });
   } catch (e) {
+    console.error("[GET /api/attendance]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -2795,14 +2818,37 @@ app.get("/api/attendance", auth, async (req, res) => {
 app.post("/api/attendance/clock-in", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId, notes } = req.body as { employeeId: number; notes?: string };
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const { attendanceType, notes } = req.body as { attendanceType?: string; notes?: string };
     const today = new Date().toISOString().split("T")[0]!;
-    const [record] = await db.insert(attendanceRecordsTable).values({
-      employeeId: employeeId ?? user.employeeId ?? 0,
-      date: today, clockIn: new Date(), status: "present", notes,
-    }).returning();
+    const [existing] = await db.select().from(attendanceRecordsTable)
+      .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
+    if (existing?.clockIn) {
+      res.status(409).json({ success: false, message: "Already clocked in today" }); return;
+    }
+    const now = new Date();
+    const shiftStartHour = 9, shiftStartMin = 0, graceMins = 15;
+    const shiftWithGrace = shiftStartHour * 60 + shiftStartMin + graceMins;
+    const clockMins = now.getHours() * 60 + now.getMinutes();
+    const lateMinutes = Math.max(0, clockMins - shiftWithGrace);
+    const status = lateMinutes > 0 ? "late" : "present";
+    let record: any;
+    if (existing) {
+      [record] = await db.update(attendanceRecordsTable)
+        .set({ clockIn: now, status, lateMinutes, attendanceType: attendanceType ?? "office", notes: notes ?? existing.notes })
+        .where(eq(attendanceRecordsTable.id, existing.id)).returning();
+    } else {
+      [record] = await db.insert(attendanceRecordsTable).values({
+        employeeId: user.employeeId,
+        date: today, clockIn: now, status, lateMinutes,
+        attendanceType: attendanceType ?? "office", notes,
+      }).returning();
+    }
+    await logActivity(user.companyId, "attendance_check_in",
+      `Clock-in: ${user.username} at ${now.toISOString()} (${status}, late: ${lateMinutes}m)`, user.username);
     res.status(201).json({ success: true, data: record });
   } catch (e) {
+    console.error("[POST /api/attendance/clock-in]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -2810,36 +2856,54 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
 app.post("/api/attendance/clock-out", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId } = req.body as { employeeId: number };
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
     const today = new Date().toISOString().split("T")[0]!;
     const [existing] = await db.select().from(attendanceRecordsTable)
-      .where(and(eq(attendanceRecordsTable.employeeId, employeeId ?? user.employeeId ?? 0), eq(attendanceRecordsTable.date, today)));
-    if (!existing) { res.status(404).json({ success: false, message: "No clock-in found for today" }); return; }
+      .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
+    if (!existing || !existing.clockIn) {
+      res.status(400).json({ success: false, message: "No clock-in found for today" }); return;
+    }
+    if (existing.clockOut) {
+      res.status(409).json({ success: false, message: "Already clocked out today" }); return;
+    }
     const now = new Date();
-    const workedMs = existing.clockIn ? now.getTime() - existing.clockIn.getTime() : 0;
-    const workedMinutes = Math.floor(workedMs / 60000);
-    const [record] = await db.update(attendanceRecordsTable).set({ clockOut: now, workedMinutes }).where(eq(attendanceRecordsTable.id, existing.id)).returning();
+    const workedMs = now.getTime() - existing.clockIn.getTime();
+    const workedMinutes = Math.max(0, Math.floor(workedMs / 60000));
+    const [record] = await db.update(attendanceRecordsTable)
+      .set({ clockOut: now, workedMinutes })
+      .where(eq(attendanceRecordsTable.id, existing.id)).returning();
+    await logActivity(user.companyId, "attendance_check_out",
+      `Clock-out: ${user.username} at ${now.toISOString()}, worked ${workedMinutes} minutes`, user.username);
     res.json({ success: true, data: record });
   } catch (e) {
+    console.error("[POST /api/attendance/clock-out]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/attendance/summary", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { employeeId, month, year } = req.query as Record<string, string>;
     const m = parseInt(month ?? String(new Date().getMonth() + 1));
     const y = parseInt(year ?? String(new Date().getFullYear()));
     const from = `${y}-${String(m).padStart(2, "0")}-01`;
     const to = `${y}-${String(m).padStart(2, "0")}-31`;
-    const conditions = [gte(attendanceRecordsTable.date, from), lte(attendanceRecordsTable.date, to)];
-    if (employeeId) conditions.push(eq(attendanceRecordsTable.employeeId, parseInt(employeeId)));
+    const conditions: any[] = [gte(attendanceRecordsTable.date, from), lte(attendanceRecordsTable.date, to)];
+    if (user.role === "employee") {
+      if (!user.employeeId) {
+        res.json({ success: true, data: { present: 0, absent: 0, late: 0, total: 0, totalWorkedMinutes: 0, month: m, year: y } }); return;
+      }
+      conditions.push(eq(attendanceRecordsTable.employeeId, user.employeeId));
+    } else if (employeeId) {
+      conditions.push(eq(attendanceRecordsTable.employeeId, parseInt(employeeId)));
+    }
     const rows = await db.select().from(attendanceRecordsTable).where(and(...conditions));
     const present = rows.filter(r => r.status === "present").length;
     const absent = rows.filter(r => r.status === "absent").length;
-    const late = rows.filter(r => (r.lateMinutes ?? 0) > 0).length;
+    const late = rows.filter(r => r.status === "late" || (r.lateMinutes ?? 0) > 0).length;
     const totalWorked = rows.reduce((sum, r) => sum + (r.workedMinutes ?? 0), 0);
-    res.json({ success: true, data: { present, absent, late, totalWorkedMinutes: totalWorked, month: m, year: y } });
+    res.json({ success: true, data: { present, absent, late, total: rows.length, totalWorkedMinutes: totalWorked, month: m, year: y } });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -3135,25 +3199,60 @@ app.get("/api/attendance/dashboard", auth, async (req, res) => {
 app.get("/api/attendance/my-today", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: null }); return; }
     const today = new Date().toISOString().split("T")[0]!;
     const [record] = await db.select().from(attendanceRecordsTable)
-      .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId ?? 0), eq(attendanceRecordsTable.date, today)));
+      .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
     res.json({ success: true, data: record ?? null });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/attendance/map", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+app.get("/api/attendance/map", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const today = new Date().toISOString().split("T")[0]!;
+    const conditions: any[] = [eq(attendanceRecordsTable.date, today)];
+    if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = deptEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(attendanceRecordsTable.employeeId, ids));
+    }
+    const rows = await db
+      .select({
+        id: attendanceRecordsTable.id,
+        employeeId: attendanceRecordsTable.employeeId,
+        date: attendanceRecordsTable.date,
+        clockIn: attendanceRecordsTable.clockIn,
+        clockOut: attendanceRecordsTable.clockOut,
+        status: attendanceRecordsTable.status,
+        attendanceType: attendanceRecordsTable.attendanceType,
+        employeeCode: employeesTable.employeeCode,
+        fullNameAr: sql<string>`concat(${employeesTable.firstNameAr}, ' ', ${employeesTable.lastNameAr})`,
+        fullNameEn: sql<string>`concat(${employeesTable.firstNameEn}, ' ', ${employeesTable.lastNameEn})`,
+      })
+      .from(attendanceRecordsTable)
+      .leftJoin(employeesTable, eq(attendanceRecordsTable.employeeId, employeesTable.id))
+      .where(and(...conditions));
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-app.get("/api/attendance/locations", auth, async (req, res) => {
+app.get("/api/attendance/locations", auth, async (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
 app.post("/api/attendance/locations", auth, async (req, res) => {
   res.status(201).json({ success: true, data: { id: 1, ...req.body } });
+});
+
+app.delete("/api/attendance/locations/:id", auth, async (_req, res) => {
+  res.json({ success: true });
 });
 
 // ─── Documents extra endpoints ─────────────────────────────────────────────────
@@ -4390,22 +4489,338 @@ app.get("/api/attendance/me", auth, async (req, res) => {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
     const { from, to } = req.query as Record<string, string>;
-    const conditions = [eq(attendanceRecordsTable.employeeId, user.employeeId)];
+    const conditions: any[] = [eq(attendanceRecordsTable.employeeId, user.employeeId)];
     if (from) conditions.push(gte(attendanceRecordsTable.date, from));
     if (to) conditions.push(lte(attendanceRecordsTable.date, to));
-    const rows = await db.select().from(attendanceRecordsTable).where(and(...conditions)).orderBy(desc(attendanceRecordsTable.date)).limit(50);
+    const rows = await db
+      .select({
+        id: attendanceRecordsTable.id,
+        employeeId: attendanceRecordsTable.employeeId,
+        date: attendanceRecordsTable.date,
+        clockIn: attendanceRecordsTable.clockIn,
+        clockOut: attendanceRecordsTable.clockOut,
+        workedMinutes: attendanceRecordsTable.workedMinutes,
+        status: attendanceRecordsTable.status,
+        lateMinutes: attendanceRecordsTable.lateMinutes,
+        overtimeMinutes: attendanceRecordsTable.overtimeMinutes,
+        attendanceType: attendanceRecordsTable.attendanceType,
+        notes: attendanceRecordsTable.notes,
+        createdAt: attendanceRecordsTable.createdAt,
+        updatedAt: attendanceRecordsTable.updatedAt,
+      })
+      .from(attendanceRecordsTable)
+      .where(and(...conditions))
+      .orderBy(desc(attendanceRecordsTable.date))
+      .limit(50);
     res.json({ success: true, data: rows });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+// ─── Attendance Corrections ───────────────────────────────────────────────────
+
+function buildCorrectionRow(c: any, emp?: any) {
+  return {
+    id: c.id,
+    employeeId: c.employeeId,
+    employeeNameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : undefined,
+    employeeNameEn: emp ? `${emp.firstNameEn} ${emp.lastNameEn}` : undefined,
+    employeeCode: emp?.employeeCode ?? undefined,
+    requestType: c.correctionType,
+    requestDate: c.requestDate,
+    requestedClockIn: c.requestedClockIn ?? null,
+    requestedClockOut: c.requestedClockOut ?? null,
+    reason: c.reason ?? null,
+    status: c.status,
+    managerApproval: c.managerApprovedById ? "approved" : (c.status === "rejected" ? "rejected" : "pending"),
+    hrApproval: c.hrApprovedById ? "approved" : (c.status === "approved" ? "approved" : (c.status === "rejected" ? "rejected" : "pending")),
+    managerNotes: c.managerNotes ?? null,
+    hrNotes: c.hrNotes ?? null,
+    createdAt: c.createdAt,
+  };
+}
+
 app.get("/api/attendance/me/requests", auth, async (req, res) => {
-  res.json({ success: true, data: [] });
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+    const rows = await db.select().from(attendanceCorrectionsTable)
+      .where(eq(attendanceCorrectionsTable.employeeId, user.employeeId))
+      .orderBy(desc(attendanceCorrectionsTable.createdAt));
+    res.json({ success: true, data: rows.map(r => buildCorrectionRow(r)) });
+  } catch (e) {
+    console.error("[GET /api/attendance/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/attendance/me/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const { requestType, requestDate, requestedClockIn, requestedClockOut, reason } = req.body;
+    if (!requestDate) { res.status(400).json({ success: false, message: "requestDate is required" }); return; }
+    if (!requestedClockIn && !requestedClockOut) { res.status(400).json({ success: false, message: "At least one of requestedClockIn or requestedClockOut is required" }); return; }
+    if (!reason?.trim()) { res.status(400).json({ success: false, message: "reason is required" }); return; }
+    const existingRecord = await db.select().from(attendanceRecordsTable)
+      .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, requestDate)));
+    const attendanceRecord = existingRecord[0] ?? null;
+    const [correction] = await db.insert(attendanceCorrectionsTable).values({
+      employeeId: user.employeeId,
+      attendanceRecordId: attendanceRecord?.id ?? null,
+      correctionType: requestType ?? "time_correction",
+      requestDate,
+      currentClockIn: attendanceRecord?.clockIn ?? null,
+      currentClockOut: attendanceRecord?.clockOut ?? null,
+      requestedClockIn: requestedClockIn ? new Date(requestedClockIn) : null,
+      requestedClockOut: requestedClockOut ? new Date(requestedClockOut) : null,
+      reason: reason.trim(),
+      status: "pending",
+    }).returning();
+    await logActivity(user.companyId, "attendance_correction_requested",
+      `Correction request by ${user.username} for date ${requestDate}`, user.username);
+    const notifPayload = {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "attendance_correction",
+      entityId: correction.id,
+      notificationType: "attendance_correction_created",
+      titleAr: "طلب تصحيح حضور جديد",
+      titleEn: "New Attendance Correction Request",
+      messageAr: `قدّم ${user.username} طلب تصحيح حضور بتاريخ ${requestDate}.`,
+      messageEn: `${user.username} submitted an attendance correction request for ${requestDate}.`,
+      priority: "normal" as const,
+      actionUrl: "/app/attendance",
+    };
+    await notifyRole(user.companyId, "hradmin", notifPayload);
+    await notifyDirectManager(user.employeeId, notifPayload);
+    res.status(201).json({ success: true, data: buildCorrectionRow(correction) });
+  } catch (e) {
+    console.error("[POST /api/attendance/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.get("/api/attendance/requests", auth, async (req, res) => {
-  res.json({ success: true, data: [] });
+  try {
+    const user = (req as AuthReq).user;
+    let empIds: number[] | null = null;
+    if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      empIds = deptEmps.map(e => e.id);
+      if (empIds.length === 0) { res.json({ success: true, data: [] }); return; }
+    }
+    const corrections = empIds
+      ? await db.select().from(attendanceCorrectionsTable)
+          .where(inArray(attendanceCorrectionsTable.employeeId, empIds))
+          .orderBy(desc(attendanceCorrectionsTable.createdAt))
+      : await db.select().from(attendanceCorrectionsTable)
+          .orderBy(desc(attendanceCorrectionsTable.createdAt));
+    const empIdsNeeded = [...new Set(corrections.map(c => c.employeeId))];
+    const emps = empIdsNeeded.length > 0
+      ? await db.select({ id: employeesTable.id, employeeCode: employeesTable.employeeCode, firstNameAr: employeesTable.firstNameAr, lastNameAr: employeesTable.lastNameAr, firstNameEn: employeesTable.firstNameEn, lastNameEn: employeesTable.lastNameEn })
+          .from(employeesTable).where(inArray(employeesTable.id, empIdsNeeded))
+      : [];
+    const empMap = Object.fromEntries(emps.map(e => [e.id, e]));
+    res.json({ success: true, data: corrections.map(c => buildCorrectionRow(c, empMap[c.employeeId])) });
+  } catch (e) {
+    console.error("[GET /api/attendance/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/attendance/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { employeeId, requestType, requestDate, requestedClockIn, requestedClockOut, reason } = req.body;
+    const targetEmpId = employeeId ?? user.employeeId;
+    if (!targetEmpId) { res.status(400).json({ success: false, message: "employeeId is required" }); return; }
+    if (!requestDate) { res.status(400).json({ success: false, message: "requestDate is required" }); return; }
+    if (!requestedClockIn && !requestedClockOut) { res.status(400).json({ success: false, message: "At least one requested time is required" }); return; }
+    if (!reason?.trim()) { res.status(400).json({ success: false, message: "reason is required" }); return; }
+    const existingRecord = await db.select().from(attendanceRecordsTable)
+      .where(and(eq(attendanceRecordsTable.employeeId, targetEmpId), eq(attendanceRecordsTable.date, requestDate)));
+    const attendanceRecord = existingRecord[0] ?? null;
+    const [correction] = await db.insert(attendanceCorrectionsTable).values({
+      employeeId: targetEmpId,
+      attendanceRecordId: attendanceRecord?.id ?? null,
+      correctionType: requestType ?? "time_correction",
+      requestDate,
+      currentClockIn: attendanceRecord?.clockIn ?? null,
+      currentClockOut: attendanceRecord?.clockOut ?? null,
+      requestedClockIn: requestedClockIn ? new Date(requestedClockIn) : null,
+      requestedClockOut: requestedClockOut ? new Date(requestedClockOut) : null,
+      reason: reason.trim(),
+      status: "pending",
+    }).returning();
+    await logActivity(user.companyId, "attendance_correction_requested",
+      `Correction request by ${user.username} for employee #${targetEmpId} on ${requestDate}`, user.username);
+    res.status(201).json({ success: true, data: buildCorrectionRow(correction) });
+  } catch (e) {
+    console.error("[POST /api/attendance/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const correctionId = parseInt(req.params["id"]!);
+    const { notes } = req.body as { notes?: string };
+    const [correction] = await db.select().from(attendanceCorrectionsTable)
+      .where(eq(attendanceCorrectionsTable.id, correctionId));
+    if (!correction) { res.status(404).json({ success: false, message: "Correction request not found" }); return; }
+    if (correction.status === "approved" || correction.status === "rejected") {
+      res.status(409).json({ success: false, message: `Request is already ${correction.status}` }); return;
+    }
+    const now = new Date();
+    let updated: any;
+    if (user.role === "manager") {
+      if (correction.status !== "pending") {
+        res.status(409).json({ success: false, message: "Only pending requests can be manager-approved" }); return;
+      }
+      [updated] = await db.update(attendanceCorrectionsTable).set({
+        status: "manager_approved",
+        managerApprovedById: user.userId,
+        managerApprovedAt: now,
+        managerNotes: notes ?? null,
+      }).where(eq(attendanceCorrectionsTable.id, correctionId)).returning();
+      await logActivity(user.companyId, "attendance_correction_manager_approved",
+        `Manager ${user.username} approved correction #${correctionId}`, user.username);
+      await notifyRole(user.companyId, "hradmin", {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "attendance_correction",
+        entityId: correctionId,
+        notificationType: "attendance_correction_manager_approved",
+        titleAr: "طلب تصحيح حضور بانتظار HR",
+        titleEn: "Attendance Correction Awaiting HR",
+        messageAr: `وافق المدير ${user.username} على طلب التصحيح #${correctionId}. بانتظار اعتماد HR.`,
+        messageEn: `Manager ${user.username} approved correction request #${correctionId}. Awaiting HR approval.`,
+        priority: "normal",
+        actionUrl: "/app/attendance",
+      });
+    } else if (user.role === "hradmin" || user.role === "admin") {
+      if (correction.status !== "pending" && correction.status !== "manager_approved") {
+        res.status(409).json({ success: false, message: "Request must be pending or manager_approved for HR approval" }); return;
+      }
+      [updated] = await db.update(attendanceCorrectionsTable).set({
+        status: "approved",
+        hrApprovedById: user.userId,
+        hrApprovedAt: now,
+        hrNotes: notes ?? null,
+      }).where(eq(attendanceCorrectionsTable.id, correctionId)).returning();
+      if (updated.requestedClockIn || updated.requestedClockOut) {
+        try {
+          if (updated.attendanceRecordId) {
+            const recordSet: any = {};
+            if (updated.requestedClockIn) recordSet.clockIn = updated.requestedClockIn;
+            if (updated.requestedClockOut) recordSet.clockOut = updated.requestedClockOut;
+            const [rec] = await db.select().from(attendanceRecordsTable)
+              .where(eq(attendanceRecordsTable.id, updated.attendanceRecordId));
+            if (rec) {
+              const ci = updated.requestedClockIn ?? rec.clockIn;
+              const co = updated.requestedClockOut ?? rec.clockOut;
+              if (ci && co) {
+                const worked = Math.max(0, Math.floor((new Date(co).getTime() - new Date(ci).getTime()) / 60000));
+                recordSet.workedMinutes = worked;
+              }
+              await db.update(attendanceRecordsTable).set(recordSet)
+                .where(eq(attendanceRecordsTable.id, updated.attendanceRecordId));
+            }
+          } else {
+            const ciTime = updated.requestedClockIn ? new Date(updated.requestedClockIn) : null;
+            const coTime = updated.requestedClockOut ? new Date(updated.requestedClockOut) : null;
+            const worked = ciTime && coTime ? Math.max(0, Math.floor((coTime.getTime() - ciTime.getTime()) / 60000)) : 0;
+            const shiftWithGrace = 9 * 60 + 15;
+            const lateMin = ciTime ? Math.max(0, ciTime.getHours() * 60 + ciTime.getMinutes() - shiftWithGrace) : 0;
+            await db.insert(attendanceRecordsTable).values({
+              employeeId: updated.employeeId,
+              date: updated.requestDate,
+              clockIn: ciTime ?? undefined,
+              clockOut: coTime ?? undefined,
+              workedMinutes: worked,
+              status: lateMin > 0 ? "late" : "present",
+              lateMinutes: lateMin,
+              attendanceType: "manual",
+              notes: `Correction #${correctionId} applied`,
+            }).onConflictDoNothing();
+          }
+        } catch (applyErr) {
+          console.error("[attendance correction apply]", applyErr);
+        }
+      }
+      await logActivity(user.companyId, "attendance_record_corrected",
+        `HR ${user.username} approved and applied correction #${correctionId}`, user.username);
+      const empUser = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(and(eq(usersTable.employeeId, updated.employeeId), eq(usersTable.isDeleted, false)));
+      if (empUser.length > 0) {
+        await notifyUsers(empUser.map(u => u.id), {
+          companyId: user.companyId,
+          actorUserId: user.userId,
+          entityType: "attendance_correction",
+          entityId: correctionId,
+          notificationType: "attendance_correction_hr_approved",
+          titleAr: "تم اعتماد طلب تصحيح الحضور",
+          titleEn: "Attendance Correction Approved",
+          messageAr: `تم اعتماد طلب تصحيح حضورك #${correctionId} من قِبل HR.`,
+          messageEn: `Your attendance correction request #${correctionId} has been approved by HR.`,
+          priority: "normal",
+          actionUrl: "/app/attendance",
+        });
+      }
+    } else {
+      res.status(403).json({ success: false, message: "Insufficient permissions" }); return;
+    }
+    res.json({ success: true, data: buildCorrectionRow(updated) });
+  } catch (e) {
+    console.error("[PUT /api/attendance/requests/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/attendance/requests/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const correctionId = parseInt(req.params["id"]!);
+    const { notes } = req.body as { notes?: string };
+    if (!notes?.trim()) { res.status(400).json({ success: false, message: "Rejection reason is required" }); return; }
+    const [correction] = await db.select().from(attendanceCorrectionsTable)
+      .where(eq(attendanceCorrectionsTable.id, correctionId));
+    if (!correction) { res.status(404).json({ success: false, message: "Correction request not found" }); return; }
+    if (correction.status === "approved" || correction.status === "rejected") {
+      res.status(409).json({ success: false, message: `Request is already ${correction.status}` }); return;
+    }
+    const [updated] = await db.update(attendanceCorrectionsTable).set({
+      status: "rejected",
+      rejectionReason: notes.trim(),
+    }).where(eq(attendanceCorrectionsTable.id, correctionId)).returning();
+    await logActivity(user.companyId, "attendance_correction_rejected",
+      `${user.username} rejected correction #${correctionId}: ${notes.trim()}`, user.username);
+    const empUser = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(and(eq(usersTable.employeeId, updated.employeeId), eq(usersTable.isDeleted, false)));
+    if (empUser.length > 0) {
+      await notifyUsers(empUser.map(u => u.id), {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "attendance_correction",
+        entityId: correctionId,
+        notificationType: "attendance_correction_rejected",
+        titleAr: "تم رفض طلب تصحيح الحضور",
+        titleEn: "Attendance Correction Rejected",
+        messageAr: `تم رفض طلب تصحيح حضورك #${correctionId}. السبب: ${notes.trim()}`,
+        messageEn: `Your attendance correction request #${correctionId} was rejected. Reason: ${notes.trim()}`,
+        priority: "normal",
+        actionUrl: "/app/attendance",
+      });
+    }
+    res.json({ success: true, data: buildCorrectionRow(updated) });
+  } catch (e) {
+    console.error("[PUT /api/attendance/requests/:id/reject]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.get("/api/leave/me/requests", auth, async (req, res) => {
