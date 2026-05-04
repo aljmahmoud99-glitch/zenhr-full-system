@@ -1,0 +1,286 @@
+────────────────────────────────────────────────────────────────────
+Workflow 18 — Employment Status Changes QA (ACTIVE TEST + FIX MODE)
+
+You are a senior QA + backend engineer.
+
+Your mission:
+1. FULLY test the Employment Status Changes workflow
+2. FIND all bugs (logic / security / validation / state / side-effects)
+3. FIX them in the backend immediately
+4. RETEST until 100% PASS
+
+DO NOT stop at reporting — you must fix and verify.
+
+────────────────────────────────────────────────────────────────────
+TARGET FEATURE
+
+Frontend route:
+  /app/employee-actions/status-changes
+
+Expected system:
+  Uses workflow engine (/api/workflow/*)
+  actionType likely: "status_change"
+
+Approval chain (expected):
+  HR → Payroll OR HR only (verify actual implementation)
+
+State machine:
+  pending_hr → pending_payroll → applied
+  OR
+  pending_hr → applied
+
+────────────────────────────────────────────────────────────────────
+TASK 1 — DISCOVERY (MANDATORY FIRST)
+
+1. Find ALL related endpoints:
+   - GET /api/workflow/status-changes (or equivalent)
+   - POST /api/workflow/requests
+   - GET /api/workflow/requests/:id
+   - POST /api/workflow/requests/:id/approve
+   - POST /api/workflow/requests/:id/reject
+
+2. Identify:
+   - actionType used for status changes
+   - fields used:
+        newStatus
+        effectiveDate
+        notes
+   - how status is stored in employees table
+
+3. Inspect:
+   - employees table → status column
+   - workflow table → employee_actions
+
+────────────────────────────────────────────────────────────────────
+TASK 2 — LOAD TEST (CRITICAL — FIX "FAILED TO LOAD")
+
+Test all roles:
+
+- hr
+- manager.hr
+- payroll
+- employee01
+- employee02
+
+Check:
+- Page loads without "Failed to load data"
+- No 403 inside Promise.all()
+- No 500/404 in Network tab
+
+If ANY endpoint fails:
+→ FIND WHICH ONE
+→ FIX role guard or response shape
+
+────────────────────────────────────────────────────────────────────
+TASK 3 — CREATE REQUEST TESTS
+
+Test creation via:
+POST /api/workflow/requests
+
+Cases:
+
+1. HR creates status change → should work
+2. Manager creates → depends on policy (validate)
+3. Employee creates → should be BLOCKED (403)
+4. Payroll creates → should be BLOCKED (403)
+
+Validation tests:
+- missing employeeId → 400
+- missing newStatus → 400
+- missing effectiveDate → 400
+- invalid status (e.g. "hack") → 400
+- employeeId = "abc" → 400
+- employeeId not in company → 404
+
+Injection tests:
+- employeeId override → must be enforced by role
+- companyId injection → must be ignored
+- createdByUserId injection → must be ignored
+
+────────────────────────────────────────────────────────────────────
+TASK 4 — ROLE & SCOPE SECURITY
+
+Verify:
+
+Employee:
+- sees ONLY own records
+- cannot read others → must return 404 (NOT 403)
+
+Manager:
+- sees team (if implemented) OR all (verify)
+- cannot modify outside scope
+
+Payroll:
+- read-only OR approval-only (verify)
+
+HR:
+- full access
+
+Test:
+- employee02 tries to GET employee01 record → 404
+
+────────────────────────────────────────────────────────────────────
+TASK 5 — APPROVAL FLOW
+
+Test full chain:
+
+1. HR approve → next state
+2. Payroll approve → final (if exists)
+3. Final state = applied
+
+Edge cases:
+- approve twice → 409
+- approve rejected → 409
+- reject after applied → 409
+- wrong role approves → 403
+
+────────────────────────────────────────────────────────────────────
+TASK 6 — SIDE EFFECT (CRITICAL)
+
+After FINAL approval:
+
+Verify employees table is updated:
+
+Expected:
+- employees.status = newStatus
+
+Test:
+- before: "active"
+- after approval: "inactive" / "on_leave" / etc
+
+Also verify:
+- no update before final approval
+- only applied state triggers change
+
+────────────────────────────────────────────────────────────────────
+TASK 7 — VALIDATION RULES
+
+Enforce:
+
+- newStatus must be from allowed list:
+    active
+    inactive
+    on_leave
+    suspended
+    terminated
+    probation
+    (adapt to system)
+
+- effectiveDate:
+    must be valid date
+    must NOT be invalid format
+    (optional: cannot be too far past/future)
+
+- notes:
+    optional but safe (no injection issues)
+
+────────────────────────────────────────────────────────────────────
+TASK 8 — AUDIT LOGS
+
+Verify activity_logs:
+
+Expected types:
+- status_change_created
+- status_change_approved
+- status_change_applied
+- status_change_rejected
+
+Must include:
+- employee name
+- new status
+- actor user
+
+────────────────────────────────────────────────────────────────────
+TASK 9 — NOTIFICATIONS
+
+Verify:
+
+On create:
+→ HR notified (if not creator)
+
+On approve:
+→ employee notified (high priority)
+
+On reject:
+→ employee notified
+
+Check:
+- employee02 must NOT receive employee01 notifications
+
+────────────────────────────────────────────────────────────────────
+TASK 10 — DATA SHAPE (FRONTEND)
+
+Ensure API returns:
+
+- employeeFullNameAr
+- employeeFullNameEn
+- employeeCode
+- labelAr / labelEn
+- newStatus
+- effectiveDate
+- approvalStepsJson
+- status
+
+Frontend must NOT break.
+
+────────────────────────────────────────────────────────────────────
+TASK 11 — BUG TYPES TO LOOK FOR
+
+- ROLE_LEAK
+- SCOPE_BUG
+- VALIDATION_MISSING
+- STATE_MACHINE_BUG
+- SIDE_EFFECT_MISSING
+- AUDIT_MISSING
+- NOTIFICATION_LEAK
+- FIELD_MISMATCH
+- UNHANDLED_500
+- PROMISE.ALL FAILURE
+
+────────────────────────────────────────────────────────────────────
+TASK 12 — FIX + RETEST
+
+For EACH bug:
+1. Explain root cause
+2. Fix in backend
+3. Restart API
+4. Retest ALL roles
+
+────────────────────────────────────────────────────────────────────
+FINAL OUTPUT FORMAT
+
+Workflow 18 — FINAL REPORT
+
+Bugs found: X
+
+For each bug:
+- Type
+- Root cause
+- Fix
+- File changed
+
+Then:
+
+Retest results:
+(table like previous workflows)
+
+Scope result: PASS/FAIL
+State machine: PASS/FAIL
+Side effects: PASS/FAIL
+Audit: PASS/FAIL
+Notifications: PASS/FAIL
+
+Final Status:
+PASS or FAIL
+
+────────────────────────────────────────────────────────────────────
+IMPORTANT
+
+- DO NOT stop at testing
+- DO NOT leave partial fixes
+- DO NOT assume previous workflows are correct
+- ENSURE zero console errors
+- ENSURE zero failed requests
+- ENSURE page loads without toast
+
+────────────────────────────────────────────────────────────────────

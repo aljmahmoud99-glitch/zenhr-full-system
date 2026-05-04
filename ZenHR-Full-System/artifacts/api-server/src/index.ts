@@ -10615,10 +10615,12 @@ app.get("/api/workflow/salary-changes", auth, async (req, res) => {
 app.get("/api/workflow/status-changes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!['hradmin', 'superadmin', 'manager', 'payrolladmin'].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
     const data = await queryWorkflowActions(user.companyId, STATUS_ACTION_TYPES);
+    if (user.role === 'employee') {
+      const empId = user.employeeId;
+      if (!empId) { res.json({ success: true, data: [] }); return; }
+      res.json({ success: true, data: data.filter((r: any) => r.employeeId === empId) }); return;
+    }
     res.json({ success: true, data });
   } catch (e) {
     console.error("[GET /api/workflow/status-changes]", e);
@@ -10794,6 +10796,7 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
 
     const auditCreateType = CAREER_ACTION_TYPES.includes(actionType) ? "movement_created"
       : SALARY_ACTION_TYPES.includes(actionType) ? "salary_change_created"
+      : STATUS_ACTION_TYPES.includes(actionType) ? "status_change_created"
       : "employee_action";
     await logActivity(user.companyId, auditCreateType, `${actionType} workflow request created for employee #${employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
@@ -10871,6 +10874,7 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
         .where(eq(employeeActionsTable.id, actionId));
       const auditAdvType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
         : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_approved"
+        : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_approved"
         : "employee_action";
       await logActivity(user.companyId, auditAdvType, `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
       // ── Notification: next approver role ──────────────────────────────────
@@ -10979,6 +10983,7 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
 
       const auditFinalType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
         : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_applied"
+        : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_applied"
         : "employee_action";
       await logActivity(user.companyId, auditFinalType, `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
       // ── Notification: final approval ───────────────────────────────────────
@@ -11043,6 +11048,7 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
 
     const auditRejType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_rejected"
       : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_rejected"
+      : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_rejected"
       : "employee_action";
     await logActivity(user.companyId, auditRejType, `${action.actionType} rejected for employee #${action.employeeId}`, null);
     // ── Notification ───────────────────────────────────────────────────────
