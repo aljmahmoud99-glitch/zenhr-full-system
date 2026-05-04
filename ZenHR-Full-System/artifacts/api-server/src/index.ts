@@ -2333,14 +2333,21 @@ app.post("/api/salary-components/catalog", auth, async (req, res) => {
     const { nameAr, nameEn, code, componentType, calculationType, defaultValue,
             formulaExpression, percentageBase, isTaxable, isSscApplicable,
             isRecurring, isActive, sortOrder } = req.body;
-    if (!nameEn || !code) {
-      res.status(400).json({ success: false, message: "nameEn and code are required" }); return;
+    if (!nameEn || !nameAr || !code) {
+      res.status(400).json({ success: false, message: "nameEn, nameAr and code are required" }); return;
+    }
+    const upperCode = (code as string).toUpperCase();
+    // Duplicate check — return 409 instead of letting DB throw a 500
+    const [dupe] = await db.select({ id: salaryComponentsTable.id }).from(salaryComponentsTable)
+      .where(and(eq(salaryComponentsTable.companyId, user.companyId), eq(salaryComponentsTable.code, upperCode)));
+    if (dupe) {
+      res.status(409).json({ success: false, message: `Component code '${upperCode}' already exists` }); return;
     }
     const [row] = await db.insert(salaryComponentsTable).values({
       companyId: user.companyId,
-      nameAr: nameAr ?? nameEn,
+      nameAr,
       nameEn,
-      code: code.toUpperCase(),
+      code: upperCode,
       componentType: componentType ?? "earning",
       calculationType: calculationType ?? "fixed",
       defaultValue: String(defaultValue ?? "0"),
@@ -2559,9 +2566,26 @@ app.delete("/api/employee-salary-components/:id", auth, async (req, res) => {
 // ─── Step 4: Canonical Salary Component API ───────────────────────────────────
 
 // GET /api/salary-components — full catalog with isReferenced flag [all auth]
+// ─── Formula expression safety validator ──────────────────────────────────────
+// Mirrors the tokeniser logic in salary-calculation.service.ts so dangerous
+// expressions are rejected at save time, not only at calculation time.
+const ALLOWED_FORMULA_VARS = new Set(["basic", "gross", "hours", "rate", "days"]);
+function validateFormulaExpression(expr: string): boolean {
+  // Substitute allowed variable names with a placeholder number
+  const substituted = expr.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (m) =>
+    ALLOWED_FORMULA_VARS.has(m) ? "1" : "INVALID"
+  );
+  if (substituted.includes("INVALID")) return false;
+  // After substitution only digits, spaces, operators and parentheses allowed
+  return /^[\d\s\.\+\-\*\/\(\)]+$/.test(substituted);
+}
+
 app.get("/api/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const rows = await db.select().from(salaryComponentsTable)
       .where(eq(salaryComponentsTable.companyId, user.companyId))
       .orderBy(asc(salaryComponentsTable.sortOrder), asc(salaryComponentsTable.id));
@@ -2594,8 +2618,23 @@ app.post("/api/salary-components", auth, async (req, res) => {
     const { nameAr, nameEn, code, componentType, calculationType, defaultValue,
             formulaExpression, percentageBase, isTaxable, isSscApplicable,
             isRecurring, isActive, sortOrder } = req.body;
-    if (!nameEn || !code) {
-      res.status(400).json({ success: false, message: "nameEn and code are required" }); return;
+    if (!nameEn || !nameAr || !code) {
+      res.status(400).json({ success: false, message: "nameEn, nameAr and code are required" }); return;
+    }
+    // Validate formula expression safety at save time
+    if (calculationType === "formula") {
+      const expr = (formulaExpression ?? "").trim();
+      if (!expr) {
+        res.status(400).json({ success: false, message: "formulaExpression is required for formula type" }); return;
+      }
+      if (!validateFormulaExpression(expr)) {
+        res.status(400).json({ success: false, message: "Invalid formula: only variables basic, gross, hours, rate, days and arithmetic operators are allowed" }); return;
+      }
+    }
+    // Validate defaultValue — earnings must not be negative
+    const parsedDefault = parseFloat(String(defaultValue ?? "0"));
+    if ((componentType ?? "earning") === "earning" && parsedDefault < 0) {
+      res.status(400).json({ success: false, message: "Earning components cannot have a negative default value" }); return;
     }
     const upperCode = (code as string).toUpperCase();
     const [dupe] = await db.select({ id: salaryComponentsTable.id }).from(salaryComponentsTable)
@@ -2605,14 +2644,14 @@ app.post("/api/salary-components", auth, async (req, res) => {
     }
     const [row] = await db.insert(salaryComponentsTable).values({
       companyId: user.companyId,
-      nameAr: nameAr ?? nameEn,
+      nameAr,
       nameEn,
       code: upperCode,
       componentType: componentType ?? "earning",
       calculationType: calculationType ?? "fixed",
-      defaultValue: String(defaultValue ?? "0"),
-      formulaExpression: formulaExpression ?? null,
-      percentageBase: percentageBase ?? null,
+      defaultValue: String(parsedDefault),
+      formulaExpression: calculationType === "formula" ? (formulaExpression ?? null) : null,
+      percentageBase: calculationType === "percentage" ? (percentageBase ?? null) : null,
       isTaxable: isTaxable ?? true,
       isSscApplicable: isSscApplicable ?? false,
       isRecurring: isRecurring ?? true,
@@ -2637,6 +2676,26 @@ app.put("/api/salary-components/:id", auth, async (req, res) => {
     const { nameAr, nameEn, componentType, calculationType, defaultValue,
             formulaExpression, percentageBase, isTaxable, isSscApplicable,
             isRecurring, isActive, sortOrder } = req.body;
+    // Validate formula if being set or if calculationType is being changed to formula
+    if (formulaExpression !== undefined || calculationType === "formula") {
+      const expr = (formulaExpression ?? "").trim();
+      if (calculationType === "formula" || expr) {
+        if (!expr) {
+          res.status(400).json({ success: false, message: "formulaExpression is required for formula type" }); return;
+        }
+        if (!validateFormulaExpression(expr)) {
+          res.status(400).json({ success: false, message: "Invalid formula: only variables basic, gross, hours, rate, days and arithmetic operators are allowed" }); return;
+        }
+      }
+    }
+    // Validate defaultValue — earnings must not be negative
+    if (defaultValue !== undefined) {
+      const type = componentType ?? (await db.select({ componentType: salaryComponentsTable.componentType })
+        .from(salaryComponentsTable).where(eq(salaryComponentsTable.id, id)).then(r => r[0]?.componentType ?? "earning"));
+      if (type === "earning" && parseFloat(String(defaultValue)) < 0) {
+        res.status(400).json({ success: false, message: "Earning components cannot have a negative default value" }); return;
+      }
+    }
     const update: Record<string, any> = { updatedAt: new Date() };
     if (nameAr !== undefined) update.nameAr = nameAr;
     if (nameEn !== undefined) update.nameEn = nameEn;

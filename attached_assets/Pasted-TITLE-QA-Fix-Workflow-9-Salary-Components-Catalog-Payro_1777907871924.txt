@@ -1,0 +1,312 @@
+TITLE:
+QA + Fix — Workflow 9: Salary Components Catalog + Payroll Engine Integration
+
+OBJECTIVE:
+Test salary components end-to-end and fix confirmed issues only.
+The screen exists, but we must verify that components are not just UI rows — they must affect payroll calculation, payslip snapshots, permissions, validation, and historical payroll integrity.
+
+STRICT RULES:
+1. Test salary components only.
+2. Do NOT redesign UI.
+3. Do NOT change payroll run state machine unless directly required by salary component bugs.
+4. Fix confirmed bugs only.
+5. Use smallest safe code changes.
+6. After each fix, retest the full chain:
+   UI → API → DB → payroll calculation → payslip snapshot → employee visibility → scope/security.
+7. If a bug needs schema migration, create the migration safely and document it.
+8. Do not delete existing production-like seed data unless test cleanup requires deleting only your own QA-created records.
+9. Stop after the final report.
+
+ACCOUNTS:
+payroll / Test@12345
+hr / Test@12345
+employee01 / Test@12345
+employee02 / Test@12345
+manager.hr / Test@12345
+
+EXPECTED SALARY COMPONENT BEHAVIOR:
+A salary component must have:
+- code
+- nameAr
+- nameEn
+- type: earning or deduction
+- calculationMethod: fixed, percentage, formula
+- defaultValue
+- taxable: boolean
+- sscIncluded: boolean
+- recurring: boolean
+- active: boolean
+- sortOrder
+
+Expected seeded components:
+- BASIC — Basic Salary / راتب أساسي
+- HOUSING — Housing Allowance / بدل سكن
+- TRANSPORT — Transport Allowance / بدل مواصلات
+- MOBILE — Mobile Allowance / بدل جوال
+- MEAL — Meal Allowance / بدل وجبات
+- OVERTIME — Overtime / عمل إضافي
+- BONUS — Bonus / مكافأة
+- SSC — Social Security / ضمان اجتماعي
+- TAX — Income Tax / ضريبة دخل
+- ADVANCE — Salary Advance Deduction / خصم سلفة
+
+EXPECTED PAYROLL CALCULATION ORDER:
+1. Basic salary
+2. Fixed earnings
+3. Percentage earnings
+4. Formula earnings
+5. Gross salary
+6. SSC deduction
+7. Income tax deduction
+8. Salary advance deduction
+9. Net salary
+
+TASK 1 — DISCOVER CURRENT IMPLEMENTATION:
+Read and report:
+1. Frontend component path for /app/salary-components.
+2. API endpoints used by the page.
+3. DB tables involved:
+   - salary_component_definitions
+   - salary_components
+   - employee_salary_components
+   - payslips
+   - payroll_runs
+4. Which table is the actual catalog used by payroll?
+5. Which service calculates payroll?
+6. Does payroll calculation read salary components dynamically, or are values hardcoded?
+7. Does payslip store component snapshots or only totals?
+8. Is there an API to assign components to employees?
+9. Is there an edit/deactivate/delete API for components?
+10. Which roles can access/create/edit components?
+
+TASK 2 — API + UI BASIC CRUD TEST:
+Login as payroll.
+
+Test:
+1. Open /app/salary-components.
+2. Verify list loads without 404/500/console errors.
+3. Create a new earning component:
+   code: QA_BONUS_FIXED
+   nameAr: مكافأة اختبار ثابتة
+   nameEn: QA Fixed Bonus
+   type: earning
+   calculationMethod: fixed
+   defaultValue: 25
+   taxable: true
+   sscIncluded: false
+   recurring: true
+   active: true
+   sortOrder: 900
+4. Confirm POST returns 200/201.
+5. Confirm DB row created correctly.
+6. Confirm UI list shows it immediately.
+7. Refresh page and confirm it remains.
+8. Try duplicate code QA_BONUS_FIXED.
+   Expected: 409 or validation error, no duplicate DB row.
+9. Try invalid code with spaces/lowercase/special chars.
+   Expected: blocked frontend or backend.
+10. Try negative defaultValue.
+   Expected: blocked unless component type explicitly allows negative values.
+11. Try missing Arabic/English name.
+   Expected: validation error.
+12. Try missing calculation method.
+   Expected: validation error.
+
+Fix any confirmed validation or persistence bugs.
+
+TASK 3 — PERMISSION TEST:
+Test access:
+1. payroll can view and create components.
+2. hr can view components.
+3. employee01 cannot access /app/salary-components.
+4. employee01 cannot call component create/update/delete APIs directly.
+5. manager.hr cannot create/edit components.
+6. unauthenticated requests return 401.
+
+Expected:
+- create/edit/deactivate allowed only payrolladmin and/or hradmin depending current role model.
+- employees/managers must be blocked.
+
+Fix ROLE_LEAK or AUTH_MISSING bugs.
+
+TASK 4 — PAYROLL ENGINE INTEGRATION TEST:
+Goal: prove components affect payroll, not just UI.
+
+Steps:
+1. Create or ensure QA_BONUS_FIXED exists and active.
+2. Assign it to employee01 if the system supports employee-specific component assignment.
+   If no assignment API exists, report MISSING_ASSIGNMENT_API.
+3. Create another component:
+   code: QA_DEDUCT_FIXED
+   nameAr: خصم اختبار ثابت
+   nameEn: QA Fixed Deduction
+   type: deduction
+   calculationMethod: fixed
+   defaultValue: 10
+   taxable: false
+   sscIncluded: false
+   recurring: true
+   active: true
+   sortOrder: 901
+4. Assign QA_DEDUCT_FIXED to employee01 if assignment exists.
+5. Create payroll run for a future month not used before.
+6. Calculate payroll.
+7. Inspect employee01 payslip.
+8. Expected:
+   - QA_BONUS_FIXED increases gross or earnings by 25 JOD.
+   - QA_DEDUCT_FIXED reduces net by 10 JOD.
+   - Components appear in payslip breakdown/snapshot.
+   - employee02 payslip is NOT affected unless component is global by design.
+
+If the payroll engine ignores these components, classify:
+PAYROLL_INTEGRATION_MISSING.
+
+Fix by wiring salary component definitions / employee salary components into payroll calculation safely.
+
+IMPORTANT:
+- Do not break existing BASIC, HOUSING, OVERTIME, SSC, TAX, ADVANCE logic.
+- Do not double-count basic salary.
+- Only active recurring components should apply.
+- Deduction components reduce net salary.
+- Earning components increase gross salary.
+- Taxable earnings should feed taxable income if current tax system supports that.
+- SSC included earnings should feed SSC base if current SSC system supports that.
+
+TASK 5 — SNAPSHOT INTEGRITY TEST:
+After payroll is calculated:
+1. Record employee01 payslip component breakdown.
+2. Change QA_BONUS_FIXED defaultValue from 25 to 99 or deactivate it.
+3. Re-open the already calculated/published payslip.
+4. Expected:
+   old payslip remains unchanged.
+5. Create a NEW payroll run for a different month and calculate.
+6. Expected:
+   new payroll reflects updated/deactivated component.
+
+If old payslip changes after component edit:
+Type: SNAPSHOT_BROKEN.
+Fix by storing component snapshots in payslip calculation output.
+
+TASK 6 — ACTIVE / INACTIVE TEST:
+1. Deactivate QA_BONUS_FIXED.
+2. Create and calculate a new payroll run.
+3. Expected:
+   inactive component does not apply.
+4. Reactivate it.
+5. Create/calculate another run.
+6. Expected:
+   active component applies again.
+
+Fix if inactive components still calculate.
+
+TASK 7 — FORMULA COMPONENT SAFETY TEST:
+Create formula component:
+code: QA_FORMULA_OT
+nameAr: صيغة اختبار
+nameEn: QA Formula
+type: earning
+calculationMethod: formula
+formula: hours * (basic / 176) * rate
+defaultValue/rate: 1.25 if supported
+active: true
+
+Expected:
+- Formula validates allowed variables only.
+- No raw eval.
+- Invalid formula like process.exit() or globalThis is rejected.
+- Formula result is numeric and rounded to 3 decimals.
+- Formula component must not crash payroll calculation.
+
+If formula support does not exist:
+Report FORMULA_NOT_SUPPORTED.
+Do not implement dangerous eval.
+If implementing formula, use a safe whitelist parser or limited evaluator.
+
+TASK 8 — PAYSLIP DISPLAY TEST:
+After a payroll run with QA components:
+1. Login employee01.
+2. Open /app/payroll/slips.
+3. Open the latest published payslip.
+4. Confirm:
+   - QA_BONUS_FIXED appears under earnings.
+   - QA_DEDUCT_FIXED appears under deductions.
+   - Amounts are correct.
+   - Totals match:
+     net = gross - SSC - tax - deductions - advances.
+5. Login employee02.
+6. Confirm employee02 cannot see employee01 payslip or components.
+
+Fix FRONTEND_MAPPING or SCOPE_BUG if found.
+
+TASK 9 — DELETE / DEACTIVATE SAFETY:
+1. Try deleting QA_BONUS_FIXED after it has been used in a payroll run.
+2. Expected:
+   - hard delete blocked, or
+   - converts to inactive safely.
+3. Old payslips must still show the component snapshot.
+4. New payroll must not include inactive/deleted component.
+
+Fix DELETE_UNSAFE if used component can be deleted and corrupt history.
+
+TASK 10 — REPORT FINAL STATUS:
+After fixes, run final regression:
+- Component list loads.
+- Create component works.
+- Duplicate blocked.
+- Validation works.
+- Permissions enforced.
+- Component affects payroll.
+- Payslip snapshot preserved.
+- Employee sees own payslip only.
+- Inactive component excluded.
+- No console errors.
+- No 404/500.
+- No cross-role data leak.
+
+REQUIRED REPORT FORMAT:
+────────────────────────────────────────
+Workflow: 9 — Salary Components Catalog + Payroll Integration
+
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+
+Current architecture:
+- Catalog table:
+- Assignment table:
+- Payroll calculation service:
+- Payslip snapshot fields:
+- Roles allowed:
+
+Bugs found:
+  - Bug:
+    Type:
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  component list loads:
+  create component:
+  duplicate blocked:
+  validation:
+  permissions:
+  payroll calculation includes components:
+  payslip snapshot preserved:
+  employee scope:
+  inactive excluded:
+  formula safety:
+  no console/network errors:
+
+Scope result:
+Payroll result:
+Snapshot result:
+Remaining risks:
+
+WORKFLOW 9 STATUS: COMPLETE ✅ / BLOCKED ❌
+────────────────────────────────────────
+
+STOP. Do not proceed to the next workflow.
