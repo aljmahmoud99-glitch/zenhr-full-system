@@ -9,12 +9,14 @@
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
+    "@types/multer": "^2.1.0",
     "@workspace/db": "workspace:*",
     "cors": "^2.8.5",
     "drizzle-orm": "catalog:",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
     "zod": "catalog:"
   },
   "devDependencies": {

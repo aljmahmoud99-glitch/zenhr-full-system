@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import ExcelJS from "exceljs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
@@ -40,6 +43,30 @@ import {
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
+// ─── File upload (multer) ─────────────────────────────────────────────────────
+const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const docStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `doc_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const ALLOWED_DOC_MIMES = new Set(["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const docUpload = multer({
+  storage: docStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_DOC_MIMES.has(file.mimetype)) cb(null, true);
+    else cb(new Error("Unsupported file type. Allowed: PDF, JPEG, PNG, WEBP"));
+  },
+});
+
+// Serve uploaded files — auth required (checked in download handler below)
+app.use("/uploads", auth, express.static(UPLOADS_DIR));
 
 type AuthReq = express.Request & { user: { userId: number; username: string; role: string; companyId: number; employeeId: number | null } };
 
@@ -3139,53 +3166,228 @@ app.get("/api/attendance/summary", auth, async (req, res) => {
 });
 
 // ─── Documents ────────────────────────────────────────────────────────────────
+
+// Helper: compute document status from expiresAt + alertDaysBefore
+function computeDocStatus(expiresAt: string | null, alertDaysBefore = 30): "valid" | "expiring_soon" | "expired" | "missing" {
+  if (!expiresAt) return "valid";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiresAt);
+  const soon = new Date(today); soon.setDate(today.getDate() + alertDaysBefore);
+  if (expiry < today) return "expired";
+  if (expiry <= soon) return "expiring_soon";
+  return "valid";
+}
+
+// Helper: build joined document rows with all UI-required fields
+async function fetchDocumentsJoined(conditions: any[]) {
+  const docs = await db
+    .select({
+      id: documentsTable.id,
+      companyId: documentsTable.companyId,
+      employeeId: documentsTable.employeeId,
+      documentTypeId: documentsTable.documentTypeId,
+      documentNumber: documentsTable.documentNumber,
+      issuedAt: documentsTable.issuedAt,
+      expiresAt: documentsTable.expiresAt,
+      issuedBy: documentsTable.issuedBy,
+      fileUrl: documentsTable.fileUrl,
+      fileName: documentsTable.fileName,
+      notes: documentsTable.notes,
+      createdAt: documentsTable.createdAt,
+      updatedAt: documentsTable.updatedAt,
+      isDeleted: documentsTable.isDeleted,
+      employeeCode: employeesTable.employeeCode,
+      employeeNameAr: sql<string>`concat(${employeesTable.firstNameAr},' ',${employeesTable.lastNameAr})`,
+      employeeNameEn: sql<string>`concat(${employeesTable.firstNameEn},' ',${employeesTable.lastNameEn})`,
+      documentTypeNameAr: documentTypesTable.nameAr,
+      documentTypeNameEn: documentTypesTable.nameEn,
+      documentTypeCategory: documentTypesTable.category,
+      requiresExpiry: documentTypesTable.requiresExpiry,
+      alertDaysBefore: documentTypesTable.alertDaysBefore,
+    })
+    .from(documentsTable)
+    .innerJoin(employeesTable, eq(documentsTable.employeeId, employeesTable.id))
+    .innerJoin(documentTypesTable, eq(documentsTable.documentTypeId, documentTypesTable.id))
+    .where(and(...conditions))
+    .orderBy(desc(documentsTable.createdAt));
+
+  return docs.map(d => ({
+    ...d,
+    issuedDate: d.issuedAt,
+    expiryDate: d.expiresAt,
+    status: computeDocStatus(d.expiresAt, d.alertDaysBefore ?? 30),
+    complianceRelated: ["identity", "employment"].includes(d.documentTypeCategory ?? ""),
+    linkedModule: d.documentTypeCategory === "identity" ? "employee_profile"
+      : d.documentTypeCategory === "employment" ? "compliance"
+      : "documents",
+  }));
+}
+
+// GET /api/documents — role-scoped list with JOIN
 app.get("/api/documents", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId, expiringWithinDays } = req.query as Record<string, string>;
+    const { employeeId } = req.query as Record<string, string>;
     const conditions: any[] = [eq(documentsTable.isDeleted, false)];
+
     if (user.role === "employee") {
       if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
       conditions.push(eq(documentsTable.employeeId, user.employeeId));
     } else if (user.role === "manager") {
       const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
-      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
       const ids = deptEmps.map(e => e.id);
       if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
       conditions.push(inArray(documentsTable.employeeId, ids));
-    } else if (employeeId) {
-      conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
+    } else {
+      // hradmin, payrolladmin, superadmin — filter by company
+      conditions.push(eq(documentsTable.companyId, user.companyId));
+      if (employeeId) conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
     }
-    const docs = await db.select().from(documentsTable).where(and(...conditions)).orderBy(desc(documentsTable.createdAt));
+
+    const docs = await fetchDocumentsJoined(conditions);
     res.json({ success: true, data: docs });
   } catch (e) {
+    console.error("[GET /api/documents]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+// POST /api/documents — create document record [role guard + field mapping]
 app.post("/api/documents", auth, async (req, res) => {
   try {
-    const [doc] = await db.insert(documentsTable).values(req.body).returning();
+    const user = (req as AuthReq).user;
+    const { employeeId, documentTypeId, documentNumber, issuedBy, issuedDate,
+            expiryDate, fileName, fileUrl, notes } = req.body;
+
+    if (!employeeId || !documentTypeId) {
+      res.status(400).json({ success: false, message: "employeeId and documentTypeId are required" }); return;
+    }
+
+    // Role guard: employee can only create for themselves
+    if (user.role === "employee") {
+      if (Number(employeeId) !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Employees can only upload their own documents" }); return;
+      }
+    } else if (user.role === "payrolladmin") {
+      res.status(403).json({ success: false, message: "Payroll admins cannot create employee documents" }); return;
+    } else if (!["hradmin", "superadmin", "manager"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    // Validate expiry > issued
+    if (issuedDate && expiryDate && expiryDate < issuedDate) {
+      res.status(400).json({ success: false, message: "Expiry date must be after issue date" }); return;
+    }
+
+    const [doc] = await db.insert(documentsTable).values({
+      companyId: user.companyId,
+      employeeId: Number(employeeId),
+      documentTypeId: Number(documentTypeId),
+      documentNumber: documentNumber ?? null,
+      issuedAt: issuedDate ?? null,
+      expiresAt: expiryDate ?? null,
+      issuedBy: issuedBy ?? null,
+      fileUrl: fileUrl ?? null,
+      fileName: fileName ?? null,
+      notes: notes ?? null,
+    }).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "document_uploaded",
+      description: `Document #${doc.id} (type ${documentTypeId}) uploaded for employee ${employeeId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
     res.status(201).json({ success: true, data: doc });
   } catch (e) {
+    console.error("[POST /api/documents]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+// PATCH /api/documents/:id — update document [role guard + ownership]
 app.patch("/api/documents/:id", auth, async (req, res) => {
   try {
-    const [doc] = await db.update(documentsTable).set(req.body).where(eq(documentsTable.id, parseInt(req.params["id"]!))).returning();
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const { documentNumber, issuedBy, issuedDate, expiryDate,
+            fileName, fileUrl, notes, documentTypeId } = req.body;
+
+    const [existing] = await db.select().from(documentsTable)
+      .where(and(eq(documentsTable.id, id), eq(documentsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Document not found" }); return; }
+
+    if (user.role === "employee" && existing.employeeId !== user.employeeId) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (user.role === "payrolladmin") {
+      res.status(403).json({ success: false, message: "Payroll admins cannot edit employee documents" }); return;
+    }
+    if (!["hradmin", "superadmin", "manager", "employee"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    if (issuedDate && expiryDate && expiryDate < issuedDate) {
+      res.status(400).json({ success: false, message: "Expiry date must be after issue date" }); return;
+    }
+
+    const update: Record<string, any> = { updatedAt: new Date() };
+    if (documentNumber !== undefined) update.documentNumber = documentNumber;
+    if (documentTypeId !== undefined) update.documentTypeId = Number(documentTypeId);
+    if (issuedBy !== undefined) update.issuedBy = issuedBy;
+    if (issuedDate !== undefined) update.issuedAt = issuedDate;
+    if (expiryDate !== undefined) update.expiresAt = expiryDate;
+    if (fileName !== undefined) update.fileName = fileName;
+    if (fileUrl !== undefined) update.fileUrl = fileUrl;
+    if (notes !== undefined) update.notes = notes;
+
+    const [doc] = await db.update(documentsTable).set(update)
+      .where(eq(documentsTable.id, id)).returning();
+
+    await db.insert(activityLogsTable).values({
+      type: "document_updated",
+      description: `Document #${id} updated by user ${user.userId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
     res.json({ success: true, data: doc });
   } catch (e) {
+    console.error("[PATCH /api/documents/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+// DELETE /api/documents/:id — soft delete [role guard + ownership]
 app.delete("/api/documents/:id", auth, async (req, res) => {
   try {
-    await db.update(documentsTable).set({ isDeleted: true }).where(eq(documentsTable.id, parseInt(req.params["id"]!)));
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+
+    const [existing] = await db.select().from(documentsTable)
+      .where(and(eq(documentsTable.id, id), eq(documentsTable.isDeleted, false)));
+    if (!existing) { res.status(404).json({ success: false, message: "Document not found" }); return; }
+
+    if (user.role === "employee" && existing.employeeId !== user.employeeId) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (!["hradmin", "superadmin", "manager", "employee"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+
+    await db.update(documentsTable).set({ isDeleted: true, updatedAt: new Date() })
+      .where(eq(documentsTable.id, id));
+
+    await db.insert(activityLogsTable).values({
+      type: "document_deleted",
+      description: `Document #${id} soft-deleted by user ${user.userId}`,
+      companyId: user.companyId,
+    }).catch(() => {});
+
     res.status(204).send();
   } catch (e) {
+    console.error("[DELETE /api/documents/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -3488,38 +3690,103 @@ app.delete("/api/attendance/locations/:id", auth, async (_req, res) => {
 app.get("/api/documents/summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(documentsTable)
-      .where(eq(documentsTable.isDeleted, false));
-    res.json({ success: true, data: { total: total?.count ?? 0, expiringSoon: 0, expired: 0, missing: 0 } });
+    const scopeConds: any[] = [eq(documentsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: { total: 0, expiringSoon: 0, expired: 0, missing: 0 } }); return; }
+      scopeConds.push(eq(documentsTable.employeeId, user.employeeId));
+    } else {
+      scopeConds.push(eq(documentsTable.companyId, user.companyId));
+    }
+    const docs = await db.select({ expiresAt: documentsTable.expiresAt, alertDaysBefore: documentTypesTable.alertDaysBefore })
+      .from(documentsTable)
+      .innerJoin(documentTypesTable, eq(documentsTable.documentTypeId, documentTypesTable.id))
+      .where(and(...scopeConds));
+    let expiringSoon = 0, expired = 0;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (const d of docs) {
+      if (!d.expiresAt) continue;
+      const expiry = new Date(d.expiresAt);
+      const soon = new Date(today); soon.setDate(today.getDate() + (d.alertDaysBefore ?? 30));
+      if (expiry < today) expired++;
+      else if (expiry <= soon) expiringSoon++;
+    }
+    res.json({ success: true, data: { total: docs.length, expiringSoon, expired, missing: 0 } });
   } catch (e) {
+    console.error("[GET /api/documents/summary]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/documents/expiring", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const { days = "30" } = req.query as Record<string, string>;
+    const today = new Date().toISOString().split("T")[0]!;
     const future = new Date();
     future.setDate(future.getDate() + parseInt(days));
-    const docs = await db.select().from(documentsTable)
-      .where(and(eq(documentsTable.isDeleted, false), lte(documentsTable.expiryDate, future.toISOString().split("T")[0]!)));
+    const futureStr = future.toISOString().split("T")[0]!;
+    const conditions: any[] = [
+      eq(documentsTable.isDeleted, false),
+      gte(documentsTable.expiresAt, today),
+      lte(documentsTable.expiresAt, futureStr),
+    ];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(documentsTable.employeeId, user.employeeId));
+    } else {
+      conditions.push(eq(documentsTable.companyId, user.companyId));
+    }
+    const docs = await fetchDocumentsJoined(conditions);
+    res.json({ success: true, data: docs });
+  } catch (e) {
+    console.error("[GET /api/documents/expiring]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/documents/export", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const conditions: any[] = [eq(documentsTable.isDeleted, false)];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(documentsTable.employeeId, user.employeeId));
+    } else {
+      conditions.push(eq(documentsTable.companyId, user.companyId));
+    }
+    const docs = await fetchDocumentsJoined(conditions);
     res.json({ success: true, data: docs });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/documents/export", auth, async (_req, res) => {
-  res.json({ success: true, data: { url: null, message: "Export not available in demo" } });
-});
-
-app.post("/api/documents/upload", auth, async (req, res) => {
-  try {
-    const [doc] = await db.insert(documentsTable).values({ ...req.body, fileUrl: req.body.fileUrl ?? "/placeholder" }).returning();
-    res.status(201).json({ success: true, data: doc });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
+// POST /api/documents/upload — real file upload via multipart [auth required]
+app.post("/api/documents/upload", auth, (req, res) => {
+  const user = (req as AuthReq).user;
+  docUpload.single("file")(req, res, async (err) => {
+    if (err) {
+      const msg = err instanceof multer.MulterError
+        ? (err.code === "LIMIT_FILE_SIZE" ? "File exceeds 5 MB limit" : err.message)
+        : err.message;
+      res.status(400).json({ success: false, message: msg }); return;
+    }
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) {
+      res.status(400).json({ success: false, message: "No file provided" }); return;
+    }
+    const employeeId = (req.body as any).employeeId;
+    if (!employeeId) {
+      fs.unlink(file.path, () => {});
+      res.status(400).json({ success: false, message: "employeeId is required" }); return;
+    }
+    if (user.role === "employee" && Number(employeeId) !== user.employeeId) {
+      fs.unlink(file.path, () => {});
+      res.status(403).json({ success: false, message: "Employees can only upload their own files" }); return;
+    }
+    const fileUrl = `/uploads/${file.filename}`;
+    res.json({ success: true, data: { fileName: file.originalname, fileUrl, fileSize: file.size, mimeType: file.mimetype } });
+  });
 });
 
 // ─── Assets extra endpoints ────────────────────────────────────────────────────

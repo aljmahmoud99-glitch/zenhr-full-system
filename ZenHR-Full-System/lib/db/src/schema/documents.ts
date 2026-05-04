@@ -2,6 +2,7 @@ import { pgTable, text, serial, timestamp, integer, boolean, varchar, date } fro
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
+import { companiesTable } from "./companies";
 
 export const documentTypesTable = pgTable("document_types", {
   id: serial("id").primaryKey(),
@@ -16,12 +17,15 @@ export const documentTypesTable = pgTable("document_types", {
 
 export const documentsTable = pgTable("documents", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companiesTable.id),
   employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
   documentTypeId: integer("document_type_id").notNull().references(() => documentTypesTable.id),
   documentNumber: varchar("document_number", { length: 100 }),
   issuedAt: date("issued_at"),
   expiresAt: date("expires_at"),
+  issuedBy: varchar("issued_by", { length: 200 }),
   fileUrl: varchar("file_url", { length: 500 }),
+  fileName: varchar("file_name", { length: 500 }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

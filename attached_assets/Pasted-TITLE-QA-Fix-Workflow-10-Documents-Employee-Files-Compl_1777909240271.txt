@@ -1,0 +1,263 @@
+TITLE:
+QA + Fix — Workflow 10: Documents / Employee Files / Compliance Documents
+
+STRICT RULES:
+- Test ONLY the documents module.
+- Do NOT touch payroll, leave, overtime, attendance, users, or dashboard unless required by a confirmed documents bug.
+- Fix confirmed bugs immediately with the smallest safe change.
+- Validate full chain after every fix:
+  UI → API → DB → file/storage metadata → GET/list → role scope → filters → notifications → audit.
+- Do NOT fake success. If upload succeeds in UI but no DB row/file metadata exists, classify as FAKE_SUCCESS.
+- Stop after report.
+
+ACCOUNTS:
+hr / Test@12345
+payroll / Test@12345
+manager.hr / Test@12345
+employee01 / Test@12345
+employee02 / Test@12345
+
+TASK 1 — DISCOVER DOCUMENTS MODULE
+Read and report:
+- Frontend route: /app/documents
+- Component files and services used
+- Upload modal form fields:
+  employee, documentType, documentNumber, issuingAuthority, issueDate, expiryDate, attachment, notes
+- All API endpoints used by the page
+- DB tables used for documents
+- File storage behavior: where uploaded file is stored, or if only metadata is saved
+- Roles allowed to view/upload/edit/delete/download documents
+
+TASK 2 — INITIAL DATA + EMPTY STATE
+For hr, payroll, manager.hr, employee01:
+- Open /app/documents
+- Confirm page loads with no console errors
+- Confirm counters match DB:
+  total documents
+  expired
+  expiring soon
+  required/missing
+  compliance linked
+- If DB has no documents, empty state must be correct.
+- Empty state must not hide errors.
+
+TASK 3 — UPLOAD DOCUMENT AS HR
+Login as hr.
+Upload a real small file:
+- employee: employee01
+- document type: Passport or ID
+- document number: QA-DOC-001
+- issuing authority: QA Authority
+- issue date: today - 30 days
+- expiry date: today + 20 days
+- notes: QA document workflow test
+
+Validate:
+- POST status 200/201
+- DB row created
+- employee_id = employee01
+- company_id correct
+- document_number saved
+- document_type saved
+- issue/expiry dates saved
+- file metadata saved: filename, mime type, size, storage path/url
+- UI list refreshes and shows the new document
+- counters update:
+  total +1
+  expiring soon +1 if within threshold
+- No console errors
+
+If UI says success but document does not appear or DB row missing:
+Type = FAKE_SUCCESS or READ_MISMATCH.
+
+TASK 4 — EMPLOYEE VISIBILITY / SCOPE
+Login as employee01:
+- Open /app/documents
+- employee01 MUST see only their own document
+- Download/view file must work only for own document
+- employee01 must NOT see employee02 documents
+
+Login as employee02:
+- Open /app/documents
+- employee02 must NOT see employee01 document
+- Direct API access to employee01 document by ID must return 403 or 404
+
+If employee02 sees employee01 document:
+Type = SCOPE_BUG CRITICAL.
+
+TASK 5 — MANAGER SCOPE
+Login as manager.hr:
+- manager.hr should see only documents for direct/team employees
+- If employee01 reports to manager.hr, document should be visible
+- If employee outside manager.hr team exists, must not be visible
+- Upload permission: confirm whether managers are allowed to upload. If UI allows but API blocks, align UI/API.
+- Direct API access outside team must be 403/404
+
+TASK 6 — PAYROLL SCOPE
+Login as payroll:
+- payroll should only see payroll-relevant documents if designed, or all employee documents if current permissions say so.
+- Must NOT upload compliance/HR-only docs unless intended.
+- If payroll can upload/delete HR documents without requirement, flag ROLE_LEAK.
+
+TASK 7 — FILTERS AND SEARCH
+Using hr:
+Test filters:
+- search by document number QA-DOC-001
+- document type filter
+- status filter: valid / expired / expiring soon
+- expiry date from/to
+- “required and missing only”
+- “compliance documents only”
+
+For each filter:
+- API query params correct
+- result set correct
+- UI count correct
+- clearing filters restores all docs
+
+TASK 8 — FILE VALIDATION
+Try uploads:
+- valid PDF/JPG/PNG/WEBP under 5MB → accepted
+- unsupported file type .exe or .js → rejected
+- file over 5MB → rejected
+- missing file → rejected if file is required
+- missing employee → rejected
+- missing document type → rejected
+- expiry date before issue date → rejected
+- duplicate document number for same employee/type → should reject or clearly allow per business rule
+
+Validation must exist in backend, not only frontend.
+
+TASK 9 — DOWNLOAD / VIEW SECURITY
+For uploaded document:
+- hr can download
+- employee01 can download own file
+- employee02 cannot download employee01 file
+- unauthenticated download blocked
+- tampered token blocked
+- direct URL must not bypass auth unless signed/temporary URL is intentionally implemented
+
+If file URL is public and guessable:
+Type = FILE_ACCESS_LEAK CRITICAL.
+
+TASK 10 — UPDATE / DELETE / ARCHIVE
+If UI has edit/delete:
+- HR updates document metadata
+- DB updates correctly
+- UI refreshes
+- Employee sees updated metadata
+- HR deletes/archive document
+- DB soft-delete preferred
+- deleted document disappears from list
+- direct download after delete blocked
+- audit log written
+
+If delete is hard delete, report risk.
+
+TASK 11 — NOTIFICATIONS
+If documents should notify:
+- Upload expiring-soon document should notify HR or employee if intended
+- Missing required document should appear as alert if requirement rules exist
+- employee02 must not receive employee01 document notification
+- Bell count updates correctly
+- Mark as read decreases count
+
+If notifications are not designed for documents, report N/A but verify no wrong notifications are created.
+
+TASK 12 — AUDIT LOGS
+Verify activity_logs for:
+- document_uploaded
+- document_updated
+- document_deleted / document_archived
+- document_downloaded if implemented
+
+Audit must include:
+- actor user
+- company_id
+- employee/document context in description
+- created_at
+
+TASK 13 — FIX CONFIRMED BUGS
+For every bug:
+- classify with exact type
+- identify exact file/line/root cause
+- apply minimal fix
+- restart server if backend changed
+- retest full chain
+
+Use these bug types:
+FAKE_SUCCESS
+READ_MISMATCH
+SCOPE_BUG
+ROLE_LEAK
+AUTH_MISSING
+FILE_ACCESS_LEAK
+VALIDATION_MISSING
+UPLOAD_BROKEN
+DOWNLOAD_BROKEN
+FILTER_BUG
+COUNTER_MISMATCH
+NOTIFICATION_SCOPE
+AUDIT_MISSING
+DB_INTEGRITY
+MAJOR_SCHEMA_GAP
+
+TASK 14 — FINAL RETEST
+Must pass:
+- hr uploads employee01 document
+- DB row correct
+- UI list shows it
+- counters correct
+- employee01 sees own document
+- employee02 cannot see/download it
+- manager.hr scope correct
+- payroll permission correct
+- filters work
+- invalid files blocked
+- expired/expiring soon logic correct
+- audit logs created
+- no console errors
+- no 404/500 on tested endpoints
+
+REQUIRED REPORT FORMAT:
+────────────────────────────────────────
+Workflow: 10 — Documents
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+Storage checked:
+
+Bugs found:
+- Bug:
+  Type:
+  Root cause:
+  Fix:
+  File changed:
+
+Files changed:
+
+Retest result:
+  HR upload works: ✅ / ❌
+  DB record correct: ✅ / ❌
+  UI shows document: ✅ / ❌
+  employee01 sees own: ✅ / ❌
+  employee02 blocked: ✅ / ❌
+  manager scope correct: ✅ / ❌
+  payroll scope correct: ✅ / ❌
+  filters correct: ✅ / ❌
+  invalid uploads blocked: ✅ / ❌
+  download security correct: ✅ / ❌
+  counters correct: ✅ / ❌
+  audit logs created: ✅ / ❌
+  no console/network errors: ✅ / ❌
+
+Scope result:
+Notification result:
+Audit result:
+Remaining risks:
+
+WORKFLOW 10 STATUS: COMPLETE ✅ / BLOCKED ❌
+────────────────────────────────────────
+
+STOP. Do not continue to another workflow.
