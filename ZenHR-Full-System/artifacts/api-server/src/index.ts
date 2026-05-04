@@ -4561,6 +4561,8 @@ app.post("/api/attendance/me/requests", auth, async (req, res) => {
     if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
     const { requestType, requestDate, requestedClockIn, requestedClockOut, reason } = req.body;
     if (!requestDate) { res.status(400).json({ success: false, message: "requestDate is required" }); return; }
+    const today = new Date().toISOString().split("T")[0]!;
+    if (requestDate > today) { res.status(400).json({ success: false, message: "Future dates are not allowed for correction requests" }); return; }
     if (!requestedClockIn && !requestedClockOut) { res.status(400).json({ success: false, message: "At least one of requestedClockIn or requestedClockOut is required" }); return; }
     if (!reason?.trim()) { res.status(400).json({ success: false, message: "reason is required" }); return; }
     const existingRecord = await db.select().from(attendanceRecordsTable)
@@ -4723,6 +4725,13 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
             if (rec) {
               const ci = updated.requestedClockIn ?? rec.clockIn;
               const co = updated.requestedClockOut ?? rec.clockOut;
+              if (ci) {
+                const ciDate = new Date(ci);
+                const shiftWithGrace = 9 * 60 + 15;
+                const lateMin = Math.max(0, ciDate.getHours() * 60 + ciDate.getMinutes() - shiftWithGrace);
+                recordSet.lateMinutes = lateMin;
+                recordSet.status = lateMin > 0 ? "late" : "present";
+              }
               if (ci && co) {
                 const worked = Math.max(0, Math.floor((new Date(co).getTime() - new Date(ci).getTime()) / 60000));
                 recordSet.workedMinutes = worked;
@@ -4752,6 +4761,8 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
           console.error("[attendance correction apply]", applyErr);
         }
       }
+      await logActivity(user.companyId, "attendance_correction_hr_approved",
+        `HR ${user.username} approved correction #${correctionId}`, user.username);
       await logActivity(user.companyId, "attendance_record_corrected",
         `HR ${user.username} approved and applied correction #${correctionId}`, user.username);
       const empUser = await db.select({ id: usersTable.id }).from(usersTable)

@@ -1,0 +1,685 @@
+TITLE:
+QA + Fix — Workflow 6: Attendance & Correction Workflow Testing
+
+═══════════════════════════════════
+STRICT RULES
+═══════════════════════════════════
+- Test ONLY Attendance + Attendance Correction workflow.
+- Do NOT touch overtime, leave, payroll, employee profile, reports, or unrelated modules.
+- Fix only confirmed bugs found in THIS workflow.
+- Use the smallest safe code change.
+- After every fix, retest the full chain:
+  UI → API → DB → GET → UI → Scope → Notifications → Audit.
+- Do NOT redesign UI.
+- Do NOT add new features unless required to make the tested workflow work.
+- If a bug needs schema migration or changes more than 3 files, classify as MAJOR_BUG and stop before fixing.
+- Stop after final report. Do not continue to Workflow 7.
+
+═══════════════════════════════════
+ACCOUNTS
+═══════════════════════════════════
+Employee submitter:
+- employee01 / Test@12345
+
+Wrong-scope employee:
+- employee02 / Test@12345
+
+Manager:
+- manager.hr / Test@12345
+
+HR:
+- hr / Test@12345
+
+Payroll read-only check if applicable:
+- payroll / Test@12345
+
+═══════════════════════════════════
+OBJECTIVE
+═══════════════════════════════════
+Verify Attendance is truly working end-to-end after the core logic fix.
+
+Expected final behavior:
+1. employee01 can check in.
+2. employee01 sees today's attendance status updated.
+3. employee01 can check out.
+4. Work hours are calculated by backend.
+5. employee01 sees the record in "سجلّي".
+6. manager.hr sees employee01 attendance only if employee01 is in manager scope.
+7. hr sees company attendance records.
+8. employee02 does NOT see employee01 attendance.
+9. employee01 can submit attendance correction.
+10. Correction appears in employee01 correction list.
+11. Correction appears for manager.hr.
+12. manager.hr approves.
+13. HR approves final.
+14. Attendance record is actually updated.
+15. employee01 receives notification.
+16. No console errors.
+17. No 404/500.
+18. Audit logs created for all mutations.
+
+═══════════════════════════════════
+TASK 1 — IDENTIFY CURRENT ATTENDANCE SYSTEM
+═══════════════════════════════════
+Before testing, read and report:
+
+Frontend:
+1. Attendance route.
+2. Attendance component path.
+3. Tabs shown for employee.
+4. Tabs shown for manager.
+5. Tabs shown for HR.
+6. API called for:
+   - today summary
+   - check-in
+   - check-out
+   - my records
+   - employee correction create
+   - correction list
+   - approve correction
+   - reject correction
+7. Exact request body shapes.
+8. Exact response shapes expected by frontend.
+
+Backend:
+1. List all attendance endpoints.
+2. List all correction endpoints.
+3. List tables used:
+   - attendance_records
+   - attendance_corrections
+   - notifications
+   - activity_logs
+4. Confirm current field mappings:
+   - checkInTime vs clockIn
+   - checkOutTime vs clockOut
+   - workHours vs workedMinutes
+   - status strings
+   - attendanceType
+   - correctionStatus
+
+Report findings before testing or changing code.
+
+═══════════════════════════════════
+TASK 2 — EMPLOYEE CHECK-IN FLOW
+═══════════════════════════════════
+Log in as employee01.
+
+Open:
+/app/attendance
+
+Before action:
+1. Open DevTools Network + Console.
+2. Confirm page loads without JS errors.
+3. Record GET /api/attendance/my-today response.
+4. Record initial status shown in UI.
+
+Click:
+تسجيل الحضور
+
+Expected:
+- POST /api/attendance/check-in
+- HTTP 200 or 201
+- Response contains normalized attendance record:
+  id, employeeId, date, checkInTime, status, isLate, lateMinutes, attendanceType
+- employeeId must be employee01 id from JWT.
+- UI updates status from pending to present/late.
+- Check-in time appears in summary.
+- Toast/success message appears.
+- No full page crash.
+
+DB validation:
+Query latest attendance_records row for employee01 today.
+
+Verify:
+- employee_id = employee01
+- date = today
+- clock_in/check_in populated
+- status = present or late
+- late_minutes populated, even if 0
+- attendance_type populated
+- created_at populated
+
+Audit validation:
+Query activity_logs latest:
+- action/type includes attendance_check_in
+- description references employee01 or attendance record
+
+Security validation:
+Try to call POST /api/attendance/check-in with body:
+{ employeeId: employee02_id }
+
+Expected:
+- backend ignores employeeId from body
+- record remains employee01 only
+- no record created for employee02
+
+If employee02 record is created:
+Type: SCOPE_BUG — critical.
+
+═══════════════════════════════════
+TASK 3 — DUPLICATE CHECK-IN GUARD
+═══════════════════════════════════
+While still logged in as employee01:
+
+Click تسجيل الحضور again or call API again.
+
+Expected:
+- HTTP 409
+- Message: already checked in / already has record
+- No duplicate attendance record created in DB.
+- UI shows friendly error and remains stable.
+
+If duplicate row is created:
+Type: DUPLICATE_RECORD_BUG.
+
+═══════════════════════════════════
+TASK 4 — EMPLOYEE CHECK-OUT FLOW
+═══════════════════════════════════
+Log in as employee01.
+
+Click:
+تسجيل الانصراف
+
+Expected:
+- POST /api/attendance/check-out
+- HTTP 200
+- Response contains:
+  checkOutTime populated
+  workHours calculated
+  status completed/present/late depending implementation
+- UI shows checkout time.
+- UI shows work hours.
+- No console errors.
+
+DB validation:
+Query employee01 today row.
+
+Verify:
+- clock_out/check_out populated
+- worked_minutes or work_hours populated
+- check_out > check_in
+- updated_at changed
+
+Audit validation:
+activity_logs has attendance_check_out.
+
+Try check-out again.
+
+Expected:
+- HTTP 409 already checked out
+- no DB change
+
+Try check-out with employeeId=employee02 in body.
+
+Expected:
+- ignored or forbidden
+- no employee02 row affected
+
+═══════════════════════════════════
+TASK 5 — MY RECORDS TAB
+═══════════════════════════════════
+As employee01:
+
+Open "سجلّي".
+
+Expected:
+- GET /api/attendance/me or /api/attendance/my-records
+- Response contains employee01 records only.
+- Today's check-in/out record appears.
+- UI displays:
+  date
+  check-in
+  check-out
+  work hours
+  status
+  late yes/no
+  attendance type
+
+Log in as employee02:
+- Open same tab.
+- employee02 must NOT see employee01 record.
+
+If employee02 sees employee01:
+Type: SCOPE_BUG.
+
+═══════════════════════════════════
+TASK 6 — HR RECORDS VIEW
+═══════════════════════════════════
+Log in as hr.
+
+Open:
+/app/attendance
+
+Go to "السجلات".
+
+Expected:
+- HR sees company attendance records.
+- employee01 record appears.
+- UI displays employee name/code/department if available.
+- Filters do not hide valid records by status mismatch.
+- No console/network errors.
+
+Verify API:
+GET /api/attendance or /api/attendance/records
+
+Expected:
+- HTTP 200
+- includes normalized fields:
+  employeeName, employeeCode, departmentName/orgNodeId, date, checkInTime, checkOutTime, workHours, status, isLate.
+
+If API returns record but UI does not show it:
+Type: FRONTEND_MAPPING.
+
+If UI shows incorrect count:
+Type: COUNT_MISMATCH.
+
+═══════════════════════════════════
+TASK 7 — MANAGER RECORDS VIEW + SCOPE
+═══════════════════════════════════
+Log in as manager.hr.
+
+Open team attendance route/sidebar item:
+- حضور الفريق
+or /app/attendance if same route.
+
+Expected:
+- manager.hr sees only direct reports / scoped team.
+- employee01 record visible ONLY if employee01 is in manager.hr scope.
+- manager.hr must not see employee02 if employee02 is outside scope.
+- manager must not see full company records.
+
+Run API manually:
+GET /api/attendance
+GET /api/attendance/records if exists
+
+Inspect employeeIds returned.
+
+If manager sees all company:
+Type: SCOPE_BUG — critical.
+
+If manager sees no team despite employee01 being direct report:
+Type: SCOPE_TOO_STRICT.
+
+═══════════════════════════════════
+TASK 8 — CORRECTION REQUEST CREATE
+═══════════════════════════════════
+Log in as employee01.
+
+Open:
+طلباتي التصحيحية
+
+Click:
+طلب جديد
+
+Create correction request:
+- Type: تصحيح وقت
+- Date: use a date with existing attendance record if possible.
+- Requested check-in: 09:05
+- Requested check-out: 17:00
+- Reason: "اختبار QA لتصحيح الحضور"
+
+Expected:
+- POST /api/attendance/me/requests or configured endpoint
+- HTTP 200/201
+- Response contains:
+  id
+  employeeId
+  attendanceId if existing record found
+  correctionType
+  date
+  requestedCheckInTime
+  requestedCheckOutTime
+  reason
+  status=pending
+- DB row created in attendance_corrections.
+- Current values snapshot saved if attendance record existed.
+- UI shows request in employee01 correction list.
+- Notifications created for manager + HR if policy requires.
+- Audit log created: attendance_correction_requested.
+
+DB validation:
+Query attendance_corrections latest for employee01.
+
+Verify:
+- employee_id = employee01
+- status = pending
+- requested values saved
+- reason saved
+- created_at populated
+
+Notification validation:
+Query notifications where entity_type='attendance_correction' and entity_id=request_id.
+
+Expected recipients:
+- manager.hr if employee01 is under manager.hr
+- hr
+- NOT employee02
+
+If POST returns success but DB row missing:
+Type: FAKE_SUCCESS.
+
+If DB row exists but GET/list does not return:
+Type: READ_MISMATCH.
+
+If UI does not show request:
+Type: FRONTEND_MAPPING.
+
+═══════════════════════════════════
+TASK 9 — CORRECTION VALIDATION RULES
+═══════════════════════════════════
+As employee01 test invalid correction submissions:
+
+1. Missing date.
+Expected: blocked, no DB row.
+
+2. Missing reason.
+Expected: blocked, no DB row.
+
+3. Check-out before check-in.
+Expected: blocked, no DB row.
+
+4. Future date.
+Expected: blocked unless policy allows future corrections.
+
+5. Duplicate pending correction for same date/type.
+Expected: conflict / validation error.
+
+6. employee01 attempts correction for employee02 by sending employeeId in body.
+Expected:
+- backend ignores employeeId or rejects
+- correction belongs to employee01 only.
+
+If invalid request creates DB row:
+Type: VALIDATION_MISSING.
+
+═══════════════════════════════════
+TASK 10 — MANAGER CORRECTION APPROVAL
+═══════════════════════════════════
+Log in as manager.hr.
+
+Open:
+طلبات التصحيح
+
+Expected:
+- employee01 correction appears if in manager scope.
+- employee02 unrelated corrections do not appear.
+
+Approve employee01 correction.
+
+Expected:
+- PUT /api/attendance/requests/:id/approve
+- HTTP 200
+- DB status becomes manager_approved
+- managerApprovedById set if column exists
+- managerApprovedAt set if column exists
+- Attendance record is NOT yet updated unless system is manager-only approval.
+- HR receives notification.
+- Audit log created:
+  attendance_correction_manager_approved.
+
+Security checks:
+- employee01 cannot approve own correction.
+- employee02 cannot approve employee01 correction.
+- wrong manager cannot approve.
+- approving already manager_approved again returns 400/409.
+
+If manager approval directly changes attendance record before HR final approval:
+Flag as POLICY_MISMATCH unless current code intentionally allows manager-only approval.
+
+═══════════════════════════════════
+TASK 11 — HR FINAL APPROVAL
+═══════════════════════════════════
+Log in as hr.
+
+Open correction requests.
+
+Approve the same request.
+
+Expected:
+- PUT /api/attendance/requests/:id/approve
+- HTTP 200
+- DB correction status becomes approved.
+- hrApprovedById set if column exists.
+- hrApprovedAt set if column exists.
+- Attendance record is updated:
+  checkInTime = requestedCheckInTime
+  checkOutTime = requestedCheckOutTime
+  workHours recalculated
+  status recalculated
+  isLate recalculated
+  lateMinutes recalculated
+  correctionStatus updated if supported
+- employee01 receives notification.
+- Audit logs created:
+  attendance_correction_hr_approved
+  attendance_record_corrected
+
+Verify:
+1. GET /api/attendance/me as employee01 shows corrected record.
+2. GET /api/attendance as HR shows corrected record.
+3. UI shows corrected times.
+
+If correction approved but attendance record unchanged:
+Type: SIDE_EFFECT_MISSING — critical.
+
+If employee notification missing:
+Type: NOTIFICATION_MISSING.
+
+═══════════════════════════════════
+TASK 12 — CORRECTION REJECTION FLOW
+═══════════════════════════════════
+Create a second correction request as employee01.
+
+As manager.hr or hr reject it with reason:
+"مرفوض لاختبار QA"
+
+Expected:
+- HTTP 200
+- DB status = rejected
+- rejectionReason saved
+- attendance record NOT changed
+- employee01 notified
+- Audit log created attendance_correction_rejected
+- Rejected request remains visible in employee history.
+
+Security:
+- employee cannot reject.
+- wrong manager cannot reject.
+- terminal rejected request cannot be approved later.
+
+═══════════════════════════════════
+TASK 13 — NOTIFICATIONS FULL CHECK
+═══════════════════════════════════
+For attendance correction workflow:
+
+Check notifications by role:
+
+employee01:
+- receives HR approval notification
+- receives rejection notification
+- does NOT receive manager/HR internal approval notifications unless intended
+
+manager.hr:
+- receives new correction notification
+
+hr:
+- receives new correction notification if policy says HR immediate visibility
+- receives manager approved notification
+
+employee02:
+- receives zero notifications related to employee01 attendance.
+
+For each:
+- Check DB notifications.
+- Check bell count.
+- Check dropdown text readable in Arabic.
+- Mark one as read and verify count decreases.
+
+Bug types:
+- NOTIFICATION_MISSING
+- NOTIFICATION_SCOPE
+- NOTIFICATION_COUNT_BUG
+- NOTIFICATION_TEXT_BUG
+
+═══════════════════════════════════
+TASK 14 — AUDIT LOG CHECK
+═══════════════════════════════════
+Check activity_logs after the full flow.
+
+Expected actions present:
+- attendance_check_in
+- attendance_check_out
+- attendance_correction_requested
+- attendance_correction_manager_approved
+- attendance_correction_hr_approved
+- attendance_record_corrected
+- attendance_correction_rejected
+
+If existing activity_logs schema is limited, verify at least:
+- type/action stored
+- readable description
+- company_id if available
+- created_at
+
+If mutation happened without audit log:
+Type: AUDIT_MISSING.
+
+═══════════════════════════════════
+TASK 15 — FIX BUGS
+═══════════════════════════════════
+For each confirmed bug:
+1. Classify:
+   - SCOPE_BUG
+   - FAKE_SUCCESS
+   - READ_MISMATCH
+   - FRONTEND_MAPPING
+   - STATUS_FILTER_BUG
+   - VALIDATION_MISSING
+   - DUPLICATE_RECORD_BUG
+   - SIDE_EFFECT_MISSING
+   - NOTIFICATION_MISSING
+   - NOTIFICATION_SCOPE
+   - NOTIFICATION_COUNT_BUG
+   - AUDIT_MISSING
+   - API_ERROR
+   - DB_INTEGRITY
+   - MAJOR_BUG
+2. Identify exact file + function/endpoint/component.
+3. Apply minimal safe fix.
+4. Retest full affected chain.
+
+Do NOT touch unrelated modules.
+
+═══════════════════════════════════
+TASK 16 — FULL RETEST
+═══════════════════════════════════
+After fixes, run clean full chain again:
+
+Employee:
+  ✓ employee01 check-in works
+  ✓ duplicate check-in blocked
+  ✓ employee01 check-out works
+  ✓ duplicate checkout blocked
+  ✓ my records show corrected record
+  ✓ employee02 cannot see employee01 records
+
+Manager:
+  ✓ manager sees scoped team records only
+  ✓ manager sees correction request
+  ✓ manager approves correction
+  ✓ wrong-scope access blocked
+
+HR:
+  ✓ HR sees records
+  ✓ HR final approval works
+  ✓ attendance record updated after HR approval
+
+Correction:
+  ✓ create request works
+  ✓ validation works
+  ✓ reject works
+  ✓ terminal state guards work
+
+Notifications:
+  ✓ correct recipients only
+  ✓ bell count correct
+  ✓ Arabic text readable
+
+Audit:
+  ✓ all mutation actions logged
+
+Console/network:
+  ✓ no JS console errors
+  ✓ no 404
+  ✓ no 500
+
+═══════════════════════════════════
+REQUIRED REPORT FORMAT
+═══════════════════════════════════
+Submit EXACTLY:
+
+───────────────────────────────────────────────────────────────
+Workflow: 6 — Attendance & Correction Workflow Testing
+
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+
+System findings:
+  Frontend component:
+  Check-in endpoint:
+  Check-out endpoint:
+  My records endpoint:
+  HR/Manager records endpoint:
+  Correction create endpoint:
+  Correction approval endpoints:
+  Notification behavior:
+  Audit behavior:
+
+Bugs found:
+  [If none: No bugs found]
+  - Bug:
+    Type:
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  employee01 check-in: ✅ / ❌
+  duplicate check-in blocked: ✅ / ❌
+  employee01 check-out: ✅ / ❌
+  duplicate checkout blocked: ✅ / ❌
+  work hours calculated: ✅ / ❌
+  employee01 sees own records: ✅ / ❌
+  employee02 cannot see employee01 records: ✅ / ❌
+  HR sees employee01 record: ✅ / ❌
+  manager scope correct: ✅ / ❌
+  correction create works: ✅ / ❌
+  manager approval works: ✅ / ❌
+  HR final approval works: ✅ / ❌
+  attendance record updated after correction: ✅ / ❌
+  rejection works: ✅ / ❌
+  validation works: ✅ / ❌
+  notifications correct: ✅ / ❌
+  audit logs created: ✅ / ❌
+  no console/network errors: ✅ / ❌
+
+Scope result:
+
+Notification result:
+
+Audit result:
+
+Console/network errors:
+
+Remaining risks:
+
+WORKFLOW 6 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP HERE.
+Do not start Workflow 7.
+Wait for QA director approval.
