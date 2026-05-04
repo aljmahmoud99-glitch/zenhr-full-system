@@ -1521,27 +1521,81 @@ app.get("/api/leave/requests/:id", auth, async (req, res) => {
 app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [lr] = await db.update(leaveRequestsTable).set({
+    if (user.role !== "manager" && user.role !== "hradmin") {
+      res.status(403).json({ success: false, message: "Only managers or HR administrators can approve leave requests" }); return;
+    }
+    const requestId = parseInt(req.params["id"]!);
+    const [lr] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, requestId));
+    if (!lr) { res.status(404).json({ success: false, message: "Leave request not found" }); return; }
+
+    if (user.role === "manager") {
+      // Manager: scope check + pending→manager_approved
+      if (lr.status !== "pending") {
+        res.status(400).json({ success: false, message: "Only pending requests can be approved by a manager" }); return;
+      }
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(eq(employeesTable.id, lr.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
+      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return; }
+      const [updated] = await db.update(leaveRequestsTable).set({ status: "manager_approved" })
+        .where(eq(leaveRequestsTable.id, requestId)).returning();
+      await notifyRole(user.companyId, "hradmin", {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "leave_request", entityId: requestId,
+        notificationType: "leave_manager_approved",
+        titleAr: "طلب إجازة بانتظار موافقة الموارد البشرية",
+        titleEn: "Leave Request Awaiting HR Approval",
+        messageAr: `وافق المدير على طلب إجازة من ${fmtDateRange(lr.startDate, lr.endDate)}. يحتاج إلى موافقة الموارد البشرية.`,
+        messageEn: `Manager approved a leave request from ${fmtDateRange(lr.startDate, lr.endDate)}. Awaiting HR approval.`,
+        priority: "normal" as const, actionUrl: "/app/leave",
+      });
+      res.json({ success: true, data: updated }); return;
+    }
+
+    // hradmin: manager_approved or pending → approved (+ balance deduction)
+    if (lr.status !== "pending" && lr.status !== "manager_approved") {
+      res.status(400).json({ success: false, message: "Request cannot be approved in its current state" }); return;
+    }
+    const [updated] = await db.update(leaveRequestsTable).set({
       status: "approved", approvedById: user.userId, approvedAt: new Date(),
-    }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    // ── Notification ───────────────────────────────────────────────────────
-    if (lr?.employeeId) {
-      await notifyEmployee(lr.employeeId, user.companyId, {
-        companyId: user.companyId,
-        actorUserId: user.userId,
-        entityType: "leave_request",
-        entityId: lr.id,
+    }).where(eq(leaveRequestsTable.id, requestId)).returning();
+
+    // ── Balance update (best-effort) ──────────────────────────────────────
+    try {
+      const year = new Date(String(lr.startDate)).getFullYear();
+      const [lt] = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, Number(lr.leaveType)));
+      if (lt) {
+        const [policy] = await db.select().from(leavePoliciesTable)
+          .where(and(eq(leavePoliciesTable.companyId, user.companyId), eq(leavePoliciesTable.leaveType, lt.code)));
+        if (policy) {
+          await db.update(leaveBalancesTable).set({
+            usedDays: sql`${leaveBalancesTable.usedDays} + ${Number(lr.totalDays)}`,
+            pendingDays: sql`GREATEST(0, ${leaveBalancesTable.pendingDays} - ${Number(lr.totalDays)})`,
+          }).where(and(
+            eq(leaveBalancesTable.employeeId, lr.employeeId),
+            eq(leaveBalancesTable.leavePolicyId, policy.id),
+            eq(leaveBalancesTable.year, year),
+          ));
+        }
+      }
+    } catch (balErr) { console.error("[approve] balance update non-fatal:", balErr); }
+
+    // ── Notify employee ───────────────────────────────────────────────────
+    if (updated?.employeeId) {
+      await notifyEmployee(updated.employeeId, user.companyId, {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "leave_request", entityId: updated.id,
         notificationType: "leave_request_approved",
         titleAr: "تمت الموافقة على طلب الإجازة",
         titleEn: "Leave Request Approved",
-        messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(lr.startDate, lr.endDate)}.`,
-        messageEn: `Your leave request from ${fmtDateRange(lr.startDate, lr.endDate)} was approved.`,
-        priority: "high",
-        actionUrl: "/app/my-leave",
+        messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(updated.startDate, updated.endDate)}.`,
+        messageEn: `Your leave request from ${fmtDateRange(updated.startDate, updated.endDate)} was approved.`,
+        priority: "high", actionUrl: "/app/leave",
       });
     }
-    res.json({ success: true, data: lr });
+    res.json({ success: true, data: updated });
   } catch (e) {
+    console.error("[POST /api/leave/requests/:id/approve]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1549,28 +1603,63 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
 app.post("/api/leave/requests/:id/reject", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (user.role !== "manager" && user.role !== "hradmin") {
+      res.status(403).json({ success: false, message: "Only managers or HR administrators can reject leave requests" }); return;
+    }
+    const requestId = parseInt(req.params["id"]!);
+    const [lr] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, requestId));
+    if (!lr) { res.status(404).json({ success: false, message: "Leave request not found" }); return; }
+    if (lr.status === "approved" || lr.status === "rejected" || lr.status === "cancelled") {
+      res.status(400).json({ success: false, message: "Request cannot be rejected in its current state" }); return;
+    }
+    if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(eq(employeesTable.id, lr.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
+      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to reject this employee's request" }); return; }
+    }
     const { reason } = req.body as { reason: string };
-    const [lr] = await db.update(leaveRequestsTable).set({
+    const [updated] = await db.update(leaveRequestsTable).set({
       status: "rejected", rejectionReason: reason,
-    }).where(eq(leaveRequestsTable.id, parseInt(req.params["id"]!))).returning();
-    // ── Notification ───────────────────────────────────────────────────────
-    if (lr?.employeeId) {
-      await notifyEmployee(lr.employeeId, user.companyId, {
-        companyId: user.companyId,
-        actorUserId: user.userId,
-        entityType: "leave_request",
-        entityId: lr.id,
+    }).where(eq(leaveRequestsTable.id, requestId)).returning();
+    if (updated?.employeeId) {
+      await notifyEmployee(updated.employeeId, user.companyId, {
+        companyId: user.companyId, actorUserId: user.userId,
+        entityType: "leave_request", entityId: updated.id,
         notificationType: "leave_request_rejected",
         titleAr: "تم رفض طلب الإجازة",
         titleEn: "Leave Request Rejected",
-        messageAr: `تم رفض طلب إجازتك من ${fmtDateRange(lr.startDate, lr.endDate)}.`,
-        messageEn: `Your leave request from ${fmtDateRange(lr.startDate, lr.endDate)} was rejected.`,
-        priority: "high",
-        actionUrl: "/app/my-leave",
+        messageAr: `تم رفض طلب إجازتك من ${fmtDateRange(updated.startDate, updated.endDate)}.`,
+        messageEn: `Your leave request from ${fmtDateRange(updated.startDate, updated.endDate)} was rejected.`,
+        priority: "high", actionUrl: "/app/leave",
       });
     }
-    res.json({ success: true, data: lr });
+    res.json({ success: true, data: updated });
   } catch (e) {
+    console.error("[POST /api/leave/requests/:id/reject]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/leave/requests/:id/cancel", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const requestId = parseInt(req.params["id"]!);
+    const [lr] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, requestId));
+    if (!lr) { res.status(404).json({ success: false, message: "Leave request not found" }); return; }
+    if (user.role === "employee") {
+      if (lr.employeeId !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Not authorized to cancel this request" }); return;
+      }
+    }
+    if (lr.status === "approved" || lr.status === "rejected" || lr.status === "cancelled") {
+      res.status(400).json({ success: false, message: "Request cannot be cancelled in its current state" }); return;
+    }
+    const [updated] = await db.update(leaveRequestsTable).set({ status: "cancelled" })
+      .where(eq(leaveRequestsTable.id, requestId)).returning();
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    console.error("[POST /api/leave/requests/:id/cancel]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
