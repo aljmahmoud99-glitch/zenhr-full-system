@@ -309,6 +309,28 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 ### Service Refactor
 - `payroll-run.service.ts` rewritten: `calculatePayroll(db, { companyId, runId, runMonth, runYear })` accepts an existing draft run ID. Returns `CalculatePayrollResult` with all totals. Uses transaction to atomically delete stale slips, insert new ones, and update run totals + status.
 
+## Workflow 22 — Settings Module QA (COMPLETE)
+**10 bugs fixed across backend and frontend.**
+
+### Backend Fixes (`artifacts/api-server/src/index.ts`, ~line 3770)
+1. **CRITICAL — Input validation added to `PATCH /api/config/bulk`**: Added `CONFIG_RULES` map and `validateConfigValue()` function. All entries validated before any DB write (fail-fast). Validates: unknown key rejection (whitelist), boolean must be "true"/"false", integer fields (min/max range), decimal fields (non-negative, max), JSON array for `income_tax_brackets` (from/to/rate structure + rate 0–1), URL fields (http/https or empty).
+2. **CRITICAL — Audit logging added**: `PATCH /api/config/bulk` now calls `logActivity()` with `settings_updated` type listing each `key: old → new` change. Only actual changes are logged (no-op if value unchanged).
+3. **HIGH — Role guard added**: `GET /api/config`, `GET /api/config/catalog`, `PATCH /api/config/bulk` all now require `role IN (superadmin, hradmin)`. Returns 403 Forbidden for all other roles.
+4. **HIGH — Arabic descriptions added**: `DEFAULT_CONFIGS` extended with `descriptionAr` field for all 31 keys. Catalog now returns distinct `descriptionAr` (Arabic) and `descriptionEn` (English) — no longer copies of each other.
+5. **MEDIUM — `dataType` detection fixed**: Uses the DEFAULT definition value for boolean detection, not the possibly-overridden DB value. Ensures boolean toggles remain toggles even if an override has a non-standard value.
+
+### Frontend Fixes (`settings.component.ts` + `.html` + `.scss`)
+6. **HIGH — Dirty tracking implemented**: `editValues` promoted to `signal<Record<string,string>>`. `hasChanges` is a `computed()` signal comparing `editValues()` vs `originalValues`. Save button `[disabled]="saving() || !hasChanges()"` — disabled when nothing changed.
+7. **HIGH — Only changed keys sent on save**: `saveAll()` diffs `editValues()` against `originalValues` and sends only the mutated entries. Also commits a new `originalValues` baseline on success.
+8. **MEDIUM — Numeric inputs use `type="number"`**: `NUMERIC_KEYS` set identifies 13 numeric fields. `INTEGER_KEYS` subset adds `step=1`. Remaining fields remain `type="text"`. `income_tax_brackets` is in `TEXTAREA_KEYS` — renders as 5-row monospace textarea.
+9. **LOW — `isLongText` replaced**: Replaced value-length heuristic with explicit `TEXTAREA_KEYS` set. Deterministic — not dependent on current value length.
+10. **UX — Unsaved-changes indicators**: Category sidebar tabs show amber dot (●) when that category has unsaved edits. Individual setting cards show amber border highlight. "Discard Changes" button appears alongside Save when dirty.
+
+### Key Constants (Frontend)
+- `TEXTAREA_KEYS`: `{'income_tax_brackets'}`
+- `NUMERIC_KEYS`: 13 numeric config fields
+- `INTEGER_KEYS`: 7 whole-number fields (step=1)
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types

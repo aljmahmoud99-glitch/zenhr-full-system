@@ -3765,49 +3765,128 @@ app.get("/api/lookups/violation-types", auth, async (req, res) => {
 
 // ─── Config / System Settings ─────────────────────────────────────────────────
 const DEFAULT_CONFIGS = [
-  { key: "currency_code", value: "JOD", category: "general", description: "Currency code" },
-  { key: "company_name_ar", value: "شركة زين الأردن", category: "general", description: "Company name in Arabic" },
-  { key: "company_name_en", value: "ZenJO Company", category: "general", description: "Company name in English" },
-  { key: "working_hours_per_day", value: "8", category: "attendance", description: "Working hours per day" },
-  { key: "working_days_per_week", value: "5", category: "attendance", description: "Working days per week" },
-  { key: "overtime_rate_weekday", value: "1.5", category: "payroll", description: "Overtime rate on weekdays" },
-  { key: "overtime_rate_weekend", value: "2.0", category: "payroll", description: "Overtime rate on weekends" },
-  { key: "income_tax_exempt_annual", value: "10000", category: "payroll", description: "Annual income tax exemption (JOD)" },
-  { key: "ssc_employee_rate", value: "0.075", category: "payroll", description: "SSC employee contribution rate" },
-  { key: "ssc_employer_rate", value: "0.1425", category: "payroll", description: "SSC employer contribution rate" },
-  { key: "ssc_insurable_salary_cap", value: "3000", category: "payroll", description: "Maximum monthly basic salary used as SSC calculation base (JOD)" },
-  { key: "income_tax_brackets", value: JSON.stringify([{from:0,to:9000,rate:0},{from:9000,to:20000,rate:0.05},{from:20000,to:30000,rate:0.10},{from:30000,to:40000,rate:0.15},{from:40000,to:50000,rate:0.20},{from:50000,to:999999999,rate:0.25}]), category: "payroll", description: "Jordan progressive income tax brackets (annual JOD, from/to/rate)" },
-  { key: "annual_leave_days", value: "14", category: "leave", description: "Annual leave days" },
-  { key: "sick_leave_days", value: "14", category: "leave", description: "Sick leave days per year" },
-  { key: "probation_period_months", value: "3", category: "hr", description: "Probation period in months" },
-  { key: "notice_period_days", value: "30", category: "hr", description: "Notice period in days" },
-  { key: "enable_geofencing", value: "false", category: "attendance", description: "Enable geofencing for clock-in" },
-  { key: "enable_face_recognition", value: "false", category: "attendance", description: "Enable face recognition" },
-  { key: "notify_leave_approval", value: "true", category: "notifications", description: "Notify on leave approval" },
-  { key: "notify_payroll_run", value: "true", category: "notifications", description: "Notify on payroll run" },
-  { key: "compliance_enabled", value: "true", category: "compliance", description: "Enable compliance tracking" },
-  { key: "ssf_compliance", value: "true", category: "compliance", description: "SSF compliance enabled" },
-  { key: "compliance_warning_days", value: "30", category: "compliance", description: "Days before expiry to show warning" },
-  { key: "health_certificate_required", value: "true", category: "compliance", description: "Health certificate required for all employees" },
-  { key: "criminal_record_required", value: "true", category: "compliance", description: "Criminal record clearance required" },
-  { key: "work_permit_required_non_jordanian", value: "true", category: "compliance", description: "Work permit required for non-Jordanian employees" },
-  { key: "residency_required_non_jordanian", value: "true", category: "compliance", description: "Residency permit required for non-Jordanian employees" },
-  { key: "passport_required_non_jordanian", value: "true", category: "compliance", description: "Passport required for non-Jordanian employees" },
-  { key: "social_security_required_active", value: "true", category: "compliance", description: "SSC registration required for all active employees" },
-  { key: "social_security_portal_url", value: "", category: "compliance", description: "Social Security Portal URL" },
-  { key: "ministry_of_health_portal_url", value: "", category: "compliance", description: "Ministry of Health Portal URL" },
+  { key: "currency_code",                       value: "JOD",     category: "general",       description: "Currency code",                                                           descriptionAr: "رمز العملة" },
+  { key: "company_name_ar",                     value: "شركة زين الأردن", category: "general", description: "Company name in Arabic",                                              descriptionAr: "اسم الشركة بالعربية" },
+  { key: "company_name_en",                     value: "ZenJO Company", category: "general",   description: "Company name in English",                                             descriptionAr: "اسم الشركة بالإنجليزية" },
+  { key: "working_hours_per_day",               value: "8",       category: "attendance",     description: "Working hours per day",                                                   descriptionAr: "ساعات العمل في اليوم" },
+  { key: "working_days_per_week",               value: "5",       category: "attendance",     description: "Working days per week (1–7)",                                             descriptionAr: "أيام العمل في الأسبوع (١–٧)" },
+  { key: "enable_geofencing",                   value: "false",   category: "attendance",     description: "Enable geofencing for clock-in",                                          descriptionAr: "تفعيل تحديد الموقع الجغرافي لتسجيل الحضور" },
+  { key: "enable_face_recognition",             value: "false",   category: "attendance",     description: "Enable face recognition",                                                 descriptionAr: "تفعيل التعرف على الوجه" },
+  { key: "overtime_rate_weekday",               value: "1.5",     category: "payroll",        description: "Overtime rate on weekdays (multiplier, e.g. 1.5)",                        descriptionAr: "معدل العمل الإضافي — أيام الأسبوع (مضاعف)" },
+  { key: "overtime_rate_weekend",               value: "2.0",     category: "payroll",        description: "Overtime rate on weekends (multiplier, e.g. 2.0)",                        descriptionAr: "معدل العمل الإضافي — عطلة نهاية الأسبوع (مضاعف)" },
+  { key: "income_tax_exempt_annual",            value: "10000",   category: "payroll",        description: "Annual income tax exemption (JOD)",                                       descriptionAr: "الإعفاء الضريبي السنوي (دينار أردني)" },
+  { key: "ssc_employee_rate",                   value: "0.075",   category: "payroll",        description: "SSC employee contribution rate (0–1, e.g. 0.075 = 7.5%)",                descriptionAr: "نسبة اشتراك الموظف في الضمان الاجتماعي (0–1)" },
+  { key: "ssc_employer_rate",                   value: "0.1425",  category: "payroll",        description: "SSC employer contribution rate (0–1, e.g. 0.1425 = 14.25%)",             descriptionAr: "نسبة اشتراك صاحب العمل في الضمان الاجتماعي (0–1)" },
+  { key: "ssc_insurable_salary_cap",            value: "3000",    category: "payroll",        description: "Max monthly basic salary for SSC calculation (JOD)",                     descriptionAr: "الحد الأقصى للراتب الخاضع للضمان الاجتماعي (دينار)" },
+  { key: "income_tax_brackets",                 value: JSON.stringify([{from:0,to:9000,rate:0},{from:9000,to:20000,rate:0.05},{from:20000,to:30000,rate:0.10},{from:30000,to:40000,rate:0.15},{from:40000,to:50000,rate:0.20},{from:50000,to:999999999,rate:0.25}]), category: "payroll", description: "Jordan income tax brackets — JSON array of {from, to, rate}", descriptionAr: "شرائح ضريبة الدخل الأردنية — مصفوفة JSON بحقول {from, to, rate}" },
+  { key: "probation_period_months",             value: "3",       category: "hr",             description: "Probation period in months",                                              descriptionAr: "فترة التجربة بالأشهر" },
+  { key: "notice_period_days",                  value: "30",      category: "hr",             description: "Notice period in days",                                                   descriptionAr: "مدة الإشعار المسبق بالأيام" },
+  { key: "annual_leave_days",                   value: "14",      category: "leave",          description: "Annual leave days per year",                                              descriptionAr: "أيام الإجازة السنوية" },
+  { key: "sick_leave_days",                     value: "14",      category: "leave",          description: "Sick leave days per year",                                                descriptionAr: "أيام الإجازة المرضية سنوياً" },
+  { key: "compliance_enabled",                  value: "true",    category: "compliance",     description: "Enable compliance tracking",                                              descriptionAr: "تفعيل تتبع الامتثال" },
+  { key: "ssf_compliance",                      value: "true",    category: "compliance",     description: "SSF compliance enabled",                                                  descriptionAr: "امتثال نظام الضمان الاجتماعي" },
+  { key: "compliance_warning_days",             value: "60",      category: "compliance",     description: "Days before document expiry to show a warning",                           descriptionAr: "أيام التحذير قبل انتهاء صلاحية الوثيقة" },
+  { key: "health_certificate_required",         value: "true",    category: "compliance",     description: "Health certificate required for all employees",                           descriptionAr: "شهادة الصحة مطلوبة لجميع الموظفين" },
+  { key: "criminal_record_required",            value: "true",    category: "compliance",     description: "Criminal record clearance required",                                      descriptionAr: "براءة الذمة مطلوبة" },
+  { key: "work_permit_required_non_jordanian",  value: "true",    category: "compliance",     description: "Work permit required for non-Jordanian employees",                        descriptionAr: "تصريح العمل مطلوب لغير الأردنيين" },
+  { key: "residency_required_non_jordanian",    value: "true",    category: "compliance",     description: "Residency permit required for non-Jordanian employees",                   descriptionAr: "إقامة نظامية مطلوبة لغير الأردنيين" },
+  { key: "passport_required_non_jordanian",     value: "true",    category: "compliance",     description: "Passport required for non-Jordanian employees",                           descriptionAr: "جواز السفر مطلوب لغير الأردنيين" },
+  { key: "social_security_required_active",     value: "true",    category: "compliance",     description: "SSC registration required for all active employees",                      descriptionAr: "تسجيل الضمان الاجتماعي مطلوب للموظفين النشطين" },
+  { key: "social_security_portal_url",          value: "",        category: "compliance",     description: "Social Security Portal URL (https://...)",                                descriptionAr: "رابط موقع الضمان الاجتماعي" },
+  { key: "ministry_of_health_portal_url",       value: "",        category: "compliance",     description: "Ministry of Health Portal URL (https://... or leave empty)",              descriptionAr: "رابط موقع وزارة الصحة" },
+  { key: "notify_leave_approval",               value: "true",    category: "notifications",  description: "Notify on leave approval",                                                descriptionAr: "إشعار بالموافقة على الإجازة" },
+  { key: "notify_payroll_run",                  value: "true",    category: "notifications",  description: "Notify on payroll run",                                                   descriptionAr: "إشعار بتنفيذ مسيرة الرواتب" },
 ];
+
+// Per-key validation rules — enforced in PATCH /api/config/bulk
+const CONFIG_RULES: Record<string, { type: string; min?: number; max?: number; required?: boolean }> = {
+  currency_code:                      { type: "text",             required: true },
+  company_name_ar:                    { type: "text",             required: true },
+  company_name_en:                    { type: "text",             required: true },
+  working_hours_per_day:              { type: "positive_integer", min: 1,  max: 24  },
+  working_days_per_week:              { type: "positive_integer", min: 1,  max: 7   },
+  enable_geofencing:                  { type: "boolean" },
+  enable_face_recognition:            { type: "boolean" },
+  overtime_rate_weekday:              { type: "positive_decimal", min: 0,  max: 10  },
+  overtime_rate_weekend:              { type: "positive_decimal", min: 0,  max: 10  },
+  income_tax_exempt_annual:           { type: "positive_decimal", min: 0            },
+  ssc_employee_rate:                  { type: "positive_decimal", min: 0,  max: 1   },
+  ssc_employer_rate:                  { type: "positive_decimal", min: 0,  max: 1   },
+  ssc_insurable_salary_cap:           { type: "positive_decimal", min: 0            },
+  income_tax_brackets:                { type: "json_tax_brackets"                   },
+  probation_period_months:            { type: "positive_integer", min: 0,  max: 24  },
+  notice_period_days:                 { type: "positive_integer", min: 0,  max: 365 },
+  annual_leave_days:                  { type: "positive_integer", min: 0,  max: 365 },
+  sick_leave_days:                    { type: "positive_integer", min: 0,  max: 365 },
+  compliance_enabled:                 { type: "boolean" },
+  ssf_compliance:                     { type: "boolean" },
+  compliance_warning_days:            { type: "positive_integer", min: 1,  max: 365 },
+  health_certificate_required:        { type: "boolean" },
+  criminal_record_required:           { type: "boolean" },
+  work_permit_required_non_jordanian: { type: "boolean" },
+  residency_required_non_jordanian:   { type: "boolean" },
+  passport_required_non_jordanian:    { type: "boolean" },
+  social_security_required_active:    { type: "boolean" },
+  social_security_portal_url:         { type: "url" },
+  ministry_of_health_portal_url:      { type: "url" },
+  notify_leave_approval:              { type: "boolean" },
+  notify_payroll_run:                 { type: "boolean" },
+};
+const ALLOWED_CONFIG_KEYS = new Set(Object.keys(CONFIG_RULES));
+
+function validateConfigValue(key: string, value: string): string | null {
+  if (!ALLOWED_CONFIG_KEYS.has(key)) return `Unknown configuration key: '${key}'`;
+  const rule = CONFIG_RULES[key]!;
+  const v = String(value ?? "");
+  if (rule.required && !v.trim()) return `'${key}' is required and cannot be empty`;
+  if (rule.type === "boolean") {
+    if (v !== "true" && v !== "false") return `'${key}' must be 'true' or 'false'`;
+  } else if (rule.type === "positive_integer") {
+    const n = Number(v);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) return `'${key}' must be a whole number`;
+    if (rule.min !== undefined && n < rule.min) return `'${key}' must be at least ${rule.min}`;
+    if (rule.max !== undefined && n > rule.max) return `'${key}' must be at most ${rule.max}`;
+  } else if (rule.type === "positive_decimal") {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return `'${key}' must be a valid number`;
+    if (n < 0) return `'${key}' must not be negative`;
+    if (rule.max !== undefined && n > rule.max) return `'${key}' must be at most ${rule.max}`;
+  } else if (rule.type === "json_tax_brackets") {
+    try {
+      const parsed = JSON.parse(v);
+      if (!Array.isArray(parsed)) return `'${key}' must be a JSON array`;
+      for (let i = 0; i < parsed.length; i++) {
+        const b = parsed[i];
+        if (typeof b !== "object" || b === null) return `'${key}' item[${i}] must be an object`;
+        if (typeof b.from !== "number" || typeof b.to !== "number" || typeof b.rate !== "number")
+          return `'${key}' item[${i}] must have numeric 'from', 'to', and 'rate' fields`;
+        if (b.rate < 0 || b.rate > 1) return `'${key}' item[${i}] rate must be between 0 and 1`;
+        if (b.from < 0 || b.to < 0) return `'${key}' item[${i}] from/to must be non-negative`;
+      }
+    } catch {
+      return `'${key}' must be valid JSON`;
+    }
+  } else if (rule.type === "url") {
+    if (v.trim() && !/^https?:\/\/.+/.test(v.trim())) {
+      return `'${key}' must be a valid URL starting with http:// or https:// (or leave empty)`;
+    }
+  }
+  return null;
+}
 
 app.get("/api/config", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
     const { category } = req.query as Record<string, string>;
     const rows = await db.select().from(systemConfigurationsTable).where(eq(systemConfigurationsTable.companyId, user.companyId));
     const merged = DEFAULT_CONFIGS
       .filter(d => !category || d.category === category)
       .map(d => {
         const override = rows.find(r => r.key === d.key);
-        return { key: d.key, value: override?.value ?? d.value, category: d.category, description: override?.description ?? d.description };
+        return { key: d.key, value: override?.value ?? d.value, category: d.category, description: d.description, descriptionAr: d.descriptionAr };
       });
     res.json({ success: true, data: merged });
   } catch (e) {
@@ -3818,19 +3897,24 @@ app.get("/api/config", auth, async (req, res) => {
 app.get("/api/config/catalog", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
     const rows = await db.select().from(systemConfigurationsTable).where(eq(systemConfigurationsTable.companyId, user.companyId));
     const categories = ["general", "attendance", "payroll", "hr", "leave", "compliance", "notifications"];
     const groups = categories.map(cat => ({
       category: cat,
       items: DEFAULT_CONFIGS.filter(d => d.category === cat).map(d => {
         const override = rows.find(r => r.key === d.key);
+        const effectiveValue = override?.value ?? d.value;
         return {
           key: d.key,
-          value: override?.value ?? d.value,
+          value: effectiveValue,
           category: d.category,
-          descriptionAr: d.description,
+          descriptionAr: d.descriptionAr ?? d.description,
           descriptionEn: d.description,
-          dataType: d.value === "true" || d.value === "false" ? "boolean" : "string",
+          // Determine dataType from DEFAULT definition, not overridden value
+          dataType: (d.value === "true" || d.value === "false") ? "boolean" : "string",
           isEditable: true,
         };
       }),
@@ -3844,23 +3928,55 @@ app.get("/api/config/catalog", auth, async (req, res) => {
 app.patch("/api/config/bulk", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+    }
     const { updates } = req.body as { updates: Record<string, string> };
+    if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+      res.status(400).json({ success: false, message: "Request body must include an 'updates' object" }); return;
+    }
+    // Validate ALL entries before persisting any
+    const errors: string[] = [];
     for (const [key, value] of Object.entries(updates)) {
-      const [existing] = await db.select().from(systemConfigurationsTable)
-        .where(and(eq(systemConfigurationsTable.companyId, user.companyId), eq(systemConfigurationsTable.key, key)));
+      const err = validateConfigValue(key, String(value ?? ""));
+      if (err) errors.push(err);
+    }
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, message: errors[0], errors }); return;
+    }
+    // Fetch current DB state once (avoid N+1 reads)
+    const rows = await db.select().from(systemConfigurationsTable)
+      .where(eq(systemConfigurationsTable.companyId, user.companyId));
+    const changes: string[] = [];
+    for (const [key, value] of Object.entries(updates)) {
+      const existing = rows.find(r => r.key === key);
       const defCfg = DEFAULT_CONFIGS.find(d => d.key === key);
+      const oldValue = existing?.value ?? defCfg?.value ?? "";
       if (existing) {
-        await db.update(systemConfigurationsTable).set({ value }).where(eq(systemConfigurationsTable.id, existing.id));
+        await db.update(systemConfigurationsTable).set({ value: String(value), updatedByUserId: user.userId })
+          .where(eq(systemConfigurationsTable.id, existing.id));
       } else {
         await db.insert(systemConfigurationsTable).values({
-          companyId: user.companyId, key, value,
+          companyId: user.companyId, key, value: String(value),
           category: defCfg?.category ?? "general",
           updatedByUserId: user.userId,
         });
       }
+      if (String(value) !== oldValue) {
+        changes.push(`${key}: ${oldValue} → ${String(value).slice(0, 80)}`);
+      }
+    }
+    if (changes.length > 0) {
+      await logActivity(
+        user.companyId,
+        "settings_updated",
+        `Settings updated by ${user.username}: ${changes.slice(0, 5).join("; ")}${changes.length > 5 ? ` (+${changes.length - 5} more)` : ""}`,
+        user.username,
+      );
     }
     res.json({ success: true, message: "Settings saved" });
   } catch (e) {
+    console.error("[PATCH /api/config/bulk]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

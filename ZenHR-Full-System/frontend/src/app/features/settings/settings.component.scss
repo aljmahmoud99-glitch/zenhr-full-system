@@ -109,6 +109,29 @@
   place-items: center;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.settings-tab.has-changes {
+  border-color: var(--z-amber, #f59e0b);
+}
+
+.unsaved-dot {
+  color: var(--z-amber, #f59e0b);
+  font-size: 10px;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+}
+
+.setting-card.field-changed {
+  border-color: var(--z-amber, #f59e0b);
+  background: rgba(245, 158, 11, 0.04);
+}
+
 @media (max-width: 980px) {
   .settings-shell {
     grid-template-columns: 1fr;

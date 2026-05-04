@@ -10,10 +10,16 @@
       </p>
     </div>
 
-    <button class="z-btn-primary" type="button" (click)="saveAll()" [disabled]="saving()">
-      <span class="material-icons">save</span>
-      {{ saving() ? (lang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes') }}
-    </button>
+    <div class="header-actions">
+      <button class="z-btn-secondary" type="button" (click)="discardChanges()" *ngIf="hasChanges() && !saving()">
+        <span class="material-icons">undo</span>
+        {{ lang === 'ar' ? 'تجاهل التغييرات' : 'Discard Changes' }}
+      </button>
+      <button class="z-btn-primary" type="button" (click)="saveAll()" [disabled]="saving() || !hasChanges()">
+        <span class="material-icons">save</span>
+        {{ saving() ? (lang === 'ar' ? 'جارٍ الحفظ...' : 'Saving...') : (lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes') }}
+      </button>
+    </div>
   </header>
 
   <div class="alert alert-success" *ngIf="successMsg()">{{ successMsg() }}</div>
@@ -26,11 +32,15 @@
         type="button"
         class="settings-tab"
         [class.active]="activeCategory() === cat.key"
+        [class.has-changes]="categoryHasChanges(cat.key)"
         (click)="activeCategory.set(cat.key)">
         <span class="tab-copy">
           <span class="material-icons">{{ cat.icon }}</span>
           <span>
-            <strong>{{ lang === 'ar' ? cat.labelAr : cat.labelEn }}</strong>
+            <strong>
+              {{ lang === 'ar' ? cat.labelAr : cat.labelEn }}
+              <span class="unsaved-dot" *ngIf="categoryHasChanges(cat.key)">●</span>
+            </strong>
             <small>{{ categoryCount(cat.key) }} {{ lang === 'ar' ? 'حقل' : 'fields' }}</small>
           </span>
         </span>
@@ -46,25 +56,60 @@
       </div>
 
       <div class="settings-grid">
-        <div class="setting-card" *ngFor="let cfg of filteredConfigs()">
+        <div
+          class="setting-card"
+          *ngFor="let cfg of filteredConfigs()"
+          [class.field-changed]="isFieldChanged(cfg.key)">
+
           <div class="setting-copy">
             <label class="z-label">{{ fieldLabel(cfg) }}</label>
             <div class="setting-key">{{ cfg.key }}</div>
           </div>
 
           <div class="setting-input">
-            <label class="toggle" *ngIf="isBoolean(cfg); else textInput">
-              <input type="checkbox" [checked]="editValues[cfg.key] === 'true'" (change)="setBooleanValue(cfg.key, $any($event.target).checked)" [disabled]="!cfg.isEditable">
-              <span>{{ editValues[cfg.key] === 'true' ? (lang === 'ar' ? 'مفعل' : 'Enabled') : (lang === 'ar' ? 'معطل' : 'Disabled') }}</span>
+
+            <!-- Boolean toggle -->
+            <label class="toggle" *ngIf="isBoolean(cfg)">
+              <input
+                type="checkbox"
+                [checked]="editValues()[cfg.key] === 'true'"
+                (change)="setBooleanValue(cfg.key, $any($event.target).checked)"
+                [disabled]="!cfg.isEditable">
+              <span>{{ editValues()[cfg.key] === 'true'
+                ? (lang === 'ar' ? 'مفعل' : 'Enabled')
+                : (lang === 'ar' ? 'معطل' : 'Disabled') }}</span>
             </label>
 
-            <ng-template #textInput>
-              <textarea *ngIf="isLongText(cfg); else shortInput" class="z-input textarea" rows="3" [(ngModel)]="editValues[cfg.key]" [readOnly]="!cfg.isEditable"></textarea>
-            </ng-template>
+            <!-- Textarea for JSON fields (income_tax_brackets) -->
+            <textarea
+              *ngIf="!isBoolean(cfg) && isTextarea(cfg)"
+              class="z-input textarea"
+              rows="5"
+              [value]="editValues()[cfg.key]"
+              (input)="setValue(cfg.key, $any($event.target).value)"
+              [readOnly]="!cfg.isEditable"
+              spellcheck="false"
+              style="font-family: monospace; font-size: 12px;"></textarea>
 
-            <ng-template #shortInput>
-              <input class="z-input" type="text" [(ngModel)]="editValues[cfg.key]" [readOnly]="!cfg.isEditable">
-            </ng-template>
+            <!-- Numeric input -->
+            <input
+              *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && isNumeric(cfg)"
+              class="z-input"
+              type="number"
+              [step]="isInteger(cfg) ? 1 : 'any'"
+              min="0"
+              [value]="editValues()[cfg.key]"
+              (input)="setValue(cfg.key, $any($event.target).value)"
+              [readOnly]="!cfg.isEditable">
+
+            <!-- Plain text input -->
+            <input
+              *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && !isNumeric(cfg)"
+              class="z-input"
+              type="text"
+              [value]="editValues()[cfg.key]"
+              (input)="setValue(cfg.key, $any($event.target).value)"
+              [readOnly]="!cfg.isEditable">
 
             <span class="read-only" *ngIf="!cfg.isEditable">{{ lang === 'ar' ? 'للقراءة فقط' : 'Read only' }}</span>
           </div>
