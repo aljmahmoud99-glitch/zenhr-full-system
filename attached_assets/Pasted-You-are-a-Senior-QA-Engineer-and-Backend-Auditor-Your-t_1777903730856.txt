@@ -1,0 +1,213 @@
+You are a Senior QA Engineer and Backend Auditor.
+
+Your task is to perform FULL end-to-end testing for:
+WORKFLOW 7 — Salary Advance (سلف الرواتب)
+
+IMPORTANT:
+- Test UI + API + DB + Security + Notifications + Audit Logs
+- Do NOT assume anything works
+- Validate EVERYTHING with real API calls
+- Break the system if possible
+
+───────────────────────────────
+ACCOUNTS TO USE:
+- employee01 (role=employee)
+- employee02 (role=employee)
+- manager.hr (role=manager)
+- hr (role=hradmin)
+- payroll (role=payrolladmin)
+
+───────────────────────────────
+TASK 1 — SYSTEM INVENTORY
+
+1. Discover ALL endpoints:
+   /api/advances
+   /api/advances/me
+   /api/advances/requests
+   /api/advances/:id/approve
+   /api/advances/:id/reject
+
+2. Identify DB tables:
+   - salary_advances OR advances
+   - notifications
+   - activity_logs
+
+3. Inspect frontend:
+   - Advances dashboard
+   - Personal advances screen
+   - Request modal
+
+───────────────────────────────
+TASK 2 — CREATE REQUEST (EMPLOYEE)
+
+Login as employee01:
+
+1. Open "طلب سلفة جديدة"
+2. Submit:
+   amount = 100
+   method = monthly_deduction
+   reason = "test advance"
+
+VERIFY:
+- Request created in DB
+- employeeId comes from JWT (NOT body)
+- status = pending
+
+NEGATIVE TESTS:
+- amount = 0 → must fail
+- amount = negative → must fail
+- missing reason → must fail
+- extremely large amount → must fail or be limited
+
+SECURITY TEST:
+- Try sending employeeId=employee02 → must be ignored
+
+───────────────────────────────
+TASK 3 — VIEW OWN REQUESTS
+
+As employee01:
+
+GET /api/advances/me
+
+VERIFY:
+- Only own requests visible
+- employee02 cannot see them
+
+───────────────────────────────
+TASK 4 — MANAGER APPROVAL
+
+Login as manager.hr:
+
+1. GET /api/advances/requests
+
+VERIFY:
+- Only team requests visible
+
+2. Approve request
+
+VERIFY:
+- status: pending → manager_approved (OR approved if single-step)
+- Notification sent to HR
+
+SECURITY:
+- manager cannot approve outside team
+
+───────────────────────────────
+TASK 5 — HR APPROVAL
+
+Login as hr:
+
+1. Approve request
+
+VERIFY:
+- status → approved
+- deduction plan calculated (if exists)
+- notification sent to employee
+
+NEGATIVE:
+- Approving already approved → 409
+
+───────────────────────────────
+TASK 6 — REJECTION FLOW
+
+1. Manager reject
+2. HR reject
+
+VERIFY:
+- status = rejected
+- rejection_reason saved
+- employee notified
+
+NEGATIVE:
+- Reject without reason → must fail
+
+───────────────────────────────
+TASK 7 — PAYROLL ROLE
+
+Login as payroll:
+
+VERIFY:
+- Can view advances
+- CANNOT approve/reject
+
+───────────────────────────────
+TASK 8 — NOTIFICATIONS
+
+Verify:
+
+employee01 receives:
+- advance_approved
+- advance_rejected
+
+manager receives:
+- advance_created
+
+hr receives:
+- advance_created
+- advance_manager_approved
+
+employee02 receives NOTHING
+
+───────────────────────────────
+TASK 9 — AUDIT LOGS
+
+Verify activity_logs contains:
+
+- advance_requested
+- advance_manager_approved
+- advance_hr_approved
+- advance_rejected
+
+Each must include:
+- type
+- description
+- company_id
+- timestamp
+
+───────────────────────────────
+TASK 10 — SECURITY TESTS
+
+TRY TO BREAK SYSTEM:
+
+1. Approve without login → must fail
+2. Employee approves → 403
+3. Manager approves random employee → 403
+4. Modify requestId → must enforce access
+
+───────────────────────────────
+TASK 11 — UI VALIDATION
+
+Verify:
+
+- Button "طلب سلفة جديدة" works
+- Modal validation works
+- Table updates after submit
+- Arabic labels correct
+- No console errors
+
+───────────────────────────────
+TASK 12 — EDGE CASES
+
+Test:
+
+- Multiple requests same day
+- Duplicate submission (double click)
+- Network retry
+- Large amount (10k+)
+
+───────────────────────────────
+OUTPUT FORMAT:
+
+Provide:
+
+1. System behavior summary
+2. All bugs found:
+   - Type
+   - Root cause
+   - Fix suggestion
+
+3. Security validation result
+4. Notification correctness
+5. Audit correctness
+6. Final verdict:
+   WORKFLOW 7 STATUS: COMPLETE / FAILED

@@ -22,6 +22,7 @@ import {
   salaryComponentsTable,
   salaryComponentDefinitionsTable,
   notificationsTable,
+  salaryAdvancesTable,
 } from "@workspace/db/schema";
 import {
   notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
@@ -3570,48 +3571,265 @@ app.post("/api/clearance", auth, async (req, res) => {
 });
 
 // ─── Salary Advances ──────────────────────────────────────────────────────────
-const advancesStore: any[] = [];
-let advanceIdSeq = 1;
+async function buildAdvanceRow(adv: any) {
+  const [emp] = await db.select({
+    code: employeesTable.employeeCode,
+    firstNameAr: employeesTable.firstNameAr,
+    middleNameAr: employeesTable.middleNameAr,
+    lastNameAr: employeesTable.lastNameAr,
+    firstNameEn: employeesTable.firstNameEn,
+    middleNameEn: employeesTable.middleNameEn,
+    lastNameEn: employeesTable.lastNameEn,
+    orgNodeId: employeesTable.orgNodeId,
+  }).from(employeesTable).where(eq(employeesTable.id, adv.employeeId));
+  let orgNameAr = "", orgNameEn = "";
+  if (emp?.orgNodeId) {
+    const [node] = await db.select({ nameAr: orgNodesTable.nameAr, nameEn: orgNodesTable.nameEn })
+      .from(orgNodesTable).where(eq(orgNodesTable.id, emp.orgNodeId));
+    orgNameAr = node?.nameAr ?? "";
+    orgNameEn = node?.nameEn ?? "";
+  }
+  const nameAr = emp ? [emp.firstNameAr, emp.middleNameAr, emp.lastNameAr].filter(Boolean).join(" ") : "";
+  const nameEn = emp ? [emp.firstNameEn, emp.middleNameEn, emp.lastNameEn].filter(Boolean).join(" ") : "";
+  return {
+    ...adv,
+    requestedAmount: parseFloat(adv.requestedAmount ?? adv.requested_amount ?? 0),
+    approvedAmount: adv.approvedAmount != null ? parseFloat(adv.approvedAmount) : null,
+    remainingBalance: parseFloat(adv.remainingBalance ?? adv.remaining_balance ?? 0),
+    employeeCode: emp?.code ?? null,
+    employeeNameAr: nameAr,
+    employeeNameEn: nameEn,
+    departmentAr: orgNameAr,
+    departmentEn: orgNameEn,
+    orgNodeNameAr: orgNameAr,
+    orgNodeNameEn: orgNameEn,
+  };
+}
 
 app.get("/api/salary-advances", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId } = req.query as Record<string, string>;
-    let result: any[] = advancesStore;
+    let conds: any[] = [eq(salaryAdvancesTable.isDeleted, false), eq(salaryAdvancesTable.companyId, user.companyId)];
 
     if (user.role === "employee") {
       if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-      if (employeeId && parseInt(employeeId) !== user.employeeId) {
-        res.status(403).json({ success: false, message: "Forbidden" }); return;
-      }
-      result = result.filter((a: any) => a.employeeId === user.employeeId);
+      conds.push(eq(salaryAdvancesTable.employeeId, user.employeeId));
     } else if (user.role === "manager") {
       const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
       const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
         .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
-      const ids = new Set(teamEmps.map(e => e.id));
-      if (ids.size === 0) { res.json({ success: true, data: [] }); return; }
-      if (employeeId) {
-        const reqId = parseInt(employeeId);
-        if (!ids.has(reqId)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
-        result = result.filter((a: any) => a.employeeId === reqId);
-      } else {
-        result = result.filter((a: any) => ids.has(a.employeeId));
-      }
-    } else {
-      if (employeeId) result = result.filter((a: any) => String(a.employeeId) === employeeId);
+      const ids = teamEmps.map(e => e.id);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conds.push(inArray(salaryAdvancesTable.employeeId, ids));
     }
 
-    res.json({ success: true, data: result });
+    const rows = await db.select().from(salaryAdvancesTable).where(and(...conds)).orderBy(desc(salaryAdvancesTable.createdAt));
+    const enriched = await Promise.all(rows.map(buildAdvanceRow));
+    res.json({ success: true, data: enriched });
   } catch (e) {
+    console.error("[GET /api/salary-advances]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.post("/api/salary-advances", auth, async (req, res) => {
-  const record = { id: advanceIdSeq++, ...req.body, status: "pending", createdAt: new Date() };
-  advancesStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "employee") { res.status(403).json({ success: false, message: "Only employees can submit advance requests" }); return; }
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const { amount, reason, repaymentMethod, notes } = req.body;
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      res.status(400).json({ success: false, message: "Amount must be a positive number" }); return;
+    }
+    if (parsedAmount > 100000) {
+      res.status(400).json({ success: false, message: "Amount exceeds maximum allowed (100,000)" }); return;
+    }
+    if (!reason?.trim()) { res.status(400).json({ success: false, message: "Reason is required" }); return; }
+    const validMethods = ["monthly", "one_time"];
+    const method = validMethods.includes(repaymentMethod) ? repaymentMethod : "monthly";
+    const today = new Date().toISOString().split("T")[0]!;
+    const [adv] = await db.insert(salaryAdvancesTable).values({
+      employeeId: user.employeeId,
+      companyId: user.companyId,
+      requestedAmount: String(parsedAmount),
+      reason: reason.trim(),
+      requestDate: today,
+      repaymentMethod: method,
+      requestNotes: notes?.trim() || null,
+      remainingBalance: "0",
+      status: "pending",
+    }).returning();
+    await logActivity(user.companyId, "advance_requested",
+      `Advance request by ${user.username} for amount ${parsedAmount}`, user.username);
+    const notifPayload = {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "salary_advance",
+      entityId: adv.id,
+      notificationType: "advance_created",
+      titleAr: "طلب سلفة راتب جديد",
+      titleEn: "New Salary Advance Request",
+      messageAr: `قدّم ${user.username} طلب سلفة راتب بمبلغ ${parsedAmount}.`,
+      messageEn: `${user.username} submitted a salary advance request for ${parsedAmount}.`,
+      priority: "normal" as const,
+      actionUrl: "/app/advances",
+    };
+    await notifyRole(user.companyId, "hradmin", notifPayload);
+    await notifyDirectManager(user.employeeId, notifPayload);
+    const enriched = await buildAdvanceRow(adv);
+    res.status(201).json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[POST /api/salary-advances]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/salary-advances/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "hradmin" && user.role !== "admin" && user.role !== "manager") {
+      res.status(403).json({ success: false, message: "Insufficient permissions" }); return;
+    }
+    const advId = parseInt(req.params["id"]!);
+    const { approvedAmount, repaymentPlan, notes } = req.body;
+    const [adv] = await db.select().from(salaryAdvancesTable).where(eq(salaryAdvancesTable.id, advId));
+    if (!adv) { res.status(404).json({ success: false, message: "Advance request not found" }); return; }
+    if (adv.companyId !== user.companyId) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    if (adv.status === "approved" || adv.status === "rejected") {
+      res.status(409).json({ success: false, message: `Request is already ${adv.status}` }); return;
+    }
+    const now = new Date();
+    let updated: any;
+    if (user.role === "manager") {
+      if (adv.status !== "pending") {
+        res.status(409).json({ success: false, message: "Only pending requests can be manager-approved" }); return;
+      }
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = new Set(teamEmps.map(e => e.id));
+      if (!ids.has(adv.employeeId)) { res.status(403).json({ success: false, message: "This employee is not in your team scope" }); return; }
+      [updated] = await db.update(salaryAdvancesTable).set({
+        status: "manager_approved",
+        decisionNotes: notes?.trim() || null,
+        approvedById: user.userId,
+        approvedAt: now,
+      }).where(eq(salaryAdvancesTable.id, advId)).returning();
+      await logActivity(user.companyId, "advance_manager_approved",
+        `Manager ${user.username} approved advance #${advId}`, user.username);
+      await notifyRole(user.companyId, "hradmin", {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "salary_advance",
+        entityId: advId,
+        notificationType: "advance_manager_approved",
+        titleAr: "طلب سلفة بانتظار HR",
+        titleEn: "Salary Advance Awaiting HR",
+        messageAr: `وافق المدير ${user.username} على طلب السلفة #${advId}. بانتظار اعتماد HR.`,
+        messageEn: `Manager ${user.username} approved advance #${advId}. Awaiting HR approval.`,
+        priority: "normal",
+        actionUrl: "/app/advances",
+      });
+    } else {
+      if (adv.status !== "pending" && adv.status !== "manager_approved") {
+        res.status(409).json({ success: false, message: "Request must be pending or manager_approved for HR approval" }); return;
+      }
+      const finalAmount = approvedAmount && parseFloat(approvedAmount) > 0
+        ? parseFloat(approvedAmount) : parseFloat(adv.requestedAmount);
+      [updated] = await db.update(salaryAdvancesTable).set({
+        status: "approved",
+        approvedAmount: String(finalAmount),
+        remainingBalance: String(finalAmount),
+        repaymentPlan: repaymentPlan?.trim() || null,
+        decisionNotes: notes?.trim() || null,
+        approvedById: user.userId,
+        approvedAt: now,
+      }).where(eq(salaryAdvancesTable.id, advId)).returning();
+      await logActivity(user.companyId, "advance_hr_approved",
+        `HR ${user.username} approved advance #${advId} for amount ${finalAmount}`, user.username);
+      const empUsers = await db.select({ id: usersTable.id }).from(usersTable)
+        .where(and(eq(usersTable.employeeId, adv.employeeId), eq(usersTable.isDeleted, false)));
+      if (empUsers.length > 0) {
+        await notifyUsers(empUsers.map(u => u.id), {
+          companyId: user.companyId,
+          actorUserId: user.userId,
+          entityType: "salary_advance",
+          entityId: advId,
+          notificationType: "advance_approved",
+          titleAr: "تمت الموافقة على طلب السلفة",
+          titleEn: "Salary Advance Approved",
+          messageAr: `تمت الموافقة على طلب سلفتك #${advId} بمبلغ ${finalAmount}.`,
+          messageEn: `Your salary advance request #${advId} has been approved for ${finalAmount}.`,
+          priority: "normal",
+          actionUrl: "/app/advances",
+        });
+      }
+    }
+    const enriched = await buildAdvanceRow(updated);
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[PUT /api/salary-advances/:id/approve]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/salary-advances/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "hradmin" && user.role !== "admin" && user.role !== "manager") {
+      res.status(403).json({ success: false, message: "Insufficient permissions" }); return;
+    }
+    const advId = parseInt(req.params["id"]!);
+    const { reason, notes } = req.body;
+    const rejectionReason = reason?.trim() || notes?.trim();
+    if (!rejectionReason) { res.status(400).json({ success: false, message: "Rejection reason is required" }); return; }
+    const [adv] = await db.select().from(salaryAdvancesTable).where(eq(salaryAdvancesTable.id, advId));
+    if (!adv) { res.status(404).json({ success: false, message: "Advance request not found" }); return; }
+    if (adv.companyId !== user.companyId) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    if (adv.status === "approved" || adv.status === "rejected") {
+      res.status(409).json({ success: false, message: `Request is already ${adv.status}` }); return;
+    }
+    if (user.role === "manager") {
+      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
+      const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+        .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+      const ids = new Set(teamEmps.map(e => e.id));
+      if (!ids.has(adv.employeeId)) { res.status(403).json({ success: false, message: "This employee is not in your team scope" }); return; }
+    }
+    const now = new Date();
+    const [updated] = await db.update(salaryAdvancesTable).set({
+      status: "rejected",
+      rejectionReason,
+      decisionNotes: notes?.trim() || null,
+      rejectedById: user.userId,
+      rejectedAt: now,
+    }).where(eq(salaryAdvancesTable.id, advId)).returning();
+    await logActivity(user.companyId, "advance_rejected",
+      `${user.username} rejected advance #${advId}: ${rejectionReason}`, user.username);
+    const empUsers = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(and(eq(usersTable.employeeId, adv.employeeId), eq(usersTable.isDeleted, false)));
+    if (empUsers.length > 0) {
+      await notifyUsers(empUsers.map(u => u.id), {
+        companyId: user.companyId,
+        actorUserId: user.userId,
+        entityType: "salary_advance",
+        entityId: advId,
+        notificationType: "advance_rejected",
+        titleAr: "تم رفض طلب السلفة",
+        titleEn: "Salary Advance Rejected",
+        messageAr: `تم رفض طلب سلفتك #${advId}. السبب: ${rejectionReason}`,
+        messageEn: `Your salary advance request #${advId} was rejected. Reason: ${rejectionReason}`,
+        priority: "normal",
+        actionUrl: "/app/advances",
+      });
+    }
+    const enriched = await buildAdvanceRow(updated);
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[PUT /api/salary-advances/:id/reject]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Public Holidays ──────────────────────────────────────────────────────────
@@ -4926,16 +5144,35 @@ app.get("/api/leave/types", auth, async (_req, res) => {
 });
 
 app.get("/api/salary-advances/me", auth, async (req, res) => {
-  const user = (req as AuthReq).user;
-  const result = advancesStore.filter(a => a.employeeId === user.employeeId);
-  res.json({ success: true, data: result });
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+    const rows = await db.select().from(salaryAdvancesTable)
+      .where(and(eq(salaryAdvancesTable.employeeId, user.employeeId), eq(salaryAdvancesTable.isDeleted, false)))
+      .orderBy(desc(salaryAdvancesTable.createdAt));
+    const enriched = await Promise.all(rows.map(buildAdvanceRow));
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[GET /api/salary-advances/me]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.get("/api/salary-advances/me/summary", auth, async (req, res) => {
-  const user = (req as AuthReq).user;
-  const result = advancesStore.filter(a => a.employeeId === user.employeeId);
-  const total = result.reduce((s: number, a: any) => s + (a.amount ?? 0), 0);
-  res.json({ success: true, data: { total, count: result.length } });
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.json({ success: true, data: { totalRequests: 0, pendingRequests: 0, approvedAmount: 0 } }); return; }
+    const rows = await db.select().from(salaryAdvancesTable)
+      .where(and(eq(salaryAdvancesTable.employeeId, user.employeeId), eq(salaryAdvancesTable.isDeleted, false)));
+    const totalRequests = rows.length;
+    const pendingRequests = rows.filter(r => r.status === "pending").length;
+    const approvedAmount = rows.filter(r => r.status === "approved" || r.status === "deducted" || r.status === "partially_deducted")
+      .reduce((s, r) => s + parseFloat(r.approvedAmount ?? "0"), 0);
+    res.json({ success: true, data: { totalRequests, pendingRequests, approvedAmount } });
+  } catch (e) {
+    console.error("[GET /api/salary-advances/me/summary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.get("/api/employee/assets", auth, async (req, res) => {
