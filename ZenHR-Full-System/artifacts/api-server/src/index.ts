@@ -2010,9 +2010,22 @@ app.get("/api/payroll/slips/my", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const slips = await db.select().from(payslipsTable)
-      .where(eq(payslipsTable.employeeId, user.employeeId))
-      .orderBy(desc(payslipsTable.createdAt));
+    // Only expose slips from published runs
+    const publishedRunIds = (await db.select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(and(
+        eq(payrollRunsTable.companyId, user.companyId),
+        eq(payrollRunsTable.status, "published"),
+        eq(payrollRunsTable.isDeleted, false),
+      ))).map((r: any) => r.id);
+    const slips = publishedRunIds.length
+      ? await db.select().from(payslipsTable)
+          .where(and(
+            eq(payslipsTable.employeeId, user.employeeId),
+            inArray(payslipsTable.payrollRunId, publishedRunIds),
+          ))
+          .orderBy(desc(payslipsTable.createdAt))
+      : [];
     const enriched = await enrichPayslips(slips, db);
     res.json({ success: true, data: enriched });
   } catch (e) {
@@ -2027,9 +2040,22 @@ app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
     if (!user.employeeId) {
       res.json({ success: true, data: { totalNetYTD: 0, totalEarnings: 0, totalDeductions: 0, netSalary: 0, lastPayslip: null } }); return;
     }
-    const slips = await db.select().from(payslipsTable)
-      .where(eq(payslipsTable.employeeId, user.employeeId))
-      .orderBy(desc(payslipsTable.createdAt));
+    // Only include published runs in the summary
+    const publishedRunIds = (await db.select({ id: payrollRunsTable.id })
+      .from(payrollRunsTable)
+      .where(and(
+        eq(payrollRunsTable.companyId, user.companyId),
+        eq(payrollRunsTable.status, "published"),
+        eq(payrollRunsTable.isDeleted, false),
+      ))).map((r: any) => r.id);
+    const slips = publishedRunIds.length
+      ? await db.select().from(payslipsTable)
+          .where(and(
+            eq(payslipsTable.employeeId, user.employeeId),
+            inArray(payslipsTable.payrollRunId, publishedRunIds),
+          ))
+          .orderBy(desc(payslipsTable.createdAt))
+      : [];
     const enriched = await enrichPayslips(slips, db);
     const ytdM = enriched.reduce((s: number, p: any) => s + toM(p.netSalary), 0);
     const latest = enriched[0] ?? null;
@@ -2053,9 +2079,16 @@ app.get("/api/payroll/slips/:id", auth, async (req, res) => {
     if (isNaN(idVal)) { res.status(400).json({ success: false, error: "Invalid slip ID" }); return; }
     const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, idVal));
     if (!slip) { res.status(404).json({ success: false, error: "Not found" }); return; }
-    // Employees may only view their own slips
-    if (user.role === "employee" && slip.employeeId !== user.employeeId) {
-      res.status(403).json({ success: false, error: "Forbidden" }); return;
+    // Employees may only view their own slips from published runs
+    if (user.role === "employee") {
+      if (slip.employeeId !== user.employeeId) {
+        res.status(403).json({ success: false, error: "Forbidden" }); return;
+      }
+      const [run] = await db.select({ status: payrollRunsTable.status })
+        .from(payrollRunsTable).where(eq(payrollRunsTable.id, slip.payrollRunId));
+      if (!run || run.status !== "published") {
+        res.status(404).json({ success: false, error: "Not found" }); return;
+      }
     }
     const [enriched] = await enrichPayslips([slip], db);
     res.json({ success: true, data: enriched });

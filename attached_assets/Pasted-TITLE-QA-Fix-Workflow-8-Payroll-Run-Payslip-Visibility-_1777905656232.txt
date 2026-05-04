@@ -1,0 +1,322 @@
+TITLE:
+QA + Fix — Workflow 8: Payroll Run + Payslip Visibility
+
+STRICT RULES
+- Test ONLY payroll runs, calculation, approval, publishing, payslips, salary advance deduction, scope, notifications, and audit.
+- Do NOT modify unrelated modules.
+- Fix confirmed bugs only.
+- Use minimal safe changes.
+- After every fix, retest full chain.
+- Stop after final report.
+
+ACCOUNTS
+payroll / Test@12345
+hr / Test@12345
+employee01 / Test@12345
+employee02 / Test@12345
+manager.hr / Test@12345
+
+TASK 1 — INVENTORY
+Read and report:
+1. Frontend routes:
+   - /app/payroll/runs
+   - /app/payroll/slips
+2. Component files handling payroll run and payslip screens.
+3. Backend endpoints:
+   - POST /api/payroll/runs
+   - POST /api/payroll/runs/:id/calculate
+   - POST /api/payroll/runs/:id/approve
+   - POST /api/payroll/runs/:id/publish
+   - GET /api/payroll/runs
+   - GET /api/payroll/slips
+   - GET /api/payroll/slips/my
+4. DB tables used:
+   - payroll_runs
+   - payroll_slips
+   - salary_advances
+   - employee_salary_components
+   - salary_components
+   - notifications
+   - activity_logs
+
+TASK 2 — CREATE RUN
+Login as payroll.
+
+Create payroll run for a NEW month/year not already used.
+
+Expected:
+- POST returns 201/200.
+- payroll_runs row created.
+- status = draft.
+- employee_count = 0 before calculation.
+- totals = 0 before calculation.
+- duplicate run for same month/year must be blocked.
+
+Bug types:
+- FAKE_SUCCESS
+- DUPLICATE_ALLOWED
+- DB_INTEGRITY
+- API_ERROR
+
+TASK 3 — CALCULATE RUN
+Call calculate for the draft run.
+
+Expected:
+- status becomes calculated.
+- payroll_slips created for active employees.
+- employee_count equals active employees count.
+- total_gross > 0 if employees have salary components.
+- total_net calculated.
+- total_deductions calculated.
+- SSC employee/employer totals calculated.
+- income tax total calculated if applicable.
+- approved salary advances included as advance_deduction.
+- pending/rejected advances NOT deducted.
+- overtime included only if approved and payment type.
+
+Check DB:
+- payroll_slips.run_id = run id.
+- each slip has employee_id.
+- gross_salary, deductions, net_salary are DECIMAL-safe.
+- advance_deduction exists and correct.
+- payslip values are snapshots, not live references.
+
+Bug types:
+- CALCULATION_ERROR
+- ADVANCE_NOT_DEDUCTED
+- PENDING_ADVANCE_DEDUCTED
+- SLIP_MISSING
+- SNAPSHOT_MISSING
+
+TASK 4 — STATE GUARDS
+Test invalid transitions:
+
+1. Approve draft before calculate.
+Expected: 400/409 blocked.
+
+2. Publish draft before calculate/approve.
+Expected: blocked.
+
+3. Publish calculated before approve.
+Expected: blocked.
+
+4. Recalculate calculated run.
+Expected: either idempotent and no duplicate slips OR blocked clearly.
+
+5. Approve calculated run.
+Expected: status = approved.
+
+6. Publish approved run.
+Expected: status = published.
+
+7. Publish again.
+Expected: blocked or idempotent without double side effects.
+
+8. Approve after publish.
+Expected: blocked.
+
+Bug types:
+- STATE_BYPASS
+- DOUBLE_PUBLISH
+- DUPLICATE_SLIPS
+- IMMUTABILITY_BROKEN
+
+TASK 5 — ADVANCE DEDUCTION SIDE EFFECTS
+Before publish:
+- Record salary_advances.remaining_balance for approved advances.
+
+After publish:
+- remaining_balance reduced exactly once.
+- If balance reaches 0, status becomes settled.
+- If partial balance remains, status stays approved/active.
+- Publishing twice must NOT deduct again.
+
+Bug types:
+- DOUBLE_DEDUCTION
+- ADVANCE_BALANCE_WRONG
+- SETTLEMENT_WRONG
+
+TASK 6 — PAYSLIP VISIBILITY / SCOPE
+Login as employee01:
+- GET /api/payroll/slips/my
+Expected:
+- employee01 sees only own slips.
+- Published slips visible.
+- Draft/calculated/approved unpublished slips should NOT be visible to employee unless policy says otherwise.
+- No employee02 slip appears.
+
+Login as employee02:
+- Confirm employee01 slip not visible.
+
+Login as manager.hr:
+- Try GET /api/payroll/slips
+- Try opening payroll run route.
+Expected:
+- manager cannot see payroll data unless explicitly permitted.
+- No salary data leak.
+
+Login as hr:
+- HR can see company payroll if policy allows.
+- HR cannot publish if only payrolladmin is allowed, unless intended.
+
+Login as payroll:
+- Payroll can see all company slips/runs.
+
+Bug types:
+- SCOPE_BUG
+- ROLE_LEAK
+- UNPUBLISHED_VISIBLE
+- SALARY_DATA_LEAK
+
+TASK 7 — PAYSLIP CONTENT
+Open one employee payslip after publish.
+
+Expected fields:
+- employee name/code
+- company name
+- month/year
+- gross salary
+- earnings breakdown
+- SSC employee
+- income tax
+- advance deduction
+- other deductions
+- net salary
+- run status published
+- generated/approved/published date
+- all money values displayed with 3 decimals
+- western digits only, no Arabic-Indic numerals
+
+Bug types:
+- PAYSLIP_FIELD_MISSING
+- FORMAT_ERROR
+- WRONG_NET
+- RTL_DISPLAY_BUG
+
+TASK 8 — NOTIFICATIONS
+On publish:
+- Each employee with payslip gets notification.
+- Notification entity_type = payroll_run or payroll_slip.
+- entity_id correctly points to run/slip.
+- employee01 receives own payroll notification.
+- employee02 receives own notification.
+- employee02 does NOT receive employee01-specific notification.
+- HR/payroll notification behavior follows design.
+
+Bell test:
+- unread count increases.
+- mark as read decreases count.
+
+Bug types:
+- NOTIFICATION_MISSING
+- NOTIFICATION_SCOPE
+- BELL_COUNT_WRONG
+
+TASK 9 — AUDIT LOGS
+Verify activity_logs include:
+- payroll_run_created
+- payroll_calculated
+- payroll_approved
+- payroll_published
+
+Each log should include:
+- company_id
+- created_at
+- useful description
+- actor information if schema supports it
+
+Bug types:
+- AUDIT_MISSING
+- AUDIT_INCOMPLETE
+
+TASK 10 — SECURITY TESTS
+Without token:
+- GET /api/payroll/runs → 401
+- POST /api/payroll/runs → 401
+
+As employee:
+- POST /api/payroll/runs → 403
+- calculate/approve/publish → 403
+- GET all slips → 403
+
+As manager:
+- payroll actions → 403
+
+As payroll:
+- allowed actions pass.
+
+Bug types:
+- AUTH_MISSING
+- ROLE_LEAK
+- ACTION_LEAK
+
+TASK 11 — FRONTEND QA
+In browser:
+1. Payroll run screen loads without console errors.
+2. Create run modal works.
+3. Calculate button appears only for draft.
+4. Approve button appears only for calculated.
+5. Publish button appears only for approved.
+6. Published run shows no action buttons except view/print/export if available.
+7. Filters work:
+   - month
+   - year
+   - status
+   - search
+8. Employee payslip screen shows only published own payslips.
+9. Empty states are readable.
+10. No 404/500 network errors.
+
+TASK 12 — FIX BUGS
+For each confirmed bug:
+- classify
+- root cause
+- exact file/line
+- minimal fix
+- retest affected chain
+
+DO NOT refactor the payroll module unless a bug requires it.
+
+FINAL REPORT FORMAT
+───────────────────────────────────────────────────────────────
+Workflow: 8 — Payroll Run + Payslip
+Accounts tested:
+Frontend routes tested:
+APIs observed:
+DB tables checked:
+
+Bugs found:
+  - Bug:
+    Type:
+    Root cause:
+    Fix:
+    File changed:
+
+Files changed:
+
+Retest result:
+  Create draft: ✅ / ❌
+  Duplicate blocked: ✅ / ❌
+  Calculate works: ✅ / ❌
+  Slips created: ✅ / ❌
+  Approve works: ✅ / ❌
+  Publish works: ✅ / ❌
+  Double publish blocked/no double side effect: ✅ / ❌
+  Advance deducted exactly once: ✅ / ❌
+  Employee sees only own published slip: ✅ / ❌
+  Manager blocked from salary data: ✅ / ❌
+  Payroll sees all: ✅ / ❌
+  Notifications correct: ✅ / ❌
+  Audit logs correct: ✅ / ❌
+  No console/network errors: ✅ / ❌
+
+Scope result:
+Notification result:
+Audit result:
+Money calculation result:
+Remaining risks:
+
+WORKFLOW 8 STATUS: COMPLETE ✅ / BLOCKED ❌
+───────────────────────────────────────────────────────────────
+
+STOP. Wait for approval before Workflow 9.
