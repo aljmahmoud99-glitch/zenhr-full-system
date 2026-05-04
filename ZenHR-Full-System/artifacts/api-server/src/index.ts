@@ -32,6 +32,7 @@ import {
   disciplinaryInvestigationsTable,
   resignationsTable,
   resignationApprovalsTable,
+  clearancesTable,
 } from "@workspace/db/schema";
 import {
   notifyUsers, notifyRole, notifyDirectManager, notifyEmployee, fmtDateRange,
@@ -5723,17 +5724,467 @@ app.put("/api/resignations/:id/settlement", auth, async (req, res) => {
 });
 
 // ─── Clearance ────────────────────────────────────────────────────────────────
-const clearanceStore: any[] = [];
-let clearanceIdSeq = 1;
 
-app.get("/api/clearance", auth, async (_req, res) => {
-  res.json({ success: true, data: clearanceStore });
+function calcGratuity(basicSalary: number, yearsOfService: number, terminationReason: string): number {
+  if (yearsOfService <= 0) return 0;
+  const monthly = basicSalary / 12;
+  if (terminationReason === "resignation") {
+    if (yearsOfService < 3) return 0;
+    if (yearsOfService < 5) return monthly * yearsOfService * 0.5;
+    return monthly * yearsOfService;
+  }
+  return monthly * yearsOfService;
+}
+
+async function buildClearanceEosb(employeeId: number, companyId: number, terminationReason: string): Promise<{
+  salary: number; yearsOfService: number; gratuity: number;
+  leaveBalanceCompensation: number; pendingSalary: number;
+  additions: number; penalties: number; advances: number;
+  deductions: number; finalSettlement: number;
+}> {
+  const [emp] = await db.select({
+    basicSalary: employeesTable.basicSalary,
+    hireDate: employeesTable.hireDate,
+  }).from(employeesTable)
+    .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, companyId)))
+    .limit(1);
+
+  if (!emp) throw new Error("Employee not found");
+
+  const salary = parseFloat(emp.basicSalary as any ?? "0");
+  const hireDate = new Date(emp.hireDate as any);
+  const now = new Date();
+  const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+  const yearsOfService = Math.max(0, (now.getTime() - hireDate.getTime()) / msPerYear);
+  const gratuity = calcGratuity(salary, yearsOfService, terminationReason);
+
+  const currentYear = now.getFullYear();
+  const balances = await db.select({
+    entitledDays: leaveBalancesTable.entitledDays,
+    usedDays: leaveBalancesTable.usedDays,
+    pendingDays: leaveBalancesTable.pendingDays,
+    carriedForward: leaveBalancesTable.carriedForwardDays,
+  }).from(leaveBalancesTable)
+    .where(and(eq(leaveBalancesTable.employeeId, employeeId), eq(leaveBalancesTable.year, currentYear)));
+
+  let totalRemaining = 0;
+  for (const b of balances) {
+    const remaining = parseFloat(b.entitledDays as any ?? "0")
+      + parseFloat(b.carriedForward as any ?? "0")
+      - parseFloat(b.usedDays as any ?? "0")
+      - parseFloat(b.pendingDays as any ?? "0");
+    totalRemaining += Math.max(0, remaining);
+  }
+  const dailySalary = salary / 30;
+  const leaveBalanceCompensation = totalRemaining * dailySalary;
+
+  const daysWorkedInMonth = now.getDate();
+  const pendingSalary = (salary / 30) * daysWorkedInMonth;
+
+  const activeAdvances = await db.select({ remaining: salaryAdvancesTable.remainingBalance })
+    .from(salaryAdvancesTable)
+    .where(and(
+      eq(salaryAdvancesTable.employeeId, employeeId),
+      eq(salaryAdvancesTable.companyId, companyId),
+      eq(salaryAdvancesTable.status, "approved"),
+      eq(salaryAdvancesTable.isDeleted, false)
+    ));
+  const advances = activeAdvances.reduce((s, a) => s + parseFloat(a.remaining as any ?? "0"), 0);
+
+  const additions = 0;
+  const penalties = 0;
+  const deductions = penalties + advances;
+  const finalSettlement = gratuity + leaveBalanceCompensation + pendingSalary + additions - deductions;
+
+  return {
+    salary, yearsOfService, gratuity, leaveBalanceCompensation, pendingSalary,
+    additions, penalties, advances, deductions, finalSettlement,
+  };
+}
+
+async function buildClearanceRow(clr: any) {
+  const [emp] = await db.select({
+    code: employeesTable.employeeCode,
+    firstNameAr: employeesTable.firstNameAr,
+    middleNameAr: employeesTable.middleNameAr,
+    lastNameAr: employeesTable.lastNameAr,
+    firstNameEn: employeesTable.firstNameEn,
+    middleNameEn: employeesTable.middleNameEn,
+    lastNameEn: employeesTable.lastNameEn,
+    orgNodeId: employeesTable.orgNodeId,
+  }).from(employeesTable).where(eq(employeesTable.id, clr.employeeId)).limit(1);
+
+  let deptAr = "", deptEn = "";
+  if (emp?.orgNodeId) {
+    const [node] = await db.select({ nameAr: orgNodesTable.nameAr, nameEn: orgNodesTable.nameEn })
+      .from(orgNodesTable).where(eq(orgNodesTable.id, emp.orgNodeId)).limit(1);
+    deptAr = node?.nameAr ?? "";
+    deptEn = node?.nameEn ?? "";
+  }
+
+  const pendingAssets = await db.select({
+    id: assetsTable.id,
+    nameAr: assetsTable.nameAr,
+    nameEn: assetsTable.nameEn,
+    serialNumber: assetsTable.serialNumber,
+    categoryId: assetsTable.categoryId,
+    assignedDate: assetsTable.assignedDate,
+  }).from(assetsTable)
+    .where(and(
+      eq(assetsTable.assignedToEmployeeId, clr.employeeId),
+      eq(assetsTable.currentStatus, "assigned"),
+      eq(assetsTable.isDeleted, false)
+    ));
+
+  const catIds = [...new Set(pendingAssets.map(a => a.categoryId).filter(Boolean))];
+  const catMap: Record<number, string> = {};
+  if (catIds.length > 0) {
+    const cats = await db.select({ id: assetCategoriesTable.id, nameAr: assetCategoriesTable.nameAr })
+      .from(assetCategoriesTable).where(inArray(assetCategoriesTable.id, catIds));
+    for (const c of cats) catMap[c.id] = c.nameAr;
+  }
+
+  const nameAr = emp ? [emp.firstNameAr, emp.middleNameAr, emp.lastNameAr].filter(Boolean).join(" ") : "";
+  const nameEn = emp ? [emp.firstNameEn, emp.middleNameEn, emp.lastNameEn].filter(Boolean).join(" ") : "";
+
+  return {
+    ...clr,
+    salary: parseFloat(clr.salary ?? "0"),
+    yearsOfService: parseFloat(clr.yearsOfService ?? "0"),
+    gratuity: parseFloat(clr.gratuity ?? "0"),
+    leaveBalanceCompensation: parseFloat(clr.leaveBalanceCompensation ?? "0"),
+    pendingSalary: parseFloat(clr.pendingSalary ?? "0"),
+    additions: parseFloat(clr.additions ?? "0"),
+    penalties: parseFloat(clr.penalties ?? "0"),
+    advances: parseFloat(clr.advances ?? "0"),
+    deductions: parseFloat(clr.deductions ?? "0"),
+    finalSettlementAmount: parseFloat(clr.finalSettlementAmount ?? "0"),
+    employeeCode: emp?.code ?? null,
+    employeeNameAr: nameAr,
+    employeeNameEn: nameEn,
+    departmentAr: deptAr,
+    departmentEn: deptEn,
+    pendingAssetsCount: pendingAssets.length,
+    pendingAssets: pendingAssets.map(a => ({
+      id: a.id,
+      assetNameAr: a.nameAr,
+      assetNameEn: a.nameEn,
+      serialNumber: a.serialNumber,
+      categoryNameAr: catMap[a.categoryId] ?? null,
+      assignedDate: a.assignedDate,
+    })),
+  };
+}
+
+// GET /api/clearance/calculate-eosb/:employeeId  ← MUST be before /:id
+app.get("/api/clearance/calculate-eosb/:employeeId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "manager"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const employeeId = parseInt(req.params["employeeId"]!);
+    if (isNaN(employeeId)) return res.status(400).json({ success: false, message: "Invalid employeeId" });
+    const terminationReason = String(req.query["reason"] ?? "resignation");
+
+    const [empCheck] = await db.select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, user.companyId)))
+      .limit(1);
+    if (!empCheck) return res.status(404).json({ success: false, message: "Employee not found" });
+
+    const calc = await buildClearanceEosb(employeeId, user.companyId, terminationReason);
+    res.json({ success: true, data: calc });
+  } catch (e) {
+    console.error("[GET /api/clearance/calculate-eosb]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
+// GET /api/clearance/summary
+app.get("/api/clearance/summary", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role === "employee") return res.status(403).json({ success: false, message: "Access denied" });
+
+    const rows = await db.select().from(clearancesTable)
+      .where(and(eq(clearancesTable.companyId, user.companyId), eq(clearancesTable.isDeleted, false)));
+
+    const total = rows.length;
+    const pending = rows.filter(r => r.clearanceStatus !== "completed").length;
+    const completed = rows.filter(r => r.clearanceStatus === "completed").length;
+    const totalSettlement = rows.reduce((s, r) => s + parseFloat(r.finalSettlementAmount as any ?? "0"), 0);
+
+    res.json({ success: true, data: { total, pending, completed, totalSettlement } });
+  } catch (e) {
+    console.error("[GET /api/clearance/summary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/clearance
+app.get("/api/clearance", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    let conds: any[] = [eq(clearancesTable.companyId, user.companyId), eq(clearancesTable.isDeleted, false)];
+
+    if (user.role === "employee") {
+      if (!user.employeeId) return res.json({ success: true, data: [] });
+      conds.push(eq(clearancesTable.employeeId, user.employeeId));
+    }
+
+    const rows = await db.select().from(clearancesTable).where(and(...conds)).orderBy(desc(clearancesTable.createdAt));
+    const enriched = await Promise.all(rows.map(buildClearanceRow));
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[GET /api/clearance]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/clearance
 app.post("/api/clearance", auth, async (req, res) => {
-  const record = { id: clearanceIdSeq++, ...req.body, status: "pending", createdAt: new Date() };
-  clearanceStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    const user = (req as AuthReq).user;
+    if (!requireHR(req, res)) return;
+
+    const { employeeId, hrNotes = "", resignationId } = req.body;
+    const terminationReason = String(req.body.terminationReason ?? "resignation").trim() || "resignation";
+    if (!employeeId) return res.status(400).json({ success: false, message: "employeeId is required" });
+    const resolvedEmpId = parseInt(String(employeeId));
+    if (isNaN(resolvedEmpId) || resolvedEmpId <= 0) {
+      return res.status(400).json({ success: false, message: "employeeId must be a positive integer" });
+    }
+
+    const validReasons = ["resignation", "termination", "contract_end", "retirement"];
+    if (!validReasons.includes(terminationReason)) {
+      return res.status(400).json({ success: false, message: "Invalid terminationReason" });
+    }
+
+    const [empCheck] = await db.select({
+      id: employeesTable.id,
+      employmentStatus: employeesTable.employmentStatus,
+      firstNameAr: employeesTable.firstNameAr,
+      middleNameAr: employeesTable.middleNameAr,
+      lastNameAr: employeesTable.lastNameAr,
+    }).from(employeesTable)
+      .where(and(eq(employeesTable.id, resolvedEmpId), eq(employeesTable.companyId, user.companyId)))
+      .limit(1);
+    if (!empCheck) return res.status(404).json({ success: false, message: "Employee not found in your company" });
+
+    const existing = await db.select({ id: clearancesTable.id })
+      .from(clearancesTable)
+      .where(and(
+        eq(clearancesTable.employeeId, parseInt(employeeId)),
+        eq(clearancesTable.companyId, user.companyId),
+        eq(clearancesTable.clearanceStatus, "pending"),
+        eq(clearancesTable.isDeleted, false)
+      )).limit(1);
+    if (existing.length > 0) {
+      return res.status(409).json({ success: false, message: "Employee already has an active clearance in progress" });
+    }
+
+    const calc = await buildClearanceEosb(resolvedEmpId, user.companyId, terminationReason);
+
+    const [inserted] = await db.insert(clearancesTable).values({
+      companyId: user.companyId,
+      employeeId: resolvedEmpId,
+      resignationId: resignationId ? parseInt(resignationId) : null,
+      terminationReason,
+      clearanceStatus: "pending",
+      hrNotes: hrNotes ? String(hrNotes).trim() : null,
+      salary: String(calc.salary),
+      yearsOfService: String(calc.yearsOfService),
+      gratuity: String(calc.gratuity),
+      leaveBalanceCompensation: String(calc.leaveBalanceCompensation),
+      pendingSalary: String(calc.pendingSalary),
+      additions: String(calc.additions),
+      penalties: String(calc.penalties),
+      advances: String(calc.advances),
+      deductions: String(calc.deductions),
+      finalSettlementAmount: String(calc.finalSettlement),
+      createdByUserId: user.userId,
+    } as any).returning();
+
+    const empNameAr = [empCheck.firstNameAr, empCheck.middleNameAr, empCheck.lastNameAr].filter(Boolean).join(" ");
+    await logActivity(user.companyId, "clearance_created",
+      `تم إنشاء براءة ذمة للموظف ID ${empCheck.id} (البراءة #${inserted.id})`, user.username);
+
+    await notifyEmployee(resolvedEmpId, user.companyId, {
+      notificationType: "clearance_created",
+      titleAr: "تم إنشاء براءة ذمتك",
+      titleEn: "Your Clearance Has Been Created",
+      messageAr: `تم إنشاء نموذج نهاية الخدمة وبراءة الذمة الخاصة بك. التسوية النهائية: ${calc.finalSettlement.toFixed(3)} JOD`,
+      messageEn: `Your end-of-service clearance has been created. Final settlement: ${calc.finalSettlement.toFixed(3)} JOD`,
+      priority: "normal",
+      entityType: "clearance",
+      entityId: inserted.id,
+    });
+
+    const enriched = await buildClearanceRow(inserted);
+    res.status(201).json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[POST /api/clearance]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/clearance/:id
+app.get("/api/clearance/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) return res.status(404).json({ success: false, message: "Not found" });
+
+    const [clr] = await db.select().from(clearancesTable)
+      .where(and(eq(clearancesTable.id, id), eq(clearancesTable.companyId, user.companyId), eq(clearancesTable.isDeleted, false)))
+      .limit(1);
+    if (!clr) return res.status(404).json({ success: false, message: "Clearance not found" });
+
+    if (user.role === "employee" && clr.employeeId !== user.employeeId) {
+      return res.status(404).json({ success: false, message: "Not found" });
+    }
+
+    const enriched = await buildClearanceRow(clr);
+
+    const [empDetail] = await db.select({
+      firstNameAr: employeesTable.firstNameAr,
+      middleNameAr: employeesTable.middleNameAr,
+      lastNameAr: employeesTable.lastNameAr,
+      firstNameEn: employeesTable.firstNameEn,
+      middleNameEn: employeesTable.middleNameEn,
+      lastNameEn: employeesTable.lastNameEn,
+      employeeCode: employeesTable.employeeCode,
+      orgNodeId: employeesTable.orgNodeId,
+    }).from(employeesTable).where(eq(employeesTable.id, clr.employeeId)).limit(1);
+
+    let deptAr = "", deptEn = "";
+    if (empDetail?.orgNodeId) {
+      const [node] = await db.select({ nameAr: orgNodesTable.nameAr, nameEn: orgNodesTable.nameEn })
+        .from(orgNodesTable).where(eq(orgNodesTable.id, empDetail.orgNodeId)).limit(1);
+      deptAr = node?.nameAr ?? "";
+      deptEn = node?.nameEn ?? "";
+    }
+
+    const empNameAr = empDetail ? [empDetail.firstNameAr, empDetail.middleNameAr, empDetail.lastNameAr].filter(Boolean).join(" ") : "";
+    const empNameEn = empDetail ? [empDetail.firstNameEn, empDetail.middleNameEn, empDetail.lastNameEn].filter(Boolean).join(" ") : "";
+
+    const response = {
+      ...enriched,
+      employee: {
+        nameAr: empNameAr,
+        nameEn: empNameEn,
+        employeeCode: empDetail?.employeeCode ?? null,
+        departmentAr: deptAr,
+        departmentEn: deptEn,
+      },
+      calculation: {
+        salary: parseFloat(clr.salary as any ?? "0"),
+        yearsOfService: parseFloat(clr.yearsOfService as any ?? "0"),
+        gratuity: parseFloat(clr.gratuity as any ?? "0"),
+        leaveBalanceCompensation: parseFloat(clr.leaveBalanceCompensation as any ?? "0"),
+        pendingSalary: parseFloat(clr.pendingSalary as any ?? "0"),
+        additions: parseFloat(clr.additions as any ?? "0"),
+        penalties: parseFloat(clr.penalties as any ?? "0"),
+        advances: parseFloat(clr.advances as any ?? "0"),
+        deductions: parseFloat(clr.deductions as any ?? "0"),
+        finalSettlement: parseFloat(clr.finalSettlementAmount as any ?? "0"),
+      },
+    };
+
+    res.json({ success: true, data: response });
+  } catch (e) {
+    console.error("[GET /api/clearance/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PUT /api/clearance/:id  (update notes, or complete via clearanceStatus: 'completed')
+app.put("/api/clearance/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const id = parseInt(req.params["id"]!);
+    if (isNaN(id)) return res.status(404).json({ success: false, message: "Not found" });
+
+    const [clr] = await db.select().from(clearancesTable)
+      .where(and(eq(clearancesTable.id, id), eq(clearancesTable.companyId, user.companyId), eq(clearancesTable.isDeleted, false)))
+      .limit(1);
+    if (!clr) return res.status(404).json({ success: false, message: "Clearance not found" });
+
+    if (clr.clearanceStatus === "completed") {
+      return res.status(409).json({ success: false, message: "Cannot modify a completed clearance" });
+    }
+
+    const { clearanceStatus, hrNotes, additions, penalties, advances } = req.body;
+    const updates: any = { updatedAt: new Date() };
+
+    if (hrNotes !== undefined) updates.hrNotes = String(hrNotes).trim() || null;
+
+    if (clearanceStatus === "completed") {
+      if (!requireHR(req, res)) return;
+
+      const pendingAssets = await db.select({ id: assetsTable.id })
+        .from(assetsTable)
+        .where(and(
+          eq(assetsTable.assignedToEmployeeId, clr.employeeId),
+          eq(assetsTable.currentStatus, "assigned"),
+          eq(assetsTable.isDeleted, false)
+        )).limit(1);
+      if (pendingAssets.length > 0) {
+        return res.status(409).json({ success: false, message: "Cannot complete clearance while assets are still pending return" });
+      }
+
+      updates.clearanceStatus = "completed";
+      updates.completedByUserId = user.userId;
+      updates.completedAt = new Date();
+    }
+
+    if (additions !== undefined) {
+      const add = Math.max(0, parseFloat(String(additions)) || 0);
+      const pen = penalties !== undefined ? Math.max(0, parseFloat(String(penalties)) || 0) : parseFloat(clr.penalties as any ?? "0");
+      const adv = advances !== undefined ? Math.max(0, parseFloat(String(advances)) || 0) : parseFloat(clr.advances as any ?? "0");
+      const ded = pen + adv;
+      const gratuity = parseFloat(clr.gratuity as any ?? "0");
+      const lbc = parseFloat(clr.leaveBalanceCompensation as any ?? "0");
+      const ps = parseFloat(clr.pendingSalary as any ?? "0");
+      const fs = gratuity + lbc + ps + add - ded;
+      updates.additions = String(add);
+      updates.penalties = String(pen);
+      updates.advances = String(adv);
+      updates.deductions = String(ded);
+      updates.finalSettlementAmount = String(fs);
+    }
+
+    const [updated] = await db.update(clearancesTable).set(updates).where(eq(clearancesTable.id, id)).returning();
+
+    const actionType = clearanceStatus === "completed" ? "clearance_completed" : "clearance_updated";
+    const descAr = clearanceStatus === "completed"
+      ? `تم إتمام براءة الذمة #${id} بنجاح — الموظف ID ${clr.employeeId}`
+      : `تم تحديث براءة الذمة #${id}`;
+    await logActivity(user.companyId, actionType, descAr, user.username);
+
+    if (clearanceStatus === "completed") {
+      await notifyEmployee(clr.employeeId, user.companyId, {
+        notificationType: "clearance_completed",
+        titleAr: "تم إتمام براءة ذمتك",
+        titleEn: "Your Clearance Has Been Completed",
+        messageAr: `تم إتمام إجراءات براءة الذمة الخاصة بك. التسوية النهائية: ${parseFloat(updated.finalSettlementAmount as any ?? "0").toFixed(3)} JOD`,
+        messageEn: `Your clearance procedure has been completed. Final settlement: ${parseFloat(updated.finalSettlementAmount as any ?? "0").toFixed(3)} JOD`,
+        priority: "high",
+        entityType: "clearance",
+        entityId: id,
+      });
+    }
+
+    const enriched = await buildClearanceRow(updated);
+    res.json({ success: true, data: enriched });
+  } catch (e) {
+    console.error("[PUT /api/clearance/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 // ─── Salary Advances ──────────────────────────────────────────────────────────

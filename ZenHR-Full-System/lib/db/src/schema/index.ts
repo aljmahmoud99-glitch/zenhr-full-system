@@ -27,3 +27,4 @@ export * from "./salary-advances";
 export * from "./compliance";
 export * from "./disciplinary";
 export * from "./resignations";
+export * from "./clearances";
