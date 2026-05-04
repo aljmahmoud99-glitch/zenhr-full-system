@@ -1,0 +1,154 @@
+Implement Workflow 23 — Company Branding + Generate Theme From Logo.
+
+Goal:
+Allow each company to customize the entire system theme from its logo or by manually choosing 2–3 colors.
+
+Requirements:
+
+1. Discovery first
+- Inspect current theme/colors implementation in frontend SCSS/CSS.
+- Inspect company/settings/config schema.
+- Inspect existing file upload patterns, especially documents upload.
+- Do not write code until you understand how branding should be persisted and loaded.
+
+2. Database / persistence
+Add company-scoped branding settings, preferably in system_configurations unless companies table is more suitable:
+- theme_primary_color
+- theme_secondary_color
+- theme_accent_color
+- theme_background_color optional
+- company_logo_url optional
+
+All values must be scoped by companyId.
+
+3. Backend APIs
+Add endpoints:
+
+GET /api/branding
+- Returns current company branding:
+  primaryColor, secondaryColor, accentColor, backgroundColor, logoUrl
+
+PATCH /api/branding
+- HR admin / superadmin only.
+- Accepts manual colors.
+- Validates HEX colors only.
+- Rejects invalid formats.
+- Saves company-scoped config.
+- Writes audit log branding_updated.
+
+POST /api/branding/logo
+- HR admin / superadmin only.
+- Accept multipart file upload.
+- Allowed: PNG, JPG, JPEG, WEBP, SVG if safe.
+- Max size 2MB or 5MB.
+- Save logo file securely.
+- Return logoUrl.
+- Extract 3 dominant colors from the image:
+  primaryColor, secondaryColor, accentColor.
+- Avoid white/black/gray-only colors unless logo only has neutrals.
+- Return suggested palette.
+- Do not auto-save colors unless frontend confirms, or save only logoUrl and return palette for preview.
+
+4. Color extraction
+Use a reliable Node package if available, e.g. sharp + color-thief-node or node-vibrant.
+If package install is needed, install it.
+If no library works, implement fallback:
+- Load image pixels.
+- Downsample.
+- Ignore transparent pixels.
+- Ignore near-white and near-black if enough colors remain.
+- Cluster or count dominant RGB values.
+- Convert to HEX.
+
+5. Contrast validation
+Before saving theme:
+- Ensure primary/accent colors have acceptable contrast with white text.
+- If contrast is poor, either:
+  a) reject with clear 400 message, or
+  b) auto-generate readable text color variables.
+Preferred:
+- Store theme colors.
+- Compute CSS variables:
+  --app-primary
+  --app-secondary
+  --app-accent
+  --app-bg
+  --app-on-primary
+where on-primary is white or black depending on contrast.
+
+6. Frontend
+Add a Company Branding / Appearance section in Settings page.
+
+UI must include:
+- Current logo preview
+- Upload logo button
+- “Generate theme from logo” flow
+- Three color pickers:
+  Primary color
+  Secondary color
+  Accent color
+- Live preview card showing:
+  button
+  sidebar item
+  badge
+  card header
+- Save button disabled until changes exist
+- Reset to default button
+- Success/error toasts
+
+7. Apply theme globally
+On app startup/login:
+- Fetch /api/branding.
+- Apply CSS variables to document.documentElement:
+  --app-primary
+  --app-secondary
+  --app-accent
+  --app-bg
+  --app-on-primary
+
+Replace hardcoded green theme usage across shared/global styles with CSS variables where safe:
+- Sidebar active background
+- Primary buttons
+- Badges
+- Focus borders
+- Main accent elements
+Do not break existing layout.
+
+8. Access control
+- Only hradmin and superadmin can upload logo or save branding.
+- Other roles may GET branding only, because app needs theme for display.
+- Employee/manager/payroll PATCH or upload must return 403.
+- No token returns 401.
+
+9. Audit
+Write activity log entries:
+- branding_logo_uploaded
+- branding_updated
+Include actor, companyId, and changed keys.
+
+10. Tests
+Run full QA:
+- HR uploads logo → logo saved, palette returned.
+- Invalid file type → 400.
+- Too large file → 400.
+- Employee upload → 403.
+- Payroll PATCH → 403.
+- Invalid HEX → 400.
+- Poor contrast handled.
+- Save colors → GET returns same values.
+- Refresh app → theme persists.
+- Sidebar/button colors update.
+- Reset default works.
+- Audit logs created.
+- No console errors.
+- No password/token leakage in responses.
+
+11. Final report
+Return:
+- Files changed
+- APIs added
+- DB/config keys added
+- Bugs found and fixed
+- Test results
+- Remaining risks
+- WORKFLOW 23 STATUS

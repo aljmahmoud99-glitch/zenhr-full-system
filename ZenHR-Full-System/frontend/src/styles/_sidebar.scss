@@ -1,5 +1,5 @@
 .z-sidebar {
-  background: var(--z-forest);
+  background: var(--app-primary-dark);
   display: flex; flex-direction: column;
   border-inline-end: 1px solid rgba(255,255,255,0.06);
   
@@ -8,9 +8,9 @@
     display: flex; align-items: center; gap: 12px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     
-    .logo-mark { width: 32px; height: 32px; background: var(--z-emerald); 
+    .logo-mark { width: 32px; height: 32px; background: var(--app-primary); 
                  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-                 font-weight: 700; font-size: 16px; color: white; }
+                 font-weight: 700; font-size: 16px; color: var(--app-on-primary); }
     .logo-text { font-size: 18px; font-weight: 700; color: white; }
   }
   
@@ -20,8 +20,8 @@
     
     .user-avatar { 
       width: 36px; height: 36px; border-radius: 50%;
-      background: var(--z-pine); display: flex; align-items: center;
-      justify-content: center; font-weight: 700; font-size: 14px; color: var(--z-mint);
+      background: var(--app-primary-dark); display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 14px; color: var(--app-primary-light);
       flex-shrink: 0;
     }
     .user-info { overflow: hidden; }
@@ -29,7 +29,7 @@
     .user-role  { 
       display: inline-block; margin-top: 2px;
       font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px;
-      background: rgba(255,255,255,0.1); color: var(--z-mint);
+      background: rgba(255,255,255,0.1); color: var(--app-primary-light);
     }
   }
   
@@ -63,10 +63,10 @@
       .nav-icon { color: rgba(255,255,255,0.8); }
     }
     &.active {
-      background: var(--z-pine);
-      color: var(--z-mint);
-      border-inline-start-color: var(--z-mint);
-      .nav-icon { color: var(--z-mint); }
+      background: rgba(255,255,255,0.08);
+      color: var(--app-primary-light);
+      border-inline-start-color: var(--app-primary-light);
+      .nav-icon { color: var(--app-primary-light); }
     }
   }
   
@@ -79,7 +79,7 @@
       .lang-btn { 
         padding: 4px 12px; border-radius: 20px; cursor: pointer;
         font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5);
-        &.active { background: var(--z-emerald); color: white; }
+        &.active { background: var(--app-primary); color: var(--app-on-primary); }
       }
     }
     

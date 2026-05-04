@@ -23,7 +23,7 @@
   </header>
 
   <div class="alert alert-success" *ngIf="successMsg()">{{ successMsg() }}</div>
-  <div class="alert alert-danger" *ngIf="errorMsg()">{{ errorMsg() }}</div>
+  <div class="alert alert-danger"  *ngIf="errorMsg()">{{ errorMsg() }}</div>
 
   <section class="settings-shell" *ngIf="!loading(); else loadingTpl">
     <aside class="settings-nav z-card">
@@ -51,70 +51,242 @@
       <div class="panel-head">
         <div>
           <h2 class="z-heading">{{ currentCategoryLabel() }}</h2>
-          <p class="z-small">{{ lang === 'ar' ? 'التغييرات هنا تنعكس مباشرة على سلوك النظام' : 'Changes here directly affect system behavior' }}</p>
+          <p class="z-small">
+            {{ activeCategory() === 'branding'
+              ? (lang === 'ar' ? 'تخصيص شعار وألوان الشركة للنظام بأكمله' : 'Customize the company logo and colors applied system-wide')
+              : (lang === 'ar' ? 'التغييرات هنا تنعكس مباشرة على سلوك النظام' : 'Changes here directly affect system behavior') }}
+          </p>
         </div>
       </div>
 
-      <div class="settings-grid">
-        <div
-          class="setting-card"
-          *ngFor="let cfg of filteredConfigs()"
-          [class.field-changed]="isFieldChanged(cfg.key)">
+      <!-- ── Branding Panel ──────────────────────────────────────────── -->
+      <ng-container *ngIf="activeCategory() === 'branding'; else configsGrid">
 
-          <div class="setting-copy">
-            <label class="z-label">{{ fieldLabel(cfg) }}</label>
-            <div class="setting-key">{{ cfg.key }}</div>
+        <!-- Logo -->
+        <div class="branding-section">
+          <h3 class="branding-section-title">
+            <span class="material-icons">business</span>
+            {{ lang === 'ar' ? 'شعار الشركة' : 'Company Logo' }}
+          </h3>
+          <div class="logo-row">
+            <div class="logo-preview-box">
+              <img *ngIf="logoPreviewUrl()" [src]="logoPreviewUrl()" alt="Company Logo" class="logo-img"
+                   (error)="logoPreviewUrl.set('')">
+              <span class="material-icons logo-placeholder-icon" *ngIf="!logoPreviewUrl()">apartment</span>
+            </div>
+            <div class="logo-upload-col">
+              <label class="z-btn-secondary upload-label" [class.uploading]="uploadingLogo()">
+                <span class="material-icons">{{ uploadingLogo() ? 'hourglass_empty' : 'upload_file' }}</span>
+                {{ uploadingLogo()
+                  ? (lang === 'ar' ? 'جارٍ الرفع...' : 'Uploading...')
+                  : (lang === 'ar' ? 'رفع شعار' : 'Upload Logo') }}
+                <input type="file" accept="image/png,image/jpeg,image/webp"
+                       (change)="onLogoUpload($event)"
+                       [disabled]="uploadingLogo()"
+                       style="display:none">
+              </label>
+              <p class="z-hint">PNG · JPG · WEBP &nbsp;·&nbsp; {{ lang === 'ar' ? 'حجم أقصى 5 ميغابايت' : 'Max 5 MB' }}</p>
+              <div class="alert alert-danger" style="margin-top:8px;font-size:13px" *ngIf="logoUploadError()">
+                {{ logoUploadError() }}
+              </div>
+            </div>
           </div>
 
-          <div class="setting-input">
+          <!-- Suggested palette from logo -->
+          <div class="palette-suggestion z-card" *ngIf="generatedPalette()">
+            <p class="palette-title">
+              <span class="material-icons">auto_awesome</span>
+              {{ lang === 'ar' ? 'ألوان مستخرجة من شعارك — انقر للتطبيق:' : 'Colors extracted from your logo — click to apply:' }}
+            </p>
+            <div class="palette-swatches">
+              <div class="swatch-item" [style.background]="generatedPalette()!.primaryColor"
+                   [title]="generatedPalette()!.primaryColor">
+                <span>{{ generatedPalette()!.primaryColor }}</span>
+              </div>
+              <div class="swatch-item" [style.background]="generatedPalette()!.secondaryColor"
+                   [title]="generatedPalette()!.secondaryColor">
+                <span>{{ generatedPalette()!.secondaryColor }}</span>
+              </div>
+              <div class="swatch-item" [style.background]="generatedPalette()!.accentColor"
+                   [title]="generatedPalette()!.accentColor">
+                <span>{{ generatedPalette()!.accentColor }}</span>
+              </div>
+            </div>
+            <div class="palette-actions">
+              <button class="z-btn-primary" type="button" (click)="applyGeneratedPalette()">
+                <span class="material-icons">palette</span>
+                {{ lang === 'ar' ? 'تطبيق هذه الألوان' : 'Apply This Palette' }}
+              </button>
+              <button class="z-btn-secondary" type="button" (click)="generatedPalette.set(null)">
+                {{ lang === 'ar' ? 'تجاهل' : 'Dismiss' }}
+              </button>
+            </div>
+          </div>
+        </div>
 
-            <!-- Boolean toggle -->
-            <label class="toggle" *ngIf="isBoolean(cfg)">
+        <!-- Color Pickers -->
+        <div class="branding-section">
+          <h3 class="branding-section-title">
+            <span class="material-icons">palette</span>
+            {{ lang === 'ar' ? 'ألوان العلامة التجارية' : 'Brand Colors' }}
+          </h3>
+          <div class="color-pickers-grid">
+            <div class="color-field">
+              <label class="z-label">{{ lang === 'ar' ? 'اللون الرئيسي' : 'Primary Color' }}</label>
+              <div class="color-input-wrap">
+                <input type="color" class="color-swatch-input"
+                       [value]="brandingValues().primaryColor"
+                       (input)="setBrandingColor('primaryColor', $any($event.target).value)">
+                <input type="text" class="z-input hex-input"
+                       [value]="brandingValues().primaryColor"
+                       (input)="onHexInput('primaryColor', $any($event.target).value)"
+                       maxlength="7" placeholder="#2d9e6b">
+              </div>
+              <p class="z-hint">{{ lang === 'ar' ? 'يُستخدم في الأزرار والعناصر الرئيسية' : 'Used in buttons and primary elements' }}</p>
+            </div>
+
+            <div class="color-field">
+              <label class="z-label">{{ lang === 'ar' ? 'اللون الثانوي' : 'Secondary Color' }}</label>
+              <div class="color-input-wrap">
+                <input type="color" class="color-swatch-input"
+                       [value]="brandingValues().secondaryColor"
+                       (input)="setBrandingColor('secondaryColor', $any($event.target).value)">
+                <input type="text" class="z-input hex-input"
+                       [value]="brandingValues().secondaryColor"
+                       (input)="onHexInput('secondaryColor', $any($event.target).value)"
+                       maxlength="7" placeholder="#475569">
+              </div>
+              <p class="z-hint">{{ lang === 'ar' ? 'لعناصر الدعم والنص الثانوي' : 'Supporting elements and secondary text' }}</p>
+            </div>
+
+            <div class="color-field">
+              <label class="z-label">{{ lang === 'ar' ? 'لون التمييز' : 'Accent Color' }}</label>
+              <div class="color-input-wrap">
+                <input type="color" class="color-swatch-input"
+                       [value]="brandingValues().accentColor"
+                       (input)="setBrandingColor('accentColor', $any($event.target).value)">
+                <input type="text" class="z-input hex-input"
+                       [value]="brandingValues().accentColor"
+                       (input)="onHexInput('accentColor', $any($event.target).value)"
+                       maxlength="7" placeholder="#52d9a0">
+              </div>
+              <p class="z-hint">{{ lang === 'ar' ? 'للشارات وعناصر التمييز' : 'Badges and highlight elements' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="branding-section">
+          <h3 class="branding-section-title">
+            <span class="material-icons">preview</span>
+            {{ lang === 'ar' ? 'معاينة مباشرة' : 'Live Preview' }}
+          </h3>
+          <div class="theme-preview-card">
+            <!-- Mini sidebar strip -->
+            <div class="preview-sidebar-strip" [style.background]="brandingDark()">
+              <div class="preview-logo-mark"
+                   [style.background]="brandingValues().primaryColor"
+                   [style.color]="brandingService.getOnColor(brandingValues().primaryColor)">Z</div>
+              <div class="preview-nav-item preview-nav-active"
+                   [style.color]="brandingLight()"
+                   [style.border-inline-start-color]="brandingLight()"
+                   [style.background]="'rgba(255,255,255,0.08)'">
+                <span class="material-icons" style="font-size:15px">home</span>
+                Dashboard
+              </div>
+              <div class="preview-nav-item" style="color:rgba(255,255,255,0.55)">
+                <span class="material-icons" style="font-size:15px">people</span>
+                Employees
+              </div>
+            </div>
+            <!-- Content area -->
+            <div class="preview-content-area">
+              <button class="preview-primary-btn"
+                      [style.background]="brandingValues().primaryColor"
+                      [style.color]="brandingService.getOnColor(brandingValues().primaryColor)">
+                Save Changes
+              </button>
+              <span class="preview-badge"
+                    [style.background]="brandingValues().accentColor + '33'"
+                    [style.color]="brandingValues().accentColor">Active</span>
+              <div class="preview-stat-card"
+                   [style.border-top-color]="brandingValues().primaryColor">
+                <p class="preview-stat-label">{{ lang === 'ar' ? 'إجمالي الرواتب' : 'Monthly Payroll' }}</p>
+                <p class="preview-stat-value" [style.color]="brandingValues().primaryColor">JOD 25,400</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="branding-reset-row">
+          <button class="z-btn-secondary" type="button" (click)="resetBranding()" [disabled]="saving()">
+            <span class="material-icons">restart_alt</span>
+            {{ lang === 'ar' ? 'إعادة تعيين إلى الافتراضي' : 'Reset to Default' }}
+          </button>
+        </div>
+
+      </ng-container>
+
+      <!-- ── Config Grid (all other categories) ─────────────────────── -->
+      <ng-template #configsGrid>
+        <div class="settings-grid">
+          <div
+            class="setting-card"
+            *ngFor="let cfg of filteredConfigs()"
+            [class.field-changed]="isFieldChanged(cfg.key)">
+
+            <div class="setting-copy">
+              <label class="z-label">{{ fieldLabel(cfg) }}</label>
+              <div class="setting-key">{{ cfg.key }}</div>
+            </div>
+
+            <div class="setting-input">
+
+              <label class="toggle" *ngIf="isBoolean(cfg)">
+                <input
+                  type="checkbox"
+                  [checked]="editValues()[cfg.key] === 'true'"
+                  (change)="setBooleanValue(cfg.key, $any($event.target).checked)"
+                  [disabled]="!cfg.isEditable">
+                <span>{{ editValues()[cfg.key] === 'true'
+                  ? (lang === 'ar' ? 'مفعل' : 'Enabled')
+                  : (lang === 'ar' ? 'معطل' : 'Disabled') }}</span>
+              </label>
+
+              <textarea
+                *ngIf="!isBoolean(cfg) && isTextarea(cfg)"
+                class="z-input textarea"
+                rows="5"
+                [value]="editValues()[cfg.key]"
+                (input)="setValue(cfg.key, $any($event.target).value)"
+                [readOnly]="!cfg.isEditable"
+                spellcheck="false"
+                style="font-family: monospace; font-size: 12px;"></textarea>
+
               <input
-                type="checkbox"
-                [checked]="editValues()[cfg.key] === 'true'"
-                (change)="setBooleanValue(cfg.key, $any($event.target).checked)"
-                [disabled]="!cfg.isEditable">
-              <span>{{ editValues()[cfg.key] === 'true'
-                ? (lang === 'ar' ? 'مفعل' : 'Enabled')
-                : (lang === 'ar' ? 'معطل' : 'Disabled') }}</span>
-            </label>
+                *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && isNumeric(cfg)"
+                class="z-input"
+                type="number"
+                [step]="isInteger(cfg) ? 1 : 'any'"
+                min="0"
+                [value]="editValues()[cfg.key]"
+                (input)="setValue(cfg.key, $any($event.target).value)"
+                [readOnly]="!cfg.isEditable">
 
-            <!-- Textarea for JSON fields (income_tax_brackets) -->
-            <textarea
-              *ngIf="!isBoolean(cfg) && isTextarea(cfg)"
-              class="z-input textarea"
-              rows="5"
-              [value]="editValues()[cfg.key]"
-              (input)="setValue(cfg.key, $any($event.target).value)"
-              [readOnly]="!cfg.isEditable"
-              spellcheck="false"
-              style="font-family: monospace; font-size: 12px;"></textarea>
+              <input
+                *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && !isNumeric(cfg)"
+                class="z-input"
+                type="text"
+                [value]="editValues()[cfg.key]"
+                (input)="setValue(cfg.key, $any($event.target).value)"
+                [readOnly]="!cfg.isEditable">
 
-            <!-- Numeric input -->
-            <input
-              *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && isNumeric(cfg)"
-              class="z-input"
-              type="number"
-              [step]="isInteger(cfg) ? 1 : 'any'"
-              min="0"
-              [value]="editValues()[cfg.key]"
-              (input)="setValue(cfg.key, $any($event.target).value)"
-              [readOnly]="!cfg.isEditable">
-
-            <!-- Plain text input -->
-            <input
-              *ngIf="!isBoolean(cfg) && !isTextarea(cfg) && !isNumeric(cfg)"
-              class="z-input"
-              type="text"
-              [value]="editValues()[cfg.key]"
-              (input)="setValue(cfg.key, $any($event.target).value)"
-              [readOnly]="!cfg.isEditable">
-
-            <span class="read-only" *ngIf="!cfg.isEditable">{{ lang === 'ar' ? 'للقراءة فقط' : 'Read only' }}</span>
+              <span class="read-only" *ngIf="!cfg.isEditable">{{ lang === 'ar' ? 'للقراءة فقط' : 'Read only' }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </ng-template>
     </div>
   </section>
 

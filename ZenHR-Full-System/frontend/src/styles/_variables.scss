@@ -28,6 +28,14 @@
   --z-radius-md: 10px;
   --z-radius-lg: 16px;
   --z-radius-xl: 24px;
+
+  /* ── Brand theme (overridden at runtime by BrandingService) ──────────────── */
+  --app-primary:       #2d9e6b;
+  --app-primary-dark:  #1a5c3e;
+  --app-primary-light: #52d9a0;
+  --app-on-primary:    #ffffff;
+  --app-secondary:     #475569;
+  --app-accent:        #52d9a0;
   --z-space-1: 4px;
   --z-space-2: 8px;
   --z-space-3: 12px;

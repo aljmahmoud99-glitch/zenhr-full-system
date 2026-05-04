@@ -331,6 +331,44 @@ All 8 endpoints now enforce role-based scoping at the DB query level — the fro
 - `NUMERIC_KEYS`: 13 numeric config fields
 - `INTEGER_KEYS`: 7 whole-number fields (step=1)
 
+## Workflow 23 — Company Branding QA (COMPLETE)
+**Full implementation verified across 26 tests — zero bugs found.**
+
+### Backend (`artifacts/api-server/src/index.ts`, ~line 4010–4200)
+- **Multer config**: `LOGOS_DIR = uploads/logos/`, 5 MB limit, JPEG/PNG/WEBP only, random suffix filenames.
+- **Static serving**: `/uploads/logos/*` served publicly (no auth) via separate static route BEFORE the auth-protected `/uploads` route.
+- **GET /api/branding**: Returns `{ primaryColor, secondaryColor, accentColor, logoUrl, onPrimary }`. All authenticated roles.
+- **PATCH /api/branding**: Validates 6-digit hex for each color field; validates `logoUrl` is `/uploads/` path or http(s) URL. hradmin/superadmin only. Returns updated values + computed `onPrimary`. Logs `branding_updated` audit entry with field-level diff.
+- **POST /api/branding/logo**: Accepts multipart `logo` field. On success: saves file, calls `extractDominantColors()` via Jimp (dynamic import for ESM compat), returns `{ logoUrl, palette }`. Logs `branding_logo_uploaded`. hradmin/superadmin only.
+- **Helpers**: `hexLuminance()`, `hexOnColor()` (WCAG-based — returns `#ffffff` for dark, `#0f172a` for light), `extractDominantColors()`.
+- **BRANDING_DEFAULTS constant**: `{ primaryColor: '#2d9e6b', secondaryColor: '#475569', accentColor: '#52d9a0' }`.
+
+### Frontend
+- **`_variables.scss`**: `--app-primary`, `--app-primary-dark`, `--app-primary-light`, `--app-on-primary`, `--app-secondary`, `--app-accent` CSS custom properties added.
+- **`_buttons.scss`, `_sidebar.scss`, `_forms.scss`, `_topbar.scss`, `settings.component.scss`**: Hardcoded `z-emerald`/`z-pine`/`z-forest`/`z-mint` replaced with CSS vars.
+- **`branding.service.ts`**: `loadAndApply()`, `applyToDocument()`, `darken()`, `lighten()`, `getOnColor()`, `resetToDefault()`.
+- **`app.component.ts`**: Calls `branding.loadAndApply()` in `ngOnInit` so colors apply on every page load.
+- **Settings 8th tab** (Branding): Logo upload (drag-and-drop preview), palette suggestion from logo, three color pickers (primary/secondary/accent), live preview card, save/reset buttons.
+- **`proxy.conf.json`**: `/uploads/logos/**` proxied to port 3001.
+
+### Access Control (Verified)
+| Endpoint | payrolladmin | hradmin | superadmin | unauthenticated |
+|---|---|---|---|---|
+| GET /api/branding | ✓ | ✓ | ✓ | 401 |
+| PATCH /api/branding | 403 | ✓ | ✓ | 401 |
+| POST /api/branding/logo | 403 | ✓ | ✓ | 401 |
+| GET /uploads/logos/* | 200 (public) | 200 | 200 | 200 |
+| GET /uploads/* (other) | 401 | ✓ | ✓ | 401 |
+
+### Validation (Verified)
+- Non-hex color string → 400 with field name
+- 3-digit hex → 400
+- Path traversal logoUrl → 400
+- PDF upload → 400 "Only JPEG, PNG, and WEBP images allowed"
+- >5 MB file → 400 "Logo must be under 5 MB"
+- Empty PATCH body → 200 "Nothing to update"
+- Partial update (single field) → others unchanged
+
 ## Database Schema (PostgreSQL)
 - companies, users, employees, departments, job_titles
 - leave_requests, leave_policies, leave_balances, leave_types

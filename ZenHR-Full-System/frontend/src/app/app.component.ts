@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { I18nService } from './core/services/i18n.service';
 import { AppSettingsService } from './core/services/app-settings.service';
+import { BrandingService } from './core/services/branding.service';
 
 @Component({
   selector: 'app-root',
@@ -73,11 +74,13 @@ import { AppSettingsService } from './core/services/app-settings.service';
 export class AppComponent implements OnInit {
   constructor(
     public i18n: I18nService,
-    private settings: AppSettingsService
+    private settings: AppSettingsService,
+    private branding: BrandingService,
   ) {}
 
   ngOnInit() {
     this.i18n.ensureInitialized();
     void this.settings.ensureLoaded();
+    void this.branding.loadAndApply();
   }
 }

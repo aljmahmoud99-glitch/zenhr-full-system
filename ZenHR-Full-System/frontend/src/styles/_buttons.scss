@@ -12,8 +12,8 @@
 }
 .z-btn-primary {
   @extend .z-btn;
-  background: var(--z-emerald); color: white;
-  &:hover:not(:disabled) { background: #259058; box-shadow: 0 4px 12px rgba(45,158,107,0.35); }
+  background: var(--app-primary); color: var(--app-on-primary);
+  &:hover:not(:disabled) { filter: brightness(0.88); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
   &:active:not(:disabled) { transform: translateY(1px); }
 }
 .z-btn-secondary {

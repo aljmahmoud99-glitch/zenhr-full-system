@@ -72,7 +72,30 @@ const docUpload = multer({
   },
 });
 
-// Serve uploaded files — auth required (checked in download handler below)
+// ─── Logo upload (branding) ───────────────────────────────────────────────────
+const LOGOS_DIR = path.resolve(UPLOADS_DIR, "logos");
+if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
+
+const logoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, LOGOS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".png";
+    cb(null, `logo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+  },
+});
+const ALLOWED_LOGO_MIMES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_LOGO_MIMES.has(file.mimetype)) cb(null, true);
+    else cb(new Error("Only JPEG, PNG, and WEBP images are allowed for logos"));
+  },
+});
+
+// Public logo serving — no auth required (company logos are safe to display)
+app.use("/uploads/logos", express.static(LOGOS_DIR));
+// Serve other uploaded files — auth required
 app.use("/uploads", auth, express.static(UPLOADS_DIR));
 
 type AuthReq = express.Request & { user: { userId: number; username: string; role: string; companyId: number; employeeId: number | null } };
@@ -3979,6 +4002,280 @@ app.patch("/api/config/bulk", auth, async (req, res) => {
     console.error("[PATCH /api/config/bulk]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
+});
+
+// ─── Branding ─────────────────────────────────────────────────────────────────
+
+// Compute relative luminance (WCAG 2.1)
+function hexLuminance(hex: string): number {
+  const h = hex.replace("#", "").padEnd(6, "0");
+  const parse = (s: string) => {
+    const c = parseInt(s, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * parse(h.slice(0, 2)) + 0.7152 * parse(h.slice(2, 4)) + 0.0722 * parse(h.slice(4, 6));
+}
+
+function hexOnColor(hex: string): "#ffffff" | "#0f172a" {
+  const L = hexLuminance(hex);
+  return 1.05 / (L + 0.05) >= 4.5 ? "#ffffff" : "#0f172a";
+}
+
+// Dominant color extraction using jimp (pure JS — no native bindings)
+async function extractDominantColors(filePath: string): Promise<string[]> {
+  try {
+    const jimpMod = await import("jimp");
+    const Jimp = (jimpMod as any).default ?? jimpMod;
+    const img = await Jimp.read(filePath);
+    // Resize for speed
+    img.resize(64, 64);
+    const colorMap = new Map<string, number>();
+    const data: Buffer = img.bitmap.data as Buffer;
+    const w: number = img.bitmap.width as number;
+    const h: number = img.bitmap.height as number;
+    img.scan(0, 0, w, h, (_x: number, _y: number, idx: number) => {
+      const r = data[idx] as number;
+      const g = data[idx + 1] as number;
+      const b = data[idx + 2] as number;
+      const a = data[idx + 3] as number;
+      if (a < 128) return;
+      // Quantize to 24-step buckets
+      const qr = Math.round(r / 24) * 24;
+      const qg = Math.round(g / 24) * 24;
+      const qb = Math.round(b / 24) * 24;
+      if (qr > 215 && qg > 215 && qb > 215) return; // near-white
+      if (qr < 30 && qg < 30 && qb < 30) return;    // near-black
+      if (Math.max(qr, qg, qb) - Math.min(qr, qg, qb) < 30) return; // near-gray
+      const key = `${qr},${qg},${qb}`;
+      colorMap.set(key, (colorMap.get(key) ?? 0) + 1);
+    });
+    const sorted = [...colorMap.entries()].sort((a, b) => b[1] - a[1]);
+    const chosen: number[][] = [];
+    for (const [key] of sorted) {
+      const parts = key.split(",").map(Number) as [number, number, number];
+      const [r, g, b] = parts;
+      const tooClose = chosen.some(([sr, sg, sb]) =>
+        Math.abs(r - sr) + Math.abs(g - sg) + Math.abs(b - sb) < 80
+      );
+      if (!tooClose) {
+        chosen.push([r, g, b]);
+        if (chosen.length >= 3) break;
+      }
+    }
+    // Pad with fallback muted tones if not enough distinct colors
+    const fallbacks = [[45, 158, 107], [26, 92, 62], [82, 217, 160]];
+    while (chosen.length < 3) chosen.push(fallbacks[chosen.length]!);
+    return chosen.map(([r, g, b]) =>
+      "#" + [r, g, b].map(v => Math.max(0, Math.min(255, v!)).toString(16).padStart(2, "0")).join("")
+    );
+  } catch (e) {
+    console.error("[extractDominantColors]", e);
+    return ["#2d9e6b", "#1a5c3e", "#52d9a0"];
+  }
+}
+
+const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
+
+const BRANDING_DEFAULTS: Record<string, string> = {
+  theme_primary_color:   "#2d9e6b",
+  theme_secondary_color: "#475569",
+  theme_accent_color:    "#52d9a0",
+  company_logo_url:      "",
+};
+
+async function getBrandingConfig(companyId: number): Promise<Record<string, string>> {
+  const rows = await db
+    .select()
+    .from(systemConfigurationsTable)
+    .where(
+      and(
+        eq(systemConfigurationsTable.companyId, companyId),
+        inArray(systemConfigurationsTable.key, Object.keys(BRANDING_DEFAULTS))
+      )
+    );
+  const result: Record<string, string> = { ...BRANDING_DEFAULTS };
+  for (const row of rows) {
+    if (row.key in result) result[row.key] = row.value ?? "";
+  }
+  return result;
+}
+
+// GET /api/branding — returns current company branding (all roles)
+app.get("/api/branding", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const cfg = await getBrandingConfig(user.companyId);
+    const primary = cfg["theme_primary_color"] ?? BRANDING_DEFAULTS["theme_primary_color"]!;
+    res.json({
+      success: true,
+      data: {
+        primaryColor:   cfg["theme_primary_color"],
+        secondaryColor: cfg["theme_secondary_color"],
+        accentColor:    cfg["theme_accent_color"],
+        logoUrl:        cfg["company_logo_url"] || null,
+        onPrimary:      hexOnColor(primary),
+      },
+    });
+  } catch (e) {
+    console.error("[GET /api/branding]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// PATCH /api/branding — save brand colors (hradmin / superadmin only)
+app.patch("/api/branding", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden — HR Admin or Super Admin access required" });
+      return;
+    }
+    const body = req.body as Record<string, string | undefined>;
+    const colorFields: [string, string | undefined][] = [
+      ["theme_primary_color",   body["primaryColor"]],
+      ["theme_secondary_color", body["secondaryColor"]],
+      ["theme_accent_color",    body["accentColor"]],
+    ];
+    const updates: Record<string, string> = {};
+    const errors: string[] = [];
+    for (const [key, val] of colorFields) {
+      if (val === undefined || val === null) continue;
+      if (!HEX_RE.test(val)) {
+        errors.push(`'${key}' must be a 6-digit hex color (e.g. #2d9e6b)`);
+        continue;
+      }
+      updates[key] = val;
+    }
+    if (body["logoUrl"] !== undefined) {
+      const lu = body["logoUrl"] ?? "";
+      if (lu && !/^https?:\/\//.test(lu) && !/^\/uploads\//.test(lu)) {
+        errors.push("logoUrl must be a valid URL or an /uploads/ path");
+      } else {
+        updates["company_logo_url"] = lu;
+      }
+    }
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, message: errors[0], errors });
+      return;
+    }
+    if (Object.keys(updates).length === 0) {
+      res.json({ success: true, message: "Nothing to update" });
+      return;
+    }
+    // Upsert each key into system_configurations
+    const existing = await db
+      .select()
+      .from(systemConfigurationsTable)
+      .where(
+        and(
+          eq(systemConfigurationsTable.companyId, user.companyId),
+          inArray(systemConfigurationsTable.key, Object.keys(updates))
+        )
+      );
+    const changes: string[] = [];
+    for (const [key, value] of Object.entries(updates)) {
+      const row = existing.find(r => r.key === key);
+      const oldVal = row?.value ?? BRANDING_DEFAULTS[key] ?? "";
+      if (row) {
+        await db
+          .update(systemConfigurationsTable)
+          .set({ value, updatedByUserId: user.userId })
+          .where(eq(systemConfigurationsTable.id, row.id));
+      } else {
+        await db.insert(systemConfigurationsTable).values({
+          companyId: user.companyId, key, value,
+          category: "branding", updatedByUserId: user.userId,
+        });
+      }
+      if (value !== oldVal) changes.push(`${key}: ${oldVal} → ${value}`);
+    }
+    if (changes.length > 0) {
+      await logActivity(
+        user.companyId, "branding_updated",
+        `Branding updated by ${user.username}: ${changes.join("; ")}`,
+        user.username
+      );
+    }
+    const cfg = await getBrandingConfig(user.companyId);
+    const primary = cfg["theme_primary_color"] ?? BRANDING_DEFAULTS["theme_primary_color"]!;
+    res.json({ success: true, message: "Branding saved", data: { onPrimary: hexOnColor(primary) } });
+  } catch (e) {
+    console.error("[PATCH /api/branding]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST /api/branding/logo — upload company logo (hradmin / superadmin only)
+app.post("/api/branding/logo", auth, (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["superadmin", "hradmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden — HR Admin or Super Admin access required" });
+    return;
+  }
+  logoUpload.single("logo")(req, res, async (err) => {
+    if (err) {
+      const msg = err instanceof multer.MulterError
+        ? (err.code === "LIMIT_FILE_SIZE" ? "Logo must be under 5 MB" : err.message)
+        : (err as Error).message;
+      res.status(400).json({ success: false, message: msg });
+      return;
+    }
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({ success: false, message: "No file received. Send field name 'logo'" });
+        return;
+      }
+      const logoUrl = `/uploads/logos/${file.filename}`;
+      // Extract dominant colors
+      const palette = await extractDominantColors(file.path);
+      const [primary = "#2d9e6b", secondary = "#475569", accent = "#52d9a0"] = palette;
+      // Persist logoUrl in system_configurations
+      const existing = await db
+        .select()
+        .from(systemConfigurationsTable)
+        .where(
+          and(
+            eq(systemConfigurationsTable.companyId, user.companyId),
+            eq(systemConfigurationsTable.key, "company_logo_url")
+          )
+        );
+      if (existing.length > 0) {
+        await db
+          .update(systemConfigurationsTable)
+          .set({ value: logoUrl, updatedByUserId: user.userId })
+          .where(eq(systemConfigurationsTable.id, existing[0]!.id));
+      } else {
+        await db.insert(systemConfigurationsTable).values({
+          companyId: user.companyId,
+          key: "company_logo_url",
+          value: logoUrl,
+          category: "branding",
+          updatedByUserId: user.userId,
+        });
+      }
+      await logActivity(
+        user.companyId, "branding_logo_uploaded",
+        `Company logo uploaded by ${user.username}: ${file.originalname} (${Math.round(file.size / 1024)} KB)`,
+        user.username
+      );
+      res.json({
+        success: true,
+        data: {
+          logoUrl,
+          palette: {
+            primaryColor:   primary,
+            secondaryColor: secondary,
+            accentColor:    accent,
+            onPrimary:      hexOnColor(primary),
+          },
+        },
+      });
+    } catch (e) {
+      console.error("[POST /api/branding/logo]", e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
 });
 
 // ─── Attendance extra endpoints ────────────────────────────────────────────────
