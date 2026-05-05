@@ -23,7 +23,7 @@
 
 .summary-card {
   padding: 18px;
-  border: 1px solid rgba(47, 157, 105, 0.12);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.12);
 }
 
 .summary-card.warning {
@@ -42,7 +42,7 @@
 }
 
 .summary-value {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: clamp(24px, 2vw, 34px);
   line-height: 1;
 }
@@ -123,9 +123,9 @@
   min-height: 42px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(47, 157, 105, 0.18);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.18);
   background: rgba(235, 250, 243, 0.85);
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-weight: 700;
 }
 
@@ -143,9 +143,9 @@
 }
 
 .tab-chip.active {
-  border-color: rgba(47, 157, 105, 0.24);
+  border-color: rgba(var(--app-primary-rgb), 0.24);
   background: rgba(235, 250, 243, 0.9);
-  color: var(--z-emerald);
+  color: var(--app-primary);
 }
 
 .filter-grid {
@@ -186,7 +186,7 @@
 }
 
 .switch-field input {
-  accent-color: var(--z-emerald);
+  accent-color: var(--app-primary);
 }
 
 .field-full {
@@ -261,7 +261,7 @@
 }
 
 .inline-link {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: 13px;
   font-weight: 700;
 }

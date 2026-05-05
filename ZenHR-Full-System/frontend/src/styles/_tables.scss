@@ -23,7 +23,7 @@
   tbody tr {
     border-bottom: 1px solid var(--z-border);
     transition: background 120ms;
-    &:hover { background: rgba(45, 158, 107, 0.03); }
+    &:hover { background: rgba(var(--app-primary-rgb), 0.03); }
     &:last-child { border-bottom: none; }
   }
   td { padding: 14px 16px; font-size: 14px; color: var(--z-text-primary); }

@@ -40,7 +40,7 @@
 
 .settings-tab.active {
   border-color: var(--app-primary);
-  background: rgba(45, 158, 107, 0.08);
+  background: rgba(var(--app-primary-rgb), 0.08);
 }
 
 .tab-copy {

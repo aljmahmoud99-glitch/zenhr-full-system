@@ -490,7 +490,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: rgba(47, 157, 105, 0.12);
+  background: rgba(var(--app-primary-rgb), 0.12);
   color: var(--z-emerald);
   font-size: 12px;
   font-weight: 700;

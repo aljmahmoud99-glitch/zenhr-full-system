@@ -191,7 +191,7 @@
   &:disabled { opacity: .5; cursor: not-allowed; }
 }
 .btn-action-approve {
-  background: var(--z-emerald, #10b981);
+  background: var(--app-primary);
   color: #fff;
   &:hover:not(:disabled) { opacity: .88; }
 }
@@ -336,7 +336,7 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid rgba(47, 157, 105, 0.18);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.18);
   background: rgba(240, 253, 244, 0.9);
 }
 
@@ -407,7 +407,7 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
 
   &.active        { color: #f59e0b; }
   &:hover         { color: #fbbf24; }
-  &:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--z-emerald, #2f9d69); border-radius: 3px; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-primary); border-radius: 3px; }
 }
 
 .profile-avatar--initials {
@@ -620,7 +620,7 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
   padding: 8px 12px; border-radius: 8px; border: 1px solid var(--z-border);
   font-size: 13px; margin-bottom: 10px; background: var(--z-surface);
   input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
-  &.active { border-color: var(--z-emerald); background: rgba(47,157,105,.06); }
+  &.active { border-color: var(--app-primary); background: rgba(var(--app-primary-rgb),.06); }
 }
 .modal-dialog {
   max-height: min(92vh, 680px); display: flex; flex-direction: column;
@@ -783,7 +783,7 @@ button.skill-chip:focus-visible { outline:2px solid var(--primary,#3b82f6); outl
   .amount-td { text-align: end; font-variant-numeric: tabular-nums; font-weight: 600; }
   .deduct-val { color: #e53e3e; }
   tr:last-child td { border-bottom: none; }
-  tr.editing-row { background: rgba(47, 157, 105, 0.04); }
+  tr.editing-row { background: rgba(var(--app-primary-rgb), 0.04); }
   tr.comp-subtotal-row {
     background: var(--z-surface-2);
     td { border-top: 2px solid var(--z-border); border-bottom: none; }

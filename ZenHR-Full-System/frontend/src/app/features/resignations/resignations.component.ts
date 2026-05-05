@@ -91,7 +91,7 @@ const STATUS_BADGES: Record<string, string> = {
     .table-toolbar, .filters-head, .detail-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
     .detail-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
     .detail-tab { min-height: 38px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--z-border); background: rgba(255,255,255,.96); color: var(--z-text-secondary); font-weight: 700; }
-    .detail-tab.active { color: var(--z-emerald); border-color: rgba(47,157,105,.35); background: rgba(47,157,105,.12); }
+    .detail-tab.active { color: var(--app-primary); border-color: rgba(var(--app-primary-rgb),.35); background: rgba(var(--app-primary-rgb),.12); }
     .approval-list, .section-stack { display: grid; gap: 14px; }
     .approval-card, .info-card, .print-sheet { padding: 18px; border: 1px solid var(--z-border); border-radius: 18px; background: rgba(247,250,248,.88); }
     .approval-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }

@@ -35,7 +35,7 @@
 
 .summary-card {
   padding: 18px;
-  border: 1px solid rgba(47, 157, 105, 0.12);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.12);
 }
 
 .summary-card.warning {

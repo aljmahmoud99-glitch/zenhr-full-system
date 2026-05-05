@@ -11,7 +11,7 @@
   transition: border-color 150ms, box-shadow 150ms;
   &:focus {
     outline: none; border-color: var(--app-primary);
-    box-shadow: 0 0 0 3px rgba(45,158,107,0.12);
+    box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb),0.12);
   }
   &.ng-invalid.ng-touched {
     border-color: var(--z-danger);

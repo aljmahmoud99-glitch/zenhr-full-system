@@ -1,0 +1,111 @@
+Fix Workflow 23 — Theme is saved but not applied globally.
+
+Problem:
+Company branding colors are saved and preview works in Settings, but the rest of the system still uses the old hardcoded green theme.
+
+Do a full audit and fix globally.
+
+Required work:
+
+1. Find all hardcoded theme colors
+Search frontend for:
+- #047857
+- #059669
+- #10b981
+- #064e3b
+- #065f46
+- #16a34a
+- emerald
+- green
+- bg-green
+- text-green
+- border-green
+- rgba green values
+- CSS variables currently unused
+
+2. Create one global theme variable system
+In global styles define defaults:
+--app-primary
+--app-primary-dark
+--app-primary-light
+--app-secondary
+--app-accent
+--app-bg
+--app-surface
+--app-on-primary
+--app-sidebar-bg
+--app-sidebar-active
+--app-sidebar-text
+--app-border-focus
+
+3. Apply branding on startup
+Find app bootstrap/auth layout/main layout code.
+Ensure /api/branding is called after login and on app refresh.
+Apply variables with:
+document.documentElement.style.setProperty(...)
+
+Important:
+Theme must apply before or immediately after dashboard renders.
+Theme must persist after refresh.
+Theme must update instantly after Save Changes in Settings without logout.
+
+4. Replace hardcoded colors globally
+Update shared SCSS/CSS/components:
+- sidebar background
+- active sidebar item
+- sidebar hover
+- primary buttons
+- save buttons
+- add buttons
+- badges
+- chips
+- active status labels
+- cards accent borders
+- inputs focus border
+- toggles/checkbox accents
+- page badges
+- notification badges where appropriate
+
+Use CSS variables, not fixed green values.
+
+5. Angular component style issue
+If component SCSS uses hardcoded colors under ViewEncapsulation, replace there too.
+Do not only update styles.scss; inspect all *.scss files.
+
+6. Tailwind/class issue if used
+If classes like bg-emerald-600 or text-green-700 are used in templates, replace them with custom classes using CSS vars.
+
+7. Keep semantic colors separate
+Do NOT replace real status colors incorrectly:
+- danger/error stays red
+- warning stays amber
+- success can use app-accent only if it is brand-related, otherwise keep success green
+But primary navigation/buttons must follow company theme.
+
+8. Settings save behavior
+After PATCH /api/branding succeeds:
+- update ThemeService immediately
+- update CSS variables immediately
+- show success toast
+- no refresh required
+
+9. QA tests
+Run:
+- Save primary=#306078 secondary=#607890 accent=#52d9a0
+- Verify sidebar background changes
+- Verify active sidebar item changes
+- Verify primary buttons change
+- Verify page chips/badges change
+- Verify focus border changes
+- Refresh browser and verify same theme remains
+- Login as employee/manager/payroll and verify theme also applies
+- Check no console errors
+- Check no old hardcoded green remains except semantic success states
+
+10. Final report
+Return:
+- Files changed
+- List of hardcoded colors replaced
+- Where ThemeService is loaded
+- Confirmation theme applies after refresh
+- Remaining hardcoded colors, if any, and why they are semantic

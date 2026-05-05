@@ -10,12 +10,23 @@
   --z-control-height: 40px;
   --z-control-height-sm: 34px;
 
+  /* ── Brand theme (overridden at runtime by BrandingService) ──────────── */
+  --app-primary:       #2d9e6b;
+  --app-primary-rgb:   45, 158, 107;
+  --app-primary-dark:  #1a5c3e;
+  --app-primary-light: #52d9a0;
+  --app-on-primary:    #ffffff;
+  --app-secondary:     #475569;
+  --app-accent:        #52d9a0;
+  --app-accent-rgb:    82, 217, 160;
+
+  /* ── Palette aliases (follow app-primary at runtime) ─────────────────── */
   --z-forest: #123524;
-  --z-pine: #1c4d35;
+  --z-pine: var(--app-primary-dark);
   --z-deep-forest: #0d2f22;
   --z-sidebar-strong: #0f3828;
-  --z-emerald: #2f9d69;
-  --z-mint: #5ed7a1;
+  --z-emerald: var(--app-primary);
+  --z-mint: var(--app-accent);
   --z-sage: #b9cdc3;
   --z-cream: #f4f7f5;
   --z-white: #ffffff;
@@ -92,7 +103,7 @@ body.ltr {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top right, rgba(94, 215, 161, 0.14), transparent 24%),
+    radial-gradient(circle at top right, rgba(var(--app-accent-rgb), 0.14), transparent 24%),
     radial-gradient(circle at bottom left, rgba(18, 53, 36, 0.06), transparent 26%),
     linear-gradient(180deg, #eef3ef 0%, #f7faf8 100%);
   color: var(--z-text-primary);
@@ -253,8 +264,8 @@ img {
   width: fit-content;
   padding: 6px 11px;
   border-radius: 999px;
-  background: rgba(47, 157, 105, 0.1);
-  color: var(--z-emerald);
+  background: rgba(var(--app-primary-rgb), 0.1);
+  color: var(--app-primary);
   font-size: 11px;
   font-weight: 800;
 }
@@ -429,8 +440,8 @@ textarea.form-control,
 .form-select:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: var(--z-emerald);
-  box-shadow: 0 0 0 3px rgba(47, 157, 105, 0.12);
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.12);
 }
 
 .z-btn-primary,
@@ -454,16 +465,16 @@ textarea.form-control,
 .z-btn-primary,
 .btn-primary,
 .btn.btn-primary {
-  background: linear-gradient(135deg, var(--z-emerald), #238657);
-  color: var(--z-white);
-  box-shadow: 0 10px 22px rgba(47, 157, 105, 0.22);
+  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-dark));
+  color: var(--app-on-primary);
+  box-shadow: 0 10px 22px rgba(var(--app-primary-rgb), 0.22);
 }
 
 .z-btn-primary:hover,
 .btn-primary:hover,
 .btn.btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(47, 157, 105, 0.24);
+  box-shadow: 0 16px 28px rgba(var(--app-primary-rgb), 0.24);
 }
 
 .btn-secondary,
@@ -661,8 +672,8 @@ textarea.form-control,
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  border: 3px solid rgba(47, 157, 105, 0.14);
-  border-top-color: var(--z-emerald);
+  border: 3px solid rgba(var(--app-primary-rgb), 0.14);
+  border-top-color: var(--app-primary);
   animation: z-spin 0.7s linear infinite;
 }
 

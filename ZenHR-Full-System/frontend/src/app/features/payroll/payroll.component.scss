@@ -74,12 +74,12 @@
 }
 
 .tone-emerald::before {
-  background: var(--z-emerald);
+  background: var(--app-primary);
 }
 
 .tone-emerald .stat-icon-shell {
-  background: rgba(45, 158, 107, 0.12);
-  color: var(--z-emerald);
+  background: rgba(var(--app-primary-rgb), 0.12);
+  color: var(--app-primary);
 }
 
 .tone-neutral::before {
@@ -210,7 +210,7 @@
   margin-top: var(--z-space-3);
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(45, 158, 107, 0.08);
+  background: rgba(var(--app-primary-rgb), 0.08);
   color: var(--z-text-secondary);
   font-size: 12.5px;
   line-height: 1.6;
@@ -226,7 +226,7 @@
 }
 
 .net-cell {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-weight: 700;
 }
 
@@ -242,8 +242,8 @@
   min-width: 220px;
   padding: 16px;
   border-radius: 14px;
-  background: rgba(45, 158, 107, 0.1);
-  border: 1px solid rgba(45, 158, 107, 0.2);
+  background: rgba(var(--app-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.2);
   display: grid;
   gap: 4px;
   text-align: end;
@@ -255,7 +255,7 @@
 }
 
 .net-highlight strong {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: 24px;
 }
 

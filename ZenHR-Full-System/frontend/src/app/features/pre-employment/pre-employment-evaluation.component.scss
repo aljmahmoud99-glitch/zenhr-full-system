@@ -78,7 +78,7 @@
   min-width: 46px;
   height: 32px;
   border-radius: 999px;
-  background: rgba(47, 157, 105, 0.08);
+  background: rgba(var(--app-primary-rgb), 0.08);
   color: var(--z-emerald);
   display: inline-flex;
   align-items: center;

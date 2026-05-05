@@ -10,7 +10,7 @@
 }
 
 .eyebrow {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -54,9 +54,9 @@
 
 .view-tab:hover,
 .view-tab.active {
-  border-color: rgba(45, 158, 107, 0.22);
-  background: rgba(45, 158, 107, 0.08);
-  color: var(--z-emerald);
+  border-color: rgba(var(--app-primary-rgb), 0.22);
+  background: rgba(var(--app-primary-rgb), 0.08);
+  color: var(--app-primary);
 }
 
 .tab-badge {
@@ -106,7 +106,7 @@
   gap: 12px;
   min-height: 136px;
   align-content: space-between;
-  border-top: 4px solid var(--z-emerald);
+  border-top: 4px solid var(--app-primary);
 }
 
 .kpi-card.warning {
@@ -147,14 +147,14 @@
 }
 
 .chip-btn.active {
-  background: var(--z-emerald);
-  border-color: var(--z-emerald);
-  color: var(--z-white);
+  background: var(--app-primary);
+  border-color: var(--app-primary);
+  color: var(--app-on-primary);
 }
 
 .chip-btn:hover:not(.active) {
-  background: rgba(45, 158, 107, 0.08);
-  border-color: rgba(45, 158, 107, 0.18);
+  background: rgba(var(--app-primary-rgb), 0.08);
+  border-color: rgba(var(--app-primary-rgb), 0.18);
   color: var(--z-text-primary);
 }
 
@@ -170,12 +170,12 @@
   padding: var(--z-space-4);
   border-radius: var(--z-radius-sm);
   border: 1px solid var(--z-border);
-  background: linear-gradient(180deg, rgba(45, 158, 107, 0.04) 0%, var(--z-white) 100%);
+  background: linear-gradient(180deg, rgba(var(--app-primary-rgb), 0.04) 0%, var(--z-white) 100%);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .entity-card:hover {
-  border-color: rgba(45, 158, 107, 0.24);
+  border-color: rgba(var(--app-primary-rgb), 0.24);
   box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
   transform: translateY(-1px);
 }
@@ -190,7 +190,7 @@
 }
 
 .entity-card em {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-style: normal;
   font-weight: 800;
   font-size: 1rem;
@@ -221,8 +221,8 @@
   min-height: 38px;
   padding: 0 14px;
   border-radius: 999px;
-  background: rgba(45, 158, 107, 0.08);
-  color: var(--z-emerald);
+  background: rgba(var(--app-primary-rgb), 0.08);
+  color: var(--app-primary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -369,8 +369,8 @@
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(45, 158, 107, 0.14);
-  border-top-color: var(--z-emerald);
+  border: 3px solid rgba(var(--app-primary-rgb), 0.14);
+  border-top-color: var(--app-primary);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }

@@ -1,13 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@400;500;600;700&display=swap');
 
 :root {
+  /* ── Brand theme (overridden at runtime by BrandingService) ──────────────── */
+  --app-primary:       #2d9e6b;
+  --app-primary-rgb:   45, 158, 107;
+  --app-primary-dark:  #1a5c3e;
+  --app-primary-light: #52d9a0;
+  --app-on-primary:    #ffffff;
+  --app-secondary:     #475569;
+  --app-accent:        #52d9a0;
+  --app-accent-rgb:    82, 217, 160;
+
+  /* ── Palette aliases — auto-follow app-primary ───────────────────────────── */
   --z-forest: #0f3d2b;
-  --z-pine: #1a5c3e;
-  --z-emerald: #2d9e6b;
-  --z-mint: #52d9a0;
+  --z-pine: var(--app-primary-dark);
+  --z-emerald: var(--app-primary);
+  --z-mint: var(--app-accent);
   --z-sage: #a8d5bc;
   --z-cream: #f7f9f7;
   --z-white: #ffffff;
+
+  /* ── Semantic (never change with branding) ───────────────────────────────── */
   --z-success: #16a34a;
   --z-warning: #d97706;
   --z-danger: #dc2626;
@@ -28,14 +41,6 @@
   --z-radius-md: 10px;
   --z-radius-lg: 16px;
   --z-radius-xl: 24px;
-
-  /* ── Brand theme (overridden at runtime by BrandingService) ──────────────── */
-  --app-primary:       #2d9e6b;
-  --app-primary-dark:  #1a5c3e;
-  --app-primary-light: #52d9a0;
-  --app-on-primary:    #ffffff;
-  --app-secondary:     #475569;
-  --app-accent:        #52d9a0;
   --z-space-1: 4px;
   --z-space-2: 8px;
   --z-space-3: 12px;

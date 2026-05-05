@@ -14,8 +14,8 @@
   width: fit-content;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(45, 158, 107, 0.12);
-  color: var(--z-emerald);
+  background: rgba(var(--app-primary-rgb), 0.12);
+  color: var(--app-primary);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -61,8 +61,8 @@
   }
 
   &.active {
-    border-color: rgba(45, 158, 107, 0.5);
-    box-shadow: 0 0 0 2px rgba(45, 158, 107, 0.15), var(--z-shadow-md);
+    border-color: rgba(var(--app-primary-rgb), 0.5);
+    box-shadow: 0 0 0 2px rgba(var(--app-primary-rgb), 0.15), var(--z-shadow-md);
     transform: translateY(-2px);
   }
 }
@@ -84,8 +84,8 @@
 }
 
 .report-card.active .card-icon {
-  background: linear-gradient(135deg, var(--z-emerald), var(--z-pine));
-  .material-icons { color: #fff; }
+  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-dark));
+  .material-icons { color: var(--app-on-primary); }
 }
 
 .financial-icon {
@@ -155,7 +155,7 @@
 
 .filter-icon {
   font-size: 20px;
-  color: var(--z-emerald);
+  color: var(--app-primary);
 }
 
 .toggle-filters-btn {
@@ -175,9 +175,9 @@
   .material-icons { font-size: 18px; }
 
   &:hover {
-    background: rgba(45, 158, 107, 0.06);
-    color: var(--z-forest);
-    border-color: rgba(45, 158, 107, 0.35);
+    background: rgba(var(--app-primary-rgb), 0.06);
+    color: var(--app-primary-dark);
+    border-color: rgba(var(--app-primary-rgb), 0.35);
   }
 }
 
@@ -256,7 +256,7 @@
   transition: background 0.12s;
   gap: 8px;
 
-  &:hover { background: rgba(45, 158, 107, 0.06); }
+  &:hover { background: rgba(var(--app-primary-rgb), 0.06); }
 }
 
 .emp-name {
@@ -290,9 +290,9 @@
   transition: all 0.15s;
 
   &:hover {
-    background: rgba(45, 158, 107, 0.08);
-    border-color: rgba(45, 158, 107, 0.4);
-    color: var(--z-forest);
+    background: rgba(var(--app-primary-rgb), 0.08);
+    border-color: rgba(var(--app-primary-rgb), 0.4);
+    color: var(--app-primary-dark);
   }
 }
 
@@ -358,8 +358,8 @@
   .material-icons { font-size: 18px; color: var(--z-forest); }
 
   &:hover {
-    background: rgba(45, 158, 107, 0.06);
-    border-color: rgba(45, 158, 107, 0.4);
+    background: rgba(var(--app-primary-rgb), 0.06);
+    border-color: rgba(var(--app-primary-rgb), 0.4);
   }
 
   &:disabled {
@@ -393,9 +393,9 @@
   gap: 4px;
   padding: 3px 6px 3px 12px;
   border-radius: 999px;
-  background: rgba(45, 158, 107, 0.1);
-  border: 1px solid rgba(45, 158, 107, 0.25);
-  color: var(--z-forest);
+  background: rgba(var(--app-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.25);
+  color: var(--app-primary-dark);
   font-size: 11.5px;
   font-weight: 600;
 }
@@ -408,14 +408,14 @@
   height: 18px;
   border-radius: 50%;
   border: none;
-  background: rgba(45, 158, 107, 0.2);
+  background: rgba(var(--app-primary-rgb), 0.2);
   color: var(--z-forest);
   cursor: pointer;
   padding: 0;
 
   .material-icons { font-size: 12px; }
 
-  &:hover { background: rgba(45, 158, 107, 0.35); }
+  &:hover { background: rgba(var(--app-primary-rgb), 0.35); }
 }
 
 /* ─── LOADING ─── */
@@ -430,7 +430,7 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 4px solid rgba(45, 158, 107, 0.14);
+  border: 4px solid rgba(var(--app-primary-rgb), 0.14);
   border-top-color: var(--z-emerald);
   animation: reports-spin 0.8s linear infinite;
 }
@@ -479,8 +479,8 @@
 }
 
 .kpi-highlight {
-  background: linear-gradient(135deg, rgba(45, 158, 107, 0.12), rgba(45, 158, 107, 0.06));
-  border-color: rgba(45, 158, 107, 0.3);
+  background: linear-gradient(135deg, rgba(var(--app-primary-rgb), 0.12), rgba(var(--app-primary-rgb), 0.06));
+  border-color: rgba(var(--app-primary-rgb), 0.3);
   .kpi-value { color: var(--z-emerald); }
 }
 
@@ -630,8 +630,8 @@ tr.traffic-green { background: rgba(34, 197, 94, 0.04); }
   .material-icons { font-size: 18px; }
 
   &:hover:not(:disabled) {
-    background: rgba(45, 158, 107, 0.08);
-    border-color: rgba(45, 158, 107, 0.4);
+    background: rgba(var(--app-primary-rgb), 0.08);
+    border-color: rgba(var(--app-primary-rgb), 0.4);
     color: var(--z-forest);
   }
 

@@ -11,15 +11,15 @@
   gap: 4px 7px;
   padding: 10px 16px;
   border-radius: 14px;
-  background: rgba(47, 157, 105, 0.055);
-  border: 1px solid rgba(47, 157, 105, 0.14);
+  background: rgba(var(--app-primary-rgb), 0.055);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.14);
   font-size: 12px;
   color: var(--z-text-secondary);
 }
 
 .scope-banner-icon {
   font-size: 15px !important;
-  color: var(--z-emerald, #2d9e6b);
+  color: var(--app-primary);
   opacity: 0.82;
   flex-shrink: 0;
 }
@@ -113,7 +113,7 @@
 }
 
 .hero-action.primary {
-  box-shadow: 0 18px 30px rgba(47, 157, 105, 0.12);
+  box-shadow: 0 18px 30px rgba(var(--app-primary-rgb), 0.12);
 }
 
 .hero-action .material-icons {
@@ -278,13 +278,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: rgba(47, 157, 105, 0.1);
-  color: var(--z-emerald);
+  background: rgba(var(--app-primary-rgb), 0.1);
+  color: var(--app-primary);
   flex-shrink: 0;
 }
 
 .employee-widget-card.tone-emerald .employee-widget-icon {
-  background: rgba(47, 157, 105, 0.1);
+  background: rgba(var(--app-primary-rgb), 0.1);
   color: #18734c;
 }
 
@@ -305,7 +305,7 @@
 
 .employee-widget-link {
   margin-top: auto;
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: 12px;
   font-weight: 800;
 }
@@ -346,12 +346,12 @@
 
 .employee-quick-action:hover {
   transform: translateY(-1px);
-  border-color: rgba(47, 157, 105, 0.18);
+  border-color: rgba(var(--app-primary-rgb), 0.18);
   box-shadow: 0 14px 26px rgba(15, 23, 42, 0.06);
 }
 
 .employee-quick-action .material-icons {
-  color: var(--z-emerald);
+  color: var(--app-primary);
 }
 
 .dashboard-card-grid {
@@ -524,7 +524,7 @@
 }
 
 .panel-link {
-  color: var(--z-emerald);
+  color: var(--app-primary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -549,7 +549,7 @@
   gap: 6px;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(47, 157, 105, 0.16);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.16);
   background: rgba(240, 253, 244, 0.92);
 }
 
@@ -635,7 +635,7 @@
 
 .quick-action-card .material-icons,
 .shortcut-link .material-icons {
-  color: var(--z-emerald);
+  color: var(--app-primary);
 }
 
 .activity-item,

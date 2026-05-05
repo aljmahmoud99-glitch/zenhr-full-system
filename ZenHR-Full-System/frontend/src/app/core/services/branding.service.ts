@@ -34,25 +34,47 @@ export class BrandingService {
 
   applyToDocument(data: BrandingData): void {
     const root = document.documentElement;
+
     if (data.primaryColor && /^#[0-9A-Fa-f]{6}$/.test(data.primaryColor)) {
-      root.style.setProperty('--app-primary', data.primaryColor);
-      root.style.setProperty('--app-primary-dark', this.darken(data.primaryColor, 0.5));
-      root.style.setProperty('--app-primary-light', this.lighten(data.primaryColor, 0.42));
-      root.style.setProperty('--app-on-primary', this.getOnColor(data.primaryColor));
+      const primary = data.primaryColor;
+      const dark    = this.darken(primary, 0.5);
+      const light   = this.lighten(primary, 0.42);
+      const rgb     = this.hexToRgbString(primary);
+      const on      = this.getOnColor(primary);
+
+      root.style.setProperty('--app-primary',       primary);
+      root.style.setProperty('--app-primary-rgb',   rgb);
+      root.style.setProperty('--app-primary-dark',  dark);
+      root.style.setProperty('--app-primary-light', light);
+      root.style.setProperty('--app-on-primary',    on);
+
+      /* keep legacy aliases in sync so var(--z-emerald) in component CSS works */
+      root.style.setProperty('--z-emerald', primary);
+      root.style.setProperty('--z-pine',    dark);
     }
+
     if (data.secondaryColor && /^#[0-9A-Fa-f]{6}$/.test(data.secondaryColor)) {
       root.style.setProperty('--app-secondary', data.secondaryColor);
     }
+
     if (data.accentColor && /^#[0-9A-Fa-f]{6}$/.test(data.accentColor)) {
-      root.style.setProperty('--app-accent', data.accentColor);
+      const accent    = data.accentColor;
+      const accentRgb = this.hexToRgbString(accent);
+      root.style.setProperty('--app-accent',     accent);
+      root.style.setProperty('--app-accent-rgb', accentRgb);
+      root.style.setProperty('--z-mint',         accent);
     }
   }
 
   resetToDefault(): void {
     const root = document.documentElement;
-    ['--app-primary', '--app-primary-dark', '--app-primary-light',
-     '--app-on-primary', '--app-secondary', '--app-accent']
-      .forEach(v => root.style.removeProperty(v));
+    [
+      '--app-primary', '--app-primary-rgb', '--app-primary-dark',
+      '--app-primary-light', '--app-on-primary',
+      '--app-secondary',
+      '--app-accent', '--app-accent-rgb',
+      '--z-emerald', '--z-pine', '--z-mint',
+    ].forEach(v => root.style.removeProperty(v));
     this.branding.set({});
     this.logoUrl.set('');
   }
@@ -64,6 +86,11 @@ export class BrandingService {
       parseInt(h.slice(2, 4), 16),
       parseInt(h.slice(4, 6), 16),
     ];
+  }
+
+  private hexToRgbString(hex: string): string {
+    const [r, g, b] = this.hexToRgb(hex);
+    return `${r}, ${g}, ${b}`;
   }
 
   private rgbToHex(r: number, g: number, b: number): string {
