@@ -77,6 +77,11 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.navGroups = this.access.getNavGroups();
     this.syncPageMeta();
     this.loadUnreadCount();
+
+    // Guarantee drawer is closed on initial load regardless of screen size
+    this.mobileNavOpen.set(false);
+    this.isMobileView.set(typeof window !== 'undefined' ? window.innerWidth <= 900 : false);
+
     const role = this.user()?.role ?? '';
     if (role !== 'superadmin') {
       this.tenant.load();

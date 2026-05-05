@@ -219,11 +219,12 @@
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════
-       MOBILE NAV DRAWER
+       MOBILE NAV DRAWER — only rendered when open (never on desktop)
   ══════════════════════════════════════════════════════════════ -->
-  <div class="mobile-overlay" *ngIf="mobileNavOpen()" (click)="toggleMobileNav()"></div>
+  <ng-container *ngIf="mobileNavOpen()">
+    <div class="mobile-overlay" (click)="toggleMobileNav()"></div>
 
-  <nav class="mobile-drawer" [class.mobile-drawer-open]="mobileNavOpen()" aria-label="Mobile navigation">
+    <nav class="mobile-drawer" aria-label="Mobile navigation">
     <div class="drawer-header">
       <div class="drawer-brand">
         <div class="logo-mark logo-mark-sm">Z</div>
@@ -271,7 +272,8 @@
         {{ 'nav.logout' | translate }}
       </button>
     </div>
-  </nav>
+    </nav>
+  </ng-container>
 
   <!-- ══════════════════════════════════════════════════════════════
        MAIN AREA

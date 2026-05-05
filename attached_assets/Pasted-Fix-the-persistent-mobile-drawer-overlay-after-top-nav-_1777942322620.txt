@@ -1,0 +1,75 @@
+Fix the persistent mobile drawer overlay after top-nav migration.
+
+Current bug:
+On desktop, an old left drawer opens automatically and stays visible with a dark/blur backdrop over the page. The X button does not fully remove the overlay. This must not exist on desktop at all.
+
+Required fix:
+1. Search the Angular app for every drawer/sidebar state and component:
+   drawerOpen, isDrawerOpen, sidebarOpen, isSidebarOpen, mobileMenuOpen,
+   app-sidebar, sidebar, drawer, overlay, backdrop, blur, z-backdrop.
+
+2. In the main app layout/header component:
+   - Set drawerOpen default to false.
+   - Remove any automatic opening based on screen size.
+   - Do NOT open drawer on desktop.
+   - Hamburger/menu button should only toggle drawer on mobile/tablet.
+
+3. Desktop rule:
+   For screens >= 1024px:
+   - drawer component must not render OR must be display:none.
+   - backdrop must not render.
+   - body/content must not get blur, opacity, or pointer-events:none.
+   - old sidebar must not appear anywhere.
+
+4. Angular template requirement:
+   The drawer/backdrop must be wrapped like:
+   `*ngIf="drawerOpen() && isMobile()"`
+   or equivalent.
+
+5. CSS hard override:
+   Add desktop media query:
+   @media (min-width: 1024px) {
+     .mobile-drawer,
+     .sidebar-drawer,
+     .drawer-backdrop,
+     .nav-backdrop,
+     .layout-backdrop {
+       display: none !important;
+       opacity: 0 !important;
+       pointer-events: none !important;
+       visibility: hidden !important;
+     }
+
+     .app-shell,
+     .main-content,
+     .page-content {
+       filter: none !important;
+       opacity: 1 !important;
+       pointer-events: auto !important;
+     }
+   }
+
+6. Close behavior:
+   - X button must set drawerOpen(false)
+   - backdrop click must set drawerOpen(false)
+   - every menu link click must set drawerOpen(false)
+   - Router NavigationEnd must set drawerOpen(false)
+   - window resize to desktop must set drawerOpen(false)
+
+7. Remove duplicated navigation:
+   There should be only one navigation system on desktop: the top bar.
+   Remove any old sidebar invocation from app layout if it is not strictly mobile-only.
+
+8. QA:
+   - Open dashboard on desktop: no drawer, no blur backdrop.
+   - Refresh page: no drawer.
+   - Navigate between routes: no drawer.
+   - Click top nav dropdowns: old drawer must not appear.
+   - Resize mobile: drawer opens only by hamburger.
+   - Resize back to desktop: drawer closes automatically.
+   - Build passes and console has no errors.
+
+Return exactly:
+- files changed
+- root cause
+- final desktop/mobile behavior
