@@ -183,35 +183,21 @@
           <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
         </a>
 
-        <!-- Grouped tabs -->
+        <!-- Grouped tabs — dropdown rendered as a fixed portal outside overflow containers -->
         <ng-container *ngFor="let group of navGroups">
           <div
             class="nav-group-wrap"
             [class.group-active]="isActiveGroup(group)"
             [class.group-open]="activeGroupKey() === group.groupKey"
-            (mouseenter)="openGroup(group.groupKey)"
-            (mouseleave)="scheduleCloseGroup()">
+            (mouseenter)="openGroup(group.groupKey, $event)"
+            (mouseleave)="scheduleCloseGroup()"
+            (click)="toggleGroup(group.groupKey, $event)">
 
-            <button type="button" class="group-tab-btn">
+            <button type="button" class="group-tab-btn" (click)="$event.stopPropagation()">
               <span class="material-icons group-tab-icon">{{ group.icon }}</span>
               <span class="group-tab-label">{{ label(group.labelAr, group.labelEn) }}</span>
               <span class="material-icons group-tab-arrow">expand_more</span>
             </button>
-
-            <div
-              class="group-dropdown"
-              *ngIf="activeGroupKey() === group.groupKey"
-              (mouseenter)="cancelCloseGroup()"
-              (mouseleave)="scheduleCloseGroup()">
-              <a
-                *ngFor="let item of group.items"
-                [routerLink]="item.path"
-                routerLinkActive="dropdown-item-active"
-                class="dropdown-item">
-                <span class="material-icons dropdown-item-icon">{{ item.icon }}</span>
-                <span class="dropdown-item-label">{{ label(item.labelAr, item.labelEn) }}</span>
-              </a>
-            </div>
           </div>
         </ng-container>
       </div>
@@ -313,6 +299,34 @@
     <main class="main-content z-page">
       <router-outlet />
     </main>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       NAV DROPDOWN PORTAL — fixed position, escapes all overflow containers
+       Renders outside app-topbar so no clipping can occur.
+  ══════════════════════════════════════════════════════════════ -->
+  <div
+    class="nav-dropdown-portal"
+    *ngIf="activeGroupKey() && !isMobileView()"
+    [style.left.px]="i18n.isRTL() ? null : dropdownX()"
+    [style.right.px]="i18n.isRTL() ? dropdownX() : null"
+    [style.top.px]="dropdownY()"
+    [class.portal-rtl]="i18n.isRTL()"
+    (mouseenter)="cancelCloseGroup()"
+    (mouseleave)="scheduleCloseGroup()">
+    <ng-container *ngFor="let group of navGroups">
+      <ng-container *ngIf="activeGroupKey() === group.groupKey">
+        <a
+          *ngFor="let item of group.items"
+          [routerLink]="item.path"
+          routerLinkActive="dropdown-item-active"
+          class="dropdown-item"
+          (click)="activeGroupKey.set(null)">
+          <span class="material-icons dropdown-item-icon">{{ item.icon }}</span>
+          <span class="dropdown-item-label">{{ label(item.labelAr, item.labelEn) }}</span>
+        </a>
+      </ng-container>
+    </ng-container>
   </div>
 
   <app-toast-container />

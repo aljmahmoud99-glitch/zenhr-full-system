@@ -45,6 +45,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
   isMobileView = signal(typeof window !== 'undefined' ? window.innerWidth <= 900 : false);
   mobileNavOpen = signal(false);
   activeGroupKey = signal<string | null>(null);
+  dropdownX = signal(0);
+  dropdownY = signal(0);
   endingImpersonation = signal(false);
   currentPage = signal<NavItem | null>(null);
   today = signal(new Date());
@@ -119,9 +121,28 @@ export class LayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  openGroup(key: string) {
+  openGroup(key: string, event?: MouseEvent) {
     if (this._dropdownCloseTimer) clearTimeout(this._dropdownCloseTimer);
+    if (event) {
+      const wrap = event.currentTarget as HTMLElement;
+      const rect = wrap.getBoundingClientRect();
+      if (this.i18n.isRTL()) {
+        this.dropdownX.set(window.innerWidth - rect.right);
+      } else {
+        this.dropdownX.set(rect.left);
+      }
+      this.dropdownY.set(rect.bottom);
+    }
     this.activeGroupKey.set(key);
+  }
+
+  toggleGroup(key: string, event: MouseEvent) {
+    event.stopPropagation();
+    if (this.activeGroupKey() === key) {
+      this.activeGroupKey.set(null);
+    } else {
+      this.openGroup(key, event);
+    }
   }
 
   scheduleCloseGroup() {
