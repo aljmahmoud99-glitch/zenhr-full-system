@@ -1,15 +1,43 @@
+/* ═══════════════════════════════════════════════════════════════════
+   GLOBAL LAYOUT — Top Navigation Shell (Workflow 24)
+   All sidebar rules have been removed. Layout is a vertical column:
+   app-topbar → main-area (flex: 1)
+═══════════════════════════════════════════════════════════════════ */
+
 .z-app-shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  background: var(--z-cream);
+  background: var(--z-bg, var(--z-cream));
 }
-.z-sidebar { width: 260px; flex-shrink: 0; position: fixed; height: 100vh; }
-.z-main { margin-inline-start: 260px; flex: 1; display: flex; flex-direction: column; }
-.z-topbar { height: 64px; position: sticky; top: 0; z-index: 100; }
-.z-page { padding: 28px 32px; flex: 1; }
-.z-page-header { 
-  display: flex; justify-content: space-between; align-items: flex-start;
+
+/* No sidebar — main content fills full width */
+.z-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Topbar — basic positioning only; row structure handled by component */
+.z-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* Page content area */
+.z-page {
+  padding: 28px 32px;
+  flex: 1;
+}
+
+.z-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 28px;
+
   h1 { font-size: 22px; font-weight: 700; color: var(--z-text-primary); margin: 0; }
   p  { font-size: 14px; color: var(--z-text-muted); margin: 4px 0 0; }
 }

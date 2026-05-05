@@ -1,0 +1,69 @@
+Fix navigation overlay bug after Top Bar migration.
+
+Issue:
+After replacing sidebar with top navigation, the old sidebar/drawer still appears as an overlay and stays open on top of the page. It shows the old vertical menu with ZenJO logo and close button. Even after clicking X or navigating, it remains visible / duplicated with the new top bar.
+
+Required fix:
+1. Find all old sidebar/drawer components, states, overlays, and CSS:
+   - sidebar
+   - side-nav
+   - drawer
+   - mobile-menu
+   - nav-overlay
+   - layout-sidebar
+   - isSidebarOpen
+   - sidebarOpen
+   - toggleSidebar
+   - closeSidebar
+   - backdrop
+   - overlay
+
+2. Remove the old sidebar from desktop layout completely.
+   The app should only render:
+   - header/top bar
+   - grouped top navigation
+   - page content
+
+3. For mobile only:
+   If a drawer is still needed, it must:
+   - be hidden by default
+   - open only when hamburger is clicked
+   - close when X is clicked
+   - close when clicking backdrop
+   - close after selecting any route
+   - never auto-open on desktop
+   - never remain visible after route change
+
+4. Make sure there is no duplicate navigation:
+   - no old vertical menu on desktop
+   - no overlay blocking page content
+   - no blurred page unless mobile drawer is intentionally open
+   - no duplicate ZenJO logo/menu panel
+
+5. Fix CSS:
+   - old sidebar classes should not have fixed position/display:block on desktop
+   - backdrop should render only when drawerOpen === true
+   - on desktop min-width >= 1024px, drawer/sidebar must be display:none
+   - page content should not have old margin-right/sidebar padding
+
+6. Check the layout template:
+   Remove any leftover:
+   <app-sidebar>
+   <app-side-nav>
+   <aside class="sidebar">
+   <div class="sidebar-overlay">
+   unless used only inside mobile drawer with *ngIf="drawerOpen()"
+
+7. Add route-change close behavior:
+   Subscribe to Router NavigationEnd and set drawerOpen(false).
+
+8. Final QA:
+   - HR desktop: only top nav visible, no side overlay.
+   - Click every top nav group: dropdown opens/closes normally.
+   - Navigate to job descriptions/employees/settings: old sidebar never appears.
+   - Refresh page: old sidebar still hidden.
+   - Mobile width: hamburger opens drawer, X closes it, route click closes it.
+   - Browser console clean.
+   - Angular build passes.
+
+Return final report with files changed and screenshots/confirmation.
