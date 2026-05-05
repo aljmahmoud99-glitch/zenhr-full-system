@@ -176,9 +176,10 @@
 
         <!-- Dashboard direct link -->
         <a
-          [routerLink]="navGroups.length > 0 ? navGroups[0].items[0].path : '/app/dashboard'"
+          [routerLink]="dashboardRoute"
           routerLinkActive="nav-direct-active"
-          class="nav-direct-link">
+          class="nav-direct-link"
+          (click)="activeGroupKey.set(null)">
           <span class="material-icons">dashboard</span>
           <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
         </a>
@@ -224,7 +225,7 @@
     <div class="drawer-body">
       <!-- Dashboard -->
       <a
-        [routerLink]="navGroups.length > 0 ? navGroups[0].items[0].path : '/app/dashboard'"
+        [routerLink]="dashboardRoute"
         routerLinkActive="drawer-item-active"
         class="drawer-direct-link"
         (click)="toggleMobileNav()">

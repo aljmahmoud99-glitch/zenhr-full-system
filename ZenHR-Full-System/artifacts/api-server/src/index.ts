@@ -422,6 +422,108 @@ app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
+// ─── Dashboard: 7-day attendance trend ───────────────────────────────────────
+app.get("/api/dashboard/attendance-trend", auth, async (req, res) => {
+  try {
+    const authReq = req as AuthReq;
+    const scope = await getEmployeeScopeConditions(authReq);
+    const empConds = [...scope, eq(employeesTable.isDeleted, false)];
+    const scopedEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...empConds));
+    const scopedIds = scopedEmps.map(e => e.id);
+
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      days.push(d.toISOString().split("T")[0]!);
+    }
+
+    if (!scopedIds.length) {
+      return res.json({ success: true, data: days.map(date => ({ date, present: 0, total: 0 })) });
+    }
+
+    const records = await db.select({
+      date: attendanceRecordsTable.date,
+      count: sql<number>`count(*)::int`,
+    }).from(attendanceRecordsTable)
+      .where(and(
+        inArray(attendanceRecordsTable.employeeId, scopedIds),
+        inArray(attendanceRecordsTable.date, days),
+        isNotNull(attendanceRecordsTable.clockIn),
+      ))
+      .groupBy(attendanceRecordsTable.date);
+
+    const countMap: Record<string, number> = {};
+    records.forEach(r => { countMap[r.date] = r.count; });
+    const total = scopedIds.length;
+
+    res.json({
+      success: true,
+      data: days.map(date => ({ date, present: countMap[date] ?? 0, total })),
+    });
+  } catch (e) {
+    console.error("[/api/dashboard/attendance-trend]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Dashboard: leave type breakdown (current year, approved, scoped) ─────────
+app.get("/api/dashboard/leave-type-breakdown", auth, async (req, res) => {
+  try {
+    const authReq = req as AuthReq;
+    const user = authReq.user;
+    const scope = await getEmployeeScopeConditions(authReq);
+    const empConds = [...scope, eq(employeesTable.isDeleted, false)];
+    const scopedEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...empConds));
+    const scopedIds = scopedEmps.map(e => e.id);
+
+    if (!scopedIds.length) return res.json({ success: true, data: [] });
+
+    const thisYear = new Date().getFullYear().toString();
+    const rows = await db.select({
+      leaveTypeId: leaveRequestsTable.leaveTypeId,
+      count: sql<number>`count(*)::int`,
+    }).from(leaveRequestsTable)
+      .where(and(
+        inArray(leaveRequestsTable.employeeId, scopedIds),
+        eq(leaveRequestsTable.isDeleted, false),
+        eq(leaveRequestsTable.status, "approved"),
+        sql`EXTRACT(YEAR FROM ${leaveRequestsTable.startDate}::date)::text = ${thisYear}`,
+      ))
+      .groupBy(leaveRequestsTable.leaveTypeId);
+
+    const types = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.companyId, user.companyId));
+    const result = rows.map(r => {
+      const lt = types.find(t => t.id === r.leaveTypeId);
+      return { leaveTypeId: r.leaveTypeId, nameAr: lt?.nameAr ?? "أخرى", nameEn: lt?.nameEn ?? "Other", count: r.count };
+    }).sort((a, b) => b.count - a.count);
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    console.error("[/api/dashboard/leave-type-breakdown]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Dashboard: payroll runs by status (HR / payrolladmin / superadmin) ───────
+app.get("/api/dashboard/payroll-status-breakdown", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const rows = await db.select({
+      status: payrollRunsTable.status,
+      count: sql<number>`count(*)::int`,
+    }).from(payrollRunsTable)
+      .where(eq(payrollRunsTable.companyId, user.companyId))
+      .groupBy(payrollRunsTable.status);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/dashboard/payroll-status-breakdown]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // ─── Employee enrichment helper ───────────────────────────────────────────────
 async function loadOrgEnrichmentMaps(companyId: number) {
   const [allDepts, allJobs, allOrgNodes] = await Promise.all([

@@ -1,0 +1,57 @@
+Fix two dashboard/navigation issues:
+
+1) Dashboard navigation bug:
+- The “لوحة التحكم / Dashboard” top-nav item must always navigate to the correct dashboard route.
+- When clicked from any page, it should route to /app/dashboard or the correct role dashboard route.
+- It must close any open dropdown.
+- It must clear active dropdown state.
+- It must work in Arabic/RTL and English/LTR.
+- Verify from /app/job-descriptions, /app/employees, /app/settings, and any workflow page.
+
+2) Real dashboard charts per role:
+Add real charts to every role dashboard using live backend data, not static numbers.
+
+Roles:
+- HR dashboard:
+  charts for employee status distribution, attendance today, pending workflows, compliance alerts, documents expiring, payroll summary, leave/overtime trends.
+- Manager dashboard:
+  team attendance, team leave requests, team overtime, team documents/compliance alerts, team workflow requests.
+- Employee dashboard:
+  own attendance/monthly hours, leave balance/requests, payslip trend, own assets/documents/compliance status, workflow request status.
+- Payroll dashboard:
+  payroll runs by status, salary components totals, deductions vs earnings, payslip/payment totals, pending salary changes.
+- Admin/Superadmin dashboard:
+  users by role/status, system activity logs, active modules, settings health, company counts if available.
+
+Backend requirements:
+- Add or fix dashboard summary endpoints if missing.
+- All data must be scoped by companyId.
+- Employee role sees only own data.
+- Manager role sees only team data.
+- Payroll sees payroll-related data only.
+- HR/superadmin sees company-wide HR data.
+- No salary/payroll-sensitive data should leak to employee or manager dashboards unless already allowed.
+
+Frontend requirements:
+- Use existing chart library if installed. If none, implement lightweight CSS/SVG charts.
+- Charts must handle empty data gracefully.
+- Loading and error states required.
+- Dashboard cards should still show counts, but charts must reflect real API data.
+- Theme colors from saved company theme must apply to charts, dashboard cards, top nav, and dropdowns after refresh.
+
+QA:
+- Click Dashboard from all major pages → correct route loads.
+- Open dropdown then click Dashboard → dropdown closes and dashboard loads.
+- Refresh dashboard → theme remains applied.
+- Login as hr, manager.hr, employee01, payroll, admin/superadmin and verify each sees only allowed charts/data.
+- Verify no hardcoded chart data remains.
+- Verify API returns 401 no token, 403 wrong role where applicable.
+- Verify no console errors or failed network requests.
+
+Return:
+- Root cause.
+- Files changed.
+- Endpoints added/changed.
+- Role-by-role chart list.
+- Security/scope verification.
+- Final QA report.

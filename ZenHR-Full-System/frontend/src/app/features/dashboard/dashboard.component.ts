@@ -82,6 +82,9 @@ type EmployeeQuickAction = {
 };
 
 type EmployeeWidgetKey = 'attendance' | 'requests' | 'leave' | 'payslip' | 'compliance' | 'assets';
+type AttendanceDay = { date: string; present: number; total: number };
+type LeaveTypeRow = { leaveTypeId: number; nameAr: string; nameEn: string; count: number };
+type PayrollStatusRow = { status: string; count: number };
 
 @Component({
   selector: 'app-dashboard',
@@ -109,6 +112,9 @@ export class DashboardComponent implements OnInit {
   employeeAdvances = signal<any[]>([]);
   employeeAssets = signal<any[]>([]);
   loading = signal(true);
+  attendanceTrend = signal<AttendanceDay[]>([]);
+  leaveTypeBreakdown = signal<LeaveTypeRow[]>([]);
+  payrollStatusBreakdown = signal<PayrollStatusRow[]>([]);
   employeeWidgetLoading = signal<Record<EmployeeWidgetKey, boolean>>({
     attendance: false,
     requests: false,
@@ -276,6 +282,72 @@ export class DashboardComponent implements OnInit {
     ];
   });
 
+  readonly attendanceDonutGradient = computed(() => {
+    const s = this.summary();
+    if (!s || s.totalEmployees === 0) return 'conic-gradient(#e2e8f0 0% 100%)';
+    const total = s.totalEmployees || 1;
+    const p = (s.presentToday / total) * 100;
+    const l = (s.onLeaveToday / total) * 100;
+    return `conic-gradient(var(--app-primary, #2d9e6b) 0% ${p}%, #f59e0b ${p}% ${p + l}%, #ef4444 ${p + l}% 100%)`;
+  });
+
+  readonly payrollGradient = computed(() => {
+    const rows = this.payrollStatusBreakdown();
+    if (!rows.length) return 'conic-gradient(#e2e8f0 0% 100%)';
+    const total = rows.reduce((s, r) => s + r.count, 0) || 1;
+    const colorMap: Record<string, string> = { draft: '#94a3b8', approved: '#f59e0b', paid: '#2d9e6b', unpaid: '#ef4444' };
+    let acc = 0;
+    const stops = rows.map(r => {
+      const pct = (r.count / total) * 100;
+      const stop = `${colorMap[r.status] ?? '#94a3b8'} ${acc.toFixed(1)}% ${(acc + pct).toFixed(1)}%`;
+      acc += pct;
+      return stop;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  });
+
+  readonly attendanceTrendMax = computed(() => {
+    const days = this.attendanceTrend();
+    return Math.max(...days.map(d => d.present), 1);
+  });
+
+  readonly leaveTypeMax = computed(() => {
+    return Math.max(...this.leaveTypeBreakdown().map(r => r.count), 1);
+  });
+
+  readonly payrollTotal = computed(() => {
+    return this.payrollStatusBreakdown().reduce((s, r) => s + r.count, 0);
+  });
+
+  readonly leaveBalanceBars = computed(() => {
+    return this.leaveBalances()
+      .map(b => ({
+        nameAr: b.leaveTypeNameAr ?? 'إجازة',
+        nameEn: b.leaveTypeNameEn ?? 'Leave',
+        used: Number(b.usedDays || 0),
+        remaining: Number(b.remainingDays || 0),
+        total: Number(b.usedDays || 0) + Number(b.remainingDays || 0),
+      }))
+      .filter(b => b.total > 0);
+  });
+
+  readonly leaveBalanceMax = computed(() => {
+    return Math.max(...this.leaveBalanceBars().map(b => b.total), 1);
+  });
+
+  readonly pendingItemsData = computed(() => {
+    const s = this.summary();
+    const advCount = this.pendingAdvances().length;
+    const otCount = s?.pendingOvertimes ?? 0;
+    const leaveCount = s?.pendingLeaves ?? 0;
+    const maxVal = Math.max(advCount, otCount, leaveCount, 1);
+    return [
+      { labelAr: 'إجازات', labelEn: 'Leaves', count: leaveCount, pct: (leaveCount / maxVal) * 100 },
+      { labelAr: 'عمل إضافي', labelEn: 'Overtime', count: otCount, pct: (otCount / maxVal) * 100 },
+      { labelAr: 'سلف', labelEn: 'Advances', count: advCount, pct: (advCount / maxVal) * 100 },
+    ];
+  });
+
   ngOnInit() {
     if (this.role !== 'superadmin') {
       this.tenant.load();
@@ -300,6 +372,9 @@ export class DashboardComponent implements OnInit {
     this.loadManagerQueue();
     this.loadPayrollRuns();
     this.loadPendingAdvances();
+    this.loadAttendanceTrend();
+    this.loadLeaveTypeBreakdown();
+    this.loadPayrollStatusBreakdown();
   }
 
   t(ar: string, en: string) {
@@ -856,6 +931,45 @@ export class DashboardComponent implements OnInit {
 
   private updateEmployeeWidgetError(key: EmployeeWidgetKey, value: string | null) {
     this.employeeWidgetErrors.update(current => ({ ...current, [key]: value }));
+  }
+
+  dayLabel(date: string): string {
+    try {
+      return new Intl.DateTimeFormat(this.lang === 'ar' ? 'ar-JO' : 'en-US', { weekday: 'short' }).format(new Date(date));
+    } catch {
+      return date.slice(5);
+    }
+  }
+
+  payrollStatusColor(status: string): string {
+    const map: Record<string, string> = { draft: '#94a3b8', approved: '#f59e0b', paid: '#2d9e6b', unpaid: '#ef4444' };
+    return map[status] ?? '#94a3b8';
+  }
+
+  payrollStatusLabelAr(status: string): string {
+    const ar: Record<string, string> = { draft: 'مسودة', approved: 'موافق عليه', paid: 'مدفوع', unpaid: 'غير مدفوع' };
+    return ar[status] ?? status;
+  }
+
+  private loadAttendanceTrend() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'payrolladmin', 'manager')) return;
+    this.api.get<ApiResponse<AttendanceDay[]>>('/api/dashboard/attendance-trend').subscribe({
+      next: r => this.attendanceTrend.set(r.data ?? []),
+    });
+  }
+
+  private loadLeaveTypeBreakdown() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'manager')) return;
+    this.api.get<ApiResponse<LeaveTypeRow[]>>('/api/dashboard/leave-type-breakdown').subscribe({
+      next: r => this.leaveTypeBreakdown.set(r.data ?? []),
+    });
+  }
+
+  private loadPayrollStatusBreakdown() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'payrolladmin')) return;
+    this.api.get<ApiResponse<PayrollStatusRow[]>>('/api/dashboard/payroll-status-breakdown').subscribe({
+      next: r => this.payrollStatusBreakdown.set(r.data ?? []),
+    });
   }
 
   private card(

@@ -725,3 +725,216 @@
     width: 100%;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   LIVE CHARTS — conic-gradient donut + CSS bar charts
+══════════════════════════════════════════════════════════ */
+
+/* Chart row: two cards side by side */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--z-space-4);
+}
+
+.chart-panel {
+  padding: var(--z-space-4);
+}
+
+@media (max-width: 900px) {
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Conic-gradient donut chart ── */
+.donut-chart-shell {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+.donut-chart-shell.donut-sm {
+  gap: 16px;
+}
+
+.donut-wrap {
+  flex-shrink: 0;
+}
+
+.donut-disc {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  position: relative;
+  isolation: isolate;
+}
+
+.donut-chart-shell.donut-sm .donut-disc {
+  width: 72px;
+  height: 72px;
+}
+
+.donut-hole {
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: var(--z-surface, #ffffff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.donut-center-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--z-text-primary);
+  line-height: 1;
+}
+
+.donut-center-label {
+  font-size: 8px;
+  color: var(--z-text-muted);
+  font-weight: 500;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.primary-dot {
+  background: var(--app-primary, #2d9e6b);
+}
+
+.legend-label {
+  flex: 1;
+  color: var(--z-text-secondary);
+  font-weight: 500;
+}
+
+.legend-count {
+  color: var(--z-text-primary);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* ── 7-day attendance bar chart ── */
+.bar-chart-shell {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 88px;
+  padding: 8px 0 0;
+}
+
+.bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  height: 100%;
+}
+
+.bar-track {
+  flex: 1;
+  width: 100%;
+  background: rgba(45, 158, 107, 0.08);
+  border-radius: 6px 6px 4px 4px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--app-primary, #2d9e6b);
+  border-radius: 5px 5px 3px 3px;
+  transition: height 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 3px;
+}
+
+.bar-day {
+  font-size: 10px;
+  color: var(--z-text-muted);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bar-count {
+  font-size: 11px;
+  color: var(--z-text-secondary);
+  font-weight: 700;
+}
+
+/* ── Leave type fill (amber accent) ── */
+.leave-fill {
+  background: #f59e0b !important;
+}
+
+/* ── Employee leave balance split bar ── */
+.leave-bal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leave-bal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.leave-bal-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.leave-used-fill {
+  background: #94a3b8;
+  height: 100%;
+  transition: width 500ms ease;
+}
+
+.leave-rem-fill {
+  background: var(--app-primary, #2d9e6b);
+  height: 100%;
+  transition: width 500ms ease;
+}
+
+.leave-bal-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(20, 33, 28, 0.06);
+  font-size: 11px;
+  flex-wrap: wrap;
+}

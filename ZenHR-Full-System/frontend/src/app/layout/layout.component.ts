@@ -328,6 +328,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
     }).format(this.today());
   }
 
+  get dashboardRoute(): string {
+    const role = this.user()?.role ?? '';
+    if (role === 'superadmin') return '/admin/companies';
+    return '/app/dashboard';
+  }
+
   label(ar: string, en: string) {
     return this.i18n.currentLang === 'ar' ? ar : en;
   }

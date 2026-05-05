@@ -1,5 +1,35 @@
 # ZenJO HRMS — Replit Agent Guide
 
+## WF24 Dashboard Fixes & Live Charts (latest)
+
+### Dashboard Navigation Bug Fix
+- `layout.component.ts`: Added `get dashboardRoute()` getter — returns `/app/dashboard` for all roles, `/admin/companies` for superadmin
+- `layout.component.html`: Both desktop nav link and mobile drawer link now use `[routerLink]="dashboardRoute"` instead of `navGroups[0].items[0].path` (which incorrectly resolved to `/app/job-descriptions` for hradmin)
+
+### Live Data Charts — 3 New Backend Endpoints
+- `GET /api/dashboard/attendance-trend` — last 7 days presence counts, role-scoped
+- `GET /api/dashboard/leave-type-breakdown` — approved leaves by type (current year), role-scoped
+- `GET /api/dashboard/payroll-status-breakdown` — payroll runs by status (hradmin/payrolladmin/superadmin only)
+
+### Live Data Charts — Dashboard Frontend
+All charts use real API data, CSS conic-gradient (donuts) and CSS flexbox bars (no chart library needed):
+
+**For HR Admin / Superadmin / Manager:**
+- "Today's Workforce" donut — present / on-leave / absent distribution (`summary` endpoint data)
+- "7-Day Attendance Trend" — vertical CSS bar chart from `/api/dashboard/attendance-trend`
+- "Leave Distribution (This Year)" — horizontal bar chart by type from `/api/dashboard/leave-type-breakdown`
+- "Payroll Run Status" — mini donut in side column from `/api/dashboard/payroll-status-breakdown`
+
+**For Payroll Admin:**
+- "Today's Workforce" donut (same as above)
+- "Pending Items" — horizontal bars (leaves, overtime, advances pending)
+- "Payroll Run Status" mini donut in side column
+
+**For Employee:**
+- "My Leave Balances" — split bar chart (used vs remaining per type) from existing `leaveBalances` signal
+
+
+
 ## Overview
 
 ZenJO is an enterprise-grade, multi-tenant Human Resources Management System (HRMS) built specifically for Jordanian companies. It enforces Jordanian Labour Law No. 8/1996, SSC (Social Security Corporation) regulations, and Jordanian Income Tax Law.
