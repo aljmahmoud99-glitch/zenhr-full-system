@@ -1,232 +1,282 @@
-<div class="app-shell z-app-shell" [class.sidebar-closed]="!sidebarOpen()" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
-  <div class="layout-overlay" *ngIf="isMobileView() && sidebarOpen()" (click)="toggleSidebar()"></div>
+<div class="app-shell z-app-shell" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
 
-  <aside class="sidebar z-sidebar">
-    <div class="sidebar-brand-card">
-      <div class="logo-mark">Z</div>
-      <div class="brand-copy">
-        <strong class="logo-text">{{ 'app.name' | translate }}</strong>
-        <span class="logo-subtitle">{{ sidebarBadgeLabel }}</span>
-      </div>
-    </div>
+  <!-- ══════════════════════════════════════════════════════════════
+       STICKY TOP BAR  (header row + nav row)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="app-topbar z-topbar">
 
-    <nav class="sidebar-nav">
-      <ng-container *ngFor="let group of navGroups">
-        <div class="nav-group-label" *ngIf="sidebarOpen()">
-          {{ label(group.labelAr, group.labelEn) }}
-        </div>
+    <!-- ── Row 1: Brand + Search + Tools ── -->
+    <div class="topbar-header">
 
-        <a
-          *ngFor="let item of group.items"
-          [routerLink]="item.path"
-          routerLinkActive="active"
-          class="nav-item"
-          [attr.title]="!sidebarOpen() ? label(item.labelAr, item.labelEn) : null">
-          <span class="material-icons nav-icon">{{ item.icon }}</span>
-          <span class="nav-text" *ngIf="sidebarOpen()">{{ label(item.labelAr, item.labelEn) }}</span>
-        </a>
-      </ng-container>
-    </nav>
-
-    <div class="sidebar-footer">
-      <button class="footer-action logout-btn" type="button" (click)="logout()">
-        <span class="material-icons">logout</span>
-        <span class="footer-label" *ngIf="sidebarOpen()">{{ 'nav.logout' | translate }}</span>
-      </button>
-
-      <button
-        class="sidebar-toggle footer-action"
-        type="button"
-        (click)="toggleSidebar()"
-        [attr.aria-label]="sidebarToggleLabel">
-        <span class="material-icons">{{ sidebarOpen() ? (i18n.isRTL() ? 'right_panel_close' : 'left_panel_close') : (i18n.isRTL() ? 'right_panel_open' : 'left_panel_open') }}</span>
-        <span class="footer-label" *ngIf="sidebarOpen()">{{ sidebarToggleLabel }}</span>
-      </button>
-    </div>
-  </aside>
-
-  <section class="main-area z-main">
-    <header class="top-bar z-topbar">
-      <div class="topbar-page-meta">
-        <div class="page-title-block">
-          <div class="page-eyebrow">{{ pageEyebrow }}</div>
-          <h1 class="top-page-title">{{ pageTitle }}</h1>
-          <div class="breadcrumb-row">
-            <span>{{ pageSubtitle }}</span>
-            <ng-container *ngIf="tenantScopeLabel">
-              <span class="tenant-divider" aria-hidden="true">·</span>
-              <span class="tenant-scope-label">
-                <span class="material-icons tenant-scope-icon">corporate_fare</span>
-                {{ tenantScopeLabel }}
-              </span>
-            </ng-container>
-          </div>
+      <!-- Brand -->
+      <div class="header-brand">
+        <div class="logo-mark">Z</div>
+        <div class="brand-copy">
+          <strong class="logo-text">{{ 'app.name' | translate }}</strong>
+          <span class="logo-subtitle">{{ 'app.tagline' | translate }}</span>
         </div>
       </div>
 
+      <!-- Search -->
+      <label class="search-shell search-box">
+        <span class="material-icons search-icon">search</span>
+        <input class="top-search-input" [placeholder]="'shell.search' | translate" />
+      </label>
+
+      <!-- Tools -->
       <div class="topbar-tools">
+        <!-- Date pill -->
         <div class="date-pill">
           <span class="date-line">{{ todayDayLabel }}</span>
           <span class="date-line">{{ todayMonthLabel }}</span>
         </div>
 
-        <label class="search-shell search-box">
-          <span class="material-icons search-icon">search</span>
-          <input class="top-search-input" [placeholder]="'shell.search' | translate" />
-        </label>
-
-        <div class="topbar-actions">
-          <div class="topbar-lang-switch" role="group" [attr.aria-label]="currentLanguageLabel">
-            <button
-              type="button"
-              class="lang-chip"
-              [class.active]="i18n.currentLang === 'ar'"
-              (click)="setLang('ar')">
-              {{ languageLabel('ar') }}
-            </button>
-            <button
-              type="button"
-              class="lang-chip"
-              [class.active]="i18n.currentLang === 'en'"
-              (click)="setLang('en')">
-              {{ languageLabel('en') }}
-            </button>
-          </div>
-
-          <!-- ─── Notification Bell ─────────────────────────────────── -->
-          <div class="notification-shell">
-            <button
-              class="surface-icon notif-btn"
-              type="button"
-              [class.active]="notificationsOpen()"
-              [attr.aria-expanded]="notificationsOpen()"
-              [attr.aria-label]="'shell.notifications' | translate"
-              (click)="toggleNotifications()">
-              <span class="material-icons">notifications</span>
-              <span class="notif-count" *ngIf="notificationCount() > 0">
-                {{ notificationCount() > 99 ? '99+' : notificationCount() }}
-              </span>
-            </button>
-
-            <div class="notification-panel z-card" *ngIf="notificationsOpen()">
-              <!-- Panel Header -->
-              <div class="notification-panel-head">
-                <div class="notification-panel-title">
-                  {{ i18n.currentLang === 'ar' ? 'الإشعارات' : 'Notifications' }}
-                  <span class="notif-unread-badge" *ngIf="unreadCount() > 0">{{ unreadCount() }}</span>
-                </div>
-                <button
-                  class="notif-mark-all-btn"
-                  type="button"
-                  *ngIf="unreadCount() > 0"
-                  [disabled]="markingAllRead()"
-                  (click)="markAllRead()">
-                  <span class="material-icons">done_all</span>
-                  {{ i18n.currentLang === 'ar' ? 'تعيين الكل مقروءاً' : 'Mark all read' }}
-                </button>
-              </div>
-
-              <!-- Loading -->
-              <div class="notification-panel-body" *ngIf="notificationsLoading()">
-                <div class="notif-skeleton" *ngFor="let s of [1,2,3]">
-                  <div class="notif-skel-icon"></div>
-                  <div class="notif-skel-lines">
-                    <div class="notif-skel-line notif-skel-line--title"></div>
-                    <div class="notif-skel-line notif-skel-line--meta"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Empty State -->
-              <div class="notification-panel-body notif-empty-wrap" *ngIf="!notificationsLoading() && notifications().length === 0">
-                <span class="material-icons notif-empty-icon">notifications_off</span>
-                <div class="notification-empty-state">
-                  {{ i18n.currentLang === 'ar' ? 'لا توجد إشعارات حالياً' : 'No notifications right now' }}
-                </div>
-              </div>
-
-              <!-- List -->
-              <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
-                <div
-                  class="notification-item"
-                  [class.notification-item--unread]="item.status === 'unread'"
-                  [class.notification-item--high]="item.priority === 'high' || item.priority === 'urgent'"
-                  *ngFor="let item of notifications()">
-
-                  <!-- Unread dot -->
-                  <span class="notif-unread-dot" *ngIf="item.status === 'unread'" aria-label="unread"></span>
-
-                  <!-- Icon -->
-                  <div class="notification-item-icon" [class]="'notif-icon--' + notifIconColor(item.notificationType)">
-                    <span class="material-icons">{{ notifIcon(item.notificationType) }}</span>
-                  </div>
-
-                  <!-- Copy -->
-                  <div class="notification-item-copy">
-                    <div class="notification-item-title">
-                      {{ i18n.currentLang === 'ar' ? item.titleAr : item.titleEn }}
-                    </div>
-                    <div class="notification-item-meta">
-                      {{ i18n.currentLang === 'ar' ? item.messageAr : item.messageEn }}
-                    </div>
-                    <div class="notif-item-footer">
-                      <span class="notif-time">{{ timeAgo(item.createdAt) }}</span>
-                      <span
-                        class="notif-priority-badge"
-                        *ngIf="item.priority === 'urgent'"
-                        [class.notif-priority-badge--urgent]="true">
-                        {{ i18n.currentLang === 'ar' ? 'عاجل' : 'Urgent' }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Actions -->
-                  <div class="notif-item-actions">
-                    <button
-                      class="notif-action-btn"
-                      type="button"
-                      *ngIf="item.actionUrl"
-                      (click)="openNotifAction(item)"
-                      [attr.title]="i18n.currentLang === 'ar' ? 'فتح' : 'Open'">
-                      <span class="material-icons">open_in_new</span>
-                    </button>
-                    <button
-                      class="notif-action-btn notif-read-btn"
-                      type="button"
-                      *ngIf="item.status === 'unread'"
-                      (click)="markRead(item)"
-                      [attr.title]="i18n.currentLang === 'ar' ? 'تعيين مقروء' : 'Mark as read'">
-                      <span class="material-icons">check_circle_outline</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button class="top-user-chip" type="button">
-            <div class="avatar avatar-sm user-avatar-shell">
-              <img
-                *ngIf="avatarUrl && !avatarLoadFailed()"
-                class="avatar-image"
-                [src]="avatarUrl"
-                [alt]="userDisplayName"
-                (error)="onAvatarError()" />
-              <span class="avatar-fallback" *ngIf="!avatarUrl || avatarLoadFailed()">{{ getInitials() }}</span>
-            </div>
-            <div class="top-user-meta">
-              <div class="top-user-name">{{ userDisplayName }}</div>
-              <div class="top-user-role">{{ roleName }}</div>
-            </div>
-            <span class="material-icons top-user-arrow">expand_more</span>
+        <!-- Language switch -->
+        <div class="topbar-lang-switch" role="group" [attr.aria-label]="currentLanguageLabel">
+          <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'ar'" (click)="setLang('ar')">
+            {{ languageLabel('ar') }}
           </button>
-
-          <button class="surface-icon topbar-menu" type="button" (click)="toggleSidebar()">
-            <span class="material-icons">menu</span>
+          <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'en'" (click)="setLang('en')">
+            {{ languageLabel('en') }}
           </button>
         </div>
+
+        <!-- Notifications -->
+        <div class="notification-shell">
+          <button
+            class="surface-icon notif-btn"
+            type="button"
+            [class.active]="notificationsOpen()"
+            [attr.aria-expanded]="notificationsOpen()"
+            [attr.aria-label]="'shell.notifications' | translate"
+            (click)="toggleNotifications()">
+            <span class="material-icons">notifications</span>
+            <span class="notif-count" *ngIf="notificationCount() > 0">
+              {{ notificationCount() > 99 ? '99+' : notificationCount() }}
+            </span>
+          </button>
+
+          <div class="notification-panel z-card" *ngIf="notificationsOpen()">
+            <div class="notification-panel-head">
+              <div class="notification-panel-title">
+                {{ i18n.currentLang === 'ar' ? 'الإشعارات' : 'Notifications' }}
+                <span class="notif-unread-badge" *ngIf="unreadCount() > 0">{{ unreadCount() }}</span>
+              </div>
+              <button
+                class="notif-mark-all-btn"
+                type="button"
+                *ngIf="unreadCount() > 0"
+                [disabled]="markingAllRead()"
+                (click)="markAllRead()">
+                <span class="material-icons">done_all</span>
+                {{ i18n.currentLang === 'ar' ? 'تعيين الكل مقروءاً' : 'Mark all read' }}
+              </button>
+            </div>
+
+            <div class="notification-panel-body" *ngIf="notificationsLoading()">
+              <div class="notif-skeleton" *ngFor="let s of [1,2,3]">
+                <div class="notif-skel-icon"></div>
+                <div class="notif-skel-lines">
+                  <div class="notif-skel-line notif-skel-line--title"></div>
+                  <div class="notif-skel-line notif-skel-line--meta"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="notification-panel-body notif-empty-wrap" *ngIf="!notificationsLoading() && notifications().length === 0">
+              <span class="material-icons notif-empty-icon">notifications_off</span>
+              <div class="notification-empty-state">
+                {{ i18n.currentLang === 'ar' ? 'لا توجد إشعارات حالياً' : 'No notifications right now' }}
+              </div>
+            </div>
+
+            <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
+              <div
+                class="notification-item"
+                [class.notification-item--unread]="item.status === 'unread'"
+                [class.notification-item--high]="item.priority === 'high' || item.priority === 'urgent'"
+                *ngFor="let item of notifications()">
+                <span class="notif-unread-dot" *ngIf="item.status === 'unread'" aria-label="unread"></span>
+                <div class="notification-item-icon" [class]="'notif-icon--' + notifIconColor(item.notificationType)">
+                  <span class="material-icons">{{ notifIcon(item.notificationType) }}</span>
+                </div>
+                <div class="notification-item-copy">
+                  <div class="notification-item-title">
+                    {{ i18n.currentLang === 'ar' ? item.titleAr : item.titleEn }}
+                  </div>
+                  <div class="notification-item-meta">
+                    {{ i18n.currentLang === 'ar' ? item.messageAr : item.messageEn }}
+                  </div>
+                  <div class="notif-item-footer">
+                    <span class="notif-time">{{ timeAgo(item.createdAt) }}</span>
+                    <span
+                      class="notif-priority-badge"
+                      *ngIf="item.priority === 'urgent'"
+                      [class.notif-priority-badge--urgent]="true">
+                      {{ i18n.currentLang === 'ar' ? 'عاجل' : 'Urgent' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="notif-item-actions">
+                  <button
+                    class="notif-action-btn"
+                    type="button"
+                    *ngIf="item.actionUrl"
+                    (click)="openNotifAction(item)"
+                    [attr.title]="i18n.currentLang === 'ar' ? 'فتح' : 'Open'">
+                    <span class="material-icons">open_in_new</span>
+                  </button>
+                  <button
+                    class="notif-action-btn notif-read-btn"
+                    type="button"
+                    *ngIf="item.status === 'unread'"
+                    (click)="markRead(item)"
+                    [attr.title]="i18n.currentLang === 'ar' ? 'تعيين مقروء' : 'Mark as read'">
+                    <span class="material-icons">check_circle_outline</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- User chip -->
+        <button class="top-user-chip" type="button">
+          <div class="avatar avatar-sm user-avatar-shell">
+            <img
+              *ngIf="avatarUrl && !avatarLoadFailed()"
+              class="avatar-image"
+              [src]="avatarUrl"
+              [alt]="userDisplayName"
+              (error)="onAvatarError()" />
+            <span class="avatar-fallback" *ngIf="!avatarUrl || avatarLoadFailed()">{{ getInitials() }}</span>
+          </div>
+          <div class="top-user-meta">
+            <div class="top-user-name">{{ userDisplayName }}</div>
+            <div class="top-user-role">{{ roleName }}</div>
+          </div>
+          <span class="material-icons top-user-arrow">expand_more</span>
+        </button>
+
+        <!-- Logout (visible on desktop) -->
+        <button class="logout-btn surface-icon" type="button" (click)="logout()" [attr.title]="'nav.logout' | translate">
+          <span class="material-icons">logout</span>
+        </button>
+
+        <!-- Mobile hamburger -->
+        <button class="surface-icon mobile-menu-btn" type="button" (click)="toggleMobileNav()" [attr.aria-label]="'nav.menu' | translate">
+          <span class="material-icons">{{ mobileNavOpen() ? 'close' : 'menu' }}</span>
+        </button>
       </div>
-    </header>
+    </div>
+
+    <!-- ── Row 2: Navigation groups (desktop) ── -->
+    <nav class="top-nav" aria-label="Main navigation" *ngIf="!isMobileView()">
+      <div class="nav-groups">
+
+        <!-- Dashboard direct link -->
+        <a
+          [routerLink]="navGroups.length > 0 ? navGroups[0].items[0].path : '/app/dashboard'"
+          routerLinkActive="nav-direct-active"
+          class="nav-direct-link">
+          <span class="material-icons">dashboard</span>
+          <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
+        </a>
+
+        <!-- Grouped tabs -->
+        <ng-container *ngFor="let group of navGroups">
+          <div
+            class="nav-group-wrap"
+            [class.group-active]="isActiveGroup(group)"
+            [class.group-open]="activeGroupKey() === group.groupKey"
+            (mouseenter)="openGroup(group.groupKey)"
+            (mouseleave)="scheduleCloseGroup()">
+
+            <button type="button" class="group-tab-btn">
+              <span class="material-icons group-tab-icon">{{ group.icon }}</span>
+              <span class="group-tab-label">{{ label(group.labelAr, group.labelEn) }}</span>
+              <span class="material-icons group-tab-arrow">expand_more</span>
+            </button>
+
+            <div
+              class="group-dropdown"
+              *ngIf="activeGroupKey() === group.groupKey"
+              (mouseenter)="cancelCloseGroup()"
+              (mouseleave)="scheduleCloseGroup()">
+              <a
+                *ngFor="let item of group.items"
+                [routerLink]="item.path"
+                routerLinkActive="dropdown-item-active"
+                class="dropdown-item">
+                <span class="material-icons dropdown-item-icon">{{ item.icon }}</span>
+                <span class="dropdown-item-label">{{ label(item.labelAr, item.labelEn) }}</span>
+              </a>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MOBILE NAV DRAWER
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="mobile-overlay" *ngIf="mobileNavOpen()" (click)="toggleMobileNav()"></div>
+
+  <nav class="mobile-drawer" [class.mobile-drawer-open]="mobileNavOpen()" aria-label="Mobile navigation">
+    <div class="drawer-header">
+      <div class="drawer-brand">
+        <div class="logo-mark logo-mark-sm">Z</div>
+        <strong class="logo-text">{{ 'app.name' | translate }}</strong>
+      </div>
+      <button type="button" class="drawer-close-btn" (click)="toggleMobileNav()">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Dashboard -->
+      <a
+        [routerLink]="navGroups.length > 0 ? navGroups[0].items[0].path : '/app/dashboard'"
+        routerLinkActive="drawer-item-active"
+        class="drawer-direct-link"
+        (click)="toggleMobileNav()">
+        <span class="material-icons">dashboard</span>
+        <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
+      </a>
+
+      <!-- Nav groups -->
+      <ng-container *ngFor="let group of navGroups">
+        <div class="drawer-group">
+          <div class="drawer-group-label">
+            <span class="material-icons drawer-group-icon">{{ group.icon }}</span>
+            {{ label(group.labelAr, group.labelEn) }}
+          </div>
+          <a
+            *ngFor="let item of group.items"
+            [routerLink]="item.path"
+            routerLinkActive="drawer-item-active"
+            class="drawer-item"
+            (click)="toggleMobileNav()">
+            <span class="material-icons drawer-item-icon">{{ item.icon }}</span>
+            {{ label(item.labelAr, item.labelEn) }}
+          </a>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="drawer-logout-btn" type="button" (click)="logout()">
+        <span class="material-icons">logout</span>
+        {{ 'nav.logout' | translate }}
+      </button>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MAIN AREA
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="main-area z-main">
 
     <div class="impersonation-banner" *ngIf="auth.isImpersonating()">
       <span class="material-icons">shield_person</span>
@@ -240,10 +290,28 @@
       </button>
     </div>
 
+    <!-- Page meta bar -->
+    <div class="page-meta-bar">
+      <div class="page-title-block">
+        <div class="page-eyebrow">{{ pageEyebrow }}</div>
+        <h1 class="top-page-title">{{ pageTitle }}</h1>
+        <div class="breadcrumb-row">
+          <span>{{ pageSubtitle }}</span>
+          <ng-container *ngIf="tenantScopeLabel">
+            <span class="tenant-divider" aria-hidden="true">·</span>
+            <span class="tenant-scope-label">
+              <span class="material-icons tenant-scope-icon">corporate_fare</span>
+              {{ tenantScopeLabel }}
+            </span>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+
     <main class="main-content z-page">
       <router-outlet />
     </main>
-  </section>
+  </div>
 
   <app-toast-container />
 </div>

@@ -1,0 +1,179 @@
+Workflow 24 — Replace Sidebar with Professional Top Navigation + Fix Theme Persistence
+
+Goal:
+Remove/replace the current right sidebar navigation and merge it into a professional responsive top bar. Also fix branding/theme colors so they apply to the top bar/sidebar/header globally and persist after refresh.
+
+Current issues:
+1. Theme colors apply partially only. Sidebar/top/header still use default green.
+2. After browser refresh, branding colors return to default.
+3. Sidebar takes too much space. We want a modern top navigation grouped by module.
+
+Part A — Theme persistence and global application
+
+Audit and fix:
+- Find ThemeService / BrandingService / settings branding code.
+- Ensure saved branding is loaded on:
+  - app startup
+  - after login
+  - after refresh
+  - after settings save
+- The source of truth should be API/DB, not only local component state.
+- Apply CSS variables to document.documentElement:
+  --app-primary
+  --app-primary-dark
+  --app-primary-light
+  --app-secondary
+  --app-accent
+  --app-sidebar-bg
+  --app-sidebar-active
+  --app-topbar-bg
+  --app-topbar-active
+  --app-header-bg
+  --app-on-primary
+
+Replace hardcoded sidebar/topbar/header colors with these variables.
+Search and replace hardcoded green/emerald colors in layout/navigation/header:
+#064e3b, #065f46, #047857, #059669, #10b981, emerald, green, bg-green, text-green.
+
+Must verify:
+- Save colors in Settings.
+- Navigate to another page: colors remain.
+- Refresh browser: colors remain.
+- Login as HR/employee/manager/payroll: colors apply.
+- Sidebar/topbar/header active item uses selected primary/accent colors.
+
+Part B — Replace Sidebar with grouped Top Bar
+
+Remove current vertical sidebar UI from main app layout and replace it with:
+
+1. Main header row:
+- Logo / company name
+- Current module/page title
+- Search box
+- Language switch
+- Notifications
+- User profile dropdown
+- Logout
+
+2. Navigation row under header:
+Grouped dropdown mega-menu style.
+
+For HR/Admin role, groups must be:
+
+Group 1: HR Core
+- Job Titles / المسميات الوظيفية
+- Employees / الموظفون
+- Pre-Employment / ما قبل التوظيف
+- Disciplinary / التأديب
+- Resignations / الاستقالات
+- Clearance / براءة الذمة
+
+Group 2: Employee Actions
+- Career Movements / الحركات الوظيفية
+- Salary Changes / تعديلات الرواتب
+- Employment Status / حالة التوظيف
+
+Group 3: Time & Attendance
+- Shifts / الورديات
+- Attendance / الحضور والانصراف
+- Leaves / الإجازات
+- Overtime / العمل الإضافي
+- Holidays / العطل الرسمية
+
+Group 4: Compliance & Assets
+- Compliance / الامتثال
+- Documents / الوثائق
+- Assets / الأصول
+
+Group 5: Payroll
+- Salary Advances / السلف
+- Payroll Runs / مسيرات الرواتب
+- Salary Components / مكونات الراتب
+
+Group 6: Administration
+- Official Forms / النماذج الرسمية
+- Reports / التقارير
+- Organization Structure / الهيكل التنظيمي
+- Roles & Permissions / الأدوار والصلاحيات
+- User Role Assignment / تعيين الأدوار
+- Users / المستخدمون
+- Settings / الإعدادات
+
+For other actors/roles:
+Create role-aware grouped navigation using existing route permissions:
+- Employee: show only employee self-service pages grouped cleanly.
+- Manager: show team pages + approvals + relevant employee actions.
+- Payroll: show payroll group + read-only related pages.
+- Recruiter if exists: show recruitment/pre-employment pages.
+Do not show routes the role cannot access.
+
+Important:
+- Use the existing route definitions/permission logic where possible.
+- Do not break route guards.
+- Active route must highlight correctly.
+- RTL Arabic layout must look professional.
+- English layout must also work.
+- Mobile/tablet: top nav should collapse into hamburger menu or horizontally scrollable group bar.
+- No vertical sidebar should remain taking page width.
+- Keep page content full width.
+
+Part C — Design requirements
+
+Top nav should be clean:
+- Sticky top
+- Uses company theme colors
+- Dropdowns/mega menu with icons
+- Clear active state
+- Smooth hover
+- Good spacing
+- No overlap with page content
+- Works RTL and LTR
+- Current route group highlighted
+- Page title breadcrumb still visible
+
+Suggested structure:
+- app-shell / main-layout component owns navigation.
+- navigation config array:
+  {
+    groupKey,
+    labelAr,
+    labelEn,
+    icon,
+    roles,
+    items: [{ labelAr, labelEn, route, icon, roles }]
+  }
+- Filter groups/items based on current user role.
+- Reuse this config for desktop top nav and mobile drawer.
+
+Part D — QA checklist
+
+After implementation run:
+1. HR login:
+   - all 6 groups visible
+   - each listed route navigates correctly
+   - active group/item highlighted
+2. Employee login:
+   - no HR/admin/payroll-only routes visible
+   - employee routes still work
+3. Manager login:
+   - team and approval-related routes visible
+   - admin-only routes hidden
+4. Payroll login:
+   - payroll routes visible
+   - HR/admin-only routes hidden
+5. Theme:
+   - save custom primary/secondary/accent colors
+   - top bar changes immediately
+   - header changes immediately
+   - active nav changes immediately
+   - refresh keeps colors
+6. Browser console:
+   - no Angular errors
+   - no failed API requests
+7. Build:
+   - npm/angular build passes
+8. Final report:
+   - files changed
+   - nav groups created per role
+   - theme persistence fix
+   - screenshots or clear confirmation for HR + employee + payroll views

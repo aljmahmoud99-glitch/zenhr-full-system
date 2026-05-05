@@ -413,12 +413,41 @@ The app is fully bilingual AR/EN with RTL layout:
   - Unread items have green tint border; high/urgent items have red left border accent
 - **`layout.component.scss`** — new styles for all above elements + skeleton pulse animation
 
+---
+
+## Workflow 24 — Top Navigation + Theme Persistence
+
+### Layout Architecture Change
+The sidebar has been **replaced** with a professional top navigation bar. The app shell is now a vertical flex column (no sidebar).
+
+**New layout structure:**
+- `.app-topbar` (sticky) — two rows:
+  - Row 1 (`.topbar-header`): Brand logo + Search + Tools (lang, notif, user, logout)
+  - Row 2 (`.top-nav`): Group tabs with hover-triggered dropdowns (primary color background)
+- `.main-area` — page meta bar + `<router-outlet>`
+- Mobile (≤900px): Row 2 hidden; hamburger opens `.mobile-drawer` from the side
+
+**Key files changed:**
+- `layout.component.html` — complete rewrite; removes sidebar, adds top nav + mobile drawer
+- `layout.component.ts` — `sidebarOpen` → `mobileNavOpen`; `activeGroupKey` signal for dropdowns; `openGroup()` / `scheduleCloseGroup()` / `cancelCloseGroup()` for hover logic; `isActiveGroup()` highlights the active tab
+- `layout.component.scss` — complete rewrite; sticky topbar, primary-colored nav bar, dropdown menu, mobile drawer slide-in
+
+### NavGroup Interface Update (`role-access.service.ts`)
+Added two new required fields to `NavGroup`:
+- `groupKey: string` — unique key used as dropdown state key
+- `icon: string` — Material Icon name for the group tab
+
+All nav arrays (HRADMIN_NAV, PAYROLLADMIN_NAV, MANAGER_NAV, EMPLOYEE_NAV, PLATFORM_NAV) updated with `groupKey` + `icon`. Overview groups collapsed — Dashboard is now a direct link in the nav bar.
+
+### Theme Persistence Fix (`login.component.ts`)
+Added `void this.branding.loadAndApply()` to the login `next:` callback so branding/theme is applied immediately after login — not just on hard refresh.
+
 ### Demo Accounts (seeded)
 
 | Username | Password | Role |
 |---|---|---|
 | admin | Admin@1234 | superadmin |
-| hr | Hr@1234 | hradmin |
-| payroll | Payroll@1234 | payrolladmin |
-| manager | Manager@1234 | manager |
-| employee | Employee@1234 | employee |
+| hr | Test@12345 | hradmin |
+| payroll | Test@12345 | payrolladmin |
+| manager.hr | Test@12345 | manager |
+| employee01 | Test@12345 | employee |

@@ -69,15 +69,19 @@ export interface NavItem {
 }
 
 export interface NavGroup {
+  groupKey: string;
   labelAr: string;
   labelEn: string;
+  icon: string;
   items: NavItem[];
 }
 
 const PLATFORM_NAV: NavGroup[] = [
   {
+    groupKey: 'platform',
     labelAr: 'المنصة',
     labelEn: 'Platform',
+    icon: 'domain',
     items: [
       { labelAr: 'إدارة الشركات', labelEn: 'Company Management', icon: 'domain', path: '/admin/companies' },
       { labelAr: 'إدارة المستخدمين', labelEn: 'User Management', icon: 'manage_accounts', path: '/admin/users' }
@@ -87,17 +91,12 @@ const PLATFORM_NAV: NavGroup[] = [
 
 const HRADMIN_NAV: NavGroup[] = [
   {
-    labelAr: 'نظرة عامة',
-    labelEn: 'Overview',
+    groupKey: 'hr-core',
+    labelAr: 'الموارد البشرية',
+    labelEn: 'HR Core',
+    icon: 'groups',
     items: [
-      { labelAr: 'لوحة التحكم', labelEn: 'HR Dashboard', icon: 'dashboard', path: '/app/dashboard' }
-    ]
-  },
-  {
-    labelAr: 'إدارة الموظفين',
-    labelEn: 'Employee Management',
-    items: [
-      { labelAr: 'المسميات الوظيفية', labelEn: 'Job Descriptions', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
+      { labelAr: 'المسميات الوظيفية', labelEn: 'Job Titles', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
       { labelAr: 'الموظفون', labelEn: 'Employees', icon: 'groups', path: '/app/employees' },
       { labelAr: 'ما قبل التوظيف', labelEn: 'Pre-Employment', icon: 'person_add', path: '/app/pre-employment' },
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
@@ -106,8 +105,10 @@ const HRADMIN_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'emp-actions',
     labelAr: 'حركات الموظفين',
     labelEn: 'Employee Actions',
+    icon: 'swap_horiz',
     items: [
       { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
       { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'payments', path: '/app/employee-actions/salary-changes' },
@@ -115,19 +116,23 @@ const HRADMIN_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'time-attendance',
     labelAr: 'الوقت والحضور',
     labelEn: 'Time & Attendance',
+    icon: 'schedule',
     items: [
       { labelAr: 'الورديات', labelEn: 'Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'الحضور والانصراف', labelEn: 'Attendance', icon: 'fact_check', path: '/app/attendance' },
-      { labelAr: 'الإجازات', labelEn: 'Leave Requests', icon: 'event_note', path: '/app/leave' },
+      { labelAr: 'الإجازات', labelEn: 'Leaves', icon: 'event_note', path: '/app/leave' },
       { labelAr: 'العمل الإضافي', labelEn: 'Overtime', icon: 'more_time', path: '/app/overtime' },
-      { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' }
+      { labelAr: 'العطل الرسمية', labelEn: 'Holidays', icon: 'today', path: '/app/holidays' }
     ]
   },
   {
-    labelAr: 'الامتثال والوثائق',
-    labelEn: 'Compliance & Documents',
+    groupKey: 'compliance-assets',
+    labelAr: 'الامتثال والأصول',
+    labelEn: 'Compliance & Assets',
+    icon: 'verified_user',
     items: [
       { labelAr: 'الامتثال', labelEn: 'Compliance', icon: 'verified_user', path: '/app/compliance' },
       { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
@@ -135,8 +140,10 @@ const HRADMIN_NAV: NavGroup[] = [
     ]
   },
   {
-    labelAr: 'المالية',
-    labelEn: 'Finance',
+    groupKey: 'payroll',
+    labelAr: 'الرواتب',
+    labelEn: 'Payroll',
+    icon: 'receipt_long',
     items: [
       { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
@@ -144,8 +151,10 @@ const HRADMIN_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'administration',
     labelAr: 'الإدارة',
     labelEn: 'Administration',
+    icon: 'admin_panel_settings',
     items: [
       { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' },
       { labelAr: 'التقارير', labelEn: 'Reports', icon: 'bar_chart', path: '/app/reports' },
@@ -160,15 +169,10 @@ const HRADMIN_NAV: NavGroup[] = [
 
 const PAYROLLADMIN_NAV: NavGroup[] = [
   {
-    labelAr: 'نظرة عامة',
-    labelEn: 'Overview',
-    items: [
-      { labelAr: 'لوحة الرواتب', labelEn: 'Payroll Dashboard', icon: 'dashboard', path: '/app/dashboard' }
-    ]
-  },
-  {
+    groupKey: 'payroll',
     labelAr: 'الرواتب',
     labelEn: 'Payroll',
+    icon: 'receipt_long',
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
@@ -177,8 +181,10 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'supporting-data',
     labelAr: 'البيانات المساندة',
     labelEn: 'Supporting Data',
+    icon: 'storage',
     items: [
       { labelAr: 'الموظفون', labelEn: 'Employees (Read)', icon: 'groups', path: '/app/employees' },
       { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
@@ -187,8 +193,10 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'forms',
     labelAr: 'النماذج',
     labelEn: 'Forms',
+    icon: 'description',
     items: [
       { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' }
     ]
@@ -197,20 +205,23 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
 
 const MANAGER_NAV: NavGroup[] = [
   {
-    labelAr: 'نظرة عامة',
-    labelEn: 'Overview',
-    items: [
-      { labelAr: 'لوحة الفريق', labelEn: 'Team Dashboard', icon: 'dashboard', path: '/app/dashboard' }
-    ]
-  },
-  {
+    groupKey: 'team-mgmt',
     labelAr: 'إدارة الفريق',
     labelEn: 'Team Management',
+    icon: 'groups',
     items: [
       { labelAr: 'فريقي', labelEn: 'My Team', icon: 'groups', path: '/app/employees' },
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
       { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
-      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
+      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' }
+    ]
+  },
+  {
+    groupKey: 'time-attendance',
+    labelAr: 'الوقت والحضور',
+    labelEn: 'Time & Attendance',
+    icon: 'schedule',
+    items: [
       { labelAr: 'ورديات الفريق', labelEn: 'Team Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'حضور الفريق', labelEn: 'Team Attendance', icon: 'fact_check', path: '/app/attendance' },
       { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_note', path: '/app/leave' },
@@ -219,8 +230,10 @@ const MANAGER_NAV: NavGroup[] = [
     ]
   },
   {
+    groupKey: 'tools',
     labelAr: 'الأدوات',
     labelEn: 'Tools',
+    icon: 'build',
     items: [
       { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
       { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' },
@@ -231,15 +244,10 @@ const MANAGER_NAV: NavGroup[] = [
 
 const EMPLOYEE_NAV: NavGroup[] = [
   {
-    labelAr: 'نظرة عامة',
-    labelEn: 'Overview',
-    items: [
-      { labelAr: 'لوحتي', labelEn: 'My Dashboard', icon: 'dashboard', path: '/app/dashboard' }
-    ]
-  },
-  {
+    groupKey: 'self-service',
     labelAr: 'الخدمة الذاتية',
     labelEn: 'Self Service',
+    icon: 'person',
     items: [
       { labelAr: 'حضوري', labelEn: 'My Attendance', icon: 'fact_check', path: '/app/attendance' },
       { labelAr: 'إجازاتي', labelEn: 'My Leave', icon: 'event_note', path: '/app/leave' },

@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef,
+  HostListener, OnDestroy, OnInit, computed, inject, signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -35,9 +38,13 @@ export interface DbNotification {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LayoutComponent implements OnInit, OnDestroy {
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly elRef = inject(ElementRef);
+
   user = signal<User | null>(null);
-  isMobileView = signal(typeof window !== 'undefined' ? window.innerWidth <= 980 : false);
-  sidebarOpen = signal(typeof window !== 'undefined' ? window.innerWidth > 980 : true);
+  isMobileView = signal(typeof window !== 'undefined' ? window.innerWidth <= 900 : false);
+  mobileNavOpen = signal(false);
+  activeGroupKey = signal<string | null>(null);
   endingImpersonation = signal(false);
   currentPage = signal<NavItem | null>(null);
   today = signal(new Date());
@@ -51,6 +58,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   navGroups: NavGroup[] = [];
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private _dropdownCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly notificationCount = computed(() => this.unreadCount());
 
@@ -76,26 +84,53 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(() => {
       this.syncPageMeta();
       this.notificationsOpen.set(false);
+      this.mobileNavOpen.set(false);
+      this.activeGroupKey.set(null);
     });
-
     this.pollTimer = setInterval(() => this.loadUnreadCount(), 60_000);
   }
 
   ngOnDestroy() {
     if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this._dropdownCloseTimer) clearTimeout(this._dropdownCloseTimer);
   }
 
   @HostListener('window:resize')
   onResize() {
-    const mobile = window.innerWidth <= 980;
+    const mobile = window.innerWidth <= 900;
     this.isMobileView.set(mobile);
-    if (!mobile && !this.sidebarOpen()) {
-      this.sidebarOpen.set(true);
+    if (!mobile) {
+      this.mobileNavOpen.set(false);
     }
   }
 
-  toggleSidebar() {
-    this.sidebarOpen.update(open => !open);
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(e: MouseEvent) {
+    const host = this.elRef.nativeElement as HTMLElement;
+    const target = e.target as Node;
+    const inNavBar = host.querySelector('.top-nav')?.contains(target);
+    if (!inNavBar) {
+      this.activeGroupKey.set(null);
+    }
+  }
+
+  openGroup(key: string) {
+    if (this._dropdownCloseTimer) clearTimeout(this._dropdownCloseTimer);
+    this.activeGroupKey.set(key);
+  }
+
+  scheduleCloseGroup() {
+    this._dropdownCloseTimer = setTimeout(() => {
+      this.activeGroupKey.set(null);
+    }, 120);
+  }
+
+  cancelCloseGroup() {
+    if (this._dropdownCloseTimer) clearTimeout(this._dropdownCloseTimer);
+  }
+
+  toggleMobileNav() {
+    this.mobileNavOpen.update(open => !open);
   }
 
   toggleLang() {
@@ -171,6 +206,11 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.avatarLoadFailed.set(true);
   }
 
+  isActiveGroup(group: NavGroup): boolean {
+    const url = this.router.url;
+    return group.items.some(item => url.startsWith(item.path));
+  }
+
   notifIcon(type: string): string {
     if (type.startsWith('leave')) return 'event_note';
     if (type.startsWith('overtime')) return 'more_time';
@@ -225,18 +265,11 @@ export class LayoutComponent implements OnInit, OnDestroy {
       : (current.employee.fullNameEn || current.username);
   }
 
-  get sidebarBadgeLabel() { return this.i18n.instant('app.tagline'); }
-
-  get sidebarToggleLabel() {
-    return this.i18n.currentLang === 'ar'
-      ? (this.sidebarOpen() ? 'تصغير القائمة' : 'توسيع القائمة')
-      : (this.sidebarOpen() ? 'Collapse menu' : 'Expand menu');
-  }
+  get appTagline() { return this.i18n.instant('app.tagline'); }
 
   get currentLanguageLabel() { return this.languageLabel(this.i18n.currentLang); }
-  get nextLanguageLabel() { return this.languageLabel(this.i18n.currentLang === 'ar' ? 'en' : 'ar'); }
   get pageEyebrow() { return this.pageGroupTitle; }
-  get pageSubtitle() { return this.roleName || this.sidebarBadgeLabel; }
+  get pageSubtitle() { return this.roleName || this.appTagline; }
 
   get tenantScopeLabel(): string {
     const role = this.user()?.role ?? '';
