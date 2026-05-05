@@ -524,6 +524,163 @@ app.get("/api/dashboard/payroll-status-breakdown", auth, async (req, res) => {
   }
 });
 
+// ─── Chart: Employee status distribution ────────────────────────────────────
+app.get("/api/dashboard/charts/employee-status", auth, async (req, res) => {
+  try {
+    const authReq = req as AuthReq;
+    const user = authReq.user;
+    if (!["superadmin", "hradmin", "manager"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const scope = await getEmployeeScopeConditions(authReq);
+    const rows = await db.select({
+      status: employeesTable.employmentStatus,
+      count: sql<number>`count(*)::int`,
+    }).from(employeesTable)
+      .where(and(...scope, eq(employeesTable.isDeleted, false)))
+      .groupBy(employeesTable.employmentStatus);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/employee-status]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Chart: My attendance this month (employee only) ─────────────────────────
+app.get("/api/dashboard/charts/my-attendance-month", auth, async (req, res) => {
+  try {
+    const authReq = req as AuthReq;
+    const user = authReq.user;
+    if (user.role !== "employee") {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const emp = await db.select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.userId, user.id), eq(employeesTable.isDeleted, false)))
+      .limit(1);
+    if (!emp.length) return res.json({ success: true, data: [] });
+    const now = new Date();
+    const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const today = now.toISOString().split("T")[0]!;
+    const rows = await db.select({
+      status: attendanceRecordsTable.status,
+      count: sql<number>`count(*)::int`,
+    }).from(attendanceRecordsTable)
+      .where(and(
+        eq(attendanceRecordsTable.employeeId, emp[0]!.id),
+        gte(attendanceRecordsTable.date, firstDay),
+        lte(attendanceRecordsTable.date, today),
+      ))
+      .groupBy(attendanceRecordsTable.status);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/my-attendance-month]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Chart: My payslip trend — last 6 (employee only) ────────────────────────
+app.get("/api/dashboard/charts/my-payslip-trend", auth, async (req, res) => {
+  try {
+    const authReq = req as AuthReq;
+    const user = authReq.user;
+    if (user.role !== "employee") {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const emp = await db.select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.userId, user.id), eq(employeesTable.isDeleted, false)))
+      .limit(1);
+    if (!emp.length) return res.json({ success: true, data: [] });
+    const rows = await db.select({
+      month: payslipsTable.runMonth,
+      year: payslipsTable.runYear,
+      net: payslipsTable.netSalary,
+      gross: payslipsTable.grossSalary,
+      deductions: payslipsTable.totalDeductions,
+    }).from(payslipsTable)
+      .where(eq(payslipsTable.employeeId, emp[0]!.id))
+      .orderBy(desc(payslipsTable.runYear), desc(payslipsTable.runMonth))
+      .limit(6);
+    res.json({ success: true, data: rows.reverse() });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/my-payslip-trend]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Chart: Payroll monthly trend — last 6 runs ───────────────────────────────
+app.get("/api/dashboard/charts/payroll-monthly-trend", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const rows = await db.select({
+      month: payrollRunsTable.runMonth,
+      year: payrollRunsTable.runYear,
+      totalNet: payrollRunsTable.totalNet,
+      totalGross: payrollRunsTable.totalGross,
+      status: payrollRunsTable.status,
+      employeeCount: payrollRunsTable.employeeCount,
+    }).from(payrollRunsTable)
+      .where(and(eq(payrollRunsTable.companyId, user.companyId), eq(payrollRunsTable.isDeleted, false)))
+      .orderBy(desc(payrollRunsTable.runYear), desc(payrollRunsTable.runMonth))
+      .limit(6);
+    res.json({ success: true, data: rows.reverse() });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/payroll-monthly-trend]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Chart: Users by role ─────────────────────────────────────────────────────
+app.get("/api/dashboard/charts/superadmin-users-by-role", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const rows = await db.select({
+      role: usersTable.role,
+      count: sql<number>`count(*)::int`,
+    }).from(usersTable)
+      .where(and(eq(usersTable.companyId, user.companyId), eq(usersTable.isDeleted, false), eq(usersTable.isActive, true)))
+      .groupBy(usersTable.role);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/superadmin-users-by-role]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// ─── Chart: Activity by module — last 30 days ────────────────────────────────
+app.get("/api/dashboard/charts/activity-by-module", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const rows = await db.select({
+      module: activityLogsTable.type,
+      count: sql<number>`count(*)::int`,
+    }).from(activityLogsTable)
+      .where(and(
+        eq(activityLogsTable.companyId, user.companyId),
+        gte(activityLogsTable.createdAt, thirtyDaysAgo),
+      ))
+      .groupBy(activityLogsTable.type)
+      .orderBy(desc(sql<number>`count(*)`))
+      .limit(6);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[/api/dashboard/charts/activity-by-module]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // ─── Employee enrichment helper ───────────────────────────────────────────────
 async function loadOrgEnrichmentMaps(companyId: number) {
   const [allDepts, allJobs, allOrgNodes] = await Promise.all([

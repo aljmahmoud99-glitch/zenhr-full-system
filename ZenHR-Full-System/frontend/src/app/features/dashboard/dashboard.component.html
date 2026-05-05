@@ -1,24 +1,4 @@
-﻿<section class="z-page dashboard-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
-  <div class="dashboard-hero" [class.rtl-layout]="lang === 'ar'">
-    <div class="hero-content" [class.rtl-layout]="lang === 'ar'">
-      <div class="hero-copy" [class.rtl-layout]="lang === 'ar'">
-        <h2 class="hero-title">{{ lang === 'ar' ? headerTitle().ar : headerTitle().en }}</h2>
-        <p class="hero-subtitle">{{ lang === 'ar' ? headerSubtitle().ar : headerSubtitle().en }}</p>
-      </div>
-
-      <div class="hero-actions-cluster" [class.rtl-layout]="lang === 'ar'" *ngIf="heroActions().length > 0">
-        <a
-          *ngFor="let action of heroActions()"
-          [routerLink]="action.route"
-          class="hero-action"
-          [class.primary]="action.variant === 'primary'"
-          [class.secondary]="action.variant === 'secondary'">
-          <span class="material-icons">{{ action.icon }}</span>
-          <span>{{ lang === 'ar' ? action.labelAr : action.labelEn }}</span>
-        </a>
-      </div>
-    </div>
-  </div>
+<section class="z-page dashboard-page" [attr.dir]="lang === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang">
 
   <ng-container *ngIf="loading()">
     <app-skeleton-kpi-cards [count]="3" />
@@ -48,6 +28,521 @@
 
   <ng-container *ngIf="!loading()">
     <ng-container *ngIf="role !== 'employee'; else employeeDashboardView">
+
+    <!-- ════════════════════════════════════════════════════════════
+         MAIN CHART GRID — 4 large live-data charts, 2×2, per role
+    ════════════════════════════════════════════════════════════ -->
+    <div class="dashboard-chart-grid">
+
+      <!-- ── HR ADMIN charts ─────────────────────────────────────── -->
+      <ng-container *ngIf="role === 'hradmin'">
+
+        <!-- Chart 1: Employee Status Distribution (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('توزيع حالة الموظفين', 'Employee Status') }}</h3>
+              <p class="z-small">{{ t('تصنيف الموظفين حسب الحالة الوظيفية', 'Breakdown by employment status') }}</p>
+            </div>
+            <a routerLink="/app/employees" class="panel-link">{{ t('الموظفون', 'Employees') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="employeeStatusData().length === 0">
+            <span class="material-icons">groups</span>
+            <span>{{ t('لا توجد بيانات', 'No data yet') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="employeeStatusData().length > 0">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="employeeStatusGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ employeeStatusTotal() }}</strong>
+                  <span class="donut-center-label">{{ t('موظف', 'staff') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item" *ngFor="let row of employeeStatusData()">
+                <span class="legend-dot" [style.background]="employeeStatusColor(row.status)"></span>
+                <span class="legend-label">{{ lang === 'ar' ? employeeStatusLabelAr(row.status) : row.status }}</span>
+                <span class="legend-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Today's Attendance (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('حضور اليوم', "Today's Attendance") }}</h3>
+              <p class="z-small">{{ t('الحضور والغياب والإجازات الآن', 'Present, absent, on leave right now') }}</p>
+            </div>
+            <a routerLink="/app/attendance" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="!summary()">
+            <span class="material-icons">schedule</span>
+            <span>{{ t('جارٍ التحميل...', 'Loading...') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="summary()">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="attendanceDonutGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ summary()?.totalEmployees }}</strong>
+                  <span class="donut-center-label">{{ t('موظف', 'staff') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item">
+                <span class="legend-dot primary-dot"></span>
+                <span class="legend-label">{{ t('حاضر', 'Present') }}</span>
+                <span class="legend-count">{{ summary()?.presentToday }}</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background:#f59e0b"></span>
+                <span class="legend-label">{{ t('في إجازة', 'On Leave') }}</span>
+                <span class="legend-count">{{ summary()?.onLeaveToday }}</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background:#ef4444"></span>
+                <span class="legend-label">{{ t('غائب', 'Absent') }}</span>
+                <span class="legend-count">{{ summary()?.absentToday }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 3: Leave by Type This Year (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('الإجازات المعتمدة (هذا العام)', 'Approved Leave (This Year)') }}</h3>
+              <p class="z-small">{{ t('مصنفة حسب نوع الإجازة', 'Grouped by leave type') }}</p>
+            </div>
+            <a routerLink="/app/leave" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="leaveTypeBreakdown().length === 0">
+            <span class="material-icons">event_note</span>
+            <span>{{ t('لا توجد إجازات معتمدة بعد', 'No approved leave yet') }}</span>
+          </div>
+          <div class="dept-list" *ngIf="leaveTypeBreakdown().length > 0">
+            <div class="dept-row" *ngFor="let type of leaveTypeBreakdown()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</span>
+                <span class="dept-count">{{ type.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill leave-fill" [style.width.%]="leaveTypeMax() > 0 ? (type.count / leaveTypeMax()) * 100 : 0"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 4: Pending Requests by Category (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('الطلبات المعلقة', 'Pending Requests') }}</h3>
+              <p class="z-small">{{ t('تصنيف الطلبات بانتظار الاعتماد', 'Requests awaiting approval by category') }}</p>
+            </div>
+          </div>
+          <div class="dept-list" *ngIf="summary()">
+            <div class="dept-row" *ngFor="let item of pendingItemsData()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+                <span class="dept-count">{{ item.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" [style.width.%]="item.pct"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('غير مسجلين في التأمين', 'SSC not enrolled') }}</span>
+                <span class="dept-count">{{ summary()?.sscNotEnrolled }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#ef4444" [style.width.%]="(summary()?.sscNotEnrolled ?? 0) > 0 ? 60 : 0"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </ng-container>
+
+      <!-- ── MANAGER charts ─────────────────────────────────────── -->
+      <ng-container *ngIf="role === 'manager'">
+
+        <!-- Chart 1: Team Attendance Today (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('حضور الفريق اليوم', "Team Attendance Today") }}</h3>
+              <p class="z-small">{{ t('حاضر / في إجازة / غائب', 'Present / On leave / Absent') }}</p>
+            </div>
+            <a routerLink="/app/attendance" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="!summary()">
+            <span class="material-icons">groups</span>
+            <span>{{ t('جارٍ التحميل...', 'Loading...') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="summary()">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="attendanceDonutGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ summary()?.totalEmployees }}</strong>
+                  <span class="donut-center-label">{{ t('عضو', 'members') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item">
+                <span class="legend-dot primary-dot"></span>
+                <span class="legend-label">{{ t('حاضر', 'Present') }}</span>
+                <span class="legend-count">{{ summary()?.presentToday }}</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background:#f59e0b"></span>
+                <span class="legend-label">{{ t('في إجازة', 'On Leave') }}</span>
+                <span class="legend-count">{{ summary()?.onLeaveToday }}</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background:#ef4444"></span>
+                <span class="legend-label">{{ t('غائب', 'Absent') }}</span>
+                <span class="legend-count">{{ summary()?.absentToday }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: 7-Day Attendance Trend (vertical bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('الحضور — آخر 7 أيام', 'Attendance — Last 7 Days') }}</h3>
+              <p class="z-small">{{ t('عدد الحاضرين من فريقك يومياً', 'Daily presence count for your team') }}</p>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="attendanceTrend().length === 0">
+            <span class="material-icons">bar_chart</span>
+            <span>{{ t('لا توجد بيانات حضور', 'No attendance data') }}</span>
+          </div>
+          <div class="bar-chart-shell bar-chart-lg" *ngIf="attendanceTrend().length > 0">
+            <div class="bar-col" *ngFor="let day of attendanceTrend()">
+              <div class="bar-track">
+                <div class="bar-fill" [style.height.%]="attendanceTrendMax() > 0 ? (day.present / attendanceTrendMax()) * 100 : 0"></div>
+              </div>
+              <span class="bar-day">{{ dayLabel(day.date) }}</span>
+              <span class="bar-count">{{ day.present }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 3: Team Leave by Type (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('إجازات الفريق (هذا العام)', 'Team Leave (This Year)') }}</h3>
+              <p class="z-small">{{ t('الإجازات المعتمدة حسب النوع', 'Approved leave by type') }}</p>
+            </div>
+            <a routerLink="/app/leave" class="panel-link">{{ t('الطلبات', 'Requests') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="leaveTypeBreakdown().length === 0">
+            <span class="material-icons">event_note</span>
+            <span>{{ t('لا توجد إجازات', 'No leave data') }}</span>
+          </div>
+          <div class="dept-list" *ngIf="leaveTypeBreakdown().length > 0">
+            <div class="dept-row" *ngFor="let type of leaveTypeBreakdown()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</span>
+                <span class="dept-count">{{ type.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill leave-fill" [style.width.%]="leaveTypeMax() > 0 ? (type.count / leaveTypeMax()) * 100 : 0"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 4: Pending Requests (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('طلبات بانتظار موافقتك', 'Requests Awaiting You') }}</h3>
+              <p class="z-small">{{ t('إجازات وإضافي بانتظار قرارك', 'Leave and overtime pending your decision') }}</p>
+            </div>
+            <a routerLink="/app/leave" class="panel-link">{{ t('مراجعة', 'Review') }}</a>
+          </div>
+          <div class="dept-list" *ngIf="summary()">
+            <div class="dept-row" *ngFor="let item of pendingItemsData()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+                <span class="dept-count">{{ item.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" [style.width.%]="item.pct"></div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="!summary()">
+            <span class="material-icons">pending_actions</span>
+            <span>{{ t('جارٍ التحميل...', 'Loading...') }}</span>
+          </div>
+        </div>
+
+      </ng-container>
+
+      <!-- ── PAYROLL ADMIN charts ─────────────────────────────────── -->
+      <ng-container *ngIf="role === 'payrolladmin'">
+
+        <!-- Chart 1: Payroll Run Status (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('حالة مسيرات الرواتب', 'Payroll Run Status') }}</h3>
+              <p class="z-small">{{ t('توزيع المسيرات حسب الحالة', 'Distribution of runs by status') }}</p>
+            </div>
+            <a routerLink="/app/payroll/runs" class="panel-link">{{ t('عرض', 'View') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="payrollStatusBreakdown().length === 0">
+            <span class="material-icons">receipt_long</span>
+            <span>{{ t('لم تُنشأ مسيرات بعد', 'No payroll runs yet') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="payrollStatusBreakdown().length > 0">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="payrollGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ payrollTotal() }}</strong>
+                  <span class="donut-center-label">{{ t('مسير', 'runs') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item" *ngFor="let row of payrollStatusBreakdown()">
+                <span class="legend-dot" [style.background]="payrollStatusColor(row.status)"></span>
+                <span class="legend-label">{{ lang === 'ar' ? payrollStatusLabelAr(row.status) : statusLabel(row.status) }}</span>
+                <span class="legend-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Monthly Payroll Trend (vertical bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('مسيرات الرواتب — آخر 6 أشهر', 'Payroll — Last 6 Months') }}</h3>
+              <p class="z-small">{{ t('إجمالي صافي الراتب لكل مسير', 'Total net salary per run') }}</p>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="payrollMonthlyTrend().length === 0">
+            <span class="material-icons">bar_chart</span>
+            <span>{{ t('لا توجد مسيرات سابقة', 'No previous runs') }}</span>
+          </div>
+          <div class="bar-chart-shell bar-chart-lg" *ngIf="payrollMonthlyTrend().length > 0">
+            <div class="bar-col" *ngFor="let run of payrollMonthlyTrend()">
+              <div class="bar-track">
+                <div class="bar-fill" [style.height.%]="payrollMonthBarHeight(run.totalNet)"></div>
+              </div>
+              <span class="bar-day">{{ monthYearLabel(run.month, run.year) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 3: Pending Financial Tasks (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('المهام المالية المعلقة', 'Pending Financial Tasks') }}</h3>
+              <p class="z-small">{{ t('بنود تنتظر قرارًا ماليًا', 'Items awaiting your financial decision') }}</p>
+            </div>
+          </div>
+          <div class="dept-list">
+            <div class="dept-row" *ngFor="let item of pendingItemsData()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+                <span class="dept-count">{{ item.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" [style.width.%]="item.pct"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 4: Latest Run — Earnings vs Deductions (comparison bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('المسير الأخير: الأرباح مقابل الخصومات', 'Latest Run: Earnings vs Deductions') }}</h3>
+              <p class="z-small">{{ latestPayrollRun() ? monthYearLabel(latestPayrollRun()!.month, latestPayrollRun()!.year) : t('لا يوجد مسير', 'No run yet') }}</p>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="!latestPayrollRun()">
+            <span class="material-icons">payments</span>
+            <span>{{ t('لم تُنشأ مسيرات بعد', 'No payroll runs yet') }}</span>
+          </div>
+          <div class="dept-list" *ngIf="latestPayrollRun()">
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('إجمالي الرواتب', 'Total Gross') }}</span>
+                <span class="dept-count">{{ latestRunGross() }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#2d9e6b; width:100%"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('صافي الرواتب', 'Total Net') }}</span>
+                <span class="dept-count">{{ latestRunNet() }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#3b82f6" [style.width.%]="latestRunNetRatio()"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('إجمالي الخصومات', 'Total Deductions') }}</span>
+                <span class="dept-count">{{ latestRunDeduction() }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#ef4444" [style.width.%]="latestRunDeductionRatio()"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </ng-container>
+
+      <!-- ── SUPERADMIN charts ─────────────────────────────────────── -->
+      <ng-container *ngIf="role === 'superadmin'">
+
+        <!-- Chart 1: Employee Status Distribution (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('توزيع حالة الموظفين', 'Employee Status') }}</h3>
+              <p class="z-small">{{ t('تصنيف الموظفين حسب الحالة الوظيفية', 'Breakdown by employment status') }}</p>
+            </div>
+            <a routerLink="/app/employees" class="panel-link">{{ t('الموظفون', 'Employees') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="employeeStatusData().length === 0">
+            <span class="material-icons">groups</span>
+            <span>{{ t('لا توجد بيانات', 'No data yet') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="employeeStatusData().length > 0">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="employeeStatusGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ employeeStatusTotal() }}</strong>
+                  <span class="donut-center-label">{{ t('موظف', 'staff') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item" *ngFor="let row of employeeStatusData()">
+                <span class="legend-dot" [style.background]="employeeStatusColor(row.status)"></span>
+                <span class="legend-label">{{ lang === 'ar' ? employeeStatusLabelAr(row.status) : row.status }}</span>
+                <span class="legend-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Users by Role (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('المستخدمون حسب الدور', 'Users by Role') }}</h3>
+              <p class="z-small">{{ t('توزيع المستخدمين النشطين على الأدوار', 'Active users distribution across roles') }}</p>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="usersByRole().length === 0">
+            <span class="material-icons">manage_accounts</span>
+            <span>{{ t('لا توجد بيانات', 'No data yet') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="usersByRole().length > 0">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="usersByRoleGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ usersByRoleTotal() }}</strong>
+                  <span class="donut-center-label">{{ t('مستخدم', 'users') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item" *ngFor="let row of usersByRole()">
+                <span class="legend-dot" [style.background]="roleColorIndex(row.role)"></span>
+                <span class="legend-label">{{ lang === 'ar' ? roleLabelAr(row.role) : roleLabelEn(row.role) }}</span>
+                <span class="legend-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 3: Activity by Module (horizontal bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('النشاط حسب الوحدة (30 يوم)', 'Activity by Module (30 Days)') }}</h3>
+              <p class="z-small">{{ t('الوحدات الأكثر تفاعلاً خلال الشهر الماضي', 'Most active modules in the last month') }}</p>
+            </div>
+          </div>
+          <div class="chart-empty" *ngIf="activityByModule().length === 0">
+            <span class="material-icons">timeline</span>
+            <span>{{ t('لا توجد أنشطة مسجلة', 'No activity logged') }}</span>
+          </div>
+          <div class="dept-list" *ngIf="activityByModule().length > 0">
+            <div class="dept-row" *ngFor="let mod of activityByModule()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ moduleLabel(mod.module) }}</span>
+                <span class="dept-count">{{ mod.count }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#3b82f6" [style.width.%]="activityModuleMax() > 0 ? (mod.count / activityModuleMax()) * 100 : 0"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 4: Payroll Status (donut) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('حالة مسيرات الرواتب', 'Payroll Run Status') }}</h3>
+              <p class="z-small">{{ t('توزيع المسيرات الكلي حسب الحالة', 'All-time distribution by status') }}</p>
+            </div>
+            <a routerLink="/app/payroll/runs" class="panel-link">{{ t('عرض', 'View') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="payrollStatusBreakdown().length === 0">
+            <span class="material-icons">receipt_long</span>
+            <span>{{ t('لا توجد مسيرات', 'No payroll runs') }}</span>
+          </div>
+          <div class="donut-chart-shell donut-lg" *ngIf="payrollStatusBreakdown().length > 0">
+            <div class="donut-wrap">
+              <div class="donut-disc donut-disc-lg" [style.background]="payrollGradient()">
+                <div class="donut-hole donut-hole-lg">
+                  <strong class="donut-center-value">{{ payrollTotal() }}</strong>
+                  <span class="donut-center-label">{{ t('مسير', 'runs') }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item" *ngFor="let row of payrollStatusBreakdown()">
+                <span class="legend-dot" [style.background]="payrollStatusColor(row.status)"></span>
+                <span class="legend-label">{{ lang === 'ar' ? payrollStatusLabelAr(row.status) : statusLabel(row.status) }}</span>
+                <span class="legend-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </ng-container>
+
+    </div>
+    <!-- end .dashboard-chart-grid -->
+
+    <!-- KPI Stat Cards -->
     <div class="dashboard-card-grid">
       <a
         *ngFor="let card of topCards()"
@@ -72,89 +567,7 @@
       </a>
     </div>
 
-    <!-- ── Charts Row: Attendance Donut + Trend / Pending Items ───────────── -->
-    <div class="chart-row" *ngIf="summary()">
-
-      <!-- Today's Workforce Donut — all non-employee roles -->
-      <div class="z-card chart-panel">
-        <div class="panel-head">
-          <div>
-            <h3 class="z-heading">{{ t('توزيع القوى العاملة اليوم', "Today's Workforce") }}</h3>
-            <p class="z-small">{{ t('الحضور والغياب والإجازات الآن', 'Presence, absence, and leave today') }}</p>
-          </div>
-        </div>
-        <div class="donut-chart-shell">
-          <div class="donut-wrap">
-            <div class="donut-disc" [style.background]="attendanceDonutGradient()">
-              <div class="donut-hole">
-                <strong class="donut-center-value">{{ summary()?.totalEmployees }}</strong>
-                <span class="donut-center-label">{{ t('موظف', 'staff') }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="donut-legend">
-            <div class="legend-item">
-              <span class="legend-dot primary-dot"></span>
-              <span class="legend-label">{{ t('حاضر', 'Present') }}</span>
-              <span class="legend-count">{{ summary()?.presentToday }}</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot" style="background:#f59e0b"></span>
-              <span class="legend-label">{{ t('في إجازة', 'On Leave') }}</span>
-              <span class="legend-count">{{ summary()?.onLeaveToday }}</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot" style="background:#ef4444"></span>
-              <span class="legend-label">{{ t('غائب', 'Absent') }}</span>
-              <span class="legend-count">{{ summary()?.absentToday }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 7-Day Attendance Trend — HR / Manager / Superadmin -->
-      <div class="z-card chart-panel"
-           *ngIf="(role === 'hradmin' || role === 'superadmin' || role === 'manager') && attendanceTrend().length > 0">
-        <div class="panel-head">
-          <div>
-            <h3 class="z-heading">{{ t('الحضور — آخر 7 أيام', 'Attendance — Last 7 Days') }}</h3>
-            <p class="z-small">{{ t('عدد الحاضرين يوميًا خلال الأسبوع الماضي', 'Daily presence count over the past week') }}</p>
-          </div>
-        </div>
-        <div class="bar-chart-shell">
-          <div class="bar-col" *ngFor="let day of attendanceTrend()">
-            <div class="bar-track">
-              <div class="bar-fill" [style.height.%]="attendanceTrendMax() > 0 ? (day.present / attendanceTrendMax()) * 100 : 0"></div>
-            </div>
-            <span class="bar-day">{{ dayLabel(day.date) }}</span>
-            <span class="bar-count">{{ day.present }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Pending Items — Payroll Admin -->
-      <div class="z-card chart-panel" *ngIf="role === 'payrolladmin' && summary()">
-        <div class="panel-head">
-          <div>
-            <h3 class="z-heading">{{ t('البنود المعلقة', 'Pending Items') }}</h3>
-            <p class="z-small">{{ t('تحتاج مراجعة وقرارًا ماليًا', 'Awaiting your financial review') }}</p>
-          </div>
-        </div>
-        <div class="dept-list">
-          <div class="dept-row" *ngFor="let item of pendingItemsData()">
-            <div class="dept-meta">
-              <span class="dept-name">{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
-              <span class="dept-count">{{ item.count }}</span>
-            </div>
-            <div class="dept-bar">
-              <div class="dept-fill" [style.width.%]="item.pct"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
+    <!-- Secondary Panels Grid -->
     <div class="dashboard-main-grid">
       <div class="dashboard-column-wide">
         <div class="z-card dashboard-panel" *ngIf="role === 'hradmin' || role === 'superadmin' || role === 'payrolladmin' || role === 'manager'">
@@ -179,94 +592,6 @@
               <div class="dept-bar">
                 <div class="dept-fill" [style.width.%]="(dept.count / maxDept()) * 100"></div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Leave Type Breakdown — HR / Manager / Superadmin -->
-        <div class="z-card dashboard-panel"
-             *ngIf="(role === 'hradmin' || role === 'superadmin' || role === 'manager') && leaveTypeBreakdown().length > 0">
-          <div class="panel-head">
-            <div>
-              <h3 class="z-heading">{{ t('توزيع الإجازات (هذا العام)', 'Leave Distribution (This Year)') }}</h3>
-              <p class="z-small">{{ t('الإجازات المعتمدة مصنفة حسب نوعها', 'Approved leave requests by type') }}</p>
-            </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
-          </div>
-          <div class="dept-list">
-            <div class="dept-row" *ngFor="let type of leaveTypeBreakdown()">
-              <div class="dept-meta">
-                <span class="dept-name">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</span>
-                <span class="dept-count">{{ type.count }}</span>
-              </div>
-              <div class="dept-bar">
-                <div class="dept-fill leave-fill" [style.width.%]="leaveTypeMax() > 0 ? (type.count / leaveTypeMax()) * 100 : 0"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="z-card dashboard-panel" *ngIf="role === 'employee'">
-          <div class="panel-head">
-            <div>
-              <h3 class="z-heading">{{ t('اختصارات الخدمة الذاتية', 'Self-service shortcuts') }}</h3>
-              <p class="z-small">{{ t('كل ما تحتاجه في مكان واحد', 'Everything you need in one place') }}</p>
-            </div>
-          </div>
-
-          <div class="quick-action-grid">
-            <a routerLink="/app/attendance" class="quick-action-card">
-              <span class="material-icons">schedule</span>
-              <span>{{ t('الحضور والانصراف', 'Attendance') }}</span>
-            </a>
-            <a routerLink="/app/leave" class="quick-action-card">
-              <span class="material-icons">event_note</span>
-              <span>{{ t('طلب إجازة', 'Leave requests') }}</span>
-            </a>
-            <a routerLink="/app/overtime" class="quick-action-card">
-              <span class="material-icons">more_time</span>
-              <span>{{ t('العمل الإضافي', 'Overtime') }}</span>
-            </a>
-            <a routerLink="/app/advances" class="quick-action-card">
-              <span class="material-icons">payments</span>
-              <span>{{ t('السلف', 'Advances') }}</span>
-            </a>
-          </div>
-        </div>
-
-        <div class="z-card dashboard-panel" *ngIf="role === 'employee' && employeeComplianceSummary()">
-          <div class="panel-head">
-            <div>
-              <h3 class="z-heading">{{ t('حالة الامتثال الخاصة بي', 'My compliance status') }}</h3>
-              <p class="z-small">{{ t('ملخص الوثائق المطلوبة والتنبيهات المرتبطة بها', 'A quick summary of required documents and related alerts') }}</p>
-            </div>
-            <a [routerLink]="['/app/employees', auth.currentUser()?.employeeId]" class="panel-link">{{ t('فتح الملف', 'Open profile') }}</a>
-          </div>
-
-          <div class="compliance-mini-grid">
-            <div class="mini-status-card">
-              <span class="mini-label">{{ t('ساري', 'Valid') }}</span>
-              <strong>{{ employeeComplianceSummary()?.summary?.valid || 0 }}</strong>
-            </div>
-            <div class="mini-status-card warning">
-              <span class="mini-label">{{ t('قريب', 'Soon') }}</span>
-              <strong>{{ employeeComplianceSummary()?.summary?.expiringSoon || 0 }}</strong>
-            </div>
-            <div class="mini-status-card danger">
-              <span class="mini-label">{{ t('حرج', 'Critical') }}</span>
-              <strong>{{ (employeeComplianceSummary()?.summary?.expired || 0) + (employeeComplianceSummary()?.summary?.missing || 0) }}</strong>
-            </div>
-          </div>
-
-          <div class="stack-list" *ngIf="employeeComplianceSummary()?.alerts?.length > 0">
-            <div class="stack-item" *ngFor="let alert of employeeComplianceSummary()?.alerts">
-              <div class="stack-item-main">
-                <span class="stack-item-title">{{ lang === 'ar' ? alert.labelAr : alert.labelEn }}</span>
-                <span class="stack-item-subtitle">{{ alert.daysRemaining == null ? t('يرجى استكمال الوثيقة', 'Please complete this document') : (alert.daysRemaining < 0 ? t('الوثيقة منتهية', 'Document expired') : t('ينتهي قريباً', 'Expiring soon')) }}</span>
-              </div>
-              <span class="z-badge" [class.danger]="alert.status === 'expired' || alert.status === 'missing'" [class.warning]="alert.status === 'expiring_soon'">
-                {{ alert.status === 'missing' ? t('مفقود', 'Missing') : alert.status === 'expired' ? t('منتهي', 'Expired') : t('قريب', 'Soon') }}
-              </span>
             </div>
           </div>
         </div>
@@ -314,35 +639,6 @@
       </div>
 
       <div class="dashboard-column-side">
-
-        <!-- Payroll Status Breakdown — HR / Payroll / Superadmin -->
-        <div class="z-card dashboard-panel"
-             *ngIf="(role === 'hradmin' || role === 'superadmin' || role === 'payrolladmin') && payrollStatusBreakdown().length > 0">
-          <div class="panel-head">
-            <div>
-              <h3 class="z-heading">{{ t('حالة مسيرات الرواتب', 'Payroll Run Status') }}</h3>
-              <p class="z-small">{{ t('توزيع المسيرات حسب الحالة الحالية', 'Current distribution by status') }}</p>
-            </div>
-            <a routerLink="/app/payroll/runs" class="panel-link">{{ t('عرض', 'View') }}</a>
-          </div>
-          <div class="donut-chart-shell donut-sm">
-            <div class="donut-wrap">
-              <div class="donut-disc" [style.background]="payrollGradient()">
-                <div class="donut-hole">
-                  <strong class="donut-center-value">{{ payrollTotal() }}</strong>
-                  <span class="donut-center-label">{{ t('مسير', 'runs') }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="donut-legend">
-              <div class="legend-item" *ngFor="let row of payrollStatusBreakdown()">
-                <span class="legend-dot" [style.background]="payrollStatusColor(row.status)"></span>
-                <span class="legend-label">{{ lang === 'ar' ? payrollStatusLabelAr(row.status) : statusLabel(row.status) }}</span>
-                <span class="legend-count">{{ row.count }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div class="z-card dashboard-panel" *ngIf="complianceAlerts().length > 0">
           <div class="panel-head">
@@ -427,8 +723,150 @@
     </ng-container>
   </ng-container>
 
+  <!-- ════════════════════════════════════════════════════════════
+       EMPLOYEE DASHBOARD
+  ════════════════════════════════════════════════════════════ -->
   <ng-template #employeeDashboardView>
     <div class="employee-dashboard-shell">
+
+      <!-- Employee 4-Chart Grid — 2×2 -->
+      <div class="dashboard-chart-grid">
+
+        <!-- Chart 1: My Attendance This Month (horizontal bars by status) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('حضوري هذا الشهر', 'My Attendance This Month') }}</h3>
+              <p class="z-small">{{ t('توزيع أيام الحضور حسب الحالة', 'Days by attendance status') }}</p>
+            </div>
+            <a routerLink="/app/attendance" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="myAttendanceMonthData().length === 0">
+            <span class="material-icons">schedule</span>
+            <span>{{ t('لا توجد سجلات حضور هذا الشهر', 'No attendance records this month') }}</span>
+          </div>
+          <div class="dept-list" *ngIf="myAttendanceMonthData().length > 0">
+            <div class="dept-row" *ngFor="let item of myAttendanceMonthData()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? item.labelAr : item.labelEn }}</span>
+                <span class="dept-count">{{ item.count }} {{ t('يوم', 'days') }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" [style.background]="item.color" [style.width.%]="item.pct"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: My Leave Balances (split bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('أرصدة إجازاتي', 'My Leave Balances') }}</h3>
+              <p class="z-small">{{ t('المستخدم والمتبقي من كل نوع إجازة', 'Used and remaining by type') }}</p>
+            </div>
+            <a routerLink="/app/leave" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="leaveBalanceBars().length === 0">
+            <span class="material-icons">event_note</span>
+            <span>{{ t('لا توجد أرصدة إجازات', 'No leave balances') }}</span>
+          </div>
+          <div class="leave-bal-list" *ngIf="leaveBalanceBars().length > 0">
+            <div class="leave-bal-row" *ngFor="let bal of leaveBalanceBars()">
+              <div class="dept-meta">
+                <span class="dept-name">{{ lang === 'ar' ? bal.nameAr : bal.nameEn }}</span>
+                <span class="dept-count">{{ bal.remaining }}/{{ bal.total }} {{ t('يوم', 'days') }}</span>
+              </div>
+              <div class="leave-bal-bar leave-bal-bar-lg">
+                <div class="leave-used-fill" [style.width.%]="leaveBalanceMax() > 0 ? (bal.used / leaveBalanceMax()) * 100 : 0"></div>
+                <div class="leave-rem-fill" [style.width.%]="leaveBalanceMax() > 0 ? (bal.remaining / leaveBalanceMax()) * 100 : 0"></div>
+              </div>
+            </div>
+          </div>
+          <div class="leave-bal-legend" *ngIf="leaveBalanceBars().length > 0">
+            <span class="legend-dot primary-dot"></span>
+            <span class="legend-label">{{ t('متبقي', 'Remaining') }}</span>
+            <span class="legend-dot" style="background:#94a3b8; margin-inline-start:12px"></span>
+            <span class="legend-label">{{ t('مستخدم', 'Used') }}</span>
+          </div>
+        </div>
+
+        <!-- Chart 3: My Payslip Trend (vertical bars) -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('قسائم راتبي — آخر 6 أشهر', 'My Payslips — Last 6 Months') }}</h3>
+              <p class="z-small">{{ t('إجمالي الراتب لكل شهر', 'Gross salary per month') }}</p>
+            </div>
+            <a routerLink="/app/payroll/slips" class="panel-link">{{ t('عرض', 'View') }}</a>
+          </div>
+          <div class="chart-empty" *ngIf="myPayslipTrend().length === 0">
+            <span class="material-icons">receipt_long</span>
+            <span>{{ t('لا توجد قسائم راتب بعد', 'No payslips issued yet') }}</span>
+          </div>
+          <div class="bar-chart-shell bar-chart-lg" *ngIf="myPayslipTrend().length > 0">
+            <div class="bar-col" *ngFor="let slip of myPayslipTrend()">
+              <div class="bar-track">
+                <div class="bar-fill" [style.height.%]="payslipMonthBarHeight(slip.gross)"></div>
+              </div>
+              <span class="bar-day">{{ monthYearLabel(slip.month, slip.year) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 4: My Compliance & Assets Status -->
+        <div class="z-card chart-card-lg">
+          <div class="chart-card-head">
+            <div>
+              <h3 class="z-heading">{{ t('الوثائق والأصول والامتثال', 'Documents, Assets & Compliance') }}</h3>
+              <p class="z-small">{{ t('ملخص الوضع الحالي لملفاتي', 'Current status of my profile items') }}</p>
+            </div>
+            <a routerLink="/app/documents" class="panel-link">{{ t('الملف', 'Profile') }}</a>
+          </div>
+          <div class="dept-list">
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('وثائق سارية', 'Valid documents') }}</span>
+                <span class="dept-count">{{ employeeComplianceSummary()?.summary?.valid ?? 0 }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#2d9e6b" [style.width.%]="(employeeComplianceSummary()?.summary?.valid ?? 0) > 0 ? 100 : 5"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('تنتهي قريباً', 'Expiring soon') }}</span>
+                <span class="dept-count">{{ employeeComplianceSummary()?.summary?.expiringSoon ?? 0 }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#f59e0b" [style.width.%]="(employeeComplianceSummary()?.summary?.expiringSoon ?? 0) > 0 ? 60 : 0"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('منتهية / مفقودة', 'Expired / Missing') }}</span>
+                <span class="dept-count">{{ (employeeComplianceSummary()?.summary?.expired ?? 0) + (employeeComplianceSummary()?.summary?.missing ?? 0) }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#ef4444" [style.width.%]="((employeeComplianceSummary()?.summary?.expired ?? 0) + (employeeComplianceSummary()?.summary?.missing ?? 0)) > 0 ? 70 : 0"></div>
+              </div>
+            </div>
+            <div class="dept-row">
+              <div class="dept-meta">
+                <span class="dept-name">{{ t('أصول معيّنة لي', 'Assigned assets') }}</span>
+                <span class="dept-count">{{ assignedAssetsCount() }}</span>
+              </div>
+              <div class="dept-bar dept-bar-lg">
+                <div class="dept-fill" style="background:#8b5cf6" [style.width.%]="assignedAssetsCount() > 0 ? 50 : 0"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- end employee chart grid -->
+
+      <!-- Employee Summary Widget Cards -->
       <div class="employee-widget-grid">
         <div
           class="employee-widget-card z-card"
@@ -490,39 +928,6 @@
         </div>
       </div>
 
-      <!-- Employee Leave Balance Breakdown -->
-      <div class="z-card dashboard-panel" *ngIf="leaveBalanceBars().length > 0">
-        <div class="panel-head">
-          <div>
-            <h3 class="z-heading">{{ t('أرصدة إجازاتي', 'My Leave Balances') }}</h3>
-            <p class="z-small">{{ t('المستخدم والمتبقي من كل نوع إجازة', 'Used and remaining days by leave type') }}</p>
-          </div>
-          <a routerLink="/app/leave" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
-        </div>
-        <div class="leave-bal-list">
-          <div class="leave-bal-row" *ngFor="let bal of leaveBalanceBars()">
-            <div class="dept-meta">
-              <span class="dept-name">{{ lang === 'ar' ? bal.nameAr : bal.nameEn }}</span>
-              <span class="dept-count">{{ bal.remaining }}/{{ bal.total }}</span>
-            </div>
-            <div class="leave-bal-bar">
-              <div class="leave-used-fill"
-                   [style.width.%]="leaveBalanceMax() > 0 ? (bal.used / leaveBalanceMax()) * 100 : 0"></div>
-              <div class="leave-rem-fill"
-                   [style.width.%]="leaveBalanceMax() > 0 ? (bal.remaining / leaveBalanceMax()) * 100 : 0"></div>
-            </div>
-          </div>
-        </div>
-        <div class="leave-bal-legend">
-          <span class="legend-dot primary-dot"></span>
-          <span class="legend-label">{{ t('متبقي', 'Remaining') }}</span>
-          <span class="legend-dot" style="background:#94a3b8; margin-inline-start:12px"></span>
-          <span class="legend-label">{{ t('مستخدم', 'Used') }}</span>
-        </div>
-      </div>
-
     </div>
   </ng-template>
 </section>
-
-

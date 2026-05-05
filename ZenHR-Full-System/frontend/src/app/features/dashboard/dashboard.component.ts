@@ -115,6 +115,12 @@ export class DashboardComponent implements OnInit {
   attendanceTrend = signal<AttendanceDay[]>([]);
   leaveTypeBreakdown = signal<LeaveTypeRow[]>([]);
   payrollStatusBreakdown = signal<PayrollStatusRow[]>([]);
+  employeeStatusData = signal<{status: string; count: number}[]>([]);
+  myAttendanceMonth = signal<{status: string; count: number}[]>([]);
+  myPayslipTrend = signal<{month: number; year: number; net: string; gross: string; deductions: string}[]>([]);
+  payrollMonthlyTrend = signal<{month: number; year: number; totalNet: string; totalGross: string; status: string; employeeCount: number}[]>([]);
+  usersByRole = signal<{role: string; count: number}[]>([]);
+  activityByModule = signal<{module: string; count: number}[]>([]);
   employeeWidgetLoading = signal<Record<EmployeeWidgetKey, boolean>>({
     attendance: false,
     requests: false,
@@ -348,6 +354,87 @@ export class DashboardComponent implements OnInit {
     ];
   });
 
+  readonly employeeStatusGradient = computed(() => {
+    const rows = this.employeeStatusData();
+    if (!rows.length) return 'conic-gradient(#e2e8f0 0% 100%)';
+    const total = rows.reduce((s, r) => s + r.count, 0) || 1;
+    const colorMap: Record<string, string> = { active: '#2d9e6b', probation: '#3b82f6', inactive: '#94a3b8', terminated: '#ef4444' };
+    let acc = 0;
+    const stops = rows.map(r => {
+      const pct = (r.count / total) * 100;
+      const stop = `${colorMap[r.status] ?? '#94a3b8'} ${acc.toFixed(1)}% ${(acc + pct).toFixed(1)}%`;
+      acc += pct;
+      return stop;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  });
+
+  readonly employeeStatusTotal = computed(() => this.employeeStatusData().reduce((s, r) => s + r.count, 0));
+
+  readonly usersByRoleGradient = computed(() => {
+    const rows = this.usersByRole();
+    if (!rows.length) return 'conic-gradient(#e2e8f0 0% 100%)';
+    const total = rows.reduce((s, r) => s + r.count, 0) || 1;
+    const colors = ['#2d9e6b', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+    let acc = 0;
+    const stops = rows.map((r, i) => {
+      const pct = (r.count / total) * 100;
+      const stop = `${colors[i % colors.length]} ${acc.toFixed(1)}% ${(acc + pct).toFixed(1)}%`;
+      acc += pct;
+      return stop;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  });
+
+  readonly usersByRoleTotal = computed(() => this.usersByRole().reduce((s, r) => s + r.count, 0));
+
+  readonly payrollMonthlyMax = computed(() =>
+    Math.max(...this.payrollMonthlyTrend().map(r => Number(r.totalNet) || 0), 1)
+  );
+
+  readonly myPayslipMax = computed(() =>
+    Math.max(...this.myPayslipTrend().map(r => Number(r.gross) || 0), 1)
+  );
+
+  readonly myAttendanceMonthData = computed(() => {
+    const rows = this.myAttendanceMonth();
+    const colorMap: Record<string, string> = { present: '#2d9e6b', late: '#f59e0b', absent: '#ef4444', on_leave: '#3b82f6' };
+    const labelAr: Record<string, string> = { present: 'حاضر', late: 'متأخر', absent: 'غائب', on_leave: 'إجازة' };
+    const labelEn: Record<string, string> = { present: 'Present', late: 'Late', absent: 'Absent', on_leave: 'Leave' };
+    const max = Math.max(...rows.map(r => r.count), 1);
+    return rows.map(r => ({
+      status: r.status,
+      count: r.count,
+      pct: (r.count / max) * 100,
+      color: colorMap[r.status] ?? '#94a3b8',
+      labelAr: labelAr[r.status] ?? r.status,
+      labelEn: labelEn[r.status] ?? r.status,
+    }));
+  });
+
+  readonly activityModuleMax = computed(() =>
+    Math.max(...this.activityByModule().map(r => r.count), 1)
+  );
+
+  readonly latestPayrollRun = computed(() => {
+    const t = this.payrollMonthlyTrend();
+    return t.length ? t[t.length - 1]! : null;
+  });
+
+  readonly latestRunNetRatio = computed(() => {
+    const r = this.latestPayrollRun();
+    if (!r) return 0;
+    const g = Number(r.totalGross); const n = Number(r.totalNet);
+    return g > 0 ? (n / g) * 100 : 0;
+  });
+
+  readonly latestRunDeductionRatio = computed(() => {
+    const r = this.latestPayrollRun();
+    if (!r) return 0;
+    const g = Number(r.totalGross); const n = Number(r.totalNet);
+    return g > 0 ? ((g - n) / g) * 100 : 0;
+  });
+
   ngOnInit() {
     if (this.role !== 'superadmin') {
       this.tenant.load();
@@ -361,6 +448,8 @@ export class DashboardComponent implements OnInit {
       this.loadEmployeeOvertimeData();
       this.loadEmployeeAdvances();
       this.loadEmployeeAssets();
+      this.loadMyAttendanceMonth();
+      this.loadMyPayslipTrend();
       return;
     }
 
@@ -375,6 +464,10 @@ export class DashboardComponent implements OnInit {
     this.loadAttendanceTrend();
     this.loadLeaveTypeBreakdown();
     this.loadPayrollStatusBreakdown();
+    this.loadEmployeeStatusData();
+    this.loadPayrollMonthlyTrend();
+    this.loadUsersByRole();
+    this.loadActivityByModule();
   }
 
   t(ar: string, en: string) {
@@ -461,6 +554,67 @@ export class DashboardComponent implements OnInit {
     const ar: Record<string, string> = { draft: 'مسودة', approved: 'موافق عليه', paid: 'مدفوع', unpaid: 'غير مدفوع' };
     const en: Record<string, string> = { draft: 'Draft', approved: 'Approved', paid: 'Paid', unpaid: 'Unpaid' };
     return this.lang === 'ar' ? (ar[status] || status) : (en[status] || status);
+  }
+
+  employeeStatusColor(status: string): string {
+    const m: Record<string, string> = { active: '#2d9e6b', probation: '#3b82f6', inactive: '#94a3b8', terminated: '#ef4444' };
+    return m[status] ?? '#94a3b8';
+  }
+
+  employeeStatusLabelAr(status: string): string {
+    const m: Record<string, string> = { active: 'نشط', probation: 'فترة تجربة', inactive: 'غير نشط', terminated: 'منتهي' };
+    return m[status] ?? status;
+  }
+
+  roleColorIndex(role: string): string {
+    const colors = ['#2d9e6b', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+    const roles = ['hradmin', 'employee', 'manager', 'payrolladmin', 'superadmin', 'recruiter'];
+    const idx = roles.indexOf(role);
+    return colors[idx >= 0 ? idx : 0]!;
+  }
+
+  roleLabelAr(role: string): string {
+    const m: Record<string, string> = { superadmin: 'مدير النظام', hradmin: 'موارد بشرية', payrolladmin: 'مدير الرواتب', manager: 'مدير قسم', employee: 'موظف', recruiter: 'مسؤول تعيين' };
+    return m[role] ?? role;
+  }
+
+  roleLabelEn(role: string): string {
+    const m: Record<string, string> = { superadmin: 'Superadmin', hradmin: 'HR Admin', payrolladmin: 'Payroll Admin', manager: 'Manager', employee: 'Employee', recruiter: 'Recruiter' };
+    return m[role] ?? role;
+  }
+
+  moduleLabel(module: string): string {
+    const m: Record<string, string> = {
+      leave: this.t('إجازات', 'Leave'), overtime: this.t('عمل إضافي', 'Overtime'),
+      attendance: this.t('حضور', 'Attendance'), payroll: this.t('رواتب', 'Payroll'),
+      employee: this.t('موظفون', 'Employees'), compliance: this.t('امتثال', 'Compliance'),
+      asset: this.t('أصول', 'Assets'), advance: this.t('سلف', 'Advances'),
+    };
+    return m[module] ?? module;
+  }
+
+  payrollMonthBarHeight(totalNet: string): number {
+    const max = this.payrollMonthlyMax();
+    return max > 0 ? (Number(totalNet) / max) * 100 : 0;
+  }
+
+  payslipMonthBarHeight(gross: string): number {
+    const max = this.myPayslipMax();
+    return max > 0 ? (Number(gross) / max) * 100 : 0;
+  }
+
+  monthYearLabel(month: number, year: number): string {
+    const ar = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const en = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const m = this.lang === 'ar' ? (ar[month] ?? '') : (en[month] ?? '');
+    return `${m} ${String(year).slice(2)}`;
+  }
+
+  latestRunGross(): string { const r = this.latestPayrollRun(); return r ? this.money(Number(r.totalGross)) : '—'; }
+  latestRunNet(): string { const r = this.latestPayrollRun(); return r ? this.money(Number(r.totalNet)) : '—'; }
+  latestRunDeduction(): string {
+    const r = this.latestPayrollRun();
+    return r ? this.money(Number(r.totalGross) - Number(r.totalNet)) : '—';
   }
 
   employeeTodayLabel(status?: string) {
@@ -969,6 +1123,46 @@ export class DashboardComponent implements OnInit {
     if (!this.access.isAny('superadmin', 'hradmin', 'payrolladmin')) return;
     this.api.get<ApiResponse<PayrollStatusRow[]>>('/api/dashboard/payroll-status-breakdown').subscribe({
       next: r => this.payrollStatusBreakdown.set(r.data ?? []),
+    });
+  }
+
+  private loadEmployeeStatusData() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'manager')) return;
+    this.api.get<ApiResponse<{status: string; count: number}[]>>('/api/dashboard/charts/employee-status').subscribe({
+      next: r => this.employeeStatusData.set(r.data ?? []),
+    });
+  }
+
+  private loadMyAttendanceMonth() {
+    this.api.get<ApiResponse<{status: string; count: number}[]>>('/api/dashboard/charts/my-attendance-month').subscribe({
+      next: r => this.myAttendanceMonth.set(r.data ?? []),
+    });
+  }
+
+  private loadMyPayslipTrend() {
+    this.api.get<ApiResponse<any[]>>('/api/dashboard/charts/my-payslip-trend').subscribe({
+      next: r => this.myPayslipTrend.set(r.data ?? []),
+    });
+  }
+
+  private loadPayrollMonthlyTrend() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'payrolladmin')) return;
+    this.api.get<ApiResponse<any[]>>('/api/dashboard/charts/payroll-monthly-trend').subscribe({
+      next: r => this.payrollMonthlyTrend.set(r.data ?? []),
+    });
+  }
+
+  private loadUsersByRole() {
+    if (!this.access.isAny('superadmin', 'hradmin')) return;
+    this.api.get<ApiResponse<{role: string; count: number}[]>>('/api/dashboard/charts/superadmin-users-by-role').subscribe({
+      next: r => this.usersByRole.set(r.data ?? []),
+    });
+  }
+
+  private loadActivityByModule() {
+    if (!this.access.isAny('superadmin', 'hradmin', 'payrolladmin')) return;
+    this.api.get<ApiResponse<{module: string; count: number}[]>>('/api/dashboard/charts/activity-by-module').subscribe({
+      next: r => this.activityByModule.set(r.data ?? []),
     });
   }
 

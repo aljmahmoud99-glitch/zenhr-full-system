@@ -730,7 +730,113 @@
    LIVE CHARTS — conic-gradient donut + CSS bar charts
 ══════════════════════════════════════════════════════════ */
 
-/* Chart row: two cards side by side */
+/* ── Large 2×2 chart grid (new) ── */
+.dashboard-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--z-space-4, 16px);
+}
+
+.chart-card-lg {
+  min-height: 300px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chart-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.chart-card-head p {
+  margin: 3px 0 0;
+}
+
+.chart-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--z-text-muted, #94a3b8);
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 160px;
+}
+
+.chart-empty .material-icons {
+  font-size: 40px;
+  opacity: 0.3;
+}
+
+/* Larger donut disc */
+.donut-disc-lg {
+  width: 140px !important;
+  height: 140px !important;
+}
+
+.donut-hole-lg {
+  inset: 24px !important;
+}
+
+.donut-hole-lg .donut-center-value {
+  font-size: 24px !important;
+}
+
+.donut-chart-shell.donut-lg {
+  flex: 1;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+}
+
+/* Larger vertical bar chart */
+.bar-chart-shell.bar-chart-lg {
+  height: 170px !important;
+  flex: 1;
+}
+
+/* Larger horizontal bar rows */
+.dept-bar-lg {
+  height: 14px !important;
+}
+
+/* Larger leave balance bars */
+.leave-bal-bar-lg {
+  height: 14px !important;
+}
+
+/* dept-list fills card height in chart cards */
+.chart-card-lg .dept-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-chart-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .dashboard-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card-lg {
+    min-height: 260px;
+  }
+}
+
+/* Chart row: two cards side by side (legacy, kept for compatibility) */
 .chart-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

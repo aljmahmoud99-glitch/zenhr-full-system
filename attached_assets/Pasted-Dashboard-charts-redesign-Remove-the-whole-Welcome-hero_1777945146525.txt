@@ -1,0 +1,76 @@
+Dashboard charts redesign:
+
+Remove the whole “Welcome / مرحباً” hero section from every dashboard role view.
+
+The first visible content after the top navigation must be charts.
+
+Add 4 large real-data charts per role dashboard, not tiny widgets, not static/demo data.
+
+Requirements:
+- Each chart card should be large, readable, and professional.
+- Use a responsive 2-column grid on desktop, 1-column on mobile.
+- Each chart should have title, subtitle, legend, empty state, loading state.
+- Use different chart types: bar, donut, line, horizontal bars, stacked/status chart.
+- Use company theme CSS variables for chart colors.
+- Charts must survive refresh and keep theme colors.
+- Do not place charts at the bottom. They must be the first dashboard section.
+
+Role charts:
+
+HR dashboard:
+1. Employee status distribution.
+2. Attendance today: present / absent / leave.
+3. Pending workflows by type.
+4. Compliance/documents/assets alerts.
+
+Manager dashboard:
+1. Team attendance today.
+2. Team leave/overtime requests by status.
+3. Team workflow requests by type/status.
+4. Team compliance/documents alerts.
+
+Employee dashboard:
+1. My attendance this month.
+2. My leave balance and requests.
+3. My payslip/salary trend if allowed.
+4. My assets/documents/compliance status.
+
+Payroll dashboard:
+1. Payroll runs by month/status.
+2. Earnings vs deductions.
+3. Pending payroll tasks: salary changes / advances / payroll approvals.
+4. Payslip totals trend.
+
+Admin/Superadmin dashboard:
+1. Users by role.
+2. Active vs inactive users.
+3. Recent activity by module.
+4. System/config health or company/module usage.
+
+Backend:
+- Add/fix /api/dashboard/charts or role-specific endpoints.
+- All data must come from DB tables already used in the system.
+- Scope by companyId.
+- Employee sees own data only.
+- Manager sees team data only.
+- Payroll sees payroll-safe data only.
+- HR/admin see company-wide data.
+- No hardcoded values.
+
+Frontend:
+- Replace dashboard hero with chart grid.
+- Make chart components reusable.
+- If no chart library exists, build simple SVG/CSS charts.
+- Fix Arabic RTL layout and English LTR layout.
+- Ensure no chart is smaller than usable dashboard card size.
+
+QA:
+- Login as hr, manager.hr, employee01/employee04, payroll, admin.
+- Verify each role sees 4 charts first.
+- Verify data matches API/DB counts.
+- Verify empty states for missing data.
+- Verify no console errors.
+- Verify refresh keeps charts and theme.
+- Verify no unauthorized data leaks across roles.
+
+Return a full report: files changed, endpoints changed, chart data sources, screenshots/verification, and remaining risks.
