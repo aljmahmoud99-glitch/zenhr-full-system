@@ -10,9 +10,9 @@ import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleto
 
 type HView = 'dashboard' | 'list' | 'calendar' | 'reports';
 
-const TYPES_AR:   Record<string,string> = { national:'وطنية', religious:'دينية', company:'شركة' };
-const TYPES_CLR:  Record<string,string> = { national:'#166534', religious:'#15803d', company:'#16a34a' };
-const TYPES_BG:   Record<string,string> = { national:'#f0fdf4', religious:'#ecfdf5', company:'#dcfce7' };
+const TYPES_AR:   Record<string,string> = { fixed:'وطنية', islamic:'دينية', national:'وطنية', religious:'دينية', company:'شركة' };
+const TYPES_CLR:  Record<string,string> = { fixed:'#166534', islamic:'#15803d', national:'#166534', religious:'#15803d', company:'#16a34a' };
+const TYPES_BG:   Record<string,string> = { fixed:'#f0fdf4', islamic:'#ecfdf5', national:'#f0fdf4', religious:'#ecfdf5', company:'#dcfce7' };
 const STATUS_AR:  Record<string,string> = { active:'نشط', inactive:'غير نشط' };
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const DAYS_AR   = ['أح','إث','ثل','أر','خم','جم','سب'];
@@ -87,8 +87,8 @@ const DAYS_AR   = ['أح','إث','ثل','أر','خم','جم','سب'];
 .cal-day.other { color:#d1d5db; }
 .cal-day.today { background:#dcfce7; color:#166534; font-weight:700; border-radius:50%; }
 .cal-day.holiday { border-radius:50%; font-weight:700; color:#fff; }
-.cal-day.national  { background:#166534; }
-.cal-day.religious { background:#15803d; }
+.cal-day.national, .cal-day.fixed  { background:#166534; }
+.cal-day.religious, .cal-day.islamic { background:#15803d; }
 .cal-day.company   { background:#16a34a; }
 .cal-day.holiday-end { border-radius:0 50% 50% 0 !important; }
 .cal-day.holiday-start { border-radius:50% 0 0 50% !important; }
@@ -432,12 +432,24 @@ const DAYS_AR   = ['أح','إث','ثل','أر','خم','جم','سب'];
             [class.today]="d.isToday"
             [class.holiday]="!!d.holiday"
             [class.national]="d.holiday?.type==='national'"
+            [class.fixed]="d.holiday?.type==='fixed'"
             [class.religious]="d.holiday?.type==='religious'"
+            [class.islamic]="d.holiday?.type==='islamic'"
             [class.company]="d.holiday?.type==='company'"
+            (click)="selectCalendarDay(d)"
             [title]="d.holiday ? d.holiday.nameAr : ''">
             {{ d.day }}
           </div>
         </div>
+      </div>
+    </div>
+    <div class="card" *ngIf="selectedHoliday() as h" style="margin-top:14px">
+      <div class="card-hd"><h3><span class="material-icons">event</span>تفاصيل الإجازة</h3></div>
+      <div class="card-bd" style="display:grid; gap:8px">
+        <strong>{{ h.nameAr }}</strong>
+        <span style="color:#6b7280">{{ h.nameEn }}</span>
+        <span>{{ h.date }} <ng-container *ngIf="h.endDate">— {{ h.endDate }}</ng-container></span>
+        <span class="badge" [style.background]="typeBg(h.type)" [style.color]="typeClr(h.type)">{{ typeLabel(h.type) }}</span>
       </div>
     </div>
   </div>
@@ -574,6 +586,7 @@ export class HolidaysComponent implements OnInit {
   holidays    = signal<any[]>([]);
   upcoming    = signal<any[]>([]);
   reportData  = signal<any>(null);
+  selectedHoliday = signal<any | null>(null);
   loading     = signal(true);
   genLoading  = signal(false);
   genResult   = signal('');
@@ -601,8 +614,8 @@ export class HolidaysComponent implements OnInit {
     return list;
   });
 
-  nationalCount  = computed(() => this.holidays().filter(h => h.type === 'national').length);
-  religiousCount = computed(() => this.holidays().filter(h => h.type === 'religious').length);
+  nationalCount  = computed(() => this.holidays().filter(h => h.type === 'national' || h.type === 'fixed').length);
+  religiousCount = computed(() => this.holidays().filter(h => h.type === 'religious' || h.type === 'islamic').length);
   upcoming_      = computed(() => this.upcoming());
   past           = computed(() => {
     const today = new Date();
@@ -624,11 +637,17 @@ export class HolidaysComponent implements OnInit {
   setView(v: HView) {
     this.view = v;
     if (v === 'reports') this.loadReport();
+    if (v === 'calendar') this.selectedHoliday.set(null);
   }
 
   onYearChange() {
+    this.selectedHoliday.set(null);
     this.loadHolidays();
     this.loadUpcoming();
+  }
+
+  selectCalendarDay(day: any) {
+    if (day?.holiday) this.selectedHoliday.set(day.holiday);
   }
 
   loadHolidays() {

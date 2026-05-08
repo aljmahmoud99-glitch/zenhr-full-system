@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-05-07T17:49:00.000Z",
+  "migrationApplied": true,
+  "frontendServer": {
+    "url": "http://localhost:5000",
+    "started": true,
+    "routeHttpCheck": {
+      "path": "/app/payroll-attendance",
+      "status": 200,
+      "result": "PASS_STATIC_ROUTE_SERVES_APP"
+    }
+  },
+  "buildChecks": {
+    "typecheck": {
+      "status": "PASS",
+      "command": "pnpm.cmd run typecheck"
+    },
+    "angularDevelopmentBuild": {
+      "status": "PASS",
+      "command": "node .\\node_modules\\@angular\\cli\\bin\\ng.js build --configuration development",
+      "workingDirectory": "frontend"
+    }
+  },
+  "staticUiCoverage": {
+    "routeRegistered": "PASS",
+    "roleAccessRegistered": "PASS",
+    "screensImplemented": [
+      "Payroll Adjustments Dashboard",
+      "Employee Adjustments",
+      "Recurring Adjustments",
+      "Adjustment Approvals",
+      "Attendance Violations",
+      "Shift Scheduler",
+      "Payroll Impact Preview",
+      "Payroll Audit History",
+      "Attendance Analytics"
+    ],
+    "arabicLabels": "PASS_STATIC",
+    "darkModeTokens": "PASS_STATIC",
+    "drawerCreateForms": "PASS_STATIC"
+  },
+  "browserUat": {
+    "status": "NOT_RUN",
+    "reason": "The browser plugin instructions require a node_repl js tool, but no node_repl/browser execution tool is exposed in this session. I did not fake click-level UAT.",
+    "remainingChecks": [
+      "Login as hr and open /app/payroll-attendance",
+      "Confirm dashboard data renders without manual refresh",
+      "Open adjustment drawer and save",
+      "Open recurring/installment tab",
+      "Open shift scheduler and violations tabs",
+      "Run payroll preview in the UI",
+      "Switch Arabic mode and inspect labels",
+      "Switch dark mode and inspect card/dropdown readability"
+    ]
+  },
+  "summary": {
+    "status": "BUILD_READY_BROWSER_UAT_PENDING",
+    "goRecommendation": "NO_GO_UNTIL_BROWSER_UAT_RUNS"
+  }
+}

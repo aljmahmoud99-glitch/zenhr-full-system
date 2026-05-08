@@ -1,0 +1,53 @@
+{
+  "companyId": 4,
+  "counts": {
+    "users": 21,
+    "employees": 21,
+    "departments": 6,
+    "org_nodes": 7,
+    "job_titles": 14,
+    "job_descriptions": 14,
+    "leave_policies": 3,
+    "salary_components": 5,
+    "payroll_runs": 1,
+    "documents": 12,
+    "assets": 26,
+    "compliance_records": 10,
+    "notifications": 21,
+    "background_jobs": 8,
+    "email_logs": 8,
+    "file_objects": 12,
+    "activity_logs": 10
+  },
+  "payroll": {
+    "runMonth": 5,
+    "runYear": 2026,
+    "totalGross": "35738.000",
+    "totalNet": "32958.525",
+    "totalDeductions": "2779.475",
+    "payrollRunId": 2
+  },
+  "attendance": {
+    "workdays": 21,
+    "records": 441,
+    "statuses": {
+      "present": 311,
+      "late": 52,
+      "absent": 26,
+      "remote": 26,
+      "partial": 26
+    }
+  },
+  "leave": {
+    "total": 11,
+    "approved": 7,
+    "pending": 3,
+    "rejected": 1
+  },
+  "overtime": {
+    "total": 14,
+    "approved": 10,
+    "pending": 2,
+    "rejected": 2
+  }
+}

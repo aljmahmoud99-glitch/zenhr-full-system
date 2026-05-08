@@ -183,7 +183,7 @@ type ApiForm = { id: string; name_ar: string; name_en: string; category: string 
 
 .forms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .form-card {
-  background: #fff;
+  background: var(--z-surface);
   border: 1px solid var(--z-border);
   border-radius: var(--z-radius-md);
   padding: 16px;
@@ -200,7 +200,7 @@ type ApiForm = { id: string; name_ar: string; name_en: string; category: string 
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: #ecfdf5;
+  background: rgba(var(--app-primary-rgb), 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,8 +208,8 @@ type ApiForm = { id: string; name_ar: string; name_en: string; category: string 
 }
 .form-card-icon .material-icons { color: var(--z-emerald); font-size: 24px; }
 .form-card-body { flex: 1; min-width: 0; }
-.form-card-name { font-size: 14px; font-weight: 600; color: #1a1a2e; line-height: 1.4; }
-.form-card-arrow { color: #cbd5e1; font-size: 20px; }
+.form-card-name { font-size: 14px; font-weight: 600; color: var(--z-text-primary); line-height: 1.4; }
+.form-card-arrow { color: var(--z-text-muted); font-size: 20px; }
 
 .empty-state { text-align: center; padding: 48px 20px; color: var(--z-text-muted); }
 .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.6; }
@@ -283,8 +283,35 @@ export class FormsComponent implements OnInit {
     });
   }
 
+  private readonly arByEn: Record<string, string> = {
+    'Forms & official documents': 'النماذج والوثائق الرسمية',
+    Forms: 'النماذج',
+    'A structured catalog of official forms with live preview and a quick recent history.': 'وصول منظم إلى النماذج الرسمية مع معاينة مباشرة وسجل سريع لآخر العناصر.',
+    Search: 'بحث',
+    'Search forms...': 'ابحث في النماذج...',
+    Categories: 'الفئات',
+    All: 'الكل',
+    'Recent forms': 'النماذج الأخيرة',
+    'Most recent forms you opened or saved.': 'أحدث النماذج التي تم فتحها أو حفظها مؤخراً.',
+    'Available forms in this category.': 'نماذج جاهزة ضمن هذه الفئة.',
+    'No forms available in this category yet.': 'لا توجد نماذج متاحة ضمن هذه الفئة حالياً.',
+    'No forms match your search': 'لا توجد نماذج مطابقة'
+  };
+
+  private readonly categoryArById: Record<string, string> = {
+    employee: 'نماذج الموظفين',
+    recruitment: 'التوظيف والتعيين',
+    contracts: 'العقود والتصاريح',
+    assets: 'العهد والتصاريح',
+    legal: 'قانونية وإدارية',
+    certificates: 'خطابات وشهادات',
+    payroll: 'الرواتب والمالية',
+    attendance: 'الحضور والإجازات',
+    disciplinary: 'التأديب وبراءة الذمة'
+  };
+
   t(ar: string, en: string) {
-    return this.lang === 'ar' ? ar : en;
+    return this.lang === 'ar' ? (this.arByEn[en] || ar) : en;
   }
 
   visibleCategories(): string[] {
@@ -318,7 +345,7 @@ export class FormsComponent implements OnInit {
   getCategoryName(category: string) {
     if (category === '__all__') return this.t('الكل', 'All');
     const found = this.categories.find(item => item.id === category);
-    return found ? (this.lang === 'ar' ? found.name_ar : found.name_en) : category;
+    return found ? (this.lang === 'ar' ? (this.categoryArById[found.id] || found.name_ar) : found.name_en) : category;
   }
 
   getFormName(formId: string) {

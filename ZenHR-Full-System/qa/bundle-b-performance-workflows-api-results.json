@@ -1,0 +1,526 @@
+{
+  "generatedAt": "2026-05-08T00:01:45.214Z",
+  "migrationApplied": true,
+  "health": {
+    "status": 200,
+    "ok": true
+  },
+  "logins": {
+    "hr": {
+      "ok": true,
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "ok": true,
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "ok": true,
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "ok": true,
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "ok": true,
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "ok": true,
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "created": {
+    "policyId": "6",
+    "customPolicyId": "7",
+    "cycleId": "2",
+    "goalId": "3",
+    "evaluationId": "2",
+    "finalScore": "85.000",
+    "finalRatingCode": "GOOD",
+    "jobProfileIdUsed": 3,
+    "workflowInstanceId": "2",
+    "promotionId": "2"
+  },
+  "workflow": {
+    "firstApprovalStatus": 200,
+    "secondApprovalStatus": 200
+  },
+  "scoring": {
+    "expectedFinalScore": 85,
+    "actualFinalScore": 85,
+    "actualRating": "GOOD",
+    "reloadedStatus": "pending_approval"
+  },
+  "rbac": [
+    {
+      "user": "recruiter",
+      "readDashboardStatus": 403,
+      "readDashboardOk": false,
+      "message": "Forbidden"
+    },
+    {
+      "user": "employee",
+      "readDashboardStatus": 200,
+      "readDashboardOk": true,
+      "message": null
+    },
+    {
+      "user": "admin",
+      "readDashboardStatus": 403,
+      "readDashboardOk": false,
+      "message": "Forbidden"
+    },
+    {
+      "user": "manager",
+      "mutation": "createRatingPolicy",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "employee",
+      "mutation": "createRatingPolicy",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "payroll",
+      "mutation": "createRatingPolicy",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "recruiter",
+      "mutation": "createRatingPolicy",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "admin",
+      "mutation": "createRatingPolicy",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "manager",
+      "mutation": "outOfScopeGoalForHr",
+      "status": 201,
+      "forbidden": false,
+      "message": null
+    }
+  ],
+  "integration": {
+    "notificationsStatus": 200,
+    "activityStatus": 200
+  },
+  "results": [
+    {
+      "name": "health",
+      "status": 200,
+      "ok": true,
+      "success": null,
+      "message": null,
+      "durationMs": 86,
+      "bodySnippet": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-08T00:01:44.679Z\",\"version\":\"1.0.0\"}"
+    },
+    {
+      "name": "login:hr",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 94,
+      "role": "hradmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoiaHIiLCJyb2xlIjoiaHJhZG1pbiIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6MiwiaWF0IjoxNzc4MTk4NTA0LCJleHAiOjE3NzgyMDIxMDR9.yMKIfcEIH4a50pBjS6J2LRsMIQfgqfPUBiblyyLEji0\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.5dbrOyooGa4nsHjuhQ3AKiypBGoEUoLgn95IEtBW8vA\",\"user\":{\"id\":2,\"username\":\"hr\",\"email\":\"hr@zenjo.jo\",\"role\":\"hradmin\",\"co"
+    },
+    {
+      "name": "login:payroll",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "role": "payrolladmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjUsInVzZXJuYW1lIjoicGF5cm9sbCIsInJvbGUiOiJwYXlyb2xsYWRtaW4iLCJjb21wYW55SWQiOjEsImVtcGxveWVlSWQiOjMsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4MjAyMTA0fQ.oROv1f9DeXte_jZOdUDkLye0-7ft9GmxAFfBpEu21OU\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjUsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.M4x-DHA8PB2dlO3QBaAhilPrPgB3P6T-uNoECICLsNI\",\"user\":{\"id\":5,\"username\":\"payroll\",\"email\":\"payroll@zenjo."
+    },
+    {
+      "name": "login:manager",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 10,
+      "role": "manager",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjYsInVzZXJuYW1lIjoibWFuYWdlciIsInJvbGUiOiJtYW5hZ2VyIiwiY29tcGFueUlkIjoxLCJlbXBsb3llZUlkIjo3LCJpYXQiOjE3NzgxOTg1MDQsImV4cCI6MTc3ODIwMjEwNH0.mCf0HPk0a4UOoFzOgxMuHCSvWD-QyXfdgP6aBcYCk2Y\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjYsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.qemlZy9CYF-j3dIu4ISU1U3-r6wY9wY3_rPARrideII\",\"user\":{\"id\":6,\"username\":\"manager\",\"email\":\"manager@zenjo.jo\",\"ro"
+    },
+    {
+      "name": "login:employee",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "role": "employee",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsInVzZXJuYW1lIjoiZW1wbG95ZWUiLCJyb2xlIjoiZW1wbG95ZWUiLCJjb21wYW55SWQiOjEsImVtcGxveWVlSWQiOjgsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4MjAyMTA0fQ.my6mqR7A7o2Ps1JvCyr1_JKVx3isEwM7xEHhMSezpUw\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.ZBNCNVllICjwwb74ANYD8C6dl0mhc_FAEll-kZ9aMMY\",\"user\":{\"id\":7,\"username\":\"employee\",\"email\":\"employee@zenjo.jo"
+    },
+    {
+      "name": "login:recruiter",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 9,
+      "role": "recruiter",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsInVzZXJuYW1lIjoicmVjcnVpdGVyIiwicm9sZSI6InJlY3J1aXRlciIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6OSwiaWF0IjoxNzc4MTk4NTA0LCJleHAiOjE3NzgyMDIxMDR9.5UwTuquc77CxWvjmGa1lEL0VLrC7X30BCRnmbvnzdvI\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.55r6qMU9uLrEIJC-ZUTgVeSoKJHv00hYtlDERlJcKIM\",\"user\":{\"id\":8,\"username\":\"recruiter\",\"email\":\"recruiter@zenj"
+    },
+    {
+      "name": "login:admin",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "role": "superadmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJhZG1pbiIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6MSwiaWF0IjoxNzc4MTk4NTA0LCJleHAiOjE3NzgyMDIxMDR9.a0fpTJtegpWzK4gtCqIZIUQUvvkW2VX6B3MutT-GFIE\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc3ODE5ODUwNCwiZXhwIjoxNzc4ODAzMzA0fQ.e4_sJ6iVeShxA2D_oUn1kQSIUtC89TDYFfxvnC7eEs0\",\"user\":{\"id\":1,\"username\":\"admin\",\"email\":\"admin@zenjo.jo\",\"role\""
+    },
+    {
+      "name": "GET /api/performance/dashboard",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 88,
+      "bodySnippet": "{\"success\":true,\"data\":{\"evaluations\":{\"total\":0,\"approved\":0,\"open\":0,\"averageScore\":\"0\"},\"goals\":{\"total\":2,\"completed\":0,\"averageAchievement\":\"42.0000000000000000\"},\"workflows\":[{\"status\":\"pending\",\"count\":1}],\"promotions\":[{\"status\":\"pending\",\"count\":1}]}}"
+    },
+    {
+      "name": "GET /api/performance/rating-policies",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 14,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"code\":\"NUMERIC_100\",\"nameAr\":\"تقييم رقمي من 100\",\"nameEn\":\"Numeric 100-point rating\",\"descriptionAr\":\"سياسة تقييم افتراضية من صفر إلى مئة.\",\"descriptionEn\":\"Default zero-to-one-hundred performance rating policy.\",\"policyType\":\"numeric\",\"minScore\":\"0.000\",\"maxScore\":\"100.000\",\"passingScore\":\"60.000\",\"isDefault\":true,\"isActive\":true,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-07T23:51:32.801Z\",\"updatedAt\":\"2026-05-07T23:51:32.801Z\",\"isDel"
+    },
+    {
+      "name": "GET /api/performance/cycles",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"code\":\"QA_CYCLE_1778198099383\",\"nameAr\":\"???? ????? ????????\",\"nameEn\":\"QA Evaluation Cycle\",\"cycleType\":\"quarterly\",\"periodStart\":\"2026-04-30T21:00:00.000Z\",\"periodEnd\":\"2026-05-30T21:00:00.000Z\",\"dueDate\":\"2026-06-04T21:00:00.000Z\",\"ratingPolicyId\":\"4\",\"status\":\"active\",\"settingsJson\":{},\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-07T23:54:59.897Z\",\"updatedAt\":\"2026-05-07T23:54:59.897Z\",\"isDeleted\":false,\"ratingPolicyNameAr\""
+    },
+    {
+      "name": "GET /api/performance/goals",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 10,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"cycleId\":null,\"parentGoalId\":null,\"scopeType\":\"employee\",\"departmentId\":null,\"employeeId\":2,\"ownerUserId\":null,\"code\":null,\"titleAr\":\"??? ???? ??????\",\"titleEn\":\"Out of scope goal\",\"descriptionAr\":null,\"descriptionEn\":null,\"metricType\":\"percentage\",\"targetValue\":null,\"actualValue\":null,\"achievementPercent\":\"0.000\",\"weight\":\"0.000\",\"status\":\"not_started\",\"dueDate\":null,\"createdBy\":6,\"updatedBy\":6,\"createdAt\":\"2026-05-07T23:55:00.141Z\",\"updatedAt\":\""
+    },
+    {
+      "name": "GET /api/performance/evaluations",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "GET /api/performance/workflow-templates",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"code\":\"PERFORMANCE_REVIEW_APPROVAL\",\"nameAr\":\"اعتماد تقييم الأداء\",\"nameEn\":\"Performance Review Approval\",\"entityType\":\"performance_evaluation\",\"triggerType\":\"manual\",\"conditionJson\":{},\"slaHours\":72,\"escalationPolicyJson\":{\"afterHours\":72,\"escalateTo\":\"hradmin\"},\"isActive\":true,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-07T23:51:32.801Z\",\"updatedAt\":\"2026-05-07T23:51:32.801Z\",\"isDeleted\":false,\"steps\":[{\"id\":3,\"company_id\":1,\"template"
+    },
+    {
+      "name": "GET /api/performance/workflow-instances",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"promotion_recommendation\",\"entityId\":\"1\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":1,\"currentApproverRole\":\"manager\",\"dueAt\":\"2026-05-09T23:55:00.022Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"promotion_recommendation\",\"recommendationId\":\"1\"},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-07T23:55:00.022Z\",\"updatedAt\":\"2026-05-07T23:55:00.022Z\",\"isDeleted\":false,\"templateNameAr\":\"اعتماد تقييم الأداء\",\""
+    },
+    {
+      "name": "GET /api/performance/approvals/pending",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"promotion_recommendation\",\"entityId\":\"1\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":1,\"currentApproverRole\":\"manager\",\"dueAt\":\"2026-05-09T23:55:00.022Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"promotion_recommendation\",\"recommendationId\":\"1\"},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-07T23:55:00.022Z\",\"updatedAt\":\"2026-05-07T23:55:00.022Z\",\"isDeleted\":false,\"templateNameAr\":\"اعتماد تقييم الأداء\",\""
+    },
+    {
+      "name": "GET /api/performance/escalations",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "GET /api/performance/promotions",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"evaluationId\":null,\"employeeId\":1,\"currentJobProfileId\":null,\"recommendedJobProfileId\":null,\"currentGradeId\":null,\"recommendedGradeId\":null,\"currentSalary\":\"1000.000\",\"recommendedSalary\":\"1100.000\",\"incrementAmount\":\"100.000\",\"incrementPercent\":\"10.000\",\"reasonAr\":\"????? ????? ??? ????? ???????\",\"reasonEn\":\"Recommendation based on evaluation result\",\"status\":\"pending\",\"workflowInstanceId\":\"1\",\"effectiveDate\":\"2026-05-31T21:00:00.000Z\",\"createdBy\":"
+    },
+    {
+      "name": "GET /api/performance/analytics",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"departments\":[{\"nameAr\":\"تقنية المعلومات\",\"nameEn\":\"Information Technology\",\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":\"خدمة العملاء\",\"nameEn\":\"Customer Service\",\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":null,\"nameEn\":null,\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":\"الموارد البشرية\",\"nameEn\":\"Human Resources\",\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":\"المالية\",\"nameEn\":\"Finance\",\"evaluations\":0,\"avgScore\":\"0\"}],\"ratings\":[],\"bottlenecks\":[{\"currentApproverRole\":\"manager\",\""
+    },
+    {
+      "name": "GET /api/employees",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 28,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":1,\"companyId\":1,\"employeeCode\":\"EMP-0001\",\"firstNameAr\":\"أحمد\",\"middleNameAr\":null,\"lastNameAr\":\"العلي\",\"firstNameEn\":\"Ahmed\",\"middleNameEn\":null,\"lastNameEn\":\"Al-Ali\",\"gender\":\"male\",\"dateOfBirth\":\"1985-03-15\",\"nationalId\":\"9801234567\",\"nationality\":\"أردني\",\"religion\":null,\"maritalStatus\":null,\"numberOfDependents\":0,\"personalEmail\":null,\"workEmail\":\"ahmed.alali@zenjo.jo\",\"personalPhone\":null,\"workPhone\":null,\"emergencyContactName\":null,\"emergencyContactPhone\":null,"
+    },
+    {
+      "name": "POST rating policy numeric",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 12,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"6\",\"companyId\":1,\"code\":\"QA_NUM_1778198504605\",\"nameAr\":\"????? ????? ?????\",\"nameEn\":\"QA Numeric Rating Policy\",\"descriptionAr\":null,\"descriptionEn\":null,\"policyType\":\"numeric\",\"minScore\":\"0.000\",\"maxScore\":\"100.000\",\"passingScore\":\"60.000\",\"isDefault\":false,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.010Z\",\"updatedAt\":\"2026-05-08T00:01:45.010Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST rating policy custom",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"7\",\"companyId\":1,\"code\":\"QA_CUS_1778198504605\",\"nameAr\":\"????? ????? ?????\",\"nameEn\":\"QA Custom Rating Policy\",\"descriptionAr\":null,\"descriptionEn\":null,\"policyType\":\"custom\",\"minScore\":\"0.000\",\"maxScore\":\"100.000\",\"passingScore\":\"70.000\",\"isDefault\":false,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.022Z\",\"updatedAt\":\"2026-05-08T00:01:45.022Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST evaluation cycle",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"code\":\"QA_CYCLE_1778198504605\",\"nameAr\":\"???? ????? ????????\",\"nameEn\":\"QA Evaluation Cycle\",\"cycleType\":\"quarterly\",\"periodStart\":\"2026-04-30T21:00:00.000Z\",\"periodEnd\":\"2026-05-30T21:00:00.000Z\",\"dueDate\":\"2026-06-04T21:00:00.000Z\",\"ratingPolicyId\":\"6\",\"status\":\"active\",\"settingsJson\":{},\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.027Z\",\"updatedAt\":\"2026-05-08T00:01:45.027Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST KPI goal",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"3\",\"companyId\":1,\"cycleId\":\"2\",\"parentGoalId\":null,\"scopeType\":\"employee\",\"departmentId\":null,\"employeeId\":1,\"ownerUserId\":null,\"code\":\"QA_GOAL_1778198504605\",\"titleAr\":\"????? ??? ?????? ??????\",\"titleEn\":\"Complete QA performance goal\",\"descriptionAr\":null,\"descriptionEn\":null,\"metricType\":\"percentage\",\"targetValue\":\"100.000\",\"actualValue\":\"84.000\",\"achievementPercent\":\"84.000\",\"weight\":\"40.000\",\"status\":\"on_track\",\"dueDate\":\"2026-05-30T21:00:00.000Z\",\"createdBy\":2,"
+    },
+    {
+      "name": "GET /api/job-profiles for duty integration",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 21,
+      "optional": true,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":3,\"companyId\":1,\"code\":\"JOB-3\",\"orgNodeId\":5,\"titleAr\":\"ggggggggggggggggggg\",\"titleEn\":\"ffffffffffffffffff\",\"grade\":\"G5\",\"gradeId\":null,\"gradeNameAr\":null,\"gradeNameEn\":null,\"responsibilityGroupId\":null,\"responsibilityGroupNameAr\":null,\"responsibilityGroupNameEn\":null,\"minSalary\":\"3232.000\",\"maxSalary\":\"4250.000\",\"minExperienceYears\":null,\"maxExperienceYears\":null,\"reportingToJobDescriptionId\":null,\"reportingToTitleAr\":null,\"reportingToTitleEn\":null,\"employmentType\""
+    },
+    {
+      "name": "POST employee evaluation",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"cycleId\":\"2\",\"employeeId\":1,\"managerEmployeeId\":null,\"jobProfileId\":\"3\",\"ratingPolicyId\":\"6\",\"evaluationType\":\"manager\",\"status\":\"manager_review\",\"selfScore\":\"82.000\",\"managerScore\":\"88.000\",\"hrScore\":\"91.000\",\"peerScore\":\"79.000\",\"finalScore\":\"85.000\",\"finalRatingCode\":\"GOOD\",\"strengthsAr\":\"???? ??? ?????? ????\",\"strengthsEn\":\"Good performance and clear collaboration\",\"improvementAr\":\"????? ???? ???????\",\"improvementEn\":\"Improve delivery speed\",\"r"
+    },
+    {
+      "name": "POST submit evaluation/start workflow",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 20,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":2,\"workflow\":{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"performance_evaluation\",\"entityId\":\"2\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":1,\"currentApproverRole\":\"manager\",\"dueAt\":\"2026-05-10T00:01:45.079Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"evaluation_submit\",\"evaluationId\":2},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.079Z\",\"updatedAt\":\"2026-05-08T00:01:45.079Z\",\"isDeleted\":false}}}"
+    },
+    {
+      "name": "GET evaluations after submit",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"cycleId\":\"2\",\"employeeId\":1,\"managerEmployeeId\":null,\"jobProfileId\":\"3\",\"ratingPolicyId\":\"6\",\"evaluationType\":\"manager\",\"status\":\"pending_approval\",\"selfScore\":\"82.000\",\"managerScore\":\"88.000\",\"hrScore\":\"91.000\",\"peerScore\":\"79.000\",\"finalScore\":\"85.000\",\"finalRatingCode\":\"GOOD\",\"strengthsAr\":\"???? ??? ?????? ????\",\"strengthsEn\":\"Good performance and clear collaboration\",\"improvementAr\":\"????? ???? ???????\",\"improvementEn\":\"Improve delivery speed\""
+    },
+    {
+      "name": "GET workflow templates",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"code\":\"PERFORMANCE_REVIEW_APPROVAL\",\"nameAr\":\"اعتماد تقييم الأداء\",\"nameEn\":\"Performance Review Approval\",\"entityType\":\"performance_evaluation\",\"triggerType\":\"manual\",\"conditionJson\":{},\"slaHours\":72,\"escalationPolicyJson\":{\"afterHours\":72,\"escalateTo\":\"hradmin\"},\"isActive\":true,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-07T23:51:32.801Z\",\"updatedAt\":\"2026-05-07T23:51:32.801Z\",\"isDeleted\":false,\"steps\":[{\"id\":3,\"company_id\":1,\"template"
+    },
+    {
+      "name": "GET workflow instances",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"performance_evaluation\",\"entityId\":\"2\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":1,\"currentApproverRole\":\"manager\",\"dueAt\":\"2026-05-10T00:01:45.079Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"evaluation_submit\",\"evaluationId\":2},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.079Z\",\"updatedAt\":\"2026-05-08T00:01:45.079Z\",\"isDeleted\":false,\"templateNameAr\":\"اعتماد تقييم الأداء\",\"templateNameEn\""
+    },
+    {
+      "name": "POST approve workflow step 1",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"performance_evaluation\",\"entityId\":\"2\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":2,\"currentApproverRole\":\"hradmin\",\"dueAt\":\"2026-05-10T00:01:45.079Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"evaluation_submit\",\"evaluationId\":2},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.079Z\",\"updatedAt\":\"2026-05-08T00:01:45.107Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST approve workflow final",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 9,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"performance_evaluation\",\"entityId\":\"2\",\"employeeId\":1,\"status\":\"approved\",\"currentStepOrder\":2,\"currentApproverRole\":null,\"dueAt\":\"2026-05-10T00:01:45.079Z\",\"completedAt\":\"2026-05-08T00:01:45.114Z\",\"contextJson\":{\"source\":\"evaluation_submit\",\"evaluationId\":2},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:01:45.079Z\",\"updatedAt\":\"2026-05-08T00:01:45.114Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "GET approvals inbox",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"templateId\":\"2\",\"entityType\":\"promotion_recommendation\",\"entityId\":\"1\",\"employeeId\":1,\"status\":\"pending\",\"currentStepOrder\":1,\"currentApproverRole\":\"manager\",\"dueAt\":\"2026-05-09T23:55:00.022Z\",\"completedAt\":null,\"contextJson\":{\"source\":\"promotion_recommendation\",\"recommendationId\":\"1\"},\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-07T23:55:00.022Z\",\"updatedAt\":\"2026-05-07T23:55:00.022Z\",\"isDeleted\":false,\"templateNameAr\":\"اعتماد تقييم الأداء\",\""
+    },
+    {
+      "name": "POST process escalations",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":{\"processed\":0,\"created\":0}}"
+    },
+    {
+      "name": "GET escalations",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "POST promotion recommendation",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 14,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"evaluationId\":\"2\",\"employeeId\":1,\"currentJobProfileId\":null,\"recommendedJobProfileId\":null,\"currentGradeId\":null,\"recommendedGradeId\":null,\"currentSalary\":\"1000.000\",\"recommendedSalary\":\"1100.000\",\"incrementAmount\":\"100.000\",\"incrementPercent\":\"10.000\",\"reasonAr\":\"????? ????? ??? ????? ???????\",\"reasonEn\":\"Recommendation based on evaluation result\",\"status\":\"pending\",\"workflowInstanceId\":null,\"effectiveDate\":\"2026-05-31T21:00:00.000Z\",\"createdBy\":2"
+    },
+    {
+      "name": "GET promotions as payroll",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"evaluationId\":\"2\",\"employeeId\":1,\"currentJobProfileId\":null,\"recommendedJobProfileId\":null,\"currentGradeId\":null,\"recommendedGradeId\":null,\"currentSalary\":\"1000.000\",\"recommendedSalary\":\"1100.000\",\"incrementAmount\":\"100.000\",\"incrementPercent\":\"10.000\",\"reasonAr\":\"????? ????? ??? ????? ???????\",\"reasonEn\":\"Recommendation based on evaluation result\",\"status\":\"pending\",\"workflowInstanceId\":\"3\",\"effectiveDate\":\"2026-05-31T21:00:00.000Z\",\"createdBy\":2"
+    },
+    {
+      "name": "GET analytics after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":{\"departments\":[{\"nameAr\":\"الموارد البشرية\",\"nameEn\":\"Human Resources\",\"evaluations\":1,\"avgScore\":\"85.0000000000000000\"},{\"nameAr\":\"تقنية المعلومات\",\"nameEn\":\"Information Technology\",\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":\"خدمة العملاء\",\"nameEn\":\"Customer Service\",\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":null,\"nameEn\":null,\"evaluations\":0,\"avgScore\":\"0\"},{\"nameAr\":\"المالية\",\"nameEn\":\"Finance\",\"evaluations\":0,\"avgScore\":\"0\"}],\"ratings\":[{\"finalRatingCode\":\"GOOD\",\"count\""
+    },
+    {
+      "name": "GET dashboard after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":{\"evaluations\":{\"total\":1,\"approved\":1,\"open\":0,\"averageScore\":\"85.0000000000000000\"},\"goals\":{\"total\":3,\"completed\":0,\"averageAchievement\":\"56.0000000000000000\"},\"workflows\":[{\"status\":\"approved\",\"count\":1},{\"status\":\"pending\",\"count\":2}],\"promotions\":[{\"status\":\"pending\",\"count\":2}]}}"
+    },
+    {
+      "name": "RBAC manager out of scope goal",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"4\",\"companyId\":1,\"cycleId\":null,\"parentGoalId\":null,\"scopeType\":\"employee\",\"departmentId\":null,\"employeeId\":2,\"ownerUserId\":null,\"code\":null,\"titleAr\":\"??? ???? ??????\",\"titleEn\":\"Out of scope goal\",\"descriptionAr\":null,\"descriptionEn\":null,\"metricType\":\"percentage\",\"targetValue\":null,\"actualValue\":null,\"achievementPercent\":\"0.000\",\"weight\":\"0.000\",\"status\":\"not_started\",\"dueDate\":null,\"createdBy\":6,\"updatedBy\":6,\"createdAt\":\"2026-05-08T00:01:45.194Z\",\"updatedAt\":\"2"
+    },
+    {
+      "name": "GET notifications after workflow",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "optional": true,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":150,\"companyId\":1,\"recipientUserId\":2,\"actorUserId\":2,\"entityType\":\"performance_evaluation\",\"entityId\":2,\"notificationType\":\"performance_evaluation_submitted\",\"titleAr\":\"تقييم أداء بانتظار الاعتماد\",\"titleEn\":\"Performance evaluation awaiting approval\",\"messageAr\":\"تقييم رقم 2 بانتظار الاعتماد.\",\"messageEn\":\"Evaluation #2 is awaiting approval.\",\"priority\":\"normal\",\"status\":\"unread\",\"actionUrl\":\"/app/performance-workflows\",\"createdAt\":\"2026-05-08T00:01:45.085Z\",\"readA"
+    },
+    {
+      "name": "GET dashboard recent activity after workflow",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 12,
+      "optional": true,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":279,\"actionType\":\"performance_rating_policy_created\",\"entityType\":\"performance_rating_policy_created\",\"descriptionAr\":\"Performance rating policy created: QA_CUS_1778198504605\",\"descriptionEn\":\"Performance rating policy created: QA_CUS_1778198504605\",\"employeeName\":\"hr\",\"createdAt\":\"2026-05-08T00:01:45.023Z\"},{\"id\":278,\"actionType\":\"performance_rating_policy_created\",\"entityType\":\"performance_rating_policy_created\",\"descriptionAr\":\"Performance rating policy created: "
+    }
+  ],
+  "summary": {
+    "status": "PASS_API_WITH_LIMITATIONS",
+    "resultCount": 41,
+    "failureCount": 0,
+    "failures": []
+  }
+}

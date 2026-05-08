@@ -1,0 +1,223 @@
+<section class="bundle-shell" [attr.dir]="lang.dir">
+  <header class="bundle-hero">
+    <div>
+      <span class="eyebrow">{{ t('الرواتب والحضور', 'Payroll & Attendance') }}</span>
+      <h1>{{ t('محرك الرواتب والحضور التشغيلي', 'Payroll & Attendance Operations Core') }}</h1>
+      <p>{{ t('إدارة تعديلات الرواتب، الأقساط، مخالفات الحضور، الورديات، ومعاينة أثر الرواتب قبل التطبيق.', 'Manage payroll adjustments, installments, attendance violations, shifts, and payroll impact preview before applying changes.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost-action" (click)="loadAll()">
+        <span class="material-icons">refresh</span>
+        {{ t('تحديث', 'Refresh') }}
+      </button>
+      <button type="button" class="ghost-action" (click)="processAttendance()" *ngIf="canManage" [disabled]="saving">
+        <span class="material-icons">rule</span>
+        {{ t('تحليل الحضور', 'Process attendance') }}
+      </button>
+      <button type="button" class="primary-action" (click)="drawer = true" *ngIf="canManage">
+        <span class="material-icons">add_card</span>
+        {{ t('تعديل راتب جديد', 'New adjustment') }}
+      </button>
+    </div>
+  </header>
+
+  <details class="section-accordion" open>
+    <summary>
+      <span class="material-icons">view_agenda</span>
+      <span>{{ activeTabLabel() }}</span>
+    </summary>
+    <nav class="section-nav-grid">
+      <button *ngFor="let tab of tabs" type="button" [class.active]="activeTab === tab.key" (click)="setTab(tab.key)">
+        <span class="material-icons">{{ tab.icon }}</span>
+        {{ t(tab.ar, tab.en) }}
+      </button>
+    </nav>
+  </details>
+
+  <div class="error-banner" *ngIf="error">{{ error }}</div>
+  <div class="skeleton-grid" *ngIf="loading">
+    <div *ngFor="let n of [1,2,3,4]"></div>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <section class="kpi-grid" *ngIf="activeTab === 'dashboard' && dashboard">
+      <article class="kpi-card">
+        <span>{{ t('إجمالي التعديلات', 'Total adjustments') }}</span>
+        <strong>{{ dashboard.summary?.total || 0 }}</strong>
+      </article>
+      <article class="kpi-card positive">
+        <span>{{ t('إضافات', 'Additions') }}</span>
+        <strong>{{ dashboard.summary?.additions || '0.000' }}</strong>
+      </article>
+      <article class="kpi-card danger">
+        <span>{{ t('خصومات', 'Deductions') }}</span>
+        <strong>{{ dashboard.summary?.deductions || '0.000' }}</strong>
+      </article>
+      <article class="kpi-card warning">
+        <span>{{ t('بانتظار الاعتماد', 'Pending approvals') }}</span>
+        <strong>{{ dashboard.summary?.pending || 0 }}</strong>
+      </article>
+
+      <article class="panel wide">
+        <header><h2>{{ t('مؤشرات مخالفات الحضور', 'Attendance violation signals') }}</h2></header>
+        <div class="metric-list">
+          <div *ngFor="let row of dashboard.violations">
+            <span>{{ row.violationType }}</span>
+            <strong>{{ row.count }}</strong>
+            <small>{{ row.amount }} JOD</small>
+          </div>
+          <p class="empty" *ngIf="!dashboard.violations?.length">{{ t('لا توجد مخالفات حالياً', 'No violations yet') }}</p>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header><h2>{{ t('الالتزامات المتكررة', 'Recurring liabilities') }}</h2></header>
+        <strong class="big-number">{{ dashboard.liabilities?.remaining || '0.000' }} JOD</strong>
+        <small>{{ dashboard.liabilities?.recurringCount || 0 }} {{ t('تعديل متكرر', 'recurring adjustments') }}</small>
+      </article>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'adjustments'">
+      <header>
+        <h2>{{ t('تعديلات الرواتب', 'Payroll adjustments') }}</h2>
+        <label class="search-box">
+          <span class="material-icons">search</span>
+          <input [(ngModel)]="query" (keyup.enter)="search()" [placeholder]="t('بحث بالموظف أو الرقم أو الوصف...', 'Search employee, number, or description...')" />
+        </label>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{{ t('الرقم', 'Number') }}</th><th>{{ t('الموظف', 'Employee') }}</th><th>{{ t('النوع', 'Type') }}</th><th>{{ t('المبلغ', 'Amount') }}</th><th>{{ t('النمط', 'Mode') }}</th><th>{{ t('الحالة', 'Status') }}</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let row of adjustments">
+              <td>{{ row.adjustmentNumber }}</td>
+              <td>{{ label({ fullNameAr: row.employeeNameAr, fullNameEn: row.employeeNameEn }) }}</td>
+              <td>{{ label({ nameAr: row.typeNameAr, nameEn: row.typeNameEn }) }}</td>
+              <td [class.negative]="row.direction === 'deduct'">{{ row.direction === 'deduct' ? '-' : '+' }}{{ row.amount }} JOD</td>
+              <td>{{ row.calculationMode }}</td>
+              <td><span class="status-chip">{{ row.status }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="empty" *ngIf="!adjustments.length">{{ t('لا توجد بيانات', 'No data') }}</p>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'recurring'">
+      <header><h2>{{ t('المتكررة والأقساط', 'Recurring and installments') }}</h2></header>
+      <div class="cards-grid">
+        <article class="mini-card" *ngFor="let row of recurring">
+          <span>{{ row.adjustmentNumber }}</span>
+          <strong>{{ row.amount }} JOD</strong>
+          <small>{{ row.recurrenceType }} / {{ row.status }}</small>
+        </article>
+      </div>
+      <p class="empty" *ngIf="!recurring.length">{{ t('لا توجد تعديلات متكررة', 'No recurring adjustments') }}</p>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'approvals'">
+      <header><h2>{{ t('اعتمادات التعديلات', 'Adjustment approvals') }}</h2></header>
+      <div class="approval-list">
+        <article *ngFor="let row of approvals">
+          <div><strong>{{ row.adjustmentNumber }}</strong><span>{{ label({ fullNameAr: row.employeeNameAr, fullNameEn: row.employeeNameEn }) }}</span></div>
+          <button type="button" class="primary-action sm" (click)="approve(row)">{{ t('اعتماد', 'Approve') }}</button>
+        </article>
+      </div>
+      <p class="empty" *ngIf="!approvals.length">{{ t('لا توجد اعتمادات معلقة', 'No pending approvals') }}</p>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'violations'">
+      <header><h2>{{ t('مخالفات الحضور', 'Attendance violations') }}</h2></header>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{{ t('الموظف', 'Employee') }}</th><th>{{ t('النوع', 'Type') }}</th><th>{{ t('التاريخ', 'Date') }}</th><th>{{ t('الدقائق', 'Minutes') }}</th><th>{{ t('الأثر', 'Impact') }}</th><th>{{ t('الحالة', 'Status') }}</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let row of violations">
+              <td>{{ label({ fullNameAr: row.employeeNameAr, fullNameEn: row.employeeNameEn }) }}</td>
+              <td>{{ row.violationType }}</td>
+              <td>{{ row.violationDate | date }}</td>
+              <td>{{ row.minutes }}</td>
+              <td>{{ row.payrollImpactAmount }} JOD</td>
+              <td><span class="status-chip">{{ row.status }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'shifts'">
+      <header>
+        <h2>{{ t('جدولة الورديات', 'Shift scheduler') }}</h2>
+        <button type="button" class="primary-action sm" (click)="shiftDrawer = true" *ngIf="access.isHrAdmin()">{{ t('وردية جديدة', 'New shift') }}</button>
+      </header>
+      <div class="cards-grid">
+        <article class="mini-card" *ngFor="let row of patterns">
+          <span>{{ row.code }}</span>
+          <strong>{{ label(row) }}</strong>
+          <small>{{ row.startTime }} - {{ row.endTime }} / {{ row.shiftType }}</small>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel preview-panel" *ngIf="activeTab === 'preview'">
+      <header><h2>{{ t('معاينة أثر الراتب', 'Payroll impact preview') }}</h2></header>
+      <div class="preview-form">
+        <label><span>{{ t('الموظف', 'Employee') }}</span><select [(ngModel)]="form.employeeId"><option [ngValue]="null">-</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e) }}</option></select></label>
+        <label><span>{{ t('النوع', 'Type') }}</span><select [(ngModel)]="form.adjustmentTypeId"><option [ngValue]="null">-</option><option *ngFor="let type of types" [ngValue]="type.id">{{ label(type) }}</option></select></label>
+        <label><span>{{ t('المبلغ', 'Amount') }}</span><input type="number" [(ngModel)]="form.amount"></label>
+        <label><span>{{ t('وضع الحساب', 'Calculation mode') }}</span><select [(ngModel)]="form.calculationMode"><option value="before_gross">before gross</option><option value="before_tax">before tax</option><option value="after_tax">after tax</option><option value="after_net">after net</option></select></label>
+        <button type="button" class="primary-action" (click)="runPreview()">{{ t('معاينة', 'Preview') }}</button>
+      </div>
+      <div class="impact-grid" *ngIf="preview">
+        <article><span>{{ t('الصافي الحالي', 'Current net') }}</span><strong>{{ preview.currentNet }}</strong></article>
+        <article><span>{{ t('أثر التعديل', 'Impact') }}</span><strong>{{ preview.adjustmentImpact }}</strong></article>
+        <article><span>{{ t('الصافي النهائي', 'Final net') }}</span><strong>{{ preview.finalNet }}</strong></article>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'audit'">
+      <header><h2>{{ t('سجل تدقيق الرواتب', 'Payroll audit history') }}</h2></header>
+      <div class="timeline">
+        <article *ngFor="let row of audit">
+          <span>{{ row.createdAt | date:'short' }}</span>
+          <strong>{{ row.eventType || row.actionType }}</strong>
+          <small>{{ row.notes }}</small>
+        </article>
+      </div>
+      <p class="empty" *ngIf="!audit.length">{{ t('لا توجد أحداث تدقيق', 'No audit events') }}</p>
+    </section>
+  </ng-container>
+
+  <aside class="drawer-backdrop" *ngIf="drawer" (click)="drawer = false"></aside>
+  <aside class="drawer" *ngIf="drawer">
+    <header><h2>{{ t('تعديل راتب جديد', 'New payroll adjustment') }}</h2><button type="button" (click)="drawer = false">×</button></header>
+    <div class="form-grid">
+      <label><span>{{ t('الموظف', 'Employee') }}</span><select [(ngModel)]="form.employeeId"><option [ngValue]="null">-</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e) }}</option></select></label>
+      <label><span>{{ t('النوع', 'Type') }}</span><select [(ngModel)]="form.adjustmentTypeId"><option [ngValue]="null">-</option><option *ngFor="let type of types" [ngValue]="type.id">{{ label(type) }}</option></select></label>
+      <label><span>{{ t('اتجاه التعديل', 'Direction') }}</span><select [(ngModel)]="form.direction"><option value="add">{{ t('إضافة', 'Add') }}</option><option value="deduct">{{ t('خصم', 'Deduct') }}</option></select></label>
+      <label><span>{{ t('بعد صافي الراتب؟', 'Calculation mode') }}</span><select [(ngModel)]="form.calculationMode"><option value="after_net">after net</option><option value="after_tax">after tax</option><option value="before_tax">before tax</option><option value="before_gross">before gross</option></select></label>
+      <label><span>{{ t('التكرار', 'Recurrence') }}</span><select [(ngModel)]="form.recurrenceType"><option value="one_time">{{ t('مرة واحدة', 'One time') }}</option><option value="monthly">{{ t('شهري', 'Monthly') }}</option><option value="installments">{{ t('أقساط', 'Installments') }}</option><option value="date_range">{{ t('نطاق زمني', 'Date range') }}</option></select></label>
+      <label><span>{{ t('المبلغ', 'Amount') }}</span><input type="number" [(ngModel)]="form.amount"></label>
+      <label><span>{{ t('تاريخ السريان', 'Effective date') }}</span><input type="date" [(ngModel)]="form.effectiveDate"></label>
+      <label><span>{{ t('عدد الأقساط', 'Installments') }}</span><input type="number" [(ngModel)]="form.installmentCount"></label>
+      <label class="full"><span>{{ t('العنوان العربي', 'Arabic title') }}</span><input [(ngModel)]="form.titleAr"></label>
+      <label class="full"><span>{{ t('العنوان الإنجليزي', 'English title') }}</span><input [(ngModel)]="form.titleEn"></label>
+      <label class="full"><span>{{ t('ملاحظات', 'Notes') }}</span><textarea [(ngModel)]="form.reasonAr"></textarea></label>
+    </div>
+    <footer><button type="button" class="ghost-action" (click)="runPreview()">{{ t('معاينة الأثر', 'Preview impact') }}</button><button type="button" class="primary-action" (click)="saveAdjustment()" [disabled]="saving">{{ saving ? t('حفظ...', 'Saving...') : t('حفظ', 'Save') }}</button></footer>
+  </aside>
+
+  <aside class="drawer-backdrop" *ngIf="shiftDrawer" (click)="shiftDrawer = false"></aside>
+  <aside class="drawer" *ngIf="shiftDrawer">
+    <header><h2>{{ t('وردية جديدة', 'New shift') }}</h2><button type="button" (click)="shiftDrawer = false">×</button></header>
+    <div class="form-grid">
+      <label><span>{{ t('الكود', 'Code') }}</span><input [(ngModel)]="shiftForm.code"></label>
+      <label><span>{{ t('الاسم العربي', 'Arabic name') }}</span><input [(ngModel)]="shiftForm.nameAr"></label>
+      <label><span>{{ t('الاسم الإنجليزي', 'English name') }}</span><input [(ngModel)]="shiftForm.nameEn"></label>
+      <label><span>{{ t('نوع الوردية', 'Shift type') }}</span><select [(ngModel)]="shiftForm.shiftType"><option value="fixed">fixed</option><option value="rotating">rotating</option><option value="overnight">overnight</option><option value="flexible">flexible</option></select></label>
+      <label><span>{{ t('البداية', 'Start') }}</span><input type="time" [(ngModel)]="shiftForm.startTime"></label>
+      <label><span>{{ t('النهاية', 'End') }}</span><input type="time" [(ngModel)]="shiftForm.endTime"></label>
+    </div>
+    <footer><button type="button" class="primary-action" (click)="saveShift()" [disabled]="saving">{{ t('حفظ', 'Save') }}</button></footer>
+  </aside>
+</section>

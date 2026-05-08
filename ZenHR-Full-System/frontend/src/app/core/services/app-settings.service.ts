@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 
 type SettingItem = {
   key: string;
@@ -10,6 +11,7 @@ type SettingItem = {
 @Injectable({ providedIn: 'root' })
 export class AppSettingsService {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly settingsMap = signal<Record<string, string>>({});
   private readonly loaded = signal(false);
   private loadingPromise: Promise<void> | null = null;
@@ -66,6 +68,13 @@ export class AppSettingsService {
       this.loaded.set(true);
       return;
     }
+
+    const role = this.auth.currentUser()?.role;
+    if (role && role !== 'superadmin' && role !== 'hradmin') {
+      this.loaded.set(true);
+      return;
+    }
+
     try {
       const response = await firstValueFrom(this.api.get<any>('/api/config'));
       const items: SettingItem[] = response?.data ?? [];

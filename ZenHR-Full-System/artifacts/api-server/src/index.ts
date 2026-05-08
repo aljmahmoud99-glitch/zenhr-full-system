@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
 import ExcelJS from "exceljs";
 import multer from "multer";
@@ -8,7 +8,7 @@ import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
 import { applyBrackets, calculateComponentValueM } from "./salary-calculation.service.js";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import {
   usersTable, employeesTable, departmentsTable, jobTitlesTable,
   leaveRequestsTable, leavePoliciesTable, leaveBalancesTable,
@@ -51,7 +51,7 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
-// ─── File upload (multer) ─────────────────────────────────────────────────────
+// â”€â”€â”€ File upload (multer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
@@ -72,7 +72,7 @@ const docUpload = multer({
   },
 });
 
-// ─── Logo upload (branding) ───────────────────────────────────────────────────
+// â”€â”€â”€ Logo upload (branding) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LOGOS_DIR = path.resolve(UPLOADS_DIR, "logos");
 if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
 
@@ -93,19 +93,39 @@ const logoUpload = multer({
   },
 });
 
-// Public logo serving — no auth required (company logos are safe to display)
+// Public logo serving â€” no auth required (company logos are safe to display)
 app.use("/uploads/logos", express.static(LOGOS_DIR));
-// Serve other uploaded files — auth required
-app.use("/uploads", auth, express.static(UPLOADS_DIR));
+// Serve other uploaded files â€” auth required
+app.use("/uploads", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const storageKey = path.basename(req.path);
+    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE storage_key = $1 AND is_deleted = false LIMIT 1`, [storageKey]);
+    const file = rows[0];
+    if (!file) { res.status(404).json({ success: false, message: "File not found" }); return; }
+    if (file.company_id !== user.companyId || user.role === "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const absolute = safeStoragePath(file.storage_key);
+    if (!absolute || !fs.existsSync(absolute)) { res.status(404).json({ success: false, message: "File missing on storage" }); return; }
+    res.sendFile(absolute);
+  } catch (e) {
+    console.error("[GET /uploads/*]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
 
 type AuthReq = express.Request & { user: { userId: number; username: string; role: string; companyId: number; employeeId: number | null } };
 
-// ─── Health ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/healthz", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString(), version: "1.0.0" });
 });
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body as { username: string; password: string };
@@ -162,7 +182,7 @@ app.get("/api/auth/me", auth, async (req, res) => {
   }
 });
 
-// GET /api/auth/context — tenant scope for the current user (company name + employee org context)
+// GET /api/auth/context â€” tenant scope for the current user (company name + employee org context)
 app.get("/api/auth/context", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -238,7 +258,7 @@ app.patch("/api/auth/change-password", auth, async (req, res) => {
   }
 });
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/summary", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -249,7 +269,7 @@ app.get("/api/dashboard/summary", auth, async (req, res) => {
     const in30Str = in30.toISOString().split("T")[0]!;
 
     // Scope employees by role (own / department subtree / company).
-    // Manager → only their org_node subtree; HR admin → whole company; employee → just self.
+    // Manager â†’ only their org_node subtree; HR admin â†’ whole company; employee â†’ just self.
     const scope = await getEmployeeScopeConditions(authReq);
     const empConds = [...scope, eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active")];
 
@@ -257,7 +277,7 @@ app.get("/api/dashboard/summary", auth, async (req, res) => {
     const scopedIds = scopedEmps.map(e => e.id);
     const totalEmployees = scopedIds.length;
 
-    // Helpers — when scope is empty, every "in scope" filter must short-circuit to false
+    // Helpers â€” when scope is empty, every "in scope" filter must short-circuit to false
     const inLeave = scopedIds.length ? inArray(leaveRequestsTable.employeeId, scopedIds) : sql`false`;
     const inOT    = scopedIds.length ? inArray(overtimeRequestsTable.employeeId, scopedIds) : sql`false`;
     const inAtt   = scopedIds.length ? inArray(attendanceRecordsTable.employeeId, scopedIds) : sql`false`;
@@ -288,7 +308,7 @@ app.get("/api/dashboard/summary", auth, async (req, res) => {
     const onLeaveCount = onLeaveToday?.count ?? 0;
     const absentToday = Math.max(0, totalEmployees - presentCount - onLeaveCount);
 
-    // Compliance — scoped employees only
+    // Compliance â€” scoped employees only
     const [sscNotEnrolled] = await db.select({ count: sql<number>`count(*)::int` })
       .from(employeesTable)
       .where(and(...empConds, eq(employeesTable.isSSCExempt, false), isNull(employeesTable.sscEnrollmentDate)));
@@ -406,7 +426,7 @@ app.get("/api/dashboard/headcount-by-department", auth, async (req, res) => {
       const dept = depts.find(d => d.id === r.departmentId);
       return {
         departmentId: r.departmentId,
-        nameAr: dept?.nameAr ?? "غير محدد",
+        nameAr: dept?.nameAr ?? "ط؛ظٹط± ظ…ط­ط¯ط¯",
         nameEn: dept?.nameEn ?? "Unknown",
         count: r.count,
       };
@@ -422,7 +442,7 @@ app.get("/api/dashboard/payroll-trend", auth, async (_req, res) => {
   res.json({ success: true, data: [] });
 });
 
-// ─── Dashboard: 7-day attendance trend ───────────────────────────────────────
+// â”€â”€â”€ Dashboard: 7-day attendance trend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/attendance-trend", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -466,7 +486,7 @@ app.get("/api/dashboard/attendance-trend", auth, async (req, res) => {
   }
 });
 
-// ─── Dashboard: leave type breakdown (current year, approved, scoped) ─────────
+// â”€â”€â”€ Dashboard: leave type breakdown (current year, approved, scoped) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/leave-type-breakdown", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -480,7 +500,7 @@ app.get("/api/dashboard/leave-type-breakdown", auth, async (req, res) => {
 
     const thisYear = new Date().getFullYear().toString();
     const rows = await db.select({
-      leaveTypeId: leaveRequestsTable.leaveTypeId,
+      leaveType: leaveRequestsTable.leaveType,
       count: sql<number>`count(*)::int`,
     }).from(leaveRequestsTable)
       .where(and(
@@ -489,12 +509,12 @@ app.get("/api/dashboard/leave-type-breakdown", auth, async (req, res) => {
         eq(leaveRequestsTable.status, "approved"),
         sql`EXTRACT(YEAR FROM ${leaveRequestsTable.startDate}::date)::text = ${thisYear}`,
       ))
-      .groupBy(leaveRequestsTable.leaveTypeId);
+      .groupBy(leaveRequestsTable.leaveType);
 
-    const types = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.companyId, user.companyId));
+    const types = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.isActive, true));
     const result = rows.map(r => {
-      const lt = types.find(t => t.id === r.leaveTypeId);
-      return { leaveTypeId: r.leaveTypeId, nameAr: lt?.nameAr ?? "أخرى", nameEn: lt?.nameEn ?? "Other", count: r.count };
+      const lt = types.find(t => String(t.id) === String(r.leaveType) || t.code === r.leaveType);
+      return { leaveTypeId: Number(r.leaveType) || r.leaveType, nameAr: lt?.nameAr ?? "أخرى", nameEn: lt?.nameEn ?? "Other", count: r.count };
     }).sort((a, b) => b.count - a.count);
 
     res.json({ success: true, data: result });
@@ -504,7 +524,7 @@ app.get("/api/dashboard/leave-type-breakdown", auth, async (req, res) => {
   }
 });
 
-// ─── Dashboard: payroll runs by status (HR / payrolladmin / superadmin) ───────
+// â”€â”€â”€ Dashboard: payroll runs by status (HR / payrolladmin / superadmin) â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/payroll-status-breakdown", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -524,7 +544,7 @@ app.get("/api/dashboard/payroll-status-breakdown", auth, async (req, res) => {
   }
 });
 
-// ─── Chart: Employee status distribution ────────────────────────────────────
+// â”€â”€â”€ Chart: Employee status distribution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/employee-status", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -546,7 +566,7 @@ app.get("/api/dashboard/charts/employee-status", auth, async (req, res) => {
   }
 });
 
-// ─── Chart: My attendance this month (employee only) ─────────────────────────
+// â”€â”€â”€ Chart: My attendance this month (employee only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/my-attendance-month", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -556,7 +576,7 @@ app.get("/api/dashboard/charts/my-attendance-month", auth, async (req, res) => {
     }
     const emp = await db.select({ id: employeesTable.id })
       .from(employeesTable)
-      .where(and(eq(employeesTable.userId, user.id), eq(employeesTable.isDeleted, false)))
+      .where(and(eq(employeesTable.id, user.employeeId ?? -1), eq(employeesTable.isDeleted, false)))
       .limit(1);
     if (!emp.length) return res.json({ success: true, data: [] });
     const now = new Date();
@@ -579,7 +599,7 @@ app.get("/api/dashboard/charts/my-attendance-month", auth, async (req, res) => {
   }
 });
 
-// ─── Chart: My payslip trend — last 6 (employee only) ────────────────────────
+// â”€â”€â”€ Chart: My payslip trend â€” last 6 (employee only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/my-payslip-trend", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -589,7 +609,7 @@ app.get("/api/dashboard/charts/my-payslip-trend", auth, async (req, res) => {
     }
     const emp = await db.select({ id: employeesTable.id })
       .from(employeesTable)
-      .where(and(eq(employeesTable.userId, user.id), eq(employeesTable.isDeleted, false)))
+      .where(and(eq(employeesTable.id, user.employeeId ?? -1), eq(employeesTable.isDeleted, false)))
       .limit(1);
     if (!emp.length) return res.json({ success: true, data: [] });
     const rows = await db.select({
@@ -609,7 +629,7 @@ app.get("/api/dashboard/charts/my-payslip-trend", auth, async (req, res) => {
   }
 });
 
-// ─── Chart: Payroll monthly trend — last 6 runs ───────────────────────────────
+// â”€â”€â”€ Chart: Payroll monthly trend â€” last 6 runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/payroll-monthly-trend", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -634,7 +654,7 @@ app.get("/api/dashboard/charts/payroll-monthly-trend", auth, async (req, res) =>
   }
 });
 
-// ─── Chart: Users by role ─────────────────────────────────────────────────────
+// â”€â”€â”€ Chart: Users by role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/superadmin-users-by-role", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -654,7 +674,7 @@ app.get("/api/dashboard/charts/superadmin-users-by-role", auth, async (req, res)
   }
 });
 
-// ─── Chart: Activity by module — last 30 days ────────────────────────────────
+// â”€â”€â”€ Chart: Activity by module â€” last 30 days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/charts/activity-by-module", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -681,7 +701,7 @@ app.get("/api/dashboard/charts/activity-by-module", auth, async (req, res) => {
   }
 });
 
-// ─── Employee enrichment helper ───────────────────────────────────────────────
+// â”€â”€â”€ Employee enrichment helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function loadOrgEnrichmentMaps(companyId: number) {
   const [allDepts, allJobs, allOrgNodes] = await Promise.all([
     db.select().from(departmentsTable).where(and(eq(departmentsTable.companyId, companyId), eq(departmentsTable.isDeleted, false))),
@@ -717,7 +737,7 @@ function buildOrgBreadcrumb(orgNodeId: number | null | undefined, nodeMap: Recor
     if (!current.parentId) break;
     current = nodeMap[current.parentId];
   }
-  return path.join(' › ');
+  return path.join(' â€؛ ');
 }
 
 function enrichEmployee(emp: any, maps: { deptMap: Record<number, any>; jtMap: Record<number, any>; nodeMap: Record<number, any> }, managerMap?: Record<number, any>) {
@@ -749,7 +769,7 @@ function enrichEmployee(emp: any, maps: { deptMap: Record<number, any>; jtMap: R
   };
 }
 
-// ─── Employees ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Employees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/employees", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -839,18 +859,18 @@ app.get("/api/employees/:id", auth, async (req, res) => {
 
     const enriched = enrichEmployee(emp, maps, managerMap);
 
-    // ── Role-based financial masking ─────────────────────────────────────────
+    // â”€â”€ Role-based financial masking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const canSeeFinancial = ["superadmin", "hradmin", "payrolladmin"].includes(user.role);
     const msk = <T>(v: T): T | null => canSeeFinancial ? v : null;
 
-    // ── Parse qualification data_json ─────────────────────────────────────────
+    // â”€â”€ Parse qualification data_json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const parsedQuals = quals.map(q => {
       let data: Record<string, unknown> = {};
       try { data = JSON.parse(q.dataJson); } catch { /* keep empty */ }
       return { ...q, data };
     });
 
-    // ── Structured sections ───────────────────────────────────────────────────
+    // â”€â”€ Structured sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const sections = {
       personal: {
         employeeCode:    enriched.employeeCode,
@@ -921,7 +941,7 @@ app.get("/api/employees/:id", auth, async (req, res) => {
       qualifications: parsedQuals,
     };
 
-    // ── Build flat response (backward-compat) + mask financial fields ─────────
+    // â”€â”€ Build flat response (backward-compat) + mask financial fields â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const flatData: any = { ...enriched, sections };
     if (!canSeeFinancial) {
       flatData.basicSalary        = null;
@@ -1058,26 +1078,26 @@ app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
   }
 });
 
-// ─── Employee Actions ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Employee Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ACTION_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
-  hire:                { en: "Hired",                   ar: "تعيين" },
-  probation_start:     { en: "Probation Started",       ar: "بدء التجربة" },
-  probation_complete:  { en: "Probation Completed",     ar: "اجتياز التجربة" },
-  probation_fail:      { en: "Probation Failed",        ar: "فشل التجربة" },
-  transfer:            { en: "Transfer",                ar: "نقل" },
-  promotion:           { en: "Promotion",               ar: "ترقية" },
-  demotion:            { en: "Demotion",                ar: "خفض درجة" },
-  salary_change:       { en: "Salary Change",           ar: "تعديل الراتب" },
-  suspension:          { en: "Suspension",              ar: "إيقاف" },
-  suspension_lift:     { en: "Suspension Lifted",       ar: "رفع الإيقاف" },
-  termination:         { en: "Termination",             ar: "إنهاء خدمة" },
-  resignation:         { en: "Resignation",             ar: "استقالة" },
-  leave_of_absence:    { en: "Leave of Absence",        ar: "إجازة بدون راتب" },
-  return_from_leave:   { en: "Returned from Leave",     ar: "عودة من الإجازة" },
-  warning_issued:      { en: "Warning Issued",          ar: "إنذار" },
-  document_expired:    { en: "Document Expired",        ar: "وثيقة منتهية" },
-  contract_renewal:    { en: "Contract Renewal",        ar: "تجديد عقد" },
+  hire:                { en: "Hired",                   ar: "طھط¹ظٹظٹظ†" },
+  probation_start:     { en: "Probation Started",       ar: "ط¨ط¯ط، ط§ظ„طھط¬ط±ط¨ط©" },
+  probation_complete:  { en: "Probation Completed",     ar: "ط§ط¬طھظٹط§ط² ط§ظ„طھط¬ط±ط¨ط©" },
+  probation_fail:      { en: "Probation Failed",        ar: "ظپط´ظ„ ط§ظ„طھط¬ط±ط¨ط©" },
+  transfer:            { en: "Transfer",                ar: "ظ†ظ‚ظ„" },
+  promotion:           { en: "Promotion",               ar: "طھط±ظ‚ظٹط©" },
+  demotion:            { en: "Demotion",                ar: "ط®ظپط¶ ط¯ط±ط¬ط©" },
+  salary_change:       { en: "Salary Change",           ar: "طھط¹ط¯ظٹظ„ ط§ظ„ط±ط§طھط¨" },
+  suspension:          { en: "Suspension",              ar: "ط¥ظٹظ‚ط§ظپ" },
+  suspension_lift:     { en: "Suspension Lifted",       ar: "ط±ظپط¹ ط§ظ„ط¥ظٹظ‚ط§ظپ" },
+  termination:         { en: "Termination",             ar: "ط¥ظ†ظ‡ط§ط، ط®ط¯ظ…ط©" },
+  resignation:         { en: "Resignation",             ar: "ط§ط³طھظ‚ط§ظ„ط©" },
+  leave_of_absence:    { en: "Leave of Absence",        ar: "ط¥ط¬ط§ط²ط© ط¨ط¯ظˆظ† ط±ط§طھط¨" },
+  return_from_leave:   { en: "Returned from Leave",     ar: "ط¹ظˆط¯ط© ظ…ظ† ط§ظ„ط¥ط¬ط§ط²ط©" },
+  warning_issued:      { en: "Warning Issued",          ar: "ط¥ظ†ط°ط§ط±" },
+  document_expired:    { en: "Document Expired",        ar: "ظˆط«ظٹظ‚ط© ظ…ظ†طھظ‡ظٹط©" },
+  contract_renewal:    { en: "Contract Renewal",        ar: "طھط¬ط¯ظٹط¯ ط¹ظ‚ط¯" },
 };
 
 // Shared: join-based query returning actions enriched with creator name
@@ -1133,7 +1153,7 @@ function enrichActions(actions: any[]) {
   });
 }
 
-// GET /api/employee-actions/types — dropdown labels
+// GET /api/employee-actions/types â€” dropdown labels
 app.get("/api/employee-actions/types", auth, (_req, res) => {
   const types = Object.entries(ACTION_TYPE_LABELS).map(([value, labels]) => ({
     value,
@@ -1216,7 +1236,7 @@ app.post("/api/employee-actions", auth, async (req, res) => {
       const empUpdate: Record<string, any> = {};
       let insertSalaryComponent = false;
 
-      // ── Per-action side effects + before/after capture ────────────────────
+      // â”€â”€ Per-action side effects + before/after capture â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (actionType === "transfer") {
         beforeFields.orgNodeId = emp.orgNodeId;
         beforeFields.departmentId = emp.departmentId;
@@ -1290,7 +1310,7 @@ app.post("/api/employee-actions", auth, async (req, res) => {
       const afterFields: Record<string, any> = { ...beforeFields };
       for (const [k, v] of Object.entries(empUpdate)) afterFields[k] = v;
 
-      // ── Insert action record as PENDING (side effects applied only on approve) ──
+      // â”€â”€ Insert action record as PENDING (side effects applied only on approve) â”€â”€
       const [inserted] = await tx.insert(employeeActionsTable).values({
         companyId: user.companyId,
         employeeId,
@@ -1307,7 +1327,7 @@ app.post("/api/employee-actions", auth, async (req, res) => {
     });
 
     await logActivity(user.companyId, "employee_action", `${actionType} submitted for employee #${employeeId}`, null);
-    // ── Notification ───────────────────────────────────────────────────────
+    // â”€â”€ Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const actionLabelEn2 = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
     const actionLabelAr2 = ACTION_TYPE_LABELS[actionType]?.ar ?? actionType;
     await notifyRole(user.companyId, "hradmin", {
@@ -1316,9 +1336,9 @@ app.post("/api/employee-actions", auth, async (req, res) => {
       entityType: "employee_action",
       entityId: action.id,
       notificationType: "employee_action_created",
-      titleAr: `طلب إجراء موظف: ${actionLabelAr2}`,
+      titleAr: `ط·ظ„ط¨ ط¥ط¬ط±ط§ط، ظ…ظˆط¸ظپ: ${actionLabelAr2}`,
       titleEn: `Employee Action Request: ${actionLabelEn2}`,
-      messageAr: `طلب إجراء "${actionLabelAr2}" للموظف #${employeeId} يحتاج إلى موافقة.`,
+      messageAr: `ط·ظ„ط¨ ط¥ط¬ط±ط§ط، "${actionLabelAr2}" ظ„ظ„ظ…ظˆط¸ظپ #${employeeId} ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط©.`,
       messageEn: `A "${actionLabelEn2}" action for employee #${employeeId} requires approval.`,
       priority: "normal",
       actionUrl: "/app/employee-actions",
@@ -1337,7 +1357,7 @@ app.post("/api/employee-actions", auth, async (req, res) => {
   }
 });
 
-// POST /api/employee-actions/:id/approve — apply side effects and mark applied
+// POST /api/employee-actions/:id/approve â€” apply side effects and mark applied
 app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1442,7 +1462,7 @@ app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
     });
 
     await logActivity(user.companyId, "employee_action", `${action.actionType} approved for employee #${action.employeeId}`, null);
-    // ── Notification ───────────────────────────────────────────────────────
+    // â”€â”€ Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const approvedLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
     const approvedLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
     await notifyEmployee(action.employeeId, user.companyId, {
@@ -1451,9 +1471,9 @@ app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
       entityType: "employee_action",
       entityId: action.id,
       notificationType: "employee_action_approved",
-      titleAr: `تمت الموافقة على إجراء: ${approvedLabelAr}`,
+      titleAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط¥ط¬ط±ط§ط،: ${approvedLabelAr}`,
       titleEn: `Action Approved: ${approvedLabelEn}`,
-      messageAr: `تمت الموافقة على إجراء "${approvedLabelAr}" الخاص بك.`,
+      messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط¥ط¬ط±ط§ط، "${approvedLabelAr}" ط§ظ„ط®ط§طµ ط¨ظƒ.`,
       messageEn: `Your "${approvedLabelEn}" action has been approved.`,
       priority: "high",
       actionUrl: "/app/my-profile",
@@ -1465,7 +1485,7 @@ app.post("/api/employee-actions/:id/approve", auth, async (req, res) => {
   }
 });
 
-// POST /api/employee-actions/:id/reject — mark rejected, no side effects
+// POST /api/employee-actions/:id/reject â€” mark rejected, no side effects
 app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1485,7 +1505,7 @@ app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
       .where(eq(employeeActionsTable.id, actionId));
 
     await logActivity(user.companyId, "employee_action", `${action.actionType} rejected for employee #${action.employeeId}`, null);
-    // ── Notification ───────────────────────────────────────────────────────
+    // â”€â”€ Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const rejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
     const rejLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
     await notifyEmployee(action.employeeId, user.companyId, {
@@ -1494,9 +1514,9 @@ app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
       entityType: "employee_action",
       entityId: action.id,
       notificationType: "employee_action_rejected",
-      titleAr: `تم رفض إجراء: ${rejLabelAr}`,
+      titleAr: `طھظ… ط±ظپط¶ ط¥ط¬ط±ط§ط،: ${rejLabelAr}`,
       titleEn: `Action Rejected: ${rejLabelEn}`,
-      messageAr: `تم رفض إجراء "${rejLabelAr}" الخاص بك.`,
+      messageAr: `طھظ… ط±ظپط¶ ط¥ط¬ط±ط§ط، "${rejLabelAr}" ط§ظ„ط®ط§طµ ط¨ظƒ.`,
       messageEn: `Your "${rejLabelEn}" action was rejected.`,
       priority: "high",
       actionUrl: "/app/my-profile",
@@ -1508,9 +1528,9 @@ app.post("/api/employee-actions/:id/reject", auth, async (req, res) => {
   }
 });
 
-// ─── Org Nodes ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Org Nodes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/org-nodes — flat list for current company
+// GET /api/org-nodes â€” flat list for current company
 app.get("/api/org-nodes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1523,7 +1543,7 @@ app.get("/api/org-nodes", auth, async (req, res) => {
   }
 });
 
-// GET /api/org-nodes/flat — alias for flat list
+// GET /api/org-nodes/flat â€” alias for flat list
 app.get("/api/org-nodes/flat", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1536,7 +1556,7 @@ app.get("/api/org-nodes/flat", auth, async (req, res) => {
   }
 });
 
-// GET /api/org-nodes/tree — nested tree structure (built in-memory from flat list)
+// GET /api/org-nodes/tree â€” nested tree structure (built in-memory from flat list)
 app.get("/api/org-nodes/tree", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1562,7 +1582,7 @@ app.get("/api/org-nodes/tree", auth, async (req, res) => {
   }
 });
 
-// GET /api/org-nodes/:id/descendants — all descendant node IDs
+// GET /api/org-nodes/:id/descendants â€” all descendant node IDs
 app.get("/api/org-nodes/:id/descendants", auth, async (req, res) => {
   try {
     const nodeIds = await getDescendantNodeIds(parseInt(req.params["id"]!));
@@ -1572,7 +1592,7 @@ app.get("/api/org-nodes/:id/descendants", auth, async (req, res) => {
   }
 });
 
-// POST /api/org-nodes — create node [hradmin only]
+// POST /api/org-nodes â€” create node [hradmin only]
 app.post("/api/org-nodes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1586,7 +1606,7 @@ app.post("/api/org-nodes", auth, async (req, res) => {
   }
 });
 
-// PUT /api/org-nodes/:id — update node [hradmin only]
+// PUT /api/org-nodes/:id â€” update node [hradmin only]
 app.put("/api/org-nodes/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1603,7 +1623,7 @@ app.put("/api/org-nodes/:id", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/org-nodes/:id — soft delete [hradmin only] — BLOCK if has employees or children
+// DELETE /api/org-nodes/:id â€” soft delete [hradmin only] â€” BLOCK if has employees or children
 app.delete("/api/org-nodes/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1630,9 +1650,9 @@ app.delete("/api/org-nodes/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Permissions ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/permissions/my — full permission map for current user
+// GET /api/permissions/my â€” full permission map for current user
 app.get("/api/permissions/my", auth, async (req, res) => {
   try {
     const map = await getPermissionMap(req as AuthReq);
@@ -1642,7 +1662,7 @@ app.get("/api/permissions/my", auth, async (req, res) => {
   }
 });
 
-// GET /api/permissions/check?screen=&action= — single permission check
+// GET /api/permissions/check?screen=&action= â€” single permission check
 app.get("/api/permissions/check", auth, async (req, res) => {
   try {
     const { screen, action } = req.query as { screen: string; action: string };
@@ -1656,7 +1676,7 @@ app.get("/api/permissions/check", auth, async (req, res) => {
   }
 });
 
-// ─── Departments ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Departments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/departments", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1707,7 +1727,7 @@ app.delete("/api/departments/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Job Titles ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Job Titles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/job-titles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -1730,16 +1750,251 @@ app.get("/api/job-titles", auth, async (req, res) => {
 app.post("/api/job-titles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [title] = await db.insert(jobTitlesTable).values({ ...req.body, companyId: user.companyId }).returning();
+    const { titleAr, titleEn, grade, isActive } = req.body as Record<string, unknown>;
+    if (!titleAr || !titleEn) {
+      res.status(400).json({ success: false, message: "titleAr and titleEn are required" }); return;
+    }
+    const [title] = await db.insert(jobDescriptionsTable).values({
+      companyId: user.companyId,
+      titleAr: String(titleAr),
+      titleEn: String(titleEn),
+      grade: (grade as string) || null,
+      isActive: isActive !== false,
+    }).returning({
+      id: jobDescriptionsTable.id,
+      companyId: jobDescriptionsTable.companyId,
+      titleAr: jobDescriptionsTable.titleAr,
+      titleEn: jobDescriptionsTable.titleEn,
+      grade: jobDescriptionsTable.grade,
+      isActive: jobDescriptionsTable.isActive,
+    });
     res.status(201).json({ success: true, data: title });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+app.get("/api/search", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const q = String(req.query.q ?? "").trim();
+  const like = `%${q}%`;
+  const results: any[] = [];
+  const push = (row: any) => results.push(row);
+  const safe = async (fn: () => Promise<void>) => { try { await fn(); } catch (e) { console.warn("[GET /api/search] partial source failed", e); } };
+
+  if (!q || q.length < 2) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  try {
+    if (user.role === "superadmin") {
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, name_ar, name_en, email, city
+          FROM companies
+          WHERE is_deleted = false
+            AND (name_ar ILIKE $1 OR name_en ILIKE $1 OR email ILIKE $1 OR COALESCE(code, '') ILIKE $1)
+          ORDER BY is_active DESC, id DESC
+          LIMIT 8
+        `, [like]);
+        rows.forEach(r => push({
+          id: r.id, type: "company", titleAr: r.name_ar, titleEn: r.name_en,
+          subtitleAr: r.email || r.city || "", subtitleEn: r.email || r.city || "",
+          route: "/admin/companies", icon: "corporate_fare", score: 95
+        }));
+      });
+
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, username, email, role
+          FROM users
+          WHERE is_deleted = false AND (username ILIKE $1 OR email ILIKE $1 OR role ILIKE $1)
+          ORDER BY id DESC
+          LIMIT 8
+        `, [like]);
+        rows.forEach(r => push({
+          id: r.id, type: "user", titleAr: r.username, titleEn: r.username,
+          subtitleAr: `${r.role} / ${r.email || ""}`, subtitleEn: `${r.role} / ${r.email || ""}`,
+          route: "/admin/users", icon: "manage_accounts", score: 82
+        }));
+      });
+
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, code, name_ar, name_en, billing_cycle
+          FROM platform_plans
+          WHERE code ILIKE $1 OR name_ar ILIKE $1 OR name_en ILIKE $1
+          ORDER BY is_active DESC, id ASC
+          LIMIT 8
+        `, [like]);
+        rows.forEach(r => push({
+          id: r.id, type: "plan", titleAr: r.name_ar || r.name_en, titleEn: r.name_en || r.name_ar,
+          subtitleAr: `${r.code} / ${r.billing_cycle || ""}`, subtitleEn: `${r.code} / ${r.billing_cycle || ""}`,
+          route: "/admin/plans-subscriptions", icon: "credit_card", score: 76
+        }));
+      });
+
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT aal.id, aal.action_type, aal.entity_type, u.username AS actor_username, c.name_en AS company_name_en, c.name_ar AS company_name_ar
+          FROM admin_audit_logs aal
+          LEFT JOIN users u ON u.id=aal.actor_user_id
+          LEFT JOIN companies c ON c.id=aal.company_id
+          WHERE aal.action_type ILIKE $1 OR aal.entity_type ILIKE $1 OR COALESCE(u.username, '') ILIKE $1
+          ORDER BY aal.created_at DESC
+          LIMIT 8
+        `, [like]);
+        rows.forEach(r => push({
+          id: r.id, type: "audit", titleAr: r.action_type, titleEn: r.action_type,
+          subtitleAr: `${r.actor_username || "System"} / ${r.company_name_ar || r.entity_type || ""}`,
+          subtitleEn: `${r.actor_username || "System"} / ${r.company_name_en || r.entity_type || ""}`,
+          route: "/admin/audit-logs", icon: "policy", score: 68
+        }));
+      });
+
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, job_type, status
+          FROM background_jobs
+          WHERE job_type ILIKE $1 OR status ILIKE $1
+          ORDER BY created_at DESC
+          LIMIT 8
+        `, [like]);
+        rows.forEach(r => push({
+          id: r.id, type: "background_job", titleAr: r.job_type, titleEn: r.job_type,
+          subtitleAr: r.status, subtitleEn: r.status,
+          route: "/admin/automation", icon: "work_history", score: 62
+        }));
+      });
+
+      results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      res.json({ success: true, data: results.slice(0, 30) });
+      return;
+    }
+
+    await safe(async () => {
+      const { rows } = await pool.query(`
+        SELECT id, employee_code, first_name_ar, last_name_ar, first_name_en, last_name_en, work_email
+        FROM employees
+        WHERE is_deleted = false AND company_id = $2
+          AND (employee_code ILIKE $1 OR first_name_ar ILIKE $1 OR last_name_ar ILIKE $1 OR first_name_en ILIKE $1 OR last_name_en ILIKE $1 OR COALESCE(work_email, '') ILIKE $1)
+        ORDER BY id DESC
+        LIMIT 8
+      `, [like, user.companyId]);
+      rows.forEach(r => push({
+        id: r.id, type: "employee", titleAr: `${r.first_name_ar || ""} ${r.last_name_ar || ""}`.trim(), titleEn: `${r.first_name_en || ""} ${r.last_name_en || ""}`.trim(),
+        subtitleAr: `${r.employee_code || ""} ${r.work_email || ""}`.trim(), subtitleEn: `${r.employee_code || ""} ${r.work_email || ""}`.trim(),
+        route: `/app/employees/${r.id}`, icon: "badge", score: 90
+      }));
+    });
+
+    await safe(async () => {
+      const { rows } = await pool.query(`
+        SELECT id, name_ar, name_en, code
+        FROM departments
+        WHERE is_deleted = false AND company_id = $2 AND (name_ar ILIKE $1 OR name_en ILIKE $1 OR COALESCE(code, '') ILIKE $1)
+        ORDER BY id DESC LIMIT 6
+      `, [like, user.companyId]);
+      rows.forEach(r => push({
+        id: r.id, type: "department", titleAr: r.name_ar, titleEn: r.name_en,
+        subtitleAr: r.code || "", subtitleEn: r.code || "", route: "/app/departments", icon: "account_tree", score: 72
+      }));
+    });
+
+    await safe(async () => {
+      const { rows } = await pool.query(`
+        SELECT id, title_ar, title_en, code
+        FROM job_descriptions
+        WHERE company_id = $2 AND (title_ar ILIKE $1 OR title_en ILIKE $1 OR COALESCE(grade, '') ILIKE $1)
+        ORDER BY id DESC LIMIT 6
+      `, [like, user.companyId]);
+      rows.forEach(r => push({
+        id: r.id, type: "job_description", titleAr: r.title_ar, titleEn: r.title_en,
+        subtitleAr: r.grade || "", subtitleEn: r.grade || "", route: "/app/job-descriptions", icon: "work", score: 70
+      }));
+    });
+
+    if (["hradmin", "payrolladmin", "manager", "employee"].includes(user.role)) {
+      await safe(async () => {
+        const ownClause = user.role === "employee" ? "AND employee_id = $3" : "";
+        const params = user.role === "employee" ? [like, user.companyId, user.employeeId] : [like, user.companyId];
+        const { rows } = await pool.query(`
+          SELECT d.id, d.file_name, d.employee_id, dt.name_ar AS type_ar, dt.name_en AS type_en
+          FROM documents d
+          LEFT JOIN document_types dt ON dt.id = d.document_type_id
+          WHERE d.is_deleted = false AND d.company_id = $2 ${ownClause}
+            AND (d.file_name ILIKE $1 OR COALESCE(dt.name_ar, '') ILIKE $1 OR COALESCE(dt.name_en, '') ILIKE $1)
+          ORDER BY d.created_at DESC LIMIT 6
+        `, params);
+        rows.forEach(r => push({
+          id: r.id, type: "document", titleAr: r.file_name, titleEn: r.file_name,
+          subtitleAr: r.type_ar || "", subtitleEn: r.type_en || "",
+          route: "/app/documents", icon: "folder", score: 60
+        }));
+      });
+    }
+
+    if (["hradmin", "manager", "employee"].includes(user.role)) {
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, action_type, status, notes
+          FROM employee_actions
+          WHERE company_id = $2 AND (action_type ILIKE $1 OR status ILIKE $1 OR COALESCE(notes, '') ILIKE $1)
+          ORDER BY created_at DESC LIMIT 8
+        `, [like, user.companyId]);
+        rows.forEach(r => push({
+          id: r.id, type: "workflow", titleAr: r.action_type, titleEn: r.action_type,
+          subtitleAr: r.status || "", subtitleEn: r.status || "", route: "/app/workflows", icon: "schema", score: 58
+        }));
+      });
+    }
+
+    if (["hradmin", "payrolladmin"].includes(user.role)) {
+      await safe(async () => {
+        const { rows } = await pool.query(`
+          SELECT id, run_month, run_year, status
+          FROM payroll_runs
+          WHERE company_id = $1
+          ORDER BY created_at DESC LIMIT 5
+        `, [user.companyId]);
+        rows.filter(r => `${r.run_month}/${r.run_year} ${r.status}`.toLowerCase().includes(q.toLowerCase())).forEach(r => push({
+          id: r.id, type: "payroll_run", titleAr: `ظ…ط³ظٹط± ط§ظ„ط±ظˆط§طھط¨ ${r.run_month}/${r.run_year}`, titleEn: `Payroll ${r.run_month}/${r.run_year}`,
+          subtitleAr: r.status, subtitleEn: r.status, route: "/app/payroll/runs", icon: "payments", score: 54
+        }));
+      });
+    }
+
+    results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    res.json({ success: true, data: results.slice(0, 30) });
+  } catch (e) {
+    console.error("[GET /api/search]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.patch("/api/job-titles/:id", auth, async (req, res) => {
   try {
-    const [title] = await db.update(jobTitlesTable).set(req.body).where(eq(jobTitlesTable.id, parseInt(req.params["id"]!))).returning();
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params["id"]!);
+    const { titleAr, titleEn, grade, isActive } = req.body as Record<string, unknown>;
+    const updates: Partial<typeof jobDescriptionsTable.$inferInsert> = {};
+    if (titleAr !== undefined) updates.titleAr = String(titleAr);
+    if (titleEn !== undefined) updates.titleEn = String(titleEn);
+    if (grade !== undefined) updates.grade = (grade as string) || null;
+    if (isActive !== undefined) updates.isActive = Boolean(isActive);
+    const [title] = await db.update(jobDescriptionsTable)
+      .set(updates)
+      .where(and(eq(jobDescriptionsTable.id, id), eq(jobDescriptionsTable.companyId, user.companyId)))
+      .returning({
+        id: jobDescriptionsTable.id,
+        companyId: jobDescriptionsTable.companyId,
+        titleAr: jobDescriptionsTable.titleAr,
+        titleEn: jobDescriptionsTable.titleEn,
+        grade: jobDescriptionsTable.grade,
+        isActive: jobDescriptionsTable.isActive,
+      });
+    if (!title) { res.status(404).json({ success: false, message: "Job title not found" }); return; }
     res.json({ success: true, data: title });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1748,35 +2003,103 @@ app.patch("/api/job-titles/:id", auth, async (req, res) => {
 
 app.delete("/api/job-titles/:id", auth, async (req, res) => {
   try {
-    await db.update(jobTitlesTable).set({ isDeleted: true }).where(eq(jobTitlesTable.id, parseInt(req.params["id"]!)));
+    const user = (req as AuthReq).user;
+    await db.update(jobDescriptionsTable)
+      .set({ isActive: false })
+      .where(and(eq(jobDescriptionsTable.id, parseInt(req.params["id"]!)), eq(jobDescriptionsTable.companyId, user.companyId)));
     res.status(204).send();
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// ─── Leave Requests ───────────────────────────────────────────────────────────
+async function fetchLeaveRequestRows(user: AuthReq["user"], filters: Record<string, string> = {}) {
+  const values: any[] = [user.companyId];
+  const where = [
+    "lr.is_deleted = false",
+    "e.company_id = $1",
+    "e.is_deleted = false",
+  ];
+  if (filters.status) {
+    values.push(filters.status);
+    where.push(`lr.status = $${values.length}`);
+  }
+  if (filters.employeeId) {
+    values.push(Number(filters.employeeId));
+    where.push(`lr.employee_id = $${values.length}`);
+  }
+  if (filters.from) {
+    values.push(filters.from);
+    where.push(`lr.start_date >= $${values.length}`);
+  }
+  if (filters.to) {
+    values.push(filters.to);
+    where.push(`lr.end_date <= $${values.length}`);
+  }
+  if (user.role === "employee") {
+    if (!user.employeeId) return [];
+    values.push(user.employeeId);
+    where.push(`lr.employee_id = $${values.length}`);
+  } else if (user.role === "manager") {
+    const scopeConds = await getEmployeeScopeConditions({ user } as AuthReq);
+    const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+    const ids = teamEmps.map(e => e.id);
+    if (ids.length === 0) return [];
+    if (filters.employeeId && !ids.includes(Number(filters.employeeId))) throw Object.assign(new Error("Forbidden"), { status: 403 });
+    values.push(ids);
+    where.push(`lr.employee_id = ANY($${values.length}::int[])`);
+  }
+
+  const { rows } = await pool.query(`
+    SELECT
+      lr.id,
+      lr.employee_id AS "employeeId",
+      lr.leave_type AS "leaveType",
+      CASE WHEN lr.leave_type ~ '^[0-9]+$' THEN lr.leave_type::int ELSE NULL END AS "leaveTypeId",
+      lt.code AS "leaveTypeCode",
+      COALESCE(lt.name_ar, lr.leave_type) AS "leaveTypeNameAr",
+      COALESCE(lt.name_en, lr.leave_type) AS "leaveTypeNameEn",
+      to_char(lr.start_date, 'YYYY-MM-DD') AS "startDate",
+      to_char(lr.end_date, 'YYYY-MM-DD') AS "endDate",
+      lr.total_days::float AS "totalDays",
+      lr.reason,
+      lr.status,
+      lr.approved_at AS "approvedAt",
+      lr.rejection_reason AS "rejectionReason",
+      lr.created_at AS "createdAt",
+      lr.updated_at AS "updatedAt",
+      e.employee_code AS "employeeCode",
+      concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "fullNameAr",
+      concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "fullNameEn",
+      d.name_ar AS "departmentAr",
+      d.name_en AS "departmentEn",
+      d.name_ar AS "orgNodeNameAr",
+      d.name_en AS "orgNodeNameEn",
+      jd.title_ar AS "jobTitleAr",
+      jd.title_en AS "jobTitleEn"
+    FROM leave_requests lr
+    JOIN employees e ON e.id = lr.employee_id
+    LEFT JOIN leave_types lt ON lt.id::text = lr.leave_type OR lt.code = lr.leave_type
+    LEFT JOIN departments d ON d.id = e.department_id
+    LEFT JOIN job_descriptions jd ON jd.id = e.job_description_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY lr.created_at DESC, lr.id DESC
+  `, values);
+  return rows;
+}
+
+// â”€â”€â”€ Leave Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/leave/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId, status } = req.query as Record<string, string>;
-    const conditions: any[] = [eq(leaveRequestsTable.isDeleted, false)];
-    if (user.role === "employee") {
-      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-      conditions.push(eq(leaveRequestsTable.employeeId, user.employeeId));
-    } else if (user.role === "manager") {
-      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
-      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
-      const ids = deptEmps.map(e => e.id);
-      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
-      conditions.push(inArray(leaveRequestsTable.employeeId, ids));
-    } else if (employeeId) {
-      conditions.push(eq(leaveRequestsTable.employeeId, parseInt(employeeId)));
-    }
-    if (status) conditions.push(eq(leaveRequestsTable.status, status));
-    const rows = await db.select().from(leaveRequestsTable).where(and(...conditions)).orderBy(desc(leaveRequestsTable.createdAt));
+    const rows = await fetchLeaveRequestRows(user, req.query as Record<string, string>);
     res.json({ success: true, data: rows });
   } catch (e) {
+    if ((e as any)?.status === 403) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    console.error("[GET /api/leave/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -1800,7 +2123,7 @@ app.post("/api/leave/requests", auth, async (req, res) => {
       status: "pending",
     }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
-    // ── Notifications ──────────────────────────────────────────────────────
+    // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const dateRange = fmtDateRange(body.startDate, body.endDate);
     const empName = user.username;
     const notifPayload = {
@@ -1809,9 +2132,9 @@ app.post("/api/leave/requests", auth, async (req, res) => {
       entityType: "leave_request",
       entityId: req2.id,
       notificationType: "leave_request_created",
-      titleAr: "طلب إجازة جديد",
+      titleAr: "ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¬ط¯ظٹط¯",
       titleEn: "New Leave Request",
-      messageAr: `قدّم ${empName} طلب إجازة من ${dateRange}.`,
+      messageAr: `ظ‚ط¯ظ‘ظ… ${empName} ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ظ…ظ† ${dateRange}.`,
       messageEn: `${empName} submitted a leave request from ${dateRange}.`,
       priority: "normal" as const,
       actionUrl: "/app/leave",
@@ -1846,7 +2169,7 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
     if (!lr) { res.status(404).json({ success: false, message: "Leave request not found" }); return; }
 
     if (user.role === "manager") {
-      // Manager: scope check + pending→manager_approved
+      // Manager: scope check + pendingâ†’manager_approved
       if (lr.status !== "pending") {
         res.status(400).json({ success: false, message: "Only pending requests can be approved by a manager" }); return;
       }
@@ -1860,16 +2183,16 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "leave_request", entityId: requestId,
         notificationType: "leave_manager_approved",
-        titleAr: "طلب إجازة بانتظار موافقة الموارد البشرية",
+        titleAr: "ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
         titleEn: "Leave Request Awaiting HR Approval",
-        messageAr: `وافق المدير على طلب إجازة من ${fmtDateRange(lr.startDate, lr.endDate)}. يحتاج إلى موافقة الموارد البشرية.`,
+        messageAr: `ظˆط§ظپظ‚ ط§ظ„ظ…ط¯ظٹط± ط¹ظ„ظ‰ ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ظ…ظ† ${fmtDateRange(lr.startDate, lr.endDate)}. ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©.`,
         messageEn: `Manager approved a leave request from ${fmtDateRange(lr.startDate, lr.endDate)}. Awaiting HR approval.`,
         priority: "normal" as const, actionUrl: "/app/leave",
       });
       res.json({ success: true, data: updated }); return;
     }
 
-    // hradmin: manager_approved or pending → approved (+ balance deduction)
+    // hradmin: manager_approved or pending â†’ approved (+ balance deduction)
     if (lr.status !== "pending" && lr.status !== "manager_approved") {
       res.status(400).json({ success: false, message: "Request cannot be approved in its current state" }); return;
     }
@@ -1877,7 +2200,7 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
       status: "approved", approvedById: user.userId, approvedAt: new Date(),
     }).where(eq(leaveRequestsTable.id, requestId)).returning();
 
-    // ── Balance update (best-effort) ──────────────────────────────────────
+    // â”€â”€ Balance update (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const year = new Date(String(lr.startDate)).getFullYear();
       const [lt] = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, Number(lr.leaveType)));
@@ -1897,15 +2220,15 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
       }
     } catch (balErr) { console.error("[approve] balance update non-fatal:", balErr); }
 
-    // ── Notify employee ───────────────────────────────────────────────────
+    // â”€â”€ Notify employee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (updated?.employeeId) {
       await notifyEmployee(updated.employeeId, user.companyId, {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "leave_request", entityId: updated.id,
         notificationType: "leave_request_approved",
-        titleAr: "تمت الموافقة على طلب الإجازة",
+        titleAr: "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط¥ط¬ط§ط²ط©",
         titleEn: "Leave Request Approved",
-        messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(updated.startDate, updated.endDate)}.`,
+        messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط¥ط¬ط§ط²طھظƒ ظ…ظ† ${fmtDateRange(updated.startDate, updated.endDate)}.`,
         messageEn: `Your leave request from ${fmtDateRange(updated.startDate, updated.endDate)} was approved.`,
         priority: "high", actionUrl: "/app/leave",
       });
@@ -1944,9 +2267,9 @@ app.post("/api/leave/requests/:id/reject", auth, async (req, res) => {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "leave_request", entityId: updated.id,
         notificationType: "leave_request_rejected",
-        titleAr: "تم رفض طلب الإجازة",
+        titleAr: "طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط¥ط¬ط§ط²ط©",
         titleEn: "Leave Request Rejected",
-        messageAr: `تم رفض طلب إجازتك من ${fmtDateRange(updated.startDate, updated.endDate)}.`,
+        messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط¥ط¬ط§ط²طھظƒ ظ…ظ† ${fmtDateRange(updated.startDate, updated.endDate)}.`,
         messageEn: `Your leave request from ${fmtDateRange(updated.startDate, updated.endDate)} was rejected.`,
         priority: "high", actionUrl: "/app/leave",
       });
@@ -1981,7 +2304,7 @@ app.post("/api/leave/requests/:id/cancel", auth, async (req, res) => {
   }
 });
 
-// ─── Leave Policies ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Leave Policies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/leave/policies", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2012,7 +2335,7 @@ app.patch("/api/leave/policies/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Payroll Runs ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Payroll Runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/payroll/runs", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2030,7 +2353,7 @@ app.get("/api/payroll/runs", auth, async (req, res) => {
   }
 });
 
-// ─── Payroll helpers ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Payroll helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function toM(s: string | null | undefined): number {
   if (!s) return 0;
   const n = parseFloat(s);
@@ -2252,9 +2575,9 @@ app.post("/api/payroll/runs/:id/publish", auth, async (req, res) => {
         entityType: "payroll",
         entityId: runId,
         notificationType: "payroll_published",
-        titleAr: "تم نشر كشف الراتب",
+        titleAr: "طھظ… ظ†ط´ط± ظƒط´ظپ ط§ظ„ط±ط§طھط¨",
         titleEn: "Payslip Published",
-        messageAr: `كشف راتب ${existing.runYear}/${String(existing.runMonth).padStart(2,"0")} جاهز. صافي الراتب: ${netAmt} د.أ`,
+        messageAr: `ظƒط´ظپ ط±ط§طھط¨ ${existing.runYear}/${String(existing.runMonth).padStart(2,"0")} ط¬ط§ظ‡ط². طµط§ظپظٹ ط§ظ„ط±ط§طھط¨: ${netAmt} ط¯.ط£`,
         messageEn: `Your payslip for ${existing.runYear}/${String(existing.runMonth).padStart(2,"0")} is ready. Net salary: ${netAmt} JOD`,
         priority: "normal",
         actionUrl: "/app/payroll/slips",
@@ -2321,7 +2644,7 @@ app.get("/api/payroll/slips", auth, async (req, res) => {
   }
 });
 
-// ── /my routes must be registered BEFORE /:id to avoid "my" being caught as an id param ──
+// â”€â”€ /my routes must be registered BEFORE /:id to avoid "my" being caught as an id param â”€â”€
 app.get("/api/payroll/slips/my", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2414,7 +2737,7 @@ app.get("/api/payroll/slips/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Salary preview (calculate without creating run) ──────────────────────────
+// â”€â”€â”€ Salary preview (calculate without creating run) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2468,7 +2791,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       }
       if (row.calculationType === 'percentage') {
         // Default: percentage of basic (resolved after basic is known)
-        return -1; // sentinel — resolved below
+        return -1; // sentinel â€” resolved below
       }
       return toM(row.defaultValue ?? "0");
     };
@@ -2533,7 +2856,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
   }
 });
 
-// ─── Salary component definitions ────────────────────────────────────────────
+// â”€â”€â”€ Salary component definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/salary-components/definitions", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2626,10 +2949,13 @@ app.delete("/api/salary-components/definitions/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Salary Components Catalog ────────────────────────────────────────────────
+// â”€â”€â”€ Salary Components Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/salary-components/catalog", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const rows = await db.select().from(salaryComponentsTable)
       .where(eq(salaryComponentsTable.companyId, user.companyId))
       .orderBy(asc(salaryComponentsTable.sortOrder), asc(salaryComponentsTable.id));
@@ -2643,7 +2969,7 @@ app.get("/api/salary-components/catalog", auth, async (req, res) => {
 app.post("/api/salary-components/catalog", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const { nameAr, nameEn, code, componentType, calculationType, defaultValue,
@@ -2653,7 +2979,7 @@ app.post("/api/salary-components/catalog", auth, async (req, res) => {
       res.status(400).json({ success: false, message: "nameEn, nameAr and code are required" }); return;
     }
     const upperCode = (code as string).toUpperCase();
-    // Duplicate check — return 409 instead of letting DB throw a 500
+    // Duplicate check â€” return 409 instead of letting DB throw a 500
     const [dupe] = await db.select({ id: salaryComponentsTable.id }).from(salaryComponentsTable)
       .where(and(eq(salaryComponentsTable.companyId, user.companyId), eq(salaryComponentsTable.code, upperCode)));
     if (dupe) {
@@ -2685,7 +3011,7 @@ app.post("/api/salary-components/catalog", auth, async (req, res) => {
 app.patch("/api/salary-components/catalog/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const id = parseInt(req.params.id, 10);
@@ -2719,7 +3045,7 @@ app.patch("/api/salary-components/catalog/:id", auth, async (req, res) => {
 app.delete("/api/salary-components/catalog/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin", "payrolladmin"].includes(user.role)) {
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const id = parseInt(req.params.id, 10);
@@ -2735,7 +3061,7 @@ app.delete("/api/salary-components/catalog/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Employee Salary Components ───────────────────────────────────────────────
+// â”€â”€â”€ Employee Salary Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/employees/:id/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2842,7 +3168,7 @@ app.patch("/api/employee-salary-components/:id", auth, async (req, res) => {
     if (effectiveFrom !== undefined) update.effectiveFrom = effectiveFrom;
     if (effectiveTo !== undefined) update.effectiveTo = effectiveTo;
     if (notes !== undefined) update.notes = notes;
-    // Verify ownership via employee → company
+    // Verify ownership via employee â†’ company
     const [existing] = await db
       .select({ employeeId: employeeSalaryComponentsTable.employeeId })
       .from(employeeSalaryComponentsTable)
@@ -2879,10 +3205,10 @@ app.delete("/api/employee-salary-components/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Step 4: Canonical Salary Component API ───────────────────────────────────
+// â”€â”€â”€ Step 4: Canonical Salary Component API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/salary-components — full catalog with isReferenced flag [all auth]
-// ─── Formula expression safety validator ──────────────────────────────────────
+// GET /api/salary-components â€” full compensation policy catalog with isReferenced flag [hr/payroll only]
+// â”€â”€â”€ Formula expression safety validator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Mirrors the tokeniser logic in salary-calculation.service.ts so dangerous
 // expressions are rejected at save time, not only at calculation time.
 const ALLOWED_FORMULA_VARS = new Set(["basic", "gross", "hours", "rate", "days"]);
@@ -2899,7 +3225,7 @@ function validateFormulaExpression(expr: string): boolean {
 app.get("/api/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const rows = await db.select().from(salaryComponentsTable)
@@ -2924,7 +3250,7 @@ app.get("/api/salary-components", auth, async (req, res) => {
   }
 });
 
-// POST /api/salary-components — create component [hradmin]
+// POST /api/salary-components â€” create component [hradmin]
 app.post("/api/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -2947,7 +3273,7 @@ app.post("/api/salary-components", auth, async (req, res) => {
         res.status(400).json({ success: false, message: "Invalid formula: only variables basic, gross, hours, rate, days and arithmetic operators are allowed" }); return;
       }
     }
-    // Validate defaultValue — earnings must not be negative
+    // Validate defaultValue â€” earnings must not be negative
     const parsedDefault = parseFloat(String(defaultValue ?? "0"));
     if ((componentType ?? "earning") === "earning" && parsedDefault < 0) {
       res.status(400).json({ success: false, message: "Earning components cannot have a negative default value" }); return;
@@ -2981,7 +3307,7 @@ app.post("/api/salary-components", auth, async (req, res) => {
   }
 });
 
-// PUT /api/salary-components/:id — update component [hradmin]
+// PUT /api/salary-components/:id â€” update component [hradmin]
 app.put("/api/salary-components/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3004,7 +3330,7 @@ app.put("/api/salary-components/:id", auth, async (req, res) => {
         }
       }
     }
-    // Validate defaultValue — earnings must not be negative
+    // Validate defaultValue â€” earnings must not be negative
     if (defaultValue !== undefined) {
       const type = componentType ?? (await db.select({ componentType: salaryComponentsTable.componentType })
         .from(salaryComponentsTable).where(eq(salaryComponentsTable.id, id)).then(r => r[0]?.componentType ?? "earning"));
@@ -3036,7 +3362,7 @@ app.put("/api/salary-components/:id", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/salary-components/:id — soft delete; blocked if any active employee assignments [hradmin]
+// DELETE /api/salary-components/:id â€” soft delete; blocked if any active employee assignments [hradmin]
 app.delete("/api/salary-components/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3069,7 +3395,7 @@ app.delete("/api/salary-components/:id", auth, async (req, res) => {
   }
 });
 
-// PUT /api/employees/:id/salary-components/:ecId — update assignment override [hradmin]
+// PUT /api/employees/:id/salary-components/:ecId â€” update assignment override [hradmin]
 app.put("/api/employees/:id/salary-components/:ecId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3103,7 +3429,7 @@ app.put("/api/employees/:id/salary-components/:ecId", auth, async (req, res) => 
   }
 });
 
-// DELETE /api/employees/:id/salary-components/:ecId — end-date assignment (effective_to = today) [hradmin]
+// DELETE /api/employees/:id/salary-components/:ecId â€” end-date assignment (effective_to = today) [hradmin]
 app.delete("/api/employees/:id/salary-components/:ecId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3134,9 +3460,9 @@ app.delete("/api/employees/:id/salary-components/:ecId", auth, async (req, res) 
   }
 });
 
-// ─── Step 4: Salary Preview & Config ─────────────────────────────────────────
+// â”€â”€â”€ Step 4: Salary Preview & Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/salary/preview/:employeeId — calculate current month salary (no DB write)
+// GET /api/salary/preview/:employeeId â€” calculate current month salary (no DB write)
 // Returns: { gross, deductions: {ssc, tax, other}, net, breakdown: [...components with values] }
 app.get("/api/salary/preview/:employeeId", auth, async (req, res) => {
   try {
@@ -3269,7 +3595,7 @@ app.get("/api/salary/preview/:employeeId", auth, async (req, res) => {
   }
 });
 
-// GET /api/salary/config — salary calculation configuration
+// GET /api/salary/config â€” salary calculation configuration
 app.get("/api/salary/config", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3308,7 +3634,7 @@ app.get("/api/salary/config", auth, async (req, res) => {
   }
 });
 
-// ─── Attendance ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Attendance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/attendance", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3364,7 +3690,11 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
-    const { attendanceType, notes } = req.body as { attendanceType?: string; notes?: string };
+    const { attendanceType, notes, latitude, longitude } = req.body as { attendanceType?: string; notes?: string; latitude?: number; longitude?: number };
+    const geo = await validateAttendanceGeofence(user.companyId, latitude, longitude);
+    if (!geo.allowed) {
+      res.status(400).json({ success: false, message: geo.messageEn, messageAr: geo.messageAr, data: geo }); return;
+    }
     const today = new Date().toISOString().split("T")[0]!;
     const [existing] = await db.select().from(attendanceRecordsTable)
       .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
@@ -3380,13 +3710,13 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
     let record: any;
     if (existing) {
       [record] = await db.update(attendanceRecordsTable)
-        .set({ clockIn: now, status, lateMinutes, attendanceType: attendanceType ?? "office", notes: notes ?? existing.notes })
+        .set({ clockIn: now, status, lateMinutes, attendanceType: attendanceType ?? "office", notes: buildAttendanceGeoNotes(notes ?? existing.notes, geo) })
         .where(eq(attendanceRecordsTable.id, existing.id)).returning();
     } else {
       [record] = await db.insert(attendanceRecordsTable).values({
         employeeId: user.employeeId,
         date: today, clockIn: now, status, lateMinutes,
-        attendanceType: attendanceType ?? "office", notes,
+        attendanceType: attendanceType ?? "office", notes: buildAttendanceGeoNotes(notes, geo),
       }).returning();
     }
     await logActivity(user.companyId, "attendance_check_in",
@@ -3402,6 +3732,11 @@ app.post("/api/attendance/clock-out", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const { latitude, longitude } = req.body as { latitude?: number; longitude?: number };
+    const geo = await validateAttendanceGeofence(user.companyId, latitude, longitude);
+    if (!geo.allowed) {
+      res.status(400).json({ success: false, message: geo.messageEn, messageAr: geo.messageAr, data: geo }); return;
+    }
     const today = new Date().toISOString().split("T")[0]!;
     const [existing] = await db.select().from(attendanceRecordsTable)
       .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
@@ -3454,7 +3789,7 @@ app.get("/api/attendance/summary", auth, async (req, res) => {
   }
 });
 
-// ─── Documents ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Helper: compute document status from expiresAt + alertDaysBefore
 function computeDocStatus(expiresAt: string | null, alertDaysBefore = 30): "valid" | "expiring_soon" | "expired" | "missing" {
@@ -3512,7 +3847,7 @@ async function fetchDocumentsJoined(conditions: any[]) {
   }));
 }
 
-// GET /api/documents — role-scoped list with JOIN
+// GET /api/documents â€” role-scoped list with JOIN
 app.get("/api/documents", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3530,7 +3865,7 @@ app.get("/api/documents", auth, async (req, res) => {
       if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
       conditions.push(inArray(documentsTable.employeeId, ids));
     } else {
-      // hradmin, payrolladmin, superadmin — filter by company
+      // hradmin, payrolladmin, superadmin â€” filter by company
       conditions.push(eq(documentsTable.companyId, user.companyId));
       if (employeeId) conditions.push(eq(documentsTable.employeeId, parseInt(employeeId)));
     }
@@ -3543,7 +3878,7 @@ app.get("/api/documents", auth, async (req, res) => {
   }
 });
 
-// POST /api/documents — create document record [role guard + field mapping]
+// POST /api/documents â€” create document record [role guard + field mapping]
 app.post("/api/documents", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3596,7 +3931,7 @@ app.post("/api/documents", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/documents/:id — update document [role guard + ownership]
+// PATCH /api/documents/:id â€” update document [role guard + ownership]
 app.patch("/api/documents/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3648,7 +3983,7 @@ app.patch("/api/documents/:id", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/documents/:id — soft delete [role guard + ownership]
+// DELETE /api/documents/:id â€” soft delete [role guard + ownership]
 app.delete("/api/documents/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3681,7 +4016,7 @@ app.delete("/api/documents/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Assets helpers ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Assets helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function buildAssetShape(a: typeof assetsTable.$inferSelect, depts: { id: number; nameAr: string; nameEn: string }[], emps: { id: number; employeeCode: string; firstNameAr: string; lastNameAr: string; firstNameEn: string; lastNameEn: string; departmentId: number | null }[], cats: { id: number; nameAr: string; nameEn: string }[]) {
   const emp = a.assignedToEmployeeId ? emps.find(e => e.id === a.assignedToEmployeeId) : null;
   const dept = emp?.departmentId ? depts.find(d => d.id === emp.departmentId) : null;
@@ -3731,7 +4066,7 @@ async function loadAssetLookups(companyId: number) {
   return { cats, emps, depts };
 }
 
-// ─── Assets ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/assets/export", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -4001,7 +4336,7 @@ app.post("/api/assets/:id/retire", auth, async (req, res) => {
   }
 });
 
-// ─── Lookups ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Lookups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/lookups/nationalities", async (_req, res) => {
   const rows = await db.select().from(nationalitiesTable).where(eq(nationalitiesTable.isActive, true));
   res.json({ success: true, data: rows });
@@ -4045,42 +4380,42 @@ app.get("/api/lookups/violation-types", auth, async (req, res) => {
   }
 });
 
-// ─── Config / System Settings ─────────────────────────────────────────────────
+// â”€â”€â”€ Config / System Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DEFAULT_CONFIGS = [
-  { key: "currency_code",                       value: "JOD",     category: "general",       description: "Currency code",                                                           descriptionAr: "رمز العملة" },
-  { key: "company_name_ar",                     value: "شركة زين الأردن", category: "general", description: "Company name in Arabic",                                              descriptionAr: "اسم الشركة بالعربية" },
-  { key: "company_name_en",                     value: "ZenJO Company", category: "general",   description: "Company name in English",                                             descriptionAr: "اسم الشركة بالإنجليزية" },
-  { key: "working_hours_per_day",               value: "8",       category: "attendance",     description: "Working hours per day",                                                   descriptionAr: "ساعات العمل في اليوم" },
-  { key: "working_days_per_week",               value: "5",       category: "attendance",     description: "Working days per week (1–7)",                                             descriptionAr: "أيام العمل في الأسبوع (١–٧)" },
-  { key: "enable_geofencing",                   value: "false",   category: "attendance",     description: "Enable geofencing for clock-in",                                          descriptionAr: "تفعيل تحديد الموقع الجغرافي لتسجيل الحضور" },
-  { key: "enable_face_recognition",             value: "false",   category: "attendance",     description: "Enable face recognition",                                                 descriptionAr: "تفعيل التعرف على الوجه" },
-  { key: "overtime_rate_weekday",               value: "1.5",     category: "payroll",        description: "Overtime rate on weekdays (multiplier, e.g. 1.5)",                        descriptionAr: "معدل العمل الإضافي — أيام الأسبوع (مضاعف)" },
-  { key: "overtime_rate_weekend",               value: "2.0",     category: "payroll",        description: "Overtime rate on weekends (multiplier, e.g. 2.0)",                        descriptionAr: "معدل العمل الإضافي — عطلة نهاية الأسبوع (مضاعف)" },
-  { key: "income_tax_exempt_annual",            value: "10000",   category: "payroll",        description: "Annual income tax exemption (JOD)",                                       descriptionAr: "الإعفاء الضريبي السنوي (دينار أردني)" },
-  { key: "ssc_employee_rate",                   value: "0.075",   category: "payroll",        description: "SSC employee contribution rate (0–1, e.g. 0.075 = 7.5%)",                descriptionAr: "نسبة اشتراك الموظف في الضمان الاجتماعي (0–1)" },
-  { key: "ssc_employer_rate",                   value: "0.1425",  category: "payroll",        description: "SSC employer contribution rate (0–1, e.g. 0.1425 = 14.25%)",             descriptionAr: "نسبة اشتراك صاحب العمل في الضمان الاجتماعي (0–1)" },
-  { key: "ssc_insurable_salary_cap",            value: "3000",    category: "payroll",        description: "Max monthly basic salary for SSC calculation (JOD)",                     descriptionAr: "الحد الأقصى للراتب الخاضع للضمان الاجتماعي (دينار)" },
-  { key: "income_tax_brackets",                 value: JSON.stringify([{from:0,to:9000,rate:0},{from:9000,to:20000,rate:0.05},{from:20000,to:30000,rate:0.10},{from:30000,to:40000,rate:0.15},{from:40000,to:50000,rate:0.20},{from:50000,to:999999999,rate:0.25}]), category: "payroll", description: "Jordan income tax brackets — JSON array of {from, to, rate}", descriptionAr: "شرائح ضريبة الدخل الأردنية — مصفوفة JSON بحقول {from, to, rate}" },
-  { key: "probation_period_months",             value: "3",       category: "hr",             description: "Probation period in months",                                              descriptionAr: "فترة التجربة بالأشهر" },
-  { key: "notice_period_days",                  value: "30",      category: "hr",             description: "Notice period in days",                                                   descriptionAr: "مدة الإشعار المسبق بالأيام" },
-  { key: "annual_leave_days",                   value: "14",      category: "leave",          description: "Annual leave days per year",                                              descriptionAr: "أيام الإجازة السنوية" },
-  { key: "sick_leave_days",                     value: "14",      category: "leave",          description: "Sick leave days per year",                                                descriptionAr: "أيام الإجازة المرضية سنوياً" },
-  { key: "compliance_enabled",                  value: "true",    category: "compliance",     description: "Enable compliance tracking",                                              descriptionAr: "تفعيل تتبع الامتثال" },
-  { key: "ssf_compliance",                      value: "true",    category: "compliance",     description: "SSF compliance enabled",                                                  descriptionAr: "امتثال نظام الضمان الاجتماعي" },
-  { key: "compliance_warning_days",             value: "60",      category: "compliance",     description: "Days before document expiry to show a warning",                           descriptionAr: "أيام التحذير قبل انتهاء صلاحية الوثيقة" },
-  { key: "health_certificate_required",         value: "true",    category: "compliance",     description: "Health certificate required for all employees",                           descriptionAr: "شهادة الصحة مطلوبة لجميع الموظفين" },
-  { key: "criminal_record_required",            value: "true",    category: "compliance",     description: "Criminal record clearance required",                                      descriptionAr: "براءة الذمة مطلوبة" },
-  { key: "work_permit_required_non_jordanian",  value: "true",    category: "compliance",     description: "Work permit required for non-Jordanian employees",                        descriptionAr: "تصريح العمل مطلوب لغير الأردنيين" },
-  { key: "residency_required_non_jordanian",    value: "true",    category: "compliance",     description: "Residency permit required for non-Jordanian employees",                   descriptionAr: "إقامة نظامية مطلوبة لغير الأردنيين" },
-  { key: "passport_required_non_jordanian",     value: "true",    category: "compliance",     description: "Passport required for non-Jordanian employees",                           descriptionAr: "جواز السفر مطلوب لغير الأردنيين" },
-  { key: "social_security_required_active",     value: "true",    category: "compliance",     description: "SSC registration required for all active employees",                      descriptionAr: "تسجيل الضمان الاجتماعي مطلوب للموظفين النشطين" },
-  { key: "social_security_portal_url",          value: "",        category: "compliance",     description: "Social Security Portal URL (https://...)",                                descriptionAr: "رابط موقع الضمان الاجتماعي" },
-  { key: "ministry_of_health_portal_url",       value: "",        category: "compliance",     description: "Ministry of Health Portal URL (https://... or leave empty)",              descriptionAr: "رابط موقع وزارة الصحة" },
-  { key: "notify_leave_approval",               value: "true",    category: "notifications",  description: "Notify on leave approval",                                                descriptionAr: "إشعار بالموافقة على الإجازة" },
-  { key: "notify_payroll_run",                  value: "true",    category: "notifications",  description: "Notify on payroll run",                                                   descriptionAr: "إشعار بتنفيذ مسيرة الرواتب" },
+  { key: "currency_code",                       value: "JOD",     category: "general",       description: "Currency code",                                                           descriptionAr: "ط±ظ…ط² ط§ظ„ط¹ظ…ظ„ط©" },
+  { key: "company_name_ar",                     value: "ط´ط±ظƒط© ط²ظٹظ† ط§ظ„ط£ط±ط¯ظ†", category: "general", description: "Company name in Arabic",                                              descriptionAr: "ط§ط³ظ… ط§ظ„ط´ط±ظƒط© ط¨ط§ظ„ط¹ط±ط¨ظٹط©" },
+  { key: "company_name_en",                     value: "ZenJO Company", category: "general",   description: "Company name in English",                                             descriptionAr: "ط§ط³ظ… ط§ظ„ط´ط±ظƒط© ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©" },
+  { key: "working_hours_per_day",               value: "8",       category: "attendance",     description: "Working hours per day",                                                   descriptionAr: "ط³ط§ط¹ط§طھ ط§ظ„ط¹ظ…ظ„ ظپظٹ ط§ظ„ظٹظˆظ…" },
+  { key: "working_days_per_week",               value: "5",       category: "attendance",     description: "Working days per week (1â€“7)",                                             descriptionAr: "ط£ظٹط§ظ… ط§ظ„ط¹ظ…ظ„ ظپظٹ ط§ظ„ط£ط³ط¨ظˆط¹ (ظ،â€“ظ§)" },
+  { key: "enable_geofencing",                   value: "false",   category: "attendance",     description: "Enable geofencing for clock-in",                                          descriptionAr: "طھظپط¹ظٹظ„ طھط­ط¯ظٹط¯ ط§ظ„ظ…ظˆظ‚ط¹ ط§ظ„ط¬ط؛ط±ط§ظپظٹ ظ„طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±" },
+  { key: "enable_face_recognition",             value: "false",   category: "attendance",     description: "Enable face recognition",                                                 descriptionAr: "طھظپط¹ظٹظ„ ط§ظ„طھط¹ط±ظپ ط¹ظ„ظ‰ ط§ظ„ظˆط¬ظ‡" },
+  { key: "overtime_rate_weekday",               value: "1.5",     category: "payroll",        description: "Overtime rate on weekdays (multiplier, e.g. 1.5)",                        descriptionAr: "ظ…ط¹ط¯ظ„ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ â€” ط£ظٹط§ظ… ط§ظ„ط£ط³ط¨ظˆط¹ (ظ…ط¶ط§ط¹ظپ)" },
+  { key: "overtime_rate_weekend",               value: "2.0",     category: "payroll",        description: "Overtime rate on weekends (multiplier, e.g. 2.0)",                        descriptionAr: "ظ…ط¹ط¯ظ„ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ â€” ط¹ط·ظ„ط© ظ†ظ‡ط§ظٹط© ط§ظ„ط£ط³ط¨ظˆط¹ (ظ…ط¶ط§ط¹ظپ)" },
+  { key: "income_tax_exempt_annual",            value: "10000",   category: "payroll",        description: "Annual income tax exemption (JOD)",                                       descriptionAr: "ط§ظ„ط¥ط¹ظپط§ط، ط§ظ„ط¶ط±ظٹط¨ظٹ ط§ظ„ط³ظ†ظˆظٹ (ط¯ظٹظ†ط§ط± ط£ط±ط¯ظ†ظٹ)" },
+  { key: "ssc_employee_rate",                   value: "0.075",   category: "payroll",        description: "SSC employee contribution rate (0â€“1, e.g. 0.075 = 7.5%)",                descriptionAr: "ظ†ط³ط¨ط© ط§ط´طھط±ط§ظƒ ط§ظ„ظ…ظˆط¸ظپ ظپظٹ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ (0â€“1)" },
+  { key: "ssc_employer_rate",                   value: "0.1425",  category: "payroll",        description: "SSC employer contribution rate (0â€“1, e.g. 0.1425 = 14.25%)",             descriptionAr: "ظ†ط³ط¨ط© ط§ط´طھط±ط§ظƒ طµط§ط­ط¨ ط§ظ„ط¹ظ…ظ„ ظپظٹ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ (0â€“1)" },
+  { key: "ssc_insurable_salary_cap",            value: "3000",    category: "payroll",        description: "Max monthly basic salary for SSC calculation (JOD)",                     descriptionAr: "ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ظ„ظ„ط±ط§طھط¨ ط§ظ„ط®ط§ط¶ط¹ ظ„ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ (ط¯ظٹظ†ط§ط±)" },
+  { key: "income_tax_brackets",                 value: JSON.stringify([{from:0,to:9000,rate:0},{from:9000,to:20000,rate:0.05},{from:20000,to:30000,rate:0.10},{from:30000,to:40000,rate:0.15},{from:40000,to:50000,rate:0.20},{from:50000,to:999999999,rate:0.25}]), category: "payroll", description: "Jordan income tax brackets â€” JSON array of {from, to, rate}", descriptionAr: "ط´ط±ط§ط¦ط­ ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„ ط§ظ„ط£ط±ط¯ظ†ظٹط© â€” ظ…طµظپظˆظپط© JSON ط¨ط­ظ‚ظˆظ„ {from, to, rate}" },
+  { key: "probation_period_months",             value: "3",       category: "hr",             description: "Probation period in months",                                              descriptionAr: "ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط© ط¨ط§ظ„ط£ط´ظ‡ط±" },
+  { key: "notice_period_days",                  value: "30",      category: "hr",             description: "Notice period in days",                                                   descriptionAr: "ظ…ط¯ط© ط§ظ„ط¥ط´ط¹ط§ط± ط§ظ„ظ…ط³ط¨ظ‚ ط¨ط§ظ„ط£ظٹط§ظ…" },
+  { key: "annual_leave_days",                   value: "14",      category: "leave",          description: "Annual leave days per year",                                              descriptionAr: "ط£ظٹط§ظ… ط§ظ„ط¥ط¬ط§ط²ط© ط§ظ„ط³ظ†ظˆظٹط©" },
+  { key: "sick_leave_days",                     value: "14",      category: "leave",          description: "Sick leave days per year",                                                descriptionAr: "ط£ظٹط§ظ… ط§ظ„ط¥ط¬ط§ط²ط© ط§ظ„ظ…ط±ط¶ظٹط© ط³ظ†ظˆظٹط§ظ‹" },
+  { key: "compliance_enabled",                  value: "true",    category: "compliance",     description: "Enable compliance tracking",                                              descriptionAr: "طھظپط¹ظٹظ„ طھطھط¨ط¹ ط§ظ„ط§ظ…طھط«ط§ظ„" },
+  { key: "ssf_compliance",                      value: "true",    category: "compliance",     description: "SSF compliance enabled",                                                  descriptionAr: "ط§ظ…طھط«ط§ظ„ ظ†ط¸ط§ظ… ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ" },
+  { key: "compliance_warning_days",             value: "60",      category: "compliance",     description: "Days before document expiry to show a warning",                           descriptionAr: "ط£ظٹط§ظ… ط§ظ„طھط­ط°ظٹط± ظ‚ط¨ظ„ ط§ظ†طھظ‡ط§ط، طµظ„ط§ط­ظٹط© ط§ظ„ظˆط«ظٹظ‚ط©" },
+  { key: "health_certificate_required",         value: "true",    category: "compliance",     description: "Health certificate required for all employees",                           descriptionAr: "ط´ظ‡ط§ط¯ط© ط§ظ„طµط­ط© ظ…ط·ظ„ظˆط¨ط© ظ„ط¬ظ…ظٹط¹ ط§ظ„ظ…ظˆط¸ظپظٹظ†" },
+  { key: "criminal_record_required",            value: "true",    category: "compliance",     description: "Criminal record clearance required",                                      descriptionAr: "ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط© ظ…ط·ظ„ظˆط¨ط©" },
+  { key: "work_permit_required_non_jordanian",  value: "true",    category: "compliance",     description: "Work permit required for non-Jordanian employees",                        descriptionAr: "طھطµط±ظٹط­ ط§ظ„ط¹ظ…ظ„ ظ…ط·ظ„ظˆط¨ ظ„ط؛ظٹط± ط§ظ„ط£ط±ط¯ظ†ظٹظٹظ†" },
+  { key: "residency_required_non_jordanian",    value: "true",    category: "compliance",     description: "Residency permit required for non-Jordanian employees",                   descriptionAr: "ط¥ظ‚ط§ظ…ط© ظ†ط¸ط§ظ…ظٹط© ظ…ط·ظ„ظˆط¨ط© ظ„ط؛ظٹط± ط§ظ„ط£ط±ط¯ظ†ظٹظٹظ†" },
+  { key: "passport_required_non_jordanian",     value: "true",    category: "compliance",     description: "Passport required for non-Jordanian employees",                           descriptionAr: "ط¬ظˆط§ط² ط§ظ„ط³ظپط± ظ…ط·ظ„ظˆط¨ ظ„ط؛ظٹط± ط§ظ„ط£ط±ط¯ظ†ظٹظٹظ†" },
+  { key: "social_security_required_active",     value: "true",    category: "compliance",     description: "SSC registration required for all active employees",                      descriptionAr: "طھط³ط¬ظٹظ„ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ ظ…ط·ظ„ظˆط¨ ظ„ظ„ظ…ظˆط¸ظپظٹظ† ط§ظ„ظ†ط´ط·ظٹظ†" },
+  { key: "social_security_portal_url",          value: "",        category: "compliance",     description: "Social Security Portal URL (https://...)",                                descriptionAr: "ط±ط§ط¨ط· ظ…ظˆظ‚ط¹ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ" },
+  { key: "ministry_of_health_portal_url",       value: "",        category: "compliance",     description: "Ministry of Health Portal URL (https://... or leave empty)",              descriptionAr: "ط±ط§ط¨ط· ظ…ظˆظ‚ط¹ ظˆط²ط§ط±ط© ط§ظ„طµط­ط©" },
+  { key: "notify_leave_approval",               value: "true",    category: "notifications",  description: "Notify on leave approval",                                                descriptionAr: "ط¥ط´ط¹ط§ط± ط¨ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ط¥ط¬ط§ط²ط©" },
+  { key: "notify_payroll_run",                  value: "true",    category: "notifications",  description: "Notify on payroll run",                                                   descriptionAr: "ط¥ط´ط¹ط§ط± ط¨طھظ†ظپظٹط° ظ…ط³ظٹط±ط© ط§ظ„ط±ظˆط§طھط¨" },
 ];
 
-// Per-key validation rules — enforced in PATCH /api/config/bulk
+// Per-key validation rules â€” enforced in PATCH /api/config/bulk
 const CONFIG_RULES: Record<string, { type: string; min?: number; max?: number; required?: boolean }> = {
   currency_code:                      { type: "text",             required: true },
   company_name_ar:                    { type: "text",             required: true },
@@ -4160,7 +4495,7 @@ app.get("/api/config", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const { category } = req.query as Record<string, string>;
     const rows = await db.select().from(systemConfigurationsTable).where(eq(systemConfigurationsTable.companyId, user.companyId));
@@ -4180,7 +4515,7 @@ app.get("/api/config/catalog", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const rows = await db.select().from(systemConfigurationsTable).where(eq(systemConfigurationsTable.companyId, user.companyId));
     const categories = ["general", "attendance", "payroll", "hr", "leave", "compliance", "notifications"];
@@ -4211,7 +4546,7 @@ app.patch("/api/config/bulk", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const { updates } = req.body as { updates: Record<string, string> };
     if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
@@ -4245,7 +4580,7 @@ app.patch("/api/config/bulk", auth, async (req, res) => {
         });
       }
       if (String(value) !== oldValue) {
-        changes.push(`${key}: ${oldValue} → ${String(value).slice(0, 80)}`);
+        changes.push(`${key}: ${oldValue} â†’ ${String(value).slice(0, 80)}`);
       }
     }
     if (changes.length > 0) {
@@ -4263,7 +4598,7 @@ app.patch("/api/config/bulk", auth, async (req, res) => {
   }
 });
 
-// ─── Branding ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Branding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Compute relative luminance (WCAG 2.1)
 function hexLuminance(hex: string): number {
@@ -4280,7 +4615,7 @@ function hexOnColor(hex: string): "#ffffff" | "#0f172a" {
   return 1.05 / (L + 0.05) >= 4.5 ? "#ffffff" : "#0f172a";
 }
 
-// Dominant color extraction using jimp (pure JS — no native bindings)
+// Dominant color extraction using jimp (pure JS â€” no native bindings)
 async function extractDominantColors(filePath: string): Promise<string[]> {
   try {
     const jimpMod = await import("jimp");
@@ -4359,7 +4694,7 @@ async function getBrandingConfig(companyId: number): Promise<Record<string, stri
   return result;
 }
 
-// GET /api/branding — returns current company branding (all roles)
+// GET /api/branding â€” returns current company branding (all roles)
 app.get("/api/branding", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -4381,12 +4716,12 @@ app.get("/api/branding", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/branding — save brand colors (hradmin / superadmin only)
+// PATCH /api/branding â€” save brand colors (hradmin / superadmin only)
 app.patch("/api/branding", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — HR Admin or Super Admin access required" });
+      res.status(403).json({ success: false, message: "Forbidden â€” HR Admin or Super Admin access required" });
       return;
     }
     const body = req.body as Record<string, string | undefined>;
@@ -4446,7 +4781,7 @@ app.patch("/api/branding", auth, async (req, res) => {
           category: "branding", updatedByUserId: user.userId,
         });
       }
-      if (value !== oldVal) changes.push(`${key}: ${oldVal} → ${value}`);
+      if (value !== oldVal) changes.push(`${key}: ${oldVal} â†’ ${value}`);
     }
     if (changes.length > 0) {
       await logActivity(
@@ -4464,11 +4799,11 @@ app.patch("/api/branding", auth, async (req, res) => {
   }
 });
 
-// POST /api/branding/logo — upload company logo (hradmin / superadmin only)
+// POST /api/branding/logo â€” upload company logo (hradmin / superadmin only)
 app.post("/api/branding/logo", auth, (req, res) => {
   const user = (req as AuthReq).user;
   if (!["superadmin", "hradmin"].includes(user.role)) {
-    res.status(403).json({ success: false, message: "Forbidden — HR Admin or Super Admin access required" });
+    res.status(403).json({ success: false, message: "Forbidden â€” HR Admin or Super Admin access required" });
     return;
   }
   logoUpload.single("logo")(req, res, async (err) => {
@@ -4537,7 +4872,7 @@ app.post("/api/branding/logo", auth, (req, res) => {
   });
 });
 
-// ─── Attendance extra endpoints ────────────────────────────────────────────────
+// â”€â”€â”€ Attendance extra endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/attendance/dashboard", auth, async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0]!;
@@ -4597,19 +4932,114 @@ app.get("/api/attendance/map", auth, async (req, res) => {
   }
 });
 
-app.get("/api/attendance/locations", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+type AttendanceWorkLocation = { id: number; nameAr?: string; nameEn?: string; latitude: number; longitude: number; radiusMeters: number; address?: string };
+
+function distanceMeters(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const toRad = (value: number) => value * Math.PI / 180;
+  const r = 6371000;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * r * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+async function readAttendanceLocations(companyId: number): Promise<AttendanceWorkLocation[]> {
+  const { rows } = await pool.query(
+    `SELECT value FROM system_configurations WHERE company_id=$1 AND key='attendance_work_locations' ORDER BY id DESC LIMIT 1`,
+    [companyId]
+  );
+  if (!rows.length) return [];
+  try {
+    const parsed = JSON.parse(rows[0].value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeAttendanceLocations(companyId: number, userId: number, locations: AttendanceWorkLocation[]) {
+  const value = JSON.stringify(locations);
+  const existing = await pool.query(`SELECT id FROM system_configurations WHERE company_id=$1 AND key='attendance_work_locations' ORDER BY id LIMIT 1`, [companyId]);
+  if (existing.rows.length) {
+    await pool.query(`UPDATE system_configurations SET value=$1, category='attendance', updated_at=NOW(), updated_by_user_id=$2 WHERE id=$3`, [value, userId, existing.rows[0].id]);
+  } else {
+    await pool.query(
+      `INSERT INTO system_configurations (company_id, key, value, category, description, updated_by_user_id) VALUES ($1,'attendance_work_locations',$2,'attendance','Attendance geofence work locations',$3)`,
+      [companyId, value, userId]
+    );
+  }
+}
+
+async function validateAttendanceGeofence(companyId: number, latitude?: number, longitude?: number) {
+  const locations = await readAttendanceLocations(companyId);
+  if (!locations.length) {
+    return { allowed: true, status: "not_configured", messageAr: "لم يتم ضبط مواقع عمل بعد.", messageEn: "No work locations configured yet." };
+  }
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { allowed: false, status: "location_unavailable", messageAr: "تعذر تحديد الموقع. يجب السماح باستخدام الموقع.", messageEn: "Unable to determine location. Please allow location access." };
+  }
+  const matches = locations.map(location => ({ location, distanceMeters: distanceMeters(lat, lng, Number(location.latitude), Number(location.longitude)) }));
+  const nearest = matches.sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
+  const allowed = !!nearest && nearest.distanceMeters <= Number(nearest.location.radiusMeters || 0);
+  return {
+    allowed,
+    status: allowed ? "inside" : "outside",
+    messageAr: allowed ? "داخل نطاق الموقع" : "خارج نطاق الموقع",
+    messageEn: allowed ? "Inside allowed work location" : "Outside allowed work location",
+    nearestLocation: nearest?.location ?? null,
+    distanceMeters: nearest ? Math.round(nearest.distanceMeters) : null,
+  };
+}
+
+function buildAttendanceGeoNotes(notes: string | null | undefined, geo: any) {
+  const parts = [];
+  if (notes) parts.push(notes);
+  if (geo?.status) parts.push(`[geo:${geo.status};distance:${geo.distanceMeters ?? ""}]`);
+  return parts.join(" ");
+}
+
+app.get("/api/attendance/locations", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  res.json({ success: true, data: await readAttendanceLocations(user.companyId) });
 });
 
 app.post("/api/attendance/locations", auth, async (req, res) => {
-  res.status(201).json({ success: true, data: { id: 1, ...req.body } });
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
+  const locations = await readAttendanceLocations(user.companyId);
+  const record: AttendanceWorkLocation = {
+    id: Date.now(),
+    nameAr: req.body.nameAr || null,
+    nameEn: req.body.nameEn || null,
+    latitude: Number(req.body.latitude),
+    longitude: Number(req.body.longitude),
+    radiusMeters: Math.max(25, Number(req.body.radiusMeters || 200)),
+    address: req.body.address || null,
+  };
+  if (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude)) {
+    res.status(400).json({ success: false, message: "latitude and longitude are required" }); return;
+  }
+  const next = [...locations, record];
+  await writeAttendanceLocations(user.companyId, user.userId, next);
+  res.status(201).json({ success: true, data: record });
 });
 
-app.delete("/api/attendance/locations/:id", auth, async (_req, res) => {
+app.delete("/api/attendance/locations/:id", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" }); return;
+  }
+  const id = Number(req.params["id"]);
+  const next = (await readAttendanceLocations(user.companyId)).filter(location => Number(location.id) !== id);
+  await writeAttendanceLocations(user.companyId, user.userId, next);
   res.json({ success: true });
 });
 
-// ─── Documents extra endpoints ─────────────────────────────────────────────────
+// â”€â”€â”€ Documents extra endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/documents/summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -4684,7 +5114,7 @@ app.get("/api/documents/export", auth, async (req, res) => {
   }
 });
 
-// POST /api/documents/upload — real file upload via multipart [auth required]
+// POST /api/documents/upload â€” real file upload via multipart [auth required]
 app.post("/api/documents/upload", auth, (req, res) => {
   const user = (req as AuthReq).user;
   docUpload.single("file")(req, res, async (err) => {
@@ -4707,13 +5137,225 @@ app.post("/api/documents/upload", auth, (req, res) => {
       fs.unlink(file.path, () => {});
       res.status(403).json({ success: false, message: "Employees can only upload their own files" }); return;
     }
-    const fileUrl = `/uploads/${file.filename}`;
-    res.json({ success: true, data: { fileName: file.originalname, fileUrl, fileSize: file.size, mimeType: file.mimetype } });
+    const { rows } = await pool.query(
+      `INSERT INTO file_objects
+        (company_id, employee_id, owner_user_id, linked_entity_type, storage_provider, storage_key,
+         original_file_name, mime_type, size_bytes, visibility, created_by_user_id)
+       VALUES ($1,$2,$3,'document','local',$4,$5,$6,$7,'private',$3)
+       RETURNING *`,
+      [user.companyId, Number(employeeId), user.userId, file.filename, file.originalname, file.mimetype, file.size],
+    );
+    const fileObject = rows[0];
+    const fileUrl = `/api/files/${fileObject.id}/download`;
+    res.json({ success: true, data: { fileObjectId: fileObject.id, fileName: file.originalname, fileUrl, fileSize: file.size, mimeType: file.mimetype } });
   });
 });
 
 
-// ─── Overtime ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Overtime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.get("/api/files/:id/download", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseIntParam(req.params.id);
+    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE id = $1 AND is_deleted = false`, [id]);
+    const file = rows[0];
+    if (!file) { res.status(404).json({ success: false, message: "File not found" }); return; }
+    if (file.company_id !== user.companyId && user.role !== "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (user.role === "superadmin") {
+      res.status(403).json({ success: false, message: "Forbidden: platform admin cannot access private company files" }); return;
+    }
+    if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (user.role === "manager" && file.employee_id) {
+      const scope = await getEmployeeScopeConditions(req as AuthReq);
+      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
+      if (!team.some(e => Number(e.id) === Number(file.employee_id))) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
+    }
+    const absolute = safeStoragePath(file.storage_key);
+    if (!absolute || !fs.existsSync(absolute)) { res.status(404).json({ success: false, message: "File missing on storage" }); return; }
+    await pool.query(
+      `INSERT INTO file_access_logs (file_object_id, company_id, actor_user_id, action, ip_address, user_agent)
+       VALUES ($1,$2,$3,'download',$4,$5)`,
+      [file.id, file.company_id, user.userId, req.ip ?? null, req.get("user-agent") ?? null],
+    );
+    res.download(absolute, file.original_file_name);
+  } catch (e) {
+    console.error("[GET /api/files/:id/download]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/files", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const values: any[] = [user.companyId];
+    const filters = ["company_id = $1", "is_deleted = false"];
+    if (user.role === "employee") {
+      filters.push(`employee_id = $${values.length + 1}`);
+      values.push(user.employeeId);
+    }
+    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE ${filters.join(" AND ")} ORDER BY created_at DESC LIMIT 100`, values);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/files]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+type OvertimeRulesConfig = {
+  dailyThresholdHours: number;
+  maxDailyOvertimeHours: number;
+  weeklyMaxHours: number;
+  rateTier1: number;
+  rateTier2: number;
+  tier2ThresholdHours: number;
+  rateWeekend: number;
+  rateHoliday: number;
+  requireManagerApproval: boolean;
+  requireHrApproval: boolean;
+  autoCalculateFromAttendance: boolean;
+};
+
+const overtimeRulesDefaults: OvertimeRulesConfig = {
+  dailyThresholdHours: 8,
+  maxDailyOvertimeHours: 4,
+  weeklyMaxHours: 12,
+  rateTier1: 1.5,
+  rateTier2: 1.75,
+  tier2ThresholdHours: 2,
+  rateWeekend: 2,
+  rateHoliday: 2.5,
+  requireManagerApproval: true,
+  requireHrApproval: true,
+  autoCalculateFromAttendance: true,
+};
+
+const overtimeRuleKeys = Object.keys(overtimeRulesDefaults) as (keyof OvertimeRulesConfig)[];
+
+function parseOvertimeRuleValue(key: keyof OvertimeRulesConfig, value: string | undefined) {
+  const fallback = overtimeRulesDefaults[key];
+  if (typeof fallback === "boolean") return value === "true";
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function loadOvertimeRules(companyId: number): Promise<OvertimeRulesConfig> {
+  const { rows } = await pool.query(
+    `SELECT key, value FROM system_configurations WHERE company_id = $1 AND key = ANY($2::text[])`,
+    [companyId, overtimeRuleKeys]
+  );
+  const byKey = new Map(rows.map((row: any) => [row.key, String(row.value)]));
+  return Object.fromEntries(overtimeRuleKeys.map(key => [key, parseOvertimeRuleValue(key, byKey.get(key))])) as OvertimeRulesConfig;
+}
+
+function overtimeRateFor(row: any, rules: OvertimeRulesConfig) {
+  const dayType = row.dayType || row.overtimeType || "weekday";
+  const hours = Number(row.overtimeHours ?? row.hours ?? 0);
+  if (dayType === "holiday") return rules.rateHoliday;
+  if (dayType === "weekend") return rules.rateWeekend;
+  return hours > rules.tier2ThresholdHours ? rules.rateTier2 : rules.rateTier1;
+}
+
+function enrichOvertimeRow(row: any, rules: OvertimeRulesConfig) {
+  const overtimeHours = Number(row.overtimeHours ?? row.hours ?? 0);
+  const basicSalary = Number(row.basicSalary ?? 0);
+  const hourlyRate = basicSalary > 0 ? basicSalary / (8 * 22) : 0;
+  const rate = overtimeRateFor(row, rules);
+  const overtimeAmount = Number((hourlyRate * overtimeHours * rate).toFixed(3));
+  return {
+    ...row,
+    hours: overtimeHours,
+    overtimeHours,
+    overtimeAmount,
+    rate,
+    dayType: row.dayType || row.overtimeType || "weekday",
+    compensationType: row.compensationType || "pay",
+    source: row.source || "request",
+  };
+}
+
+async function fetchOvertimeRows(user: AuthReq["user"], filters: Record<string, string> = {}, approvedOnly = false) {
+  const values: any[] = [user.companyId];
+  const where = [
+    "o.is_deleted = false",
+    "e.company_id = $1",
+    "e.is_deleted = false",
+  ];
+
+  if (approvedOnly) where.push("o.status = 'approved'");
+  if (filters.status) {
+    values.push(filters.status);
+    where.push(`o.status = $${values.length}`);
+  }
+  if (filters.from) {
+    values.push(filters.from);
+    where.push(`o.date >= $${values.length}`);
+  }
+  if (filters.to) {
+    values.push(filters.to);
+    where.push(`o.date <= $${values.length}`);
+  }
+  if (filters.employeeId) {
+    values.push(Number(filters.employeeId));
+    where.push(`o.employee_id = $${values.length}`);
+  }
+  if (user.role === "employee") {
+    if (!user.employeeId) return [];
+    values.push(user.employeeId);
+    where.push(`o.employee_id = $${values.length}`);
+  } else if (user.role === "manager") {
+    const scopeConds = await getEmployeeScopeConditions({ user } as AuthReq);
+    const teamEmps = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
+    const ids = teamEmps.map(e => e.id);
+    if (ids.length === 0) return [];
+    if (filters.employeeId && !ids.includes(Number(filters.employeeId))) throw Object.assign(new Error("Forbidden"), { status: 403 });
+    values.push(ids);
+    where.push(`o.employee_id = ANY($${values.length}::int[])`);
+  }
+
+  const { rows } = await pool.query(`
+    SELECT
+      o.id,
+      o.employee_id AS "employeeId",
+      to_char(o.date, 'YYYY-MM-DD') AS "date",
+      o.hours::float AS "hours",
+      o.hours::float AS "overtimeHours",
+      o.reason,
+      o.status,
+      o.rejection_reason AS "rejectionReason",
+      o.manager_approved_at AS "managerApprovedAt",
+      o.hr_approved_at AS "hrApprovedAt",
+      o.linked_payslip_id AS "linkedPayslipId",
+      o.created_at AS "createdAt",
+      o.updated_at AS "updatedAt",
+      e.employee_code AS "employeeCode",
+      concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "fullNameAr",
+      concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "fullNameEn",
+      d.name_ar AS "departmentAr",
+      d.name_en AS "departmentEn",
+      d.name_ar AS "orgNodeNameAr",
+      d.name_en AS "orgNodeNameEn",
+      e.basic_salary AS "basicSalary",
+      'weekday' AS "dayType",
+      'pay' AS "compensationType",
+      'request' AS "source"
+    FROM overtime_requests o
+    JOIN employees e ON e.id = o.employee_id
+    LEFT JOIN departments d ON d.id = e.department_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY o.date DESC, o.id DESC
+  `, values);
+
+  const rules = await loadOvertimeRules(user.companyId);
+  return rows.map((row: any) => enrichOvertimeRow(row, rules));
+}
+
 app.get("/api/overtime/dashboard", auth, async (req, res) => {
   try {
     const { period = "month" } = req.query as Record<string, string>;
@@ -4733,27 +5375,119 @@ app.get("/api/overtime/dashboard", auth, async (req, res) => {
 
 app.get("/api/overtime/reports", auth, async (req, res) => {
   try {
-    const rows = await db.select().from(overtimeRequestsTable)
-      .where(eq(overtimeRequestsTable.isDeleted, false)).orderBy(desc(overtimeRequestsTable.date));
-    res.json({ success: true, data: rows });
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const { type = "employee", from, to } = req.query as Record<string, string>;
+    const rows = await fetchOvertimeRows(user, { from, to }, false);
+    const approved = rows.filter((row: any) => row.status === "approved" || row.status === "manager_approved" || row.status === "pending");
+    const group = new Map<string, any>();
+    for (const row of approved) {
+      const date = new Date(row.date);
+      let key = String(row.employeeId);
+      let base: any = {
+        id: row.employeeId,
+        name: row.fullNameEn || row.fullNameAr || `#${row.employeeId}`,
+        nameAr: row.fullNameAr,
+        nameEn: row.fullNameEn,
+        employeeCode: row.employeeCode,
+        departmentAr: row.departmentAr,
+        departmentEn: row.departmentEn,
+        totalHours: 0,
+        totalCost: 0,
+        count: 0,
+      };
+      if (type === "department") {
+        key = row.departmentEn || row.departmentAr || "Unassigned";
+        base = { name: row.departmentEn || row.departmentAr || "Unassigned", nameAr: row.departmentAr, nameEn: row.departmentEn, totalHours: 0, totalCost: 0, count: 0 };
+      } else if (type === "monthly" || type === "comparison") {
+        key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+        base = { year: date.getFullYear(), month: date.getMonth() + 1, name: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`, totalHours: 0, totalCost: 0, count: 0 };
+      } else if (type === "cost") {
+        key = row.departmentEn || row.departmentAr || "Unassigned";
+        base = { name: row.departmentEn || row.departmentAr || "Unassigned", nameAr: row.departmentAr, nameEn: row.departmentEn, totalHours: 0, totalCost: 0, count: 0 };
+      }
+      const current = group.get(key) || base;
+      current.totalHours += Number(row.overtimeHours || 0);
+      current.totalCost += Number(row.overtimeAmount || 0);
+      current.count += 1;
+      group.set(key, current);
+    }
+    const data = Array.from(group.values()).map(row => ({
+      ...row,
+      totalHours: Number(row.totalHours.toFixed(2)),
+      totalCost: Number(row.totalCost.toFixed(3)),
+    })).sort((a, b) => Number(b.totalHours || 0) - Number(a.totalHours || 0));
+    res.json({ success: true, data });
   } catch (e) {
+    console.error("[GET /api/overtime/reports]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.get("/api/overtime/rules", auth, async (_req, res) => {
-  res.json({ success: true, data: { weekdayRate: 1.5, weekendRate: 2.0, maxHoursPerDay: 3, maxHoursPerMonth: 30 } });
+app.get("/api/overtime/rules", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    res.json({ success: true, data: await loadOvertimeRules(user.companyId) });
+  } catch (e) {
+    console.error("[GET /api/overtime/rules]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.put("/api/overtime/rules", auth, async (req, res) => {
-  res.json({ success: true, data: req.body });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const nextRules = { ...overtimeRulesDefaults, ...req.body } as OvertimeRulesConfig;
+    for (const key of overtimeRuleKeys) {
+      const value = String(nextRules[key]);
+      const existing = await pool.query(
+        `SELECT id FROM system_configurations WHERE company_id = $1 AND key = $2 ORDER BY id LIMIT 1`,
+        [user.companyId, key]
+      );
+      if (existing.rows.length) {
+        await pool.query(
+          `UPDATE system_configurations SET value = $1, category = 'attendance', updated_at = NOW(), updated_by_user_id = $2 WHERE id = $3`,
+          [value, user.userId, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO system_configurations (company_id, key, value, category, description, updated_by_user_id)
+           VALUES ($1, $2, $3, 'attendance', $4, $5)`,
+          [user.companyId, key, value, "Overtime rule", user.userId]
+        );
+      }
+    }
+    res.json({ success: true, data: await loadOvertimeRules(user.companyId), message: "Overtime rules saved" });
+  } catch (e) {
+    console.error("[PUT /api/overtime/rules]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.post("/api/overtime/calculate", auth, async (req, res) => {
-  const { employeeId, hours, rate = 1.5 } = req.body as { employeeId: number; hours: number; rate?: number };
-  const [emp] = await db.select({ basicSalary: employeesTable.basicSalary }).from(employeesTable).where(eq(employeesTable.id, employeeId));
-  const hourlyRate = emp ? parseFloat(emp.basicSalary) / (8 * 22) : 0;
-  res.json({ success: true, data: { amount: (hourlyRate * hours * rate).toFixed(3), hourlyRate: hourlyRate.toFixed(3), hours, rate } });
+  try {
+    const user = (req as AuthReq).user;
+    const { employeeId, hours = 0, overtimeType = "weekday", rate } = req.body as { employeeId?: number; hours?: number; overtimeType?: string; rate?: number };
+    if (!employeeId) {
+      res.json({ success: true, message: "Calculation completed", data: { processed: 0 } }); return;
+    }
+    const [emp] = await db.select({ basicSalary: employeesTable.basicSalary, companyId: employeesTable.companyId }).from(employeesTable).where(eq(employeesTable.id, employeeId));
+    if (!emp || emp.companyId !== user.companyId) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
+    const rules = await loadOvertimeRules(user.companyId);
+    const effectiveRate = Number(rate) || overtimeRateFor({ dayType: overtimeType, overtimeHours: hours }, rules);
+    const hourlyRate = emp ? parseFloat(emp.basicSalary) / (8 * 22) : 0;
+    res.json({ success: true, data: { amount: (hourlyRate * Number(hours) * effectiveRate).toFixed(3), hourlyRate: hourlyRate.toFixed(3), hours, rate: effectiveRate, rules } });
+  } catch (e) {
+    console.error("[POST /api/overtime/calculate]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.get("/api/overtime", auth, async (req, res) => {
@@ -4784,7 +5518,7 @@ app.get("/api/overtime", auth, async (req, res) => {
 app.post("/api/overtime", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    // Enforce employeeId from JWT for employee role — prevent forging
+    // Enforce employeeId from JWT for employee role â€” prevent forging
     const employeeId = user.role === "employee"
       ? user.employeeId
       : (req.body.employeeId ?? user.employeeId);
@@ -4797,8 +5531,8 @@ app.post("/api/overtime", auth, async (req, res) => {
       companyId: user.companyId, actorUserId: user.userId,
       entityType: "overtime_request", entityId: row.id,
       notificationType: "overtime_request_created",
-      titleAr: "طلب عمل إضافي جديد", titleEn: "New Overtime Request",
-      messageAr: `قدّم ${user.username} طلب عمل إضافي بتاريخ ${row.date} (${row.hours} ساعات).`,
+      titleAr: "ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¬ط¯ظٹط¯", titleEn: "New Overtime Request",
+      messageAr: `ظ‚ط¯ظ‘ظ… ${user.username} ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¨طھط§ط±ظٹط® ${row.date} (${row.hours} ط³ط§ط¹ط§طھ).`,
       messageEn: `${user.username} submitted an overtime request on ${row.date} (${row.hours} hrs).`,
       priority: "normal" as const, actionUrl: "/app/overtime",
     };
@@ -4811,7 +5545,7 @@ app.post("/api/overtime", auth, async (req, res) => {
   }
 });
 
-// ── Shared handler: approve overtime request ────────────────────────────────
+// â”€â”€ Shared handler: approve overtime request â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function handleOvertimeApprove(req: any, res: any) {
   try {
     const user = (req as AuthReq).user;
@@ -4836,9 +5570,9 @@ async function handleOvertimeApprove(req: any, res: any) {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "overtime_request", entityId: requestId,
         notificationType: "overtime_manager_approved",
-        titleAr: "طلب عمل إضافي بانتظار موافقة الموارد البشرية",
+        titleAr: "ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
         titleEn: "Overtime Request Awaiting HR Approval",
-        messageAr: `وافق المدير على طلب عمل إضافي بتاريخ ${ot.date}. يحتاج إلى موافقة الموارد البشرية.`,
+        messageAr: `ظˆط§ظپظ‚ ط§ظ„ظ…ط¯ظٹط± ط¹ظ„ظ‰ ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¨طھط§ط±ظٹط® ${ot.date}. ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©.`,
         messageEn: `Manager approved an overtime request on ${ot.date}. Awaiting HR approval.`,
         priority: "normal" as const, actionUrl: "/app/overtime",
       });
@@ -4855,9 +5589,9 @@ async function handleOvertimeApprove(req: any, res: any) {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "overtime_request", entityId: updated.id,
         notificationType: "overtime_request_approved",
-        titleAr: "تمت الموافقة على طلب العمل الإضافي",
+        titleAr: "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ",
         titleEn: "Overtime Request Approved",
-        messageAr: `تمت الموافقة على طلب العمل الإضافي بتاريخ ${updated.date}.`,
+        messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ ط¨طھط§ط±ظٹط® ${updated.date}.`,
         messageEn: `Your overtime request on ${updated.date} was approved.`,
         priority: "high", actionUrl: "/app/overtime",
       });
@@ -4869,7 +5603,7 @@ async function handleOvertimeApprove(req: any, res: any) {
   }
 }
 
-// ── Shared handler: reject overtime request ─────────────────────────────────
+// â”€â”€ Shared handler: reject overtime request â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function handleOvertimeReject(req: any, res: any) {
   try {
     const user = (req as AuthReq).user;
@@ -4896,9 +5630,9 @@ async function handleOvertimeReject(req: any, res: any) {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "overtime_request", entityId: updated.id,
         notificationType: "overtime_request_rejected",
-        titleAr: "تم رفض طلب العمل الإضافي",
+        titleAr: "طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ",
         titleEn: "Overtime Request Rejected",
-        messageAr: `تم رفض طلب العمل الإضافي بتاريخ ${updated.date}.`,
+        messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ ط¨طھط§ط±ظٹط® ${updated.date}.`,
         messageEn: `Your overtime request on ${updated.date} was rejected.`,
         priority: "high", actionUrl: "/app/overtime",
       });
@@ -4913,7 +5647,7 @@ async function handleOvertimeReject(req: any, res: any) {
 app.post("/api/overtime/:id/approve", auth, handleOvertimeApprove);
 app.post("/api/overtime/:id/reject", auth, handleOvertimeReject);
 
-// ─── Disciplinary ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Disciplinary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Helper: build a full case shape with JOINs
 async function buildCaseShape(caseRow: any, companyId: number) {
@@ -4976,7 +5710,7 @@ async function buildCaseShape(caseRow: any, companyId: number) {
   };
 }
 
-// GET /api/disciplinary — list cases (HR: all company; employee: own; manager: 403 by default)
+// GET /api/disciplinary â€” list cases (HR: all company; employee: own; manager: 403 by default)
 app.get("/api/disciplinary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -5043,7 +5777,7 @@ app.get("/api/disciplinary/stats", auth, async (req, res) => {
   }
 });
 
-// GET /api/disciplinary/violations — list violation types for settings page (HR only)
+// GET /api/disciplinary/violations â€” list violation types for settings page (HR only)
 app.get("/api/disciplinary/violations", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -5063,7 +5797,7 @@ app.get("/api/disciplinary/violations", auth, async (req, res) => {
   }
 });
 
-// POST /api/disciplinary/violations — create violation type (HR only)
+// POST /api/disciplinary/violations â€” create violation type (HR only)
 app.post("/api/disciplinary/violations", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5105,7 +5839,7 @@ app.post("/api/disciplinary/violations", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/violations/:id — update violation type (HR only)
+// PUT /api/disciplinary/violations/:id â€” update violation type (HR only)
 app.put("/api/disciplinary/violations/:id", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5138,7 +5872,7 @@ app.put("/api/disciplinary/violations/:id", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/violations/:id/toggle — toggle active status (HR only)
+// PUT /api/disciplinary/violations/:id/toggle â€” toggle active status (HR only)
 app.put("/api/disciplinary/violations/:id/toggle", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5170,7 +5904,7 @@ app.put("/api/disciplinary/violations/:id/toggle", auth, async (req, res) => {
   }
 });
 
-// GET /api/disciplinary/employee/:id/history — employee violation history (HR only)
+// GET /api/disciplinary/employee/:id/history â€” employee violation history (HR only)
 app.get("/api/disciplinary/employee/:id/history", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5213,7 +5947,7 @@ app.get("/api/disciplinary/employee/:id/history", auth, async (req, res) => {
   }
 });
 
-// GET /api/disciplinary/:id — case detail (HR or own employee)
+// GET /api/disciplinary/:id â€” case detail (HR or own employee)
 app.get("/api/disciplinary/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -5323,7 +6057,7 @@ app.get("/api/disciplinary/:id", auth, async (req, res) => {
   }
 });
 
-// POST /api/disciplinary — create case (HR only)
+// POST /api/disciplinary â€” create case (HR only)
 app.post("/api/disciplinary", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5398,9 +6132,9 @@ app.post("/api/disciplinary", auth, async (req, res) => {
         entityType: "disciplinary_case",
         entityId: created.id,
         notificationType: "disciplinary_case_opened",
-        titleAr: "قضية تأديبية جديدة",
+        titleAr: "ظ‚ط¶ظٹط© طھط£ط¯ظٹط¨ظٹط© ط¬ط¯ظٹط¯ط©",
         titleEn: "New Disciplinary Case",
-        messageAr: "تم فتح قضية تأديبية بحقك. يرجى مراجعة قسم الموارد البشرية.",
+        messageAr: "طھظ… ظپطھط­ ظ‚ط¶ظٹط© طھط£ط¯ظٹط¨ظٹط© ط¨ط­ظ‚ظƒ. ظٹط±ط¬ظ‰ ظ…ط±ط§ط¬ط¹ط© ظ‚ط³ظ… ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©.",
         messageEn: "A disciplinary case has been opened against you. Please contact HR.",
         priority: "high",
         actionUrl: `/app/disciplinary`,
@@ -5415,7 +6149,7 @@ app.post("/api/disciplinary", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/investigation — save investigation notes (HR only)
+// PUT /api/disciplinary/:id/investigation â€” save investigation notes (HR only)
 app.put("/api/disciplinary/:id/investigation", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5460,7 +6194,7 @@ app.put("/api/disciplinary/:id/investigation", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/decision — record final decision (HR only)
+// PUT /api/disciplinary/:id/decision â€” record final decision (HR only)
 app.put("/api/disciplinary/:id/decision", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5502,9 +6236,9 @@ app.put("/api/disciplinary/:id/decision", auth, async (req, res) => {
       entityType: "disciplinary_case",
       entityId: id,
       notificationType: "disciplinary_case_decided",
-      titleAr: "قرار في قضيتك التأديبية",
+      titleAr: "ظ‚ط±ط§ط± ظپظٹ ظ‚ط¶ظٹطھظƒ ط§ظ„طھط£ط¯ظٹط¨ظٹط©",
       titleEn: "Decision on Your Disciplinary Case",
-      messageAr: "تم اتخاذ قرار في القضية التأديبية المتعلقة بك.",
+      messageAr: "طھظ… ط§طھط®ط§ط° ظ‚ط±ط§ط± ظپظٹ ط§ظ„ظ‚ط¶ظٹط© ط§ظ„طھط£ط¯ظٹط¨ظٹط© ط§ظ„ظ…طھط¹ظ„ظ‚ط© ط¨ظƒ.",
       messageEn: "A decision has been made on your disciplinary case.",
       priority: "high",
       actionUrl: `/app/disciplinary`,
@@ -5518,7 +6252,7 @@ app.put("/api/disciplinary/:id/decision", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/status — change status (e.g. open → investigating) (HR only)
+// PUT /api/disciplinary/:id/status â€” change status (e.g. open â†’ investigating) (HR only)
 app.put("/api/disciplinary/:id/status", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5548,7 +6282,7 @@ app.put("/api/disciplinary/:id/status", auth, async (req, res) => {
       cancelled: [],
     };
     if (!validTransitions[caseRow.status]?.includes(status)) {
-      res.status(409).json({ success: false, message: `Invalid transition: ${caseRow.status} → ${status}` }); return;
+      res.status(409).json({ success: false, message: `Invalid transition: ${caseRow.status} â†’ ${status}` }); return;
     }
 
     const [updated] = await db.update(disciplinaryCasesTable)
@@ -5558,7 +6292,7 @@ app.put("/api/disciplinary/:id/status", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: `disciplinary_case_${status === "investigating" ? "investigation_started" : status === "decided" ? "updated" : status}`,
-      description: `Case #${id} status changed: ${caseRow.status} → ${status}`,
+      description: `Case #${id} status changed: ${caseRow.status} â†’ ${status}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -5571,7 +6305,7 @@ app.put("/api/disciplinary/:id/status", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/close — close a case (HR only)
+// PUT /api/disciplinary/:id/close â€” close a case (HR only)
 app.put("/api/disciplinary/:id/close", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5603,9 +6337,9 @@ app.put("/api/disciplinary/:id/close", auth, async (req, res) => {
       entityType: "disciplinary_case",
       entityId: id,
       notificationType: "disciplinary_case_closed",
-      titleAr: "تم إغلاق قضيتك التأديبية",
+      titleAr: "طھظ… ط¥ط؛ظ„ط§ظ‚ ظ‚ط¶ظٹطھظƒ ط§ظ„طھط£ط¯ظٹط¨ظٹط©",
       titleEn: "Your Disciplinary Case Has Been Closed",
-      messageAr: "تم إغلاق القضية التأديبية المتعلقة بك.",
+      messageAr: "طھظ… ط¥ط؛ظ„ط§ظ‚ ط§ظ„ظ‚ط¶ظٹط© ط§ظ„طھط£ط¯ظٹط¨ظٹط© ط§ظ„ظ…طھط¹ظ„ظ‚ط© ط¨ظƒ.",
       messageEn: "Your disciplinary case has been closed.",
       priority: "normal",
       actionUrl: `/app/disciplinary`,
@@ -5619,7 +6353,7 @@ app.put("/api/disciplinary/:id/close", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/cancel — cancel a case (HR only)
+// PUT /api/disciplinary/:id/cancel â€” cancel a case (HR only)
 app.put("/api/disciplinary/:id/cancel", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -5652,7 +6386,7 @@ app.put("/api/disciplinary/:id/cancel", auth, async (req, res) => {
   }
 });
 
-// PUT /api/disciplinary/:id/acknowledge — employee acknowledges case (HR or self)
+// PUT /api/disciplinary/:id/acknowledge â€” employee acknowledges case (HR or self)
 app.put("/api/disciplinary/:id/acknowledge", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -5693,14 +6427,14 @@ app.put("/api/disciplinary/:id/acknowledge", auth, async (req, res) => {
   }
 });
 
-// ─── Resignations ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Resignations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Approval workflow steps:
-//   step 1 — HR (hradmin)        : pending       → hr_approved
-//   step 2 — Manager (manager)   : hr_approved   → manager_approved
-//   step 3 — Finance (payroll)   : manager_approved → active_notice
-// Start clearance  (HR only)     : active_notice → clearance
-// Complete         (HR only)     : clearance     → completed
-// Reject (any active step)       : any → rejected
+//   step 1 â€” HR (hradmin)        : pending       â†’ hr_approved
+//   step 2 â€” Manager (manager)   : hr_approved   â†’ manager_approved
+//   step 3 â€” Finance (payroll)   : manager_approved â†’ active_notice
+// Start clearance  (HR only)     : active_notice â†’ clearance
+// Complete         (HR only)     : clearance     â†’ completed
+// Reject (any active step)       : any â†’ rejected
 //
 // Status set that counts as terminal (no transitions out):
 const RESIGNATION_TERMINAL = new Set(["completed", "rejected", "withdrawn"]);
@@ -5746,7 +6480,7 @@ async function buildResignationRow(r: any, userId: number, userRole: string, use
 
   if (!RESIGNATION_TERMINAL.has(r.status) && currentApprovalStep) {
     const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
-    const stepLabels: Record<number, string> = { 1: "مراجعة الموارد البشرية", 2: "موافقة المدير", 3: "اعتماد المالية" };
+    const stepLabels: Record<number, string> = { 1: "ظ…ط±ط§ط¬ط¹ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©", 2: "ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ط¯ظٹط±", 3: "ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط§ظ„ظٹط©" };
     const expectedRole = stepRoleMap[currentApprovalStep];
     currentApprovalLabel = stepLabels[currentApprovalStep] ?? null;
     if (userRole === expectedRole) {
@@ -5783,7 +6517,7 @@ async function buildResignationRow(r: any, userId: number, userRole: string, use
   };
 }
 
-// GET /api/resignations — list
+// GET /api/resignations â€” list
 app.get("/api/resignations", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   try {
@@ -5791,12 +6525,12 @@ app.get("/api/resignations", auth, async (req, res) => {
       eq(resignationsTable.companyId, user.companyId),
       eq(resignationsTable.isDeleted, false),
     ];
-    // employees see only own resignations; payroll → 403
+    // employees see only own resignations; payroll â†’ 403
     if (user.role === "employee") {
       if (!user.employeeId) return res.status(403).json({ success: false, message: "No employee record" });
       conditions.push(eq(resignationsTable.employeeId, user.employeeId));
     } else if (user.role === "payrolladmin") {
-      // payroll can see resignations in read-only (they approve step 3) — allow list
+      // payroll can see resignations in read-only (they approve step 3) â€” allow list
     } else if (!["hradmin", "manager"].includes(user.role)) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
@@ -5835,7 +6569,7 @@ app.get("/api/resignations/stats", auth, async (req, res) => {
   }
 });
 
-// GET /api/resignations/:id — detail with nested objects
+// GET /api/resignations/:id â€” detail with nested objects
 app.get("/api/resignations/:id", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   const id = parseInt(req.params.id);
@@ -5981,7 +6715,7 @@ app.get("/api/resignations/:id", auth, async (req, res) => {
   }
 });
 
-// POST /api/resignations — create
+// POST /api/resignations â€” create
 app.post("/api/resignations", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   // employees can create for themselves; HR can create for any employee
@@ -6052,9 +6786,9 @@ app.post("/api/resignations", auth, async (req, res) => {
 
     // create 3 approval stub rows
     const stepDefs = [
-      { step: 1, label: "مراجعة الموارد البشرية", role: "hradmin" },
-      { step: 2, label: "موافقة المدير", role: "manager" },
-      { step: 3, label: "اعتماد المالية", role: "payrolladmin" },
+      { step: 1, label: "ظ…ط±ط§ط¬ط¹ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©", role: "hradmin" },
+      { step: 2, label: "ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ط¯ظٹط±", role: "manager" },
+      { step: 3, label: "ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط§ظ„ظٹط©", role: "payrolladmin" },
     ];
     for (const s of stepDefs) {
       await db.insert(resignationApprovalsTable).values({
@@ -6070,7 +6804,7 @@ app.post("/api/resignations", auth, async (req, res) => {
     // audit log
     await db.insert(activityLogsTable).values({
       type: "resignation_created",
-      description: `تم تسجيل استقالة جديدة للموظف ID ${resolvedEmpId} (الاستقالة #${inserted.id})`,
+      description: `طھظ… طھط³ط¬ظٹظ„ ط§ط³طھظ‚ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظ„ظ„ظ…ظˆط¸ظپ ID ${resolvedEmpId} (ط§ظ„ط§ط³طھظ‚ط§ظ„ط© #${inserted.id})`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6078,9 +6812,9 @@ app.post("/api/resignations", auth, async (req, res) => {
     // notify employee (confirmation of submission)
     await notifyEmployee(resolvedEmpId, user.companyId, {
       notificationType: "resignation_submitted",
-      titleAr: "تم استلام طلب استقالتك",
+      titleAr: "طھظ… ط§ط³طھظ„ط§ظ… ط·ظ„ط¨ ط§ط³طھظ‚ط§ظ„طھظƒ",
       titleEn: "Resignation Request Received",
-      messageAr: `تم تسجيل طلب استقالتك بتاريخ ${resignationDate}. سيتم مراجعته من قبل الموارد البشرية.`,
+      messageAr: `طھظ… طھط³ط¬ظٹظ„ ط·ظ„ط¨ ط§ط³طھظ‚ط§ظ„طھظƒ ط¨طھط§ط±ظٹط® ${resignationDate}. ط³ظٹطھظ… ظ…ط±ط§ط¬ط¹طھظ‡ ظ…ظ† ظ‚ط¨ظ„ ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©.`,
       messageEn: `Your resignation request dated ${resignationDate} has been recorded and is pending HR review.`,
       priority: "normal",
       entityType: "resignation",
@@ -6095,7 +6829,7 @@ app.post("/api/resignations", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/approve — approve current step
+// PUT /api/resignations/:id/approve â€” approve current step
 app.put("/api/resignations/:id/approve", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
@@ -6135,7 +6869,7 @@ app.put("/api/resignations/:id/approve", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: "resignation_approved",
-      description: `تمت الموافقة على المرحلة ${step} للاستقالة #${id} — الحالة الجديدة: ${newStatus}`,
+      description: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ظ…ط±ط­ظ„ط© ${step} ظ„ظ„ط§ط³طھظ‚ط§ظ„ط© #${id} â€” ط§ظ„ط­ط§ظ„ط© ط§ظ„ط¬ط¯ظٹط¯ط©: ${newStatus}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6143,9 +6877,9 @@ app.put("/api/resignations/:id/approve", auth, async (req, res) => {
     // notify employee of approval
     await notifyEmployee(r.employeeId, user.companyId, {
       notificationType: "resignation_step_approved",
-      titleAr: "تمت الموافقة على مرحلة استقالتك",
+      titleAr: "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ظ…ط±ط­ظ„ط© ط§ط³طھظ‚ط§ظ„طھظƒ",
       titleEn: "Resignation Step Approved",
-      messageAr: `تمت الموافقة على المرحلة ${step} من استقالتك. الحالة الحالية: ${newStatus}.`,
+      messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ظ…ط±ط­ظ„ط© ${step} ظ…ظ† ط§ط³طھظ‚ط§ظ„طھظƒ. ط§ظ„ط­ط§ظ„ط© ط§ظ„ط­ط§ظ„ظٹط©: ${newStatus}.`,
       messageEn: `Step ${step} of your resignation was approved. New status: ${newStatus}.`,
       priority: "normal",
       entityType: "resignation",
@@ -6159,7 +6893,7 @@ app.put("/api/resignations/:id/approve", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/reject — reject at current step
+// PUT /api/resignations/:id/reject â€” reject at current step
 app.put("/api/resignations/:id/reject", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
@@ -6193,16 +6927,16 @@ app.put("/api/resignations/:id/reject", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: "resignation_rejected",
-      description: `تم رفض الاستقالة #${id} في المرحلة ${step} — السبب: ${notes}`,
+      description: `طھظ… ط±ظپط¶ ط§ظ„ط§ط³طھظ‚ط§ظ„ط© #${id} ظپظٹ ط§ظ„ظ…ط±ط­ظ„ط© ${step} â€” ط§ظ„ط³ط¨ط¨: ${notes}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
 
     await notifyEmployee(r.employeeId, user.companyId, {
       notificationType: "resignation_rejected",
-      titleAr: "تم رفض استقالتك",
+      titleAr: "طھظ… ط±ظپط¶ ط§ط³طھظ‚ط§ظ„طھظƒ",
       titleEn: "Resignation Rejected",
-      messageAr: `تم رفض طلب استقالتك في المرحلة ${step}. السبب: ${notes}`,
+      messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ط³طھظ‚ط§ظ„طھظƒ ظپظٹ ط§ظ„ظ…ط±ط­ظ„ط© ${step}. ط§ظ„ط³ط¨ط¨: ${notes}`,
       messageEn: `Your resignation was rejected at step ${step}. Reason: ${notes}`,
       priority: "high",
       entityType: "resignation",
@@ -6216,7 +6950,7 @@ app.put("/api/resignations/:id/reject", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/start-clearance — active_notice → clearance (HR only)
+// PUT /api/resignations/:id/start-clearance â€” active_notice â†’ clearance (HR only)
 app.put("/api/resignations/:id/start-clearance", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!requireHR(req, res)) return;
@@ -6232,7 +6966,7 @@ app.put("/api/resignations/:id/start-clearance", auth, async (req, res) => {
     await db.update(resignationsTable).set({ status: "clearance", updatedAt: new Date() }).where(eq(resignationsTable.id, id));
     await db.insert(activityLogsTable).values({
       type: "resignation_clearance_started",
-      description: `تم بدء إجراءات التسليم للاستقالة #${id}`,
+      description: `طھظ… ط¨ط¯ط، ط¥ط¬ط±ط§ط،ط§طھ ط§ظ„طھط³ظ„ظٹظ… ظ„ظ„ط§ط³طھظ‚ط§ظ„ط© #${id}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6244,7 +6978,7 @@ app.put("/api/resignations/:id/start-clearance", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/complete — clearance → completed (HR only)
+// PUT /api/resignations/:id/complete â€” clearance â†’ completed (HR only)
 app.put("/api/resignations/:id/complete", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!requireHR(req, res)) return;
@@ -6260,16 +6994,16 @@ app.put("/api/resignations/:id/complete", auth, async (req, res) => {
     await db.update(resignationsTable).set({ status: "completed", currentApprovalStep: null, updatedAt: new Date() }).where(eq(resignationsTable.id, id));
     await db.insert(activityLogsTable).values({
       type: "resignation_completed",
-      description: `تم إنهاء الاستقالة #${id} بنجاح`,
+      description: `طھظ… ط¥ظ†ظ‡ط§ط، ط§ظ„ط§ط³طھظ‚ط§ظ„ط© #${id} ط¨ظ†ط¬ط§ط­`,
       employeeName: user.username,
       companyId: user.companyId,
     });
 
     await notifyEmployee(r.employeeId, user.companyId, {
       notificationType: "resignation_completed",
-      titleAr: "تم إنهاء استقالتك",
+      titleAr: "طھظ… ط¥ظ†ظ‡ط§ط، ط§ط³طھظ‚ط§ظ„طھظƒ",
       titleEn: "Resignation Completed",
-      messageAr: "تم إنهاء إجراءات استقالتك رسمياً. نتمنى لك التوفيق.",
+      messageAr: "طھظ… ط¥ظ†ظ‡ط§ط، ط¥ط¬ط±ط§ط،ط§طھ ط§ط³طھظ‚ط§ظ„طھظƒ ط±ط³ظ…ظٹط§ظ‹. ظ†طھظ…ظ†ظ‰ ظ„ظƒ ط§ظ„طھظˆظپظٹظ‚.",
       messageEn: "Your resignation process has been officially completed. Best of luck!",
       priority: "normal",
       entityType: "resignation",
@@ -6283,7 +7017,7 @@ app.put("/api/resignations/:id/complete", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/exit-interview — save exit interview (HR only)
+// PUT /api/resignations/:id/exit-interview â€” save exit interview (HR only)
 app.put("/api/resignations/:id/exit-interview", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!requireHR(req, res)) return;
@@ -6305,7 +7039,7 @@ app.put("/api/resignations/:id/exit-interview", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: "resignation_interview_saved",
-      description: `تم حفظ بيانات مقابلة الخروج للاستقالة #${id}`,
+      description: `طھظ… ط­ظپط¸ ط¨ظٹط§ظ†ط§طھ ظ…ظ‚ط§ط¨ظ„ط© ط§ظ„ط®ط±ظˆط¬ ظ„ظ„ط§ط³طھظ‚ط§ظ„ط© #${id}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6317,7 +7051,7 @@ app.put("/api/resignations/:id/exit-interview", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/clearance — save clearance items (HR only)
+// PUT /api/resignations/:id/clearance â€” save clearance items (HR only)
 app.put("/api/resignations/:id/clearance", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!requireHR(req, res)) return;
@@ -6337,7 +7071,7 @@ app.put("/api/resignations/:id/clearance", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: "resignation_clearance_saved",
-      description: `تم حفظ بنود التسليم للاستقالة #${id}`,
+      description: `طھظ… ط­ظپط¸ ط¨ظ†ظˆط¯ ط§ظ„طھط³ظ„ظٹظ… ظ„ظ„ط§ط³طھظ‚ط§ظ„ط© #${id}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6349,7 +7083,7 @@ app.put("/api/resignations/:id/clearance", auth, async (req, res) => {
   }
 });
 
-// PUT /api/resignations/:id/settlement — save settlement (HR or Finance)
+// PUT /api/resignations/:id/settlement â€” save settlement (HR or Finance)
 app.put("/api/resignations/:id/settlement", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!["hradmin", "payrolladmin"].includes(user.role)) {
@@ -6383,7 +7117,7 @@ app.put("/api/resignations/:id/settlement", auth, async (req, res) => {
 
     await db.insert(activityLogsTable).values({
       type: "resignation_settlement_saved",
-      description: `تم حفظ بيانات التسوية للاستقالة #${id} — المبلغ الإجمالي: ${finalAmount.toFixed(3)}`,
+      description: `طھظ… ط­ظپط¸ ط¨ظٹط§ظ†ط§طھ ط§ظ„طھط³ظˆظٹط© ظ„ظ„ط§ط³طھظ‚ط§ظ„ط© #${id} â€” ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ: ${finalAmount.toFixed(3)}`,
       employeeName: user.username,
       companyId: user.companyId,
     });
@@ -6395,7 +7129,7 @@ app.put("/api/resignations/:id/settlement", auth, async (req, res) => {
   }
 });
 
-// ─── Clearance ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function calcGratuity(basicSalary: number, yearsOfService: number, terminationReason: string): number {
   if (yearsOfService <= 0) return 0;
@@ -6548,7 +7282,7 @@ async function buildClearanceRow(clr: any) {
   };
 }
 
-// GET /api/clearance/calculate-eosb/:employeeId  ← MUST be before /:id
+// GET /api/clearance/calculate-eosb/:employeeId  â†گ MUST be before /:id
 app.get("/api/clearance/calculate-eosb/:employeeId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -6680,13 +7414,13 @@ app.post("/api/clearance", auth, async (req, res) => {
 
     const empNameAr = [empCheck.firstNameAr, empCheck.middleNameAr, empCheck.lastNameAr].filter(Boolean).join(" ");
     await logActivity(user.companyId, "clearance_created",
-      `تم إنشاء براءة ذمة للموظف ID ${empCheck.id} (البراءة #${inserted.id})`, user.username);
+      `طھظ… ط¥ظ†ط´ط§ط، ط¨ط±ط§ط،ط© ط°ظ…ط© ظ„ظ„ظ…ظˆط¸ظپ ID ${empCheck.id} (ط§ظ„ط¨ط±ط§ط،ط© #${inserted.id})`, user.username);
 
     await notifyEmployee(resolvedEmpId, user.companyId, {
       notificationType: "clearance_created",
-      titleAr: "تم إنشاء براءة ذمتك",
+      titleAr: "طھظ… ط¥ظ†ط´ط§ط، ط¨ط±ط§ط،ط© ط°ظ…طھظƒ",
       titleEn: "Your Clearance Has Been Created",
-      messageAr: `تم إنشاء نموذج نهاية الخدمة وبراءة الذمة الخاصة بك. التسوية النهائية: ${calc.finalSettlement.toFixed(3)} JOD`,
+      messageAr: `طھظ… ط¥ظ†ط´ط§ط، ظ†ظ…ظˆط°ط¬ ظ†ظ‡ط§ظٹط© ط§ظ„ط®ط¯ظ…ط© ظˆط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط© ط§ظ„ط®ط§طµط© ط¨ظƒ. ط§ظ„طھط³ظˆظٹط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط©: ${calc.finalSettlement.toFixed(3)} JOD`,
       messageEn: `Your end-of-service clearance has been created. Final settlement: ${calc.finalSettlement.toFixed(3)} JOD`,
       priority: "normal",
       entityType: "clearance",
@@ -6834,16 +7568,16 @@ app.put("/api/clearance/:id", auth, async (req, res) => {
 
     const actionType = clearanceStatus === "completed" ? "clearance_completed" : "clearance_updated";
     const descAr = clearanceStatus === "completed"
-      ? `تم إتمام براءة الذمة #${id} بنجاح — الموظف ID ${clr.employeeId}`
-      : `تم تحديث براءة الذمة #${id}`;
+      ? `طھظ… ط¥طھظ…ط§ظ… ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط© #${id} ط¨ظ†ط¬ط§ط­ â€” ط§ظ„ظ…ظˆط¸ظپ ID ${clr.employeeId}`
+      : `طھظ… طھط­ط¯ظٹط« ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط© #${id}`;
     await logActivity(user.companyId, actionType, descAr, user.username);
 
     if (clearanceStatus === "completed") {
       await notifyEmployee(clr.employeeId, user.companyId, {
         notificationType: "clearance_completed",
-        titleAr: "تم إتمام براءة ذمتك",
+        titleAr: "طھظ… ط¥طھظ…ط§ظ… ط¨ط±ط§ط،ط© ط°ظ…طھظƒ",
         titleEn: "Your Clearance Has Been Completed",
-        messageAr: `تم إتمام إجراءات براءة الذمة الخاصة بك. التسوية النهائية: ${parseFloat(updated.finalSettlementAmount as any ?? "0").toFixed(3)} JOD`,
+        messageAr: `طھظ… ط¥طھظ…ط§ظ… ط¥ط¬ط±ط§ط،ط§طھ ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط© ط§ظ„ط®ط§طµط© ط¨ظƒ. ط§ظ„طھط³ظˆظٹط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط©: ${parseFloat(updated.finalSettlementAmount as any ?? "0").toFixed(3)} JOD`,
         messageEn: `Your clearance procedure has been completed. Final settlement: ${parseFloat(updated.finalSettlementAmount as any ?? "0").toFixed(3)} JOD`,
         priority: "high",
         entityType: "clearance",
@@ -6859,7 +7593,7 @@ app.put("/api/clearance/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Salary Advances ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Salary Advances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function buildAdvanceRow(adv: any) {
   const [emp] = await db.select({
     code: employeesTable.employeeCode,
@@ -6957,9 +7691,9 @@ app.post("/api/salary-advances", auth, async (req, res) => {
       entityType: "salary_advance",
       entityId: adv.id,
       notificationType: "advance_created",
-      titleAr: "طلب سلفة راتب جديد",
+      titleAr: "ط·ظ„ط¨ ط³ظ„ظپط© ط±ط§طھط¨ ط¬ط¯ظٹط¯",
       titleEn: "New Salary Advance Request",
-      messageAr: `قدّم ${user.username} طلب سلفة راتب بمبلغ ${parsedAmount}.`,
+      messageAr: `ظ‚ط¯ظ‘ظ… ${user.username} ط·ظ„ط¨ ط³ظ„ظپط© ط±ط§طھط¨ ط¨ظ…ط¨ظ„ط؛ ${parsedAmount}.`,
       messageEn: `${user.username} submitted a salary advance request for ${parsedAmount}.`,
       priority: "normal" as const,
       actionUrl: "/app/advances",
@@ -7013,9 +7747,9 @@ app.put("/api/salary-advances/:id/approve", auth, async (req, res) => {
         entityType: "salary_advance",
         entityId: advId,
         notificationType: "advance_manager_approved",
-        titleAr: "طلب سلفة بانتظار HR",
+        titleAr: "ط·ظ„ط¨ ط³ظ„ظپط© ط¨ط§ظ†طھط¸ط§ط± HR",
         titleEn: "Salary Advance Awaiting HR",
-        messageAr: `وافق المدير ${user.username} على طلب السلفة #${advId}. بانتظار اعتماد HR.`,
+        messageAr: `ظˆط§ظپظ‚ ط§ظ„ظ…ط¯ظٹط± ${user.username} ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط³ظ„ظپط© #${advId}. ط¨ط§ظ†طھط¸ط§ط± ط§ط¹طھظ…ط§ط¯ HR.`,
         messageEn: `Manager ${user.username} approved advance #${advId}. Awaiting HR approval.`,
         priority: "normal",
         actionUrl: "/app/advances",
@@ -7046,9 +7780,9 @@ app.put("/api/salary-advances/:id/approve", auth, async (req, res) => {
           entityType: "salary_advance",
           entityId: advId,
           notificationType: "advance_approved",
-          titleAr: "تمت الموافقة على طلب السلفة",
+          titleAr: "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط³ظ„ظپط©",
           titleEn: "Salary Advance Approved",
-          messageAr: `تمت الموافقة على طلب سلفتك #${advId} بمبلغ ${finalAmount}.`,
+          messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط³ظ„ظپطھظƒ #${advId} ط¨ظ…ط¨ظ„ط؛ ${finalAmount}.`,
           messageEn: `Your salary advance request #${advId} has been approved for ${finalAmount}.`,
           priority: "normal",
           actionUrl: "/app/advances",
@@ -7105,9 +7839,9 @@ app.put("/api/salary-advances/:id/reject", auth, async (req, res) => {
         entityType: "salary_advance",
         entityId: advId,
         notificationType: "advance_rejected",
-        titleAr: "تم رفض طلب السلفة",
+        titleAr: "طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط³ظ„ظپط©",
         titleEn: "Salary Advance Rejected",
-        messageAr: `تم رفض طلب سلفتك #${advId}. السبب: ${rejectionReason}`,
+        messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط³ظ„ظپطھظƒ #${advId}. ط§ظ„ط³ط¨ط¨: ${rejectionReason}`,
         messageEn: `Your salary advance request #${advId} was rejected. Reason: ${rejectionReason}`,
         priority: "normal",
         actionUrl: "/app/advances",
@@ -7121,7 +7855,7 @@ app.put("/api/salary-advances/:id/reject", auth, async (req, res) => {
   }
 });
 
-// ─── Public Holidays ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Public Holidays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const JORDAN_HOLIDAYS = [
   { id: 1, nameAr: "رأس السنة الميلادية", nameEn: "New Year's Day", date: "2026-01-01", type: "fixed", isRecurring: true },
   { id: 2, nameAr: "عيد العمال", nameEn: "Labor Day", date: "2026-05-01", type: "fixed", isRecurring: true },
@@ -7159,19 +7893,74 @@ app.get("/api/public-holidays/upcoming", auth, async (req, res) => {
   res.json({ success: true, data: result });
 });
 
-app.get("/api/public-holidays/reports", auth, async (_req, res) => {
-  res.json({ success: true, data: { total: JORDAN_HOLIDAYS.length, byType: { fixed: JORDAN_HOLIDAYS.filter(h => h.type === "fixed").length, islamic: JORDAN_HOLIDAYS.filter(h => h.type === "islamic").length } } });
+app.get("/api/public-holidays/reports", auth, async (req, res) => {
+  const { type = "annual", year = String(new Date().getFullYear()) } = req.query as Record<string, string>;
+  const holidays = JORDAN_HOLIDAYS.filter(h => h.date.startsWith(year)).map(h => ({ ...h, days: 1 }));
+  if (type === "by-type") {
+    const grouped = new Map<string, any>();
+    for (const holiday of holidays) {
+      const row = grouped.get(holiday.type) || { type: holiday.type, count: 0, days: 0, holidays: [] };
+      row.count += 1;
+      row.days += 1;
+      row.holidays.push(holiday);
+      grouped.set(holiday.type, row);
+    }
+    res.json({ success: true, data: Array.from(grouped.values()) }); return;
+  }
+  if (type === "monthly") {
+    const months = Array.from({ length: 12 }, (_, index) => ({ month: index + 1, count: 0, days: 0, holidays: [] as any[] }));
+    for (const holiday of holidays) {
+      const month = Number(holiday.date.slice(5, 7));
+      months[month - 1]!.count += 1;
+      months[month - 1]!.days += 1;
+      months[month - 1]!.holidays.push(holiday);
+    }
+    res.json({ success: true, data: months }); return;
+  }
+  if (type === "work-report") {
+    res.json({
+      success: true,
+      data: holidays.map(h => ({
+        id: h.id,
+        nameAr: h.nameAr,
+        nameEn: h.nameEn,
+        date: h.date,
+        type: h.type,
+        dayOfWeek: new Date(h.date).toLocaleDateString("en-US", { weekday: "long" }),
+        workImpact: "paid_holiday",
+        affectedEmployees: "all",
+      })),
+    });
+    return;
+  }
+  res.json({
+    success: true,
+    data: {
+      year,
+      total: holidays.length,
+      totalDays: holidays.reduce((sum, h) => sum + h.days, 0),
+      recurring: holidays.filter(h => h.isRecurring).length,
+      national: holidays.filter(h => h.type === "fixed").length,
+      religious: holidays.filter(h => h.type === "islamic").length,
+      upcoming: holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 5),
+      list: holidays,
+      byType: {
+        fixed: holidays.filter(h => h.type === "fixed").length,
+        islamic: holidays.filter(h => h.type === "islamic").length,
+      },
+    },
+  });
 });
 
 app.post("/api/public-holidays/generate-recurring", auth, async (req, res) => {
   res.json({ success: true, message: "Recurring holidays generated", data: { year: req.body.year, count: 4 } });
 });
 
-// ─── Shifts ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Shifts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const shiftsStore: any[] = [
-  { id: 1, nameAr: "الوردية الصباحية", nameEn: "Morning Shift", startTime: "08:00", endTime: "16:00", days: ["sun","mon","tue","wed","thu"] },
-  { id: 2, nameAr: "الوردية المسائية", nameEn: "Evening Shift", startTime: "14:00", endTime: "22:00", days: ["sun","mon","tue","wed","thu"] },
-  { id: 3, nameAr: "وردية الليل", nameEn: "Night Shift", startTime: "22:00", endTime: "06:00", days: ["sun","mon","tue","wed","thu"] },
+  { id: 1, nameAr: "ط§ظ„ظˆط±ط¯ظٹط© ط§ظ„طµط¨ط§ط­ظٹط©", nameEn: "Morning Shift", startTime: "08:00", endTime: "16:00", days: ["sun","mon","tue","wed","thu"] },
+  { id: 2, nameAr: "ط§ظ„ظˆط±ط¯ظٹط© ط§ظ„ظ…ط³ط§ط¦ظٹط©", nameEn: "Evening Shift", startTime: "14:00", endTime: "22:00", days: ["sun","mon","tue","wed","thu"] },
+  { id: 3, nameAr: "ظˆط±ط¯ظٹط© ط§ظ„ظ„ظٹظ„", nameEn: "Night Shift", startTime: "22:00", endTime: "06:00", days: ["sun","mon","tue","wed","thu"] },
 ];
 const shiftTemplatesStore: any[] = shiftsStore.slice();
 const shiftAssignmentsStore: any[] = [];
@@ -7212,7 +8001,7 @@ app.post("/api/shifts/exceptions", auth, async (req, res) => {
   res.status(201).json({ success: true, data: record });
 });
 
-// ─── Compliance ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Compliance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Role guard helper: HR-only
 function requireHR(req: express.Request, res: express.Response): boolean {
   const role = (req as AuthReq).user.role;
@@ -7305,7 +8094,7 @@ async function buildComplianceItems(companyId: number, employeeIdFilter?: number
       : complianceStatus(null, emp.sscNumber, warningDays);
     items.push({
       id: `ss_${emp.id}`, category: "social_security",
-      labelAr: "الضمان الاجتماعي", labelEn: "Social Security",
+      labelAr: "ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ", labelEn: "Social Security",
       referenceNumber: sscRef, issueDate: emp.sscEnrollmentDate ?? null, expiryDate: null,
       issuedBy: null, notes: null, ...sscStat, ...base,
     });
@@ -7315,7 +8104,7 @@ async function buildComplianceItems(companyId: number, employeeIdFilter?: number
     const wpStat = complianceStatus(emp.workPermitExpiry ?? null, wpRef, warningDays);
     items.push({
       id: `wp_${emp.id}`, category: "work_permit",
-      labelAr: "تصريح العمل", labelEn: "Work Permit",
+      labelAr: "طھطµط±ظٹط­ ط§ظ„ط¹ظ…ظ„", labelEn: "Work Permit",
       referenceNumber: wpRef, issueDate: null, expiryDate: emp.workPermitExpiry ?? null,
       issuedBy: null, notes: null, ...wpStat, ...base,
     });
@@ -7325,7 +8114,7 @@ async function buildComplianceItems(companyId: number, employeeIdFilter?: number
     const hcStat = complianceStatus(hc?.expiryDate ?? null, hc?.referenceNumber, warningDays);
     items.push({
       id: hc ? `hc_${hc.id}` : `hc_new_${emp.id}`, category: "health_certificate",
-      labelAr: "الشهادة الصحية", labelEn: "Health Certificate",
+      labelAr: "ط§ظ„ط´ظ‡ط§ط¯ط© ط§ظ„طµط­ظٹط©", labelEn: "Health Certificate",
       referenceNumber: hc?.referenceNumber ?? null, issueDate: hc?.issueDate ?? null, expiryDate: hc?.expiryDate ?? null,
       issuedBy: hc?.issuedBy ?? null, notes: hc?.notes ?? null, ...hcStat, ...base,
     });
@@ -7335,7 +8124,7 @@ async function buildComplianceItems(companyId: number, employeeIdFilter?: number
     const crStat = complianceStatus(cr?.expiryDate ?? null, cr?.referenceNumber, warningDays);
     items.push({
       id: cr ? `cr_${cr.id}` : `cr_new_${emp.id}`, category: "criminal_record",
-      labelAr: "براءة الذمة", labelEn: "Criminal Record",
+      labelAr: "ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط©", labelEn: "Criminal Record",
       referenceNumber: cr?.referenceNumber ?? null, issueDate: cr?.issueDate ?? null, expiryDate: cr?.expiryDate ?? null,
       issuedBy: null, notes: cr?.notes ?? null, ...crStat, ...base,
     });
@@ -7343,7 +8132,7 @@ async function buildComplianceItems(companyId: number, employeeIdFilter?: number
   return { items, warningDays };
 }
 
-// GET /api/compliance/overview — HR only. Real computed summary + alerts
+// GET /api/compliance/overview â€” HR only. Real computed summary + alerts
 app.get("/api/compliance/overview", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7387,7 +8176,7 @@ app.get("/api/compliance/overview", auth, async (req, res) => {
   }
 });
 
-// GET /api/compliance/items — HR only. All compliance records with employee details
+// GET /api/compliance/items â€” HR only. All compliance records with employee details
 app.get("/api/compliance/items", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7400,7 +8189,7 @@ app.get("/api/compliance/items", auth, async (req, res) => {
   }
 });
 
-// GET /api/compliance/employee/:id — HR only. One employee's full compliance view
+// GET /api/compliance/employee/:id â€” HR only. One employee's full compliance view
 app.get("/api/compliance/employee/:id", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7417,7 +8206,7 @@ app.get("/api/compliance/employee/:id", auth, async (req, res) => {
   }
 });
 
-// PUT /api/compliance/employees/:id/social-security — HR only
+// PUT /api/compliance/employees/:id/social-security â€” HR only
 app.put("/api/compliance/employees/:id/social-security", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7447,7 +8236,7 @@ app.put("/api/compliance/employees/:id/social-security", auth, async (req, res) 
   }
 });
 
-// PUT /api/compliance/employees/:id/work-permit — HR only
+// PUT /api/compliance/employees/:id/work-permit â€” HR only
 app.put("/api/compliance/employees/:id/work-permit", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7488,7 +8277,7 @@ app.put("/api/compliance/employees/:id/work-permit", auth, async (req, res) => {
   }
 });
 
-// PUT /api/compliance/employees/:id/health-certificate — HR only (upsert compliance_records)
+// PUT /api/compliance/employees/:id/health-certificate â€” HR only (upsert compliance_records)
 app.put("/api/compliance/employees/:id/health-certificate", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7528,7 +8317,7 @@ app.put("/api/compliance/employees/:id/health-certificate", auth, async (req, re
   }
 });
 
-// PUT /api/compliance/employees/:id/criminal-record — HR only (upsert compliance_records)
+// PUT /api/compliance/employees/:id/criminal-record â€” HR only (upsert compliance_records)
 app.put("/api/compliance/employees/:id/criminal-record", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7567,7 +8356,7 @@ app.put("/api/compliance/employees/:id/criminal-record", auth, async (req, res) 
   }
 });
 
-// GET /api/compliance/badge-status — HR only
+// GET /api/compliance/badge-status â€” HR only
 app.get("/api/compliance/badge-status", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7586,7 +8375,7 @@ app.get("/api/compliance/badge-status", auth, async (req, res) => {
   }
 });
 
-// GET /api/compliance/export — HR only. Per-employee summary for print export
+// GET /api/compliance/export â€” HR only. Per-employee summary for print export
 app.get("/api/compliance/export", auth, async (req, res) => {
   try {
     if (!requireHR(req, res)) return;
@@ -7613,119 +8402,267 @@ app.get("/api/compliance/export", auth, async (req, res) => {
   }
 });
 
-// ─── Forms Catalog ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Forms Catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const FORMS_AR_BY_ID: Record<string, string> = {
+  employee: "نماذج الموظفين",
+  recruitment: "التوظيف والتعيين",
+  contracts: "العقود والتصاريح",
+  legal: "قانونية وإدارية",
+  certificates: "خطابات وشهادات",
+  payroll: "الرواتب والمالية",
+  attendance: "الحضور والإجازات",
+  disciplinary: "التأديب وبراءة الذمة",
+  "employee-info-update": "نموذج تحديث بيانات الموظف",
+  "personal-data-change": "نموذج تغيير البيانات الشخصية",
+  "bank-account-update": "نموذج تحديث الحساب البنكي / IBAN",
+  "emergency-contact": "نموذج تحديث جهة الاتصال الطارئ",
+  "family-declaration": "إعلان المعالين والأسرة",
+  "document-checklist": "قائمة تسليم الوثائق",
+  "employee-acknowledgment": "نموذج إقرار الموظف",
+  "job-application": "نموذج طلب التوظيف",
+  "hiring-request": "طلب احتياج وظيفي",
+  "interview-evaluation": "نموذج تقييم المقابلة",
+  "appointment-letter": "كتاب تعيين",
+  "new-hire-checklist": "قائمة متطلبات الموظف الجديد",
+  "onboarding-form": "نموذج تأهيل الموظف",
+  "probation-review": "نموذج تقييم فترة التجربة",
+  "probation-confirmation": "خطاب تثبيت في الوظيفة",
+  "probation-extension": "خطاب تمديد فترة التجربة",
+  "employment-contract": "عقد عمل",
+  "contract-renewal": "نموذج تجديد العقد",
+  "work-permit": "طلب تصريح عمل",
+  "work-permit-renewal": "قائمة تجديد تصريح العمل",
+  "residency-renewal": "قائمة تجديد الإقامة",
+  "social-security-reg": "نموذج تسجيل الضمان الاجتماعي",
+  nda: "اتفاقية السرية وعدم الإفصاح",
+  "asset-handover": "نموذج استلام عهدة / أصول",
+  "policy-acknowledgment": "إقرار سياسة الشركة",
+  "code-of-conduct": "إقرار مدونة السلوك",
+  "conflict-of-interest": "إقرار تضارب المصالح",
+  "data-privacy": "موافقة خصوصية البيانات",
+  "authorization-letter": "نموذج خطاب تفويض",
+  "internal-memo": "نموذج مذكرة داخلية",
+  "warning-letter": "نموذج خطاب تحذير رسمي",
+  "admin-decision": "نموذج قرار إداري",
+  investigation: "إشعار تحقيق",
+  "salary-certificate": "شهادة راتب",
+  "employment-certificate": "شهادة عمل",
+  "experience-certificate": "شهادة خبرة",
+  "no-objection-letter": "خطاب عدم ممانعة",
+  "bank-letter": "خطاب للبنك",
+  "embassy-letter": "خطاب للسفارة",
+  "recommendation-letter": "خطاب توصية",
+  letterhead: "خطاب رسمي",
+  "service-certificate": "شهادة انتهاء خدمة",
+  "salary-adjustment": "طلب تعديل الراتب",
+  "salary-advance": "طلب سلفة راتب",
+  "payroll-deduction": "تفويض خصم من الراتب",
+  "overtime-claim": "مطالبة ساعات إضافية",
+  "allowance-request": "نموذج طلب بدل",
+  "expense-reimbursement": "نموذج سداد المصروفات",
+  "final-settlement": "نموذج التسوية النهائية",
+  leave: "نموذج طلب إجازة",
+  "sick-leave": "نموذج إجازة مرضية",
+  "unpaid-leave": "طلب إجازة بدون راتب",
+  "business-trip": "نموذج طلب مأمورية",
+  "attendance-correction": "نموذج تصحيح الدوام",
+  "remote-work": "طلب العمل عن بعد",
+  "shift-change": "طلب تغيير الوردية",
+  "exit-permit": "تصريح خروج",
+  "disciplinary-report": "تقرير مخالفة تأديبية",
+  "investigation-minutes": "محضر اجتماع التحقيق",
+  "employee-statement": "نموذج إفادة الموظف",
+  "disciplinary-decision": "نموذج قرار تأديبي",
+  resignation: "خطاب استقالة",
+  clearance: "نموذج براءة الذمة",
+  "asset-return": "نموذج إعادة الأصول",
+  termination: "قرار إنهاء الخدمة",
+};
+
 const FORMS_CATALOG_CATEGORIES = [
-  { id: 'employee',      name_ar: 'نماذج الموظفين',           name_en: 'Employee Forms',              icon: 'person' },
-  { id: 'recruitment',   name_ar: 'التوظيف والتعيين',          name_en: 'Recruitment & Onboarding',    icon: 'work' },
-  { id: 'contracts',     name_ar: 'العقود والتصاريح',           name_en: 'Contracts & Permits',         icon: 'description' },
-  { id: 'legal',         name_ar: 'قانونية وإدارية',           name_en: 'Legal & Administrative',      icon: 'gavel' },
-  { id: 'certificates',  name_ar: 'خطابات وشهادات',            name_en: 'Letters & Certificates',      icon: 'workspace_premium' },
-  { id: 'payroll',       name_ar: 'الرواتب والمالية',           name_en: 'Payroll & Finance',           icon: 'payments' },
-  { id: 'attendance',    name_ar: 'الحضور والإجازات',           name_en: 'Attendance & Leave',          icon: 'event_available' },
-  { id: 'disciplinary',  name_ar: 'التأديب وبراءة الذمة',      name_en: 'Disciplinary & Clearance',    icon: 'warning_amber' },
+  { id: 'employee',      name_ar: FORMS_AR_BY_ID.employee,       name_en: 'Employee Forms',              icon: 'person' },
+  { id: 'recruitment',   name_ar: FORMS_AR_BY_ID.recruitment,    name_en: 'Recruitment & Onboarding',    icon: 'work' },
+  { id: 'contracts',     name_ar: FORMS_AR_BY_ID.contracts,      name_en: 'Contracts & Permits',         icon: 'description' },
+  { id: 'legal',         name_ar: FORMS_AR_BY_ID.legal,          name_en: 'Legal & Administrative',      icon: 'gavel' },
+  { id: 'certificates',  name_ar: FORMS_AR_BY_ID.certificates,   name_en: 'Letters & Certificates',      icon: 'workspace_premium' },
+  { id: 'payroll',       name_ar: FORMS_AR_BY_ID.payroll,        name_en: 'Payroll & Finance',           icon: 'payments' },
+  { id: 'attendance',    name_ar: FORMS_AR_BY_ID.attendance,     name_en: 'Attendance & Leave',          icon: 'event_available' },
+  { id: 'disciplinary',  name_ar: FORMS_AR_BY_ID.disciplinary,   name_en: 'Disciplinary & Clearance',    icon: 'warning_amber' },
 ];
 
 const FORMS_CATALOG_ALL = [
-  // ── Employee Forms ────────────────────────────────────────────────
-  { id: 'employee-info-update',  name_ar: 'نموذج تحديث بيانات الموظف',         name_en: 'Employee Information Update Form',      category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'personal-data-change',  name_ar: 'نموذج تغيير البيانات الشخصية',       name_en: 'Personal Data Change Form',             category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'bank-account-update',   name_ar: 'نموذج تحديث الحساب البنكي / IBAN',  name_en: 'Bank Account / IBAN Update Form',       category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'emergency-contact',     name_ar: 'نموذج تحديث جهة الاتصال الطارئ',   name_en: 'Emergency Contact Update Form',         category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'family-declaration',    name_ar: 'إعلان المعالين والأسرة',             name_en: 'Family / Dependents Declaration Form',  category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'document-checklist',    name_ar: 'قائمة تسليم الوثائق',               name_en: 'Document Submission Checklist',         category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'employee-acknowledgment',name_ar:'نموذج إقرار الموظف',                name_en: 'Employee Acknowledgment Form',          category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
-  // ── Recruitment & Onboarding ──────────────────────────────────────
-  { id: 'job-application',       name_ar: 'نموذج طلب التوظيف',                 name_en: 'Job Application Form',                  category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'hiring-request',        name_ar: 'طلب احتياج وظيفي',                  name_en: 'Hiring Request',                        category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'interview-evaluation',  name_ar: 'نموذج تقييم المقابلة',              name_en: 'Interview Evaluation Form',             category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'appointment-letter',    name_ar: 'كتاب تعيين',                         name_en: 'Offer / Appointment Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
-  { id: 'new-hire-checklist',    name_ar: 'قائمة متطلبات الموظف الجديد',       name_en: 'New Hire Checklist',                    category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'onboarding-form',       name_ar: 'نموذج تأهيل الموظف',               name_en: 'Employee Onboarding Form',              category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'probation-review',      name_ar: 'نموذج تقييم فترة التجربة',          name_en: 'Probation Review Form',                 category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'probation-confirmation',name_ar: 'خطاب تثبيت في الوظيفة',            name_en: 'Probation Confirmation Letter',         category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
-  { id: 'probation-extension',   name_ar: 'خطاب تمديد فترة التجربة',           name_en: 'Probation Extension Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
-  // ── Contracts & Permits ───────────────────────────────────────────
-  { id: 'employment-contract',   name_ar: 'عقد عمل',                           name_en: 'Employment Contract',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'contract-renewal',      name_ar: 'نموذج تجديد العقد',                 name_en: 'Contract Renewal Form',                 category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'work-permit',           name_ar: 'طلب تصريح عمل',                     name_en: 'Work Permit Request',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'work-permit-renewal',   name_ar: 'قائمة تجديد تصريح العمل',           name_en: 'Work Permit Renewal Checklist',         category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'residency-renewal',     name_ar: 'قائمة تجديد الإقامة',               name_en: 'Residency / Iqama Renewal Checklist',   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'social-security-reg',   name_ar: 'نموذج تسجيل الضمان الاجتماعي',     name_en: 'Social Security Registration Form',     category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'nda',                   name_ar: 'اتفاقية السرية وعدم الإفصاح',       name_en: 'NDA / Confidentiality Agreement',       category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
-  { id: 'asset-handover',        name_ar: 'نموذج استلام عهدة / أصول',          name_en: 'Asset Handover Form',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  // ── Legal & Administrative ────────────────────────────────────────
-  { id: 'policy-acknowledgment', name_ar: 'إقرار سياسة الشركة',               name_en: 'Company Policy Acknowledgment',         category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'code-of-conduct',       name_ar: 'إقرار مدونة السلوك',               name_en: 'Code of Conduct Acknowledgment',        category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'conflict-of-interest',  name_ar: 'إقرار تضارب المصالح',              name_en: 'Conflict of Interest Declaration',      category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'data-privacy',          name_ar: 'موافقة خصوصية البيانات',            name_en: 'Data Privacy Consent Form',             category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'authorization-letter',  name_ar: 'نموذج خطاب تفويض',                 name_en: 'Authorization Letter Template',         category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
-  { id: 'internal-memo',         name_ar: 'نموذج مذكرة داخلية',               name_en: 'Internal Memo Template',               category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'warning-letter',        name_ar: 'نموذج خطاب تحذير رسمي',            name_en: 'Official Warning Letter Template',      category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
-  { id: 'admin-decision',        name_ar: 'نموذج قرار إداري',                  name_en: 'Administrative Decision',               category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
-  { id: 'investigation',         name_ar: 'إشعار تحقيق',                       name_en: 'Investigation Notice',                  category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
-  // ── Letters & Certificates ────────────────────────────────────────
-  { id: 'salary-certificate',    name_ar: 'شهادة راتب',                        name_en: 'Salary Certificate',                    category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'employment-certificate',name_ar: 'شهادة عمل',                         name_en: 'Employment Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'experience-certificate',name_ar: 'شهادة خبرة',                        name_en: 'Experience Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'no-objection-letter',   name_ar: 'خطاب عدم ممانعة',                   name_en: 'No Objection Certificate',              category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'bank-letter',           name_ar: 'خطاب للبنك',                         name_en: 'Bank Letter',                           category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'embassy-letter',        name_ar: 'خطاب للسفارة',                       name_en: 'Embassy Letter',                        category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'recommendation-letter', name_ar: 'خطاب توصية',                        name_en: 'Recommendation Letter',                 category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
-  { id: 'letterhead',            name_ar: 'خطاب رسمي (ترويسة)',               name_en: 'Official Letterhead',                   category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
-  { id: 'service-certificate',   name_ar: 'شهادة انتهاء خدمة',                name_en: 'Service Certificate',                   category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin'] },
-  // ── Payroll & Finance ─────────────────────────────────────────────
-  { id: 'salary-adjustment',     name_ar: 'طلب تعديل الراتب',                  name_en: 'Salary Adjustment Request',             category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
-  { id: 'salary-advance',        name_ar: 'طلب سلفة راتب',                     name_en: 'Salary Advance Request',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'payroll-deduction',     name_ar: 'تفويض خصم من الراتب',               name_en: 'Payroll Deduction Authorization',       category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'overtime-claim',        name_ar: 'مطالبة ساعات إضافية',               name_en: 'Overtime Claim Form',                   category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
-  { id: 'allowance-request',     name_ar: 'نموذج طلب بدل',                     name_en: 'Allowance Request Form',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'expense-reimbursement', name_ar: 'نموذج سداد المصروفات',              name_en: 'Expense Reimbursement Form',            category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
-  { id: 'final-settlement',      name_ar: 'نموذج التسوية النهائية',            name_en: 'Final Settlement Form',                 category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
-  // ── Attendance & Leave ────────────────────────────────────────────
-  { id: 'leave',                 name_ar: 'نموذج طلب إجازة',                   name_en: 'Leave Request Form',                    category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'sick-leave',            name_ar: 'نموذج إجازة مرضية',                 name_en: 'Sick Leave Form',                       category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'unpaid-leave',          name_ar: 'طلب إجازة بدون راتب',               name_en: 'Unpaid Leave Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'business-trip',         name_ar: 'نموذج طلب مأمورية',                 name_en: 'Business Trip Request',                 category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'attendance-correction', name_ar: 'نموذج تصحيح الدوام',               name_en: 'Attendance Correction Form',            category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'remote-work',           name_ar: 'طلب العمل عن بُعد',                 name_en: 'Remote Work Request',                   category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'shift-change',          name_ar: 'طلب تغيير الوردية',                 name_en: 'Shift Change Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'exit-permit',           name_ar: 'تصريح خروج',                        name_en: 'Exit Permit',                           category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager'] },
-  // ── Disciplinary & Clearance ──────────────────────────────────────
-  { id: 'disciplinary-report',   name_ar: 'تقرير مخالفة تأديبية',              name_en: 'Disciplinary Incident Report',          category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'investigation-minutes', name_ar: 'محضر اجتماع التحقيق',              name_en: 'Investigation Meeting Minutes',         category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
-  { id: 'employee-statement',    name_ar: 'نموذج إفادة الموظف',               name_en: 'Employee Statement Form',               category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'disciplinary-decision', name_ar: 'نموذج قرار تأديبي',                 name_en: 'Disciplinary Decision Form',            category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
-  { id: 'resignation',           name_ar: 'خطاب استقالة',                      name_en: 'Resignation Letter',                    category: 'disciplinary', roles_allowed: ['hradmin','superadmin','employee'] },
-  { id: 'clearance',             name_ar: 'نموذج براءة الذمة',                 name_en: 'Clearance Checklist',                   category: 'disciplinary', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
-  { id: 'asset-return',          name_ar: 'نموذج إعادة الأصول',               name_en: 'Asset Return Form',                     category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
-  { id: 'termination',           name_ar: 'قرار إنهاء الخدمة',                 name_en: 'End of Service / Termination Letter',   category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
+  // â”€â”€ Employee Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'employee-info-update',  name_ar: 'ظ†ظ…ظˆط°ط¬ طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ظˆط¸ظپ',         name_en: 'Employee Information Update Form',      category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'personal-data-change',  name_ar: 'ظ†ظ…ظˆط°ط¬ طھط؛ظٹظٹط± ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط´ط®طµظٹط©',       name_en: 'Personal Data Change Form',             category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'bank-account-update',   name_ar: 'ظ†ظ…ظˆط°ط¬ طھط­ط¯ظٹط« ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¨ظ†ظƒظٹ / IBAN',  name_en: 'Bank Account / IBAN Update Form',       category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'emergency-contact',     name_ar: 'ظ†ظ…ظˆط°ط¬ طھط­ط¯ظٹط« ط¬ظ‡ط© ط§ظ„ط§طھطµط§ظ„ ط§ظ„ط·ط§ط±ط¦',   name_en: 'Emergency Contact Update Form',         category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'family-declaration',    name_ar: 'ط¥ط¹ظ„ط§ظ† ط§ظ„ظ…ط¹ط§ظ„ظٹظ† ظˆط§ظ„ط£ط³ط±ط©',             name_en: 'Family / Dependents Declaration Form',  category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'document-checklist',    name_ar: 'ظ‚ط§ط¦ظ…ط© طھط³ظ„ظٹظ… ط§ظ„ظˆط«ط§ط¦ظ‚',               name_en: 'Document Submission Checklist',         category: 'employee',     roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'employee-acknowledgment',name_ar:'ظ†ظ…ظˆط°ط¬ ط¥ظ‚ط±ط§ط± ط§ظ„ظ…ظˆط¸ظپ',                name_en: 'Employee Acknowledgment Form',          category: 'employee',     roles_allowed: ['hradmin','superadmin','employee'] },
+  // â”€â”€ Recruitment & Onboarding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'job-application',       name_ar: 'ظ†ظ…ظˆط°ط¬ ط·ظ„ط¨ ط§ظ„طھظˆط¸ظٹظپ',                 name_en: 'Job Application Form',                  category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'hiring-request',        name_ar: 'ط·ظ„ط¨ ط§ط­طھظٹط§ط¬ ظˆط¸ظٹظپظٹ',                  name_en: 'Hiring Request',                        category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'interview-evaluation',  name_ar: 'ظ†ظ…ظˆط°ط¬ طھظ‚ظٹظٹظ… ط§ظ„ظ…ظ‚ط§ط¨ظ„ط©',              name_en: 'Interview Evaluation Form',             category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'appointment-letter',    name_ar: 'ظƒطھط§ط¨ طھط¹ظٹظٹظ†',                         name_en: 'Offer / Appointment Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  { id: 'new-hire-checklist',    name_ar: 'ظ‚ط§ط¦ظ…ط© ظ…طھط·ظ„ط¨ط§طھ ط§ظ„ظ…ظˆط¸ظپ ط§ظ„ط¬ط¯ظٹط¯',       name_en: 'New Hire Checklist',                    category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'onboarding-form',       name_ar: 'ظ†ظ…ظˆط°ط¬ طھط£ظ‡ظٹظ„ ط§ظ„ظ…ظˆط¸ظپ',               name_en: 'Employee Onboarding Form',              category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'probation-review',      name_ar: 'ظ†ظ…ظˆط°ط¬ طھظ‚ظٹظٹظ… ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط©',          name_en: 'Probation Review Form',                 category: 'recruitment',  roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'probation-confirmation',name_ar: 'ط®ط·ط§ط¨ طھط«ط¨ظٹطھ ظپظٹ ط§ظ„ظˆط¸ظٹظپط©',            name_en: 'Probation Confirmation Letter',         category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  { id: 'probation-extension',   name_ar: 'ط®ط·ط§ط¨ طھظ…ط¯ظٹط¯ ظپطھط±ط© ط§ظ„طھط¬ط±ط¨ط©',           name_en: 'Probation Extension Letter',            category: 'recruitment',  roles_allowed: ['hradmin','superadmin'] },
+  // â”€â”€ Contracts & Permits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'employment-contract',   name_ar: 'ط¹ظ‚ط¯ ط¹ظ…ظ„',                           name_en: 'Employment Contract',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'contract-renewal',      name_ar: 'ظ†ظ…ظˆط°ط¬ طھط¬ط¯ظٹط¯ ط§ظ„ط¹ظ‚ط¯',                 name_en: 'Contract Renewal Form',                 category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'work-permit',           name_ar: 'ط·ظ„ط¨ طھطµط±ظٹط­ ط¹ظ…ظ„',                     name_en: 'Work Permit Request',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'work-permit-renewal',   name_ar: 'ظ‚ط§ط¦ظ…ط© طھط¬ط¯ظٹط¯ طھطµط±ظٹط­ ط§ظ„ط¹ظ…ظ„',           name_en: 'Work Permit Renewal Checklist',         category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'residency-renewal',     name_ar: 'ظ‚ط§ط¦ظ…ط© طھط¬ط¯ظٹط¯ ط§ظ„ط¥ظ‚ط§ظ…ط©',               name_en: 'Residency / Iqama Renewal Checklist',   category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'social-security-reg',   name_ar: 'ظ†ظ…ظˆط°ط¬ طھط³ط¬ظٹظ„ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ',     name_en: 'Social Security Registration Form',     category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'nda',                   name_ar: 'ط§طھظپط§ظ‚ظٹط© ط§ظ„ط³ط±ظٹط© ظˆط¹ط¯ظ… ط§ظ„ط¥ظپطµط§ط­',       name_en: 'NDA / Confidentiality Agreement',       category: 'contracts',    roles_allowed: ['hradmin','superadmin'] },
+  { id: 'asset-handover',        name_ar: 'ظ†ظ…ظˆط°ط¬ ط§ط³طھظ„ط§ظ… ط¹ظ‡ط¯ط© / ط£طµظˆظ„',          name_en: 'Asset Handover Form',                   category: 'contracts',    roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  // â”€â”€ Legal & Administrative â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'policy-acknowledgment', name_ar: 'ط¥ظ‚ط±ط§ط± ط³ظٹط§ط³ط© ط§ظ„ط´ط±ظƒط©',               name_en: 'Company Policy Acknowledgment',         category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'code-of-conduct',       name_ar: 'ط¥ظ‚ط±ط§ط± ظ…ط¯ظˆظ†ط© ط§ظ„ط³ظ„ظˆظƒ',               name_en: 'Code of Conduct Acknowledgment',        category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'conflict-of-interest',  name_ar: 'ط¥ظ‚ط±ط§ط± طھط¶ط§ط±ط¨ ط§ظ„ظ…طµط§ظ„ط­',              name_en: 'Conflict of Interest Declaration',      category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'data-privacy',          name_ar: 'ظ…ظˆط§ظپظ‚ط© ط®طµظˆطµظٹط© ط§ظ„ط¨ظٹط§ظ†ط§طھ',            name_en: 'Data Privacy Consent Form',             category: 'legal',        roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'authorization-letter',  name_ar: 'ظ†ظ…ظˆط°ط¬ ط®ط·ط§ط¨ طھظپظˆظٹط¶',                 name_en: 'Authorization Letter Template',         category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'internal-memo',         name_ar: 'ظ†ظ…ظˆط°ط¬ ظ…ط°ظƒط±ط© ط¯ط§ط®ظ„ظٹط©',               name_en: 'Internal Memo Template',               category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'warning-letter',        name_ar: 'ظ†ظ…ظˆط°ط¬ ط®ط·ط§ط¨ طھط­ط°ظٹط± ط±ط³ظ…ظٹ',            name_en: 'Official Warning Letter Template',      category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'admin-decision',        name_ar: 'ظ†ظ…ظˆط°ط¬ ظ‚ط±ط§ط± ط¥ط¯ط§ط±ظٹ',                  name_en: 'Administrative Decision',               category: 'legal',        roles_allowed: ['hradmin','superadmin'] },
+  { id: 'investigation',         name_ar: 'ط¥ط´ط¹ط§ط± طھط­ظ‚ظٹظ‚',                       name_en: 'Investigation Notice',                  category: 'legal',        roles_allowed: ['hradmin','superadmin','manager'] },
+  // â”€â”€ Letters & Certificates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'salary-certificate',    name_ar: 'ط´ظ‡ط§ط¯ط© ط±ط§طھط¨',                        name_en: 'Salary Certificate',                    category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'employment-certificate',name_ar: 'ط´ظ‡ط§ط¯ط© ط¹ظ…ظ„',                         name_en: 'Employment Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'experience-certificate',name_ar: 'ط´ظ‡ط§ط¯ط© ط®ط¨ط±ط©',                        name_en: 'Experience Certificate',                category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'no-objection-letter',   name_ar: 'ط®ط·ط§ط¨ ط¹ط¯ظ… ظ…ظ…ط§ظ†ط¹ط©',                   name_en: 'No Objection Certificate',              category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'bank-letter',           name_ar: 'ط®ط·ط§ط¨ ظ„ظ„ط¨ظ†ظƒ',                         name_en: 'Bank Letter',                           category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'embassy-letter',        name_ar: 'ط®ط·ط§ط¨ ظ„ظ„ط³ظپط§ط±ط©',                       name_en: 'Embassy Letter',                        category: 'certificates', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'recommendation-letter', name_ar: 'ط®ط·ط§ط¨ طھظˆطµظٹط©',                        name_en: 'Recommendation Letter',                 category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'letterhead',            name_ar: 'ط®ط·ط§ط¨ ط±ط³ظ…ظٹ (طھط±ظˆظٹط³ط©)',               name_en: 'Official Letterhead',                   category: 'certificates', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'service-certificate',   name_ar: 'ط´ظ‡ط§ط¯ط© ط§ظ†طھظ‡ط§ط، ط®ط¯ظ…ط©',                name_en: 'Service Certificate',                   category: 'certificates', roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  // â”€â”€ Payroll & Finance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'salary-adjustment',     name_ar: 'ط·ظ„ط¨ طھط¹ط¯ظٹظ„ ط§ظ„ط±ط§طھط¨',                  name_en: 'Salary Adjustment Request',             category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  { id: 'salary-advance',        name_ar: 'ط·ظ„ط¨ ط³ظ„ظپط© ط±ط§طھط¨',                     name_en: 'Salary Advance Request',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'payroll-deduction',     name_ar: 'طھظپظˆظٹط¶ ط®طµظ… ظ…ظ† ط§ظ„ط±ط§طھط¨',               name_en: 'Payroll Deduction Authorization',       category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'overtime-claim',        name_ar: 'ظ…ط·ط§ظ„ط¨ط© ط³ط§ط¹ط§طھ ط¥ط¶ط§ظپظٹط©',               name_en: 'Overtime Claim Form',                   category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
+  { id: 'allowance-request',     name_ar: 'ظ†ظ…ظˆط°ط¬ ط·ظ„ط¨ ط¨ط¯ظ„',                     name_en: 'Allowance Request Form',                category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'expense-reimbursement', name_ar: 'ظ†ظ…ظˆط°ط¬ ط³ط¯ط§ط¯ ط§ظ„ظ…طµط±ظˆظپط§طھ',              name_en: 'Expense Reimbursement Form',            category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin','manager','employee'] },
+  { id: 'final-settlement',      name_ar: 'ظ†ظ…ظˆط°ط¬ ط§ظ„طھط³ظˆظٹط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط©',            name_en: 'Final Settlement Form',                 category: 'payroll',      roles_allowed: ['hradmin','superadmin','payrolladmin'] },
+  // â”€â”€ Attendance & Leave â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'leave',                 name_ar: 'ظ†ظ…ظˆط°ط¬ ط·ظ„ط¨ ط¥ط¬ط§ط²ط©',                   name_en: 'Leave Request Form',                    category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'sick-leave',            name_ar: 'ظ†ظ…ظˆط°ط¬ ط¥ط¬ط§ط²ط© ظ…ط±ط¶ظٹط©',                 name_en: 'Sick Leave Form',                       category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'unpaid-leave',          name_ar: 'ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¨ط¯ظˆظ† ط±ط§طھط¨',               name_en: 'Unpaid Leave Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'business-trip',         name_ar: 'ظ†ظ…ظˆط°ط¬ ط·ظ„ط¨ ظ…ط£ظ…ظˆط±ظٹط©',                 name_en: 'Business Trip Request',                 category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'attendance-correction', name_ar: 'ظ†ظ…ظˆط°ط¬ طھطµط­ظٹط­ ط§ظ„ط¯ظˆط§ظ…',               name_en: 'Attendance Correction Form',            category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'remote-work',           name_ar: 'ط·ظ„ط¨ ط§ظ„ط¹ظ…ظ„ ط¹ظ† ط¨ظڈط¹ط¯',                 name_en: 'Remote Work Request',                   category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'shift-change',          name_ar: 'ط·ظ„ط¨ طھط؛ظٹظٹط± ط§ظ„ظˆط±ط¯ظٹط©',                 name_en: 'Shift Change Request',                  category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'exit-permit',           name_ar: 'طھطµط±ظٹط­ ط®ط±ظˆط¬',                        name_en: 'Exit Permit',                           category: 'attendance',   roles_allowed: ['hradmin','superadmin','manager'] },
+  // â”€â”€ Disciplinary & Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 'disciplinary-report',   name_ar: 'طھظ‚ط±ظٹط± ظ…ط®ط§ظ„ظپط© طھط£ط¯ظٹط¨ظٹط©',              name_en: 'Disciplinary Incident Report',          category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'investigation-minutes', name_ar: 'ظ…ط­ط¶ط± ط§ط¬طھظ…ط§ط¹ ط§ظ„طھط­ظ‚ظٹظ‚',              name_en: 'Investigation Meeting Minutes',         category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager'] },
+  { id: 'employee-statement',    name_ar: 'ظ†ظ…ظˆط°ط¬ ط¥ظپط§ط¯ط© ط§ظ„ظ…ظˆط¸ظپ',               name_en: 'Employee Statement Form',               category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'disciplinary-decision', name_ar: 'ظ†ظ…ظˆط°ط¬ ظ‚ط±ط§ط± طھط£ط¯ظٹط¨ظٹ',                 name_en: 'Disciplinary Decision Form',            category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
+  { id: 'resignation',           name_ar: 'ط®ط·ط§ط¨ ط§ط³طھظ‚ط§ظ„ط©',                      name_en: 'Resignation Letter',                    category: 'disciplinary', roles_allowed: ['hradmin','superadmin','employee'] },
+  { id: 'clearance',             name_ar: 'ظ†ظ…ظˆط°ط¬ ط¨ط±ط§ط،ط© ط§ظ„ط°ظ…ط©',                 name_en: 'Clearance Checklist',                   category: 'disciplinary', roles_allowed: ['hradmin','superadmin','payrolladmin','employee'] },
+  { id: 'asset-return',          name_ar: 'ظ†ظ…ظˆط°ط¬ ط¥ط¹ط§ط¯ط© ط§ظ„ط£طµظˆظ„',               name_en: 'Asset Return Form',                     category: 'disciplinary', roles_allowed: ['hradmin','superadmin','manager','employee'] },
+  { id: 'termination',           name_ar: 'ظ‚ط±ط§ط± ط¥ظ†ظ‡ط§ط، ط§ظ„ط®ط¯ظ…ط©',                 name_en: 'End of Service / Termination Letter',   category: 'disciplinary', roles_allowed: ['hradmin','superadmin'] },
 ];
+
+const FORM_ITEM_AR_BY_ID: Record<string, string> = {
+  "employee-info-update": "نموذج تحديث بيانات الموظف",
+  "personal-data-change": "نموذج تغيير البيانات الشخصية",
+  "bank-account-update": "نموذج تحديث الحساب البنكي / IBAN",
+  "emergency-contact": "نموذج تحديث جهة الاتصال الطارئة",
+  "family-declaration": "إقرار المعالين والأسرة",
+  "document-checklist": "قائمة تسليم الوثائق",
+  "employee-acknowledgment": "نموذج إقرار الموظف",
+  "job-application": "نموذج طلب التوظيف",
+  "hiring-request": "طلب احتياج وظيفي",
+  "interview-evaluation": "نموذج تقييم المقابلة",
+  "appointment-letter": "خطاب عرض / تعيين",
+  "new-hire-checklist": "قائمة متطلبات الموظف الجديد",
+  "onboarding-form": "نموذج تهيئة الموظف",
+  "probation-review": "نموذج تقييم فترة التجربة",
+  "probation-confirmation": "خطاب تثبيت في الوظيفة",
+  "probation-extension": "خطاب تمديد فترة التجربة",
+  "employment-contract": "عقد عمل",
+  "contract-renewal": "نموذج تجديد العقد",
+  "work-permit": "طلب تصريح عمل",
+  "work-permit-renewal": "قائمة تجديد تصريح العمل",
+  "residency-renewal": "قائمة تجديد الإقامة",
+  "social-security-reg": "نموذج تسجيل الضمان الاجتماعي",
+  "nda": "اتفاقية السرية وعدم الإفصاح",
+  "asset-handover": "نموذج استلام عهدة / أصول",
+  "policy-acknowledgment": "إقرار سياسة الشركة",
+  "code-of-conduct": "إقرار مدونة السلوك",
+  "conflict-of-interest": "إقرار تضارب المصالح",
+  "data-privacy": "موافقة خصوصية البيانات",
+  "authorization-letter": "نموذج خطاب تفويض",
+  "internal-memo": "نموذج مذكرة داخلية",
+  "warning-letter": "نموذج خطاب تحذير رسمي",
+  "admin-decision": "نموذج قرار إداري",
+  "investigation": "إشعار تحقيق",
+  "salary-certificate": "شهادة راتب",
+  "employment-certificate": "شهادة عمل",
+  "experience-certificate": "شهادة خبرة",
+  "no-objection-letter": "خطاب عدم ممانعة",
+  "bank-letter": "خطاب للبنك",
+  "embassy-letter": "خطاب للسفارة",
+  "recommendation-letter": "خطاب توصية",
+  "letterhead": "خطاب رسمي",
+  "service-certificate": "شهادة انتهاء خدمة",
+  "salary-adjustment": "طلب تعديل الراتب",
+  "salary-advance": "طلب سلفة راتب",
+  "payroll-deduction": "تفويض خصم من الراتب",
+  "overtime-claim": "مطالبة ساعات إضافية",
+  "allowance-request": "نموذج طلب بدل",
+  "expense-reimbursement": "نموذج سداد المصروفات",
+  "final-settlement": "نموذج التسوية النهائية",
+  "leave": "نموذج طلب إجازة",
+  "sick-leave": "نموذج إجازة مرضية",
+  "unpaid-leave": "طلب إجازة دون راتب",
+  "business-trip": "نموذج طلب مأمورية",
+  "attendance-correction": "نموذج تصحيح الدوام",
+  "remote-work": "طلب العمل عن بعد",
+  "shift-change": "طلب تغيير الوردية",
+  "exit-permit": "تصريح خروج",
+  "disciplinary-report": "تقرير مخالفة تأديبية",
+  "investigation-minutes": "محضر اجتماع التحقيق",
+  "employee-statement": "نموذج إفادة الموظف",
+  "disciplinary-decision": "نموذج قرار تأديبي",
+  "resignation": "خطاب استقالة",
+  "clearance": "نموذج براءة الذمة",
+  "asset-return": "نموذج إعادة الأصول",
+  "termination": "قرار إنهاء الخدمة",
+};
 
 const formSubmissionsStore: any[] = [];
 let formSubmissionIdSeq = 1;
 
 function filterCatalogByRole(role: string) {
-  const forms = FORMS_CATALOG_ALL.filter(f => (f.roles_allowed as string[]).includes(role));
+  const forms = FORMS_CATALOG_ALL
+    .filter(f => (f.roles_allowed as string[]).includes(role))
+    .map(f => ({ ...f, name_ar: FORM_ITEM_AR_BY_ID[f.id] || f.name_ar }));
   const usedCats = new Set(forms.map(f => f.category));
-  const categories = FORMS_CATALOG_CATEGORIES.filter(c => usedCats.has(c.id));
+  const categories = FORMS_CATALOG_CATEGORIES
+    .filter(c => usedCats.has(c.id))
+    .map(c => ({ ...c, name_ar: FORMS_AR_BY_ID[c.id] || c.name_ar }));
   return { categories, forms };
 }
 
-// GET /api/forms — recent submissions for the current user
+// GET /api/forms â€” recent submissions for the current user
 app.get("/api/forms", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   const userSubs = formSubmissionsStore.filter(s => !s.userId || s.userId === user.id);
   res.json({ success: true, data: userSubs });
 });
 
-// GET /api/forms-catalog — role-filtered catalog { categories, forms }
+// GET /api/forms-catalog â€” role-filtered catalog { categories, forms }
 app.get("/api/forms-catalog", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   const catalog = filterCatalogByRole(user.role);
   res.json({ success: true, data: catalog });
 });
 
-// GET /api/forms-catalog/:id — basic DynamicFormDefinition for the form-viewer
+// GET /api/forms-catalog/:id â€” basic DynamicFormDefinition for the form-viewer
 app.get("/api/forms-catalog/:formId", auth, (req, res) => {
   const user = (req as any).user;
   const formId = req.params.formId;
@@ -7734,7 +8671,7 @@ app.get("/api/forms-catalog/:formId", auth, (req, res) => {
   if (!(form.roles_allowed as string[]).includes(user.role)) {
     res.status(403).json({ success: false, message: "Access denied" }); return;
   }
-  res.json({ success: true, data: { id: form.id, name_ar: form.name_ar, name_en: form.name_en, category: form.category, fields: [], template: '' } });
+  res.json({ success: true, data: { id: form.id, name_ar: FORM_ITEM_AR_BY_ID[form.id] || form.name_ar, name_en: form.name_en, category: form.category, fields: [], template: '' } });
 });
 
 app.get("/api/forms/company-info", auth, async (req, res) => {
@@ -7754,14 +8691,14 @@ app.post("/api/form-submissions", auth, async (req, res) => {
   res.status(201).json({ success: true, data: record });
 });
 
-// ─── Users management ─────────────────────────────────────────────────────────
-// Helper — load a user the caller is allowed to touch (same company, or any if superadmin)
+// â”€â”€â”€ Users management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helper â€” load a user the caller is allowed to touch (same company, or any if superadmin)
 async function loadScopedUser(callerCompanyId: number, callerRole: string, targetId: number) {
   const [target] = await db.select().from(usersTable)
     .where(and(eq(usersTable.id, targetId), eq(usersTable.isDeleted, false)));
   if (!target) return { error: "User not found" as const };
   if (callerRole !== "superadmin" && target.companyId !== callerCompanyId) {
-    return { error: "Forbidden — different company" as const };
+    return { error: "Forbidden â€” different company" as const };
   }
   return { target };
 }
@@ -7818,7 +8755,7 @@ app.get("/api/users", auth, async (req, res) => {
   }
 });
 
-// Employees available for linking — not already linked, with department + job grade.
+// Employees available for linking â€” not already linked, with department + job grade.
 // Optional: ?companyId= (superadmin only), ?role= for role-aware filtering.
 app.get("/api/users/employee-options", auth, async (req, res) => {
   try {
@@ -7887,16 +8824,16 @@ app.get("/api/users/employee-options", auth, async (req, res) => {
         return m ? Number(m[1]) >= 5 : false;
       });
       if (managers.length > 0) result = managers;
-      // else: fallback — show all (no eligible grade data for strict filtering)
+      // else: fallback â€” show all (no eligible grade data for strict filtering)
     } else if (roleFilter === "employee") {
       const nonManagers = result.filter(e => {
         const g = String(e.jobTitleGrade ?? "").toUpperCase();
-        if (!g) return true; // no grade → treat as regular employee
+        if (!g) return true; // no grade â†’ treat as regular employee
         const m = /(\d+)/.exec(g);
         return m ? Number(m[1]) < 5 : true;
       });
       if (nonManagers.length > 0) result = nonManagers;
-      // else: fallback — show all
+      // else: fallback â€” show all
     }
 
     res.json({ success: true, data: result });
@@ -7910,7 +8847,7 @@ app.post("/api/users", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const { username, email, password, role, employeeId, companyId } = req.body as any;
 
@@ -8040,13 +8977,13 @@ app.post("/api/users", auth, async (req, res) => {
   }
 });
 
-// Allowed role values — reject anything outside this set
+// Allowed role values â€” reject anything outside this set
 const ALLOWED_ROLES = new Set(["superadmin", "hradmin", "payrolladmin", "manager", "employee", "recruiter"]);
 
 const ROLE_LABEL_AR: Record<string, string> = {
-  superadmin: "مدير النظام", hradmin: "مدير الموارد البشرية",
-  payrolladmin: "مدير الرواتب", manager: "مدير القسم",
-  employee: "موظف", recruiter: "موظف توظيف",
+  superadmin: "ظ…ط¯ظٹط± ط§ظ„ظ†ط¸ط§ظ…", hradmin: "ظ…ط¯ظٹط± ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
+  payrolladmin: "ظ…ط¯ظٹط± ط§ظ„ط±ظˆط§طھط¨", manager: "ظ…ط¯ظٹط± ط§ظ„ظ‚ط³ظ…",
+  employee: "ظ…ظˆط¸ظپ", recruiter: "ظ…ظˆط¸ظپ طھظˆط¸ظٹظپ",
 };
 const ROLE_LABEL_EN: Record<string, string> = {
   superadmin: "Super Admin", hradmin: "HR Admin",
@@ -8058,7 +8995,7 @@ app.patch("/api/users/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const targetId = parseInt(req.params["id"]!);
     const loaded = await loadScopedUser(user.companyId, user.role, targetId);
@@ -8067,7 +9004,7 @@ app.patch("/api/users/:id", auth, async (req, res) => {
         .json({ success: false, message: loaded.error }); return;
     }
 
-    // Allowlist mutable fields — anything else is silently ignored
+    // Allowlist mutable fields â€” anything else is silently ignored
     const ALLOWED = ["username","email","isActive","employeeId","mustChangePassword"] as const;
     const updates: any = {};
     for (const k of ALLOWED) if (k in req.body) updates[k] = (req.body as any)[k];
@@ -8080,7 +9017,7 @@ app.patch("/api/users/:id", auth, async (req, res) => {
       if (!role || !String(role).trim()) {
         res.status(400).json({ success: false, message: "Role cannot be blank" }); return;
       }
-      // Role whitelist — reject arbitrary strings
+      // Role whitelist â€” reject arbitrary strings
       if (!ALLOWED_ROLES.has(String(role))) {
         res.status(400).json({ success: false, message: `Invalid role '${role}'. Allowed: ${[...ALLOWED_ROLES].join(", ")}` }); return;
       }
@@ -8103,7 +9040,7 @@ app.patch("/api/users/:id", auth, async (req, res) => {
             eq(usersTable.isActive, true),
           ));
         if (cnt <= 1) {
-          res.status(409).json({ success: false, message: "Cannot remove the last superadmin — add another superadmin first" }); return;
+          res.status(409).json({ success: false, message: "Cannot remove the last superadmin â€” add another superadmin first" }); return;
         }
       }
       updates.role = String(role);
@@ -8152,7 +9089,7 @@ app.patch("/api/users/:id", auth, async (req, res) => {
       await logActivity(
         user.companyId,
         "user_role_changed",
-        `Role changed for user '${loaded.target.username}' (id:${targetId}): ${oldLabelEn} → ${newLabelEn} by ${user.username}`,
+        `Role changed for user '${loaded.target.username}' (id:${targetId}): ${oldLabelEn} â†’ ${newLabelEn} by ${user.username}`,
         loaded.target.username,
       );
 
@@ -8163,9 +9100,9 @@ app.patch("/api/users/:id", auth, async (req, res) => {
           entityType: "user",
           entityId: targetId,
           notificationType: "role_changed",
-          titleAr: "تم تغيير دورك الوظيفي",
+          titleAr: "طھظ… طھط؛ظٹظٹط± ط¯ظˆط±ظƒ ط§ظ„ظˆط¸ظٹظپظٹ",
           titleEn: "Your Role Has Been Updated",
-          messageAr: `تم تغيير دورك من "${oldLabelAr}" إلى "${newLabelAr}". قد تحتاج إلى تسجيل الخروج وإعادة الدخول لتفعيل الصلاحيات الجديدة.`,
+          messageAr: `طھظ… طھط؛ظٹظٹط± ط¯ظˆط±ظƒ ظ…ظ† "${oldLabelAr}" ط¥ظ„ظ‰ "${newLabelAr}". ظ‚ط¯ طھط­طھط§ط¬ ط¥ظ„ظ‰ طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬ ظˆط¥ط¹ط§ط¯ط© ط§ظ„ط¯ط®ظˆظ„ ظ„طھظپط¹ظٹظ„ ط§ظ„طµظ„ط§ط­ظٹط§طھ ط§ظ„ط¬ط¯ظٹط¯ط©.`,
           messageEn: `Your role was changed from "${oldLabelEn}" to "${newLabelEn}". Please log out and log back in for the new permissions to take effect.`,
           priority: "high",
           actionUrl: "/app/dashboard",
@@ -8184,7 +9121,7 @@ app.patch("/api/users/:id/toggle-active", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const targetId = parseInt(req.params["id"]!);
     const loaded = await loadScopedUser(user.companyId, user.role, targetId);
@@ -8230,11 +9167,11 @@ app.patch("/api/users/:id/toggle-active", auth, async (req, res) => {
         entityType: "user",
         entityId: targetId,
         notificationType: action,
-        titleAr: u!.isActive ? "تم تفعيل حسابك" : "تم إيقاف حسابك",
+        titleAr: u!.isActive ? "طھظ… طھظپط¹ظٹظ„ ط­ط³ط§ط¨ظƒ" : "طھظ… ط¥ظٹظ‚ط§ظپ ط­ط³ط§ط¨ظƒ",
         titleEn: u!.isActive ? "Your account has been activated" : "Your account has been deactivated",
         messageAr: u!.isActive
-          ? "تم تفعيل حسابك وأصبح بإمكانك تسجيل الدخول."
-          : "تم إيقاف حسابك مؤقتاً. تواصل مع مدير النظام للمزيد من المعلومات.",
+          ? "طھظ… طھظپط¹ظٹظ„ ط­ط³ط§ط¨ظƒ ظˆط£طµط¨ط­ ط¨ط¥ظ…ظƒط§ظ†ظƒ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„."
+          : "طھظ… ط¥ظٹظ‚ط§ظپ ط­ط³ط§ط¨ظƒ ظ…ط¤ظ‚طھط§ظ‹. طھظˆط§طµظ„ ظ…ط¹ ظ…ط¯ظٹط± ط§ظ„ظ†ط¸ط§ظ… ظ„ظ„ظ…ط²ظٹط¯ ظ…ظ† ط§ظ„ظ…ط¹ظ„ظˆظ…ط§طھ.",
         messageEn: u!.isActive
           ? "Your account has been activated. You can now log in."
           : "Your account has been deactivated. Contact your system administrator for more information.",
@@ -8253,7 +9190,7 @@ app.patch("/api/users/:id/reset-password", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const targetId = parseInt(req.params["id"]!);
     const loaded = await loadScopedUser(user.companyId, user.role, targetId);
@@ -8283,15 +9220,15 @@ app.patch("/api/users/:id/reset-password", auth, async (req, res) => {
         entityType: "user",
         entityId: targetId,
         notificationType: "password_reset",
-        titleAr: "تمت إعادة تعيين كلمة مرورك",
+        titleAr: "طھظ…طھ ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ظ…ط±ظˆط±ظƒ",
         titleEn: "Your Password Has Been Reset",
-        messageAr: "قام مدير النظام بإعادة تعيين كلمة مرورك. ستحتاج إلى تغييرها عند تسجيل الدخول التالي.",
+        messageAr: "ظ‚ط§ظ… ظ…ط¯ظٹط± ط§ظ„ظ†ط¸ط§ظ… ط¨ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ظ…ط±ظˆط±ظƒ. ط³طھط­طھط§ط¬ ط¥ظ„ظ‰ طھط؛ظٹظٹط±ظ‡ط§ ط¹ظ†ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط§ظ„طھط§ظ„ظٹ.",
         messageEn: "Your password has been reset by an administrator. You will need to change it on your next login.",
         priority: "high",
         actionUrl: "/login",
       });
     }
-    // Return temp password inside data object — matches frontend expectation
+    // Return temp password inside data object â€” matches frontend expectation
     res.json({ success: true, data: { temporaryPassword, mustChangePassword: true } });
   } catch (e) {
     console.error("[PATCH /api/users/:id/reset-password]", e);
@@ -8303,7 +9240,7 @@ app.delete("/api/users/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!["superadmin", "hradmin"].includes(user.role)) {
-      res.status(403).json({ success: false, message: "Forbidden — admins only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” admins only" }); return;
     }
     const targetId = parseInt(req.params["id"]!);
     const loaded = await loadScopedUser(user.companyId, user.role, targetId);
@@ -8338,7 +9275,7 @@ app.delete("/api/users/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Companies ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Companies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/companies", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -8370,7 +9307,7 @@ app.patch("/api/companies/:id", auth, async (req, res) => {
     const targetId = parseInt(req.params["id"]!);
     // Non-superadmin can only edit their own company
     if (user.role !== "superadmin" && targetId !== user.companyId) {
-      res.status(403).json({ success: false, message: "Forbidden — different company" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” different company" }); return;
     }
     const [company] = await db.update(companiesTable).set(req.body).where(eq(companiesTable.id, targetId)).returning();
     res.json({ success: true, data: company });
@@ -8380,7 +9317,7 @@ app.patch("/api/companies/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Leave Balances ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Leave Balances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/leave/balances", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -8402,7 +9339,7 @@ app.get("/api/leave/balances", auth, async (req, res) => {
   }
 });
 
-// ─── Dashboard extra endpoints ────────────────────────────────────────────────
+// â”€â”€â”€ Dashboard extra endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/dashboard/upcoming-probations", auth, async (req, res) => {
   try {
     const authReq = req as AuthReq;
@@ -8456,7 +9393,7 @@ app.get("/api/dashboard/compliance-alerts", auth, async (req, res) => {
   }
 });
 
-// ─── Auth extra endpoints ─────────────────────────────────────────────────────
+// â”€â”€â”€ Auth extra endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/auth/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body as { refreshToken: string };
@@ -8472,15 +9409,158 @@ app.post("/api/auth/refresh", async (req, res) => {
   }
 });
 
-// ─── Admin endpoints (superadmin only — platform level, NOT scoped by company) ─
+// â”€â”€â”€ Admin endpoints (superadmin only â€” platform level, NOT scoped by company) â”€
 // Multi-tenancy rule: superadmin operates ABOVE companies; HR admin scopes are
 // enforced elsewhere by companyId. These endpoints intentionally bypass company
 // filtering, so they MUST require role === 'superadmin'.
+function requirePlatformAdmin(req: express.Request, res: express.Response): AuthReq["user"] | null {
+  const user = (req as AuthReq).user;
+  if (user.role !== "superadmin") {
+    res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" });
+    return null;
+  }
+  return user;
+}
+
+const ADMIN_MODULES = ["payroll", "attendance", "assets", "compliance", "documents", "workflows", "reports"];
+
+function toJsonbParam(value: unknown) {
+  return JSON.stringify(value ?? {});
+}
+
+async function auditAdminAction(req: express.Request, params: {
+  companyId?: number | null;
+  actionType: string;
+  entityType: string;
+  entityId?: string | number | null;
+  before?: unknown;
+  after?: unknown;
+}) {
+  const user = (req as AuthReq).user;
+  await pool.query(
+    `INSERT INTO admin_audit_logs
+      (company_id, actor_user_id, action_type, entity_type, entity_id, before_snapshot, after_snapshot, ip_address, user_agent)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9)`,
+    [
+      params.companyId ?? null,
+      user.userId,
+      params.actionType,
+      params.entityType,
+      params.entityId == null ? null : String(params.entityId),
+      params.before === undefined ? null : toJsonbParam(params.before),
+      params.after === undefined ? null : toJsonbParam(params.after),
+      req.ip ?? null,
+      req.get("user-agent") ?? null,
+    ],
+  );
+}
+
+function parseIntParam(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+
+const ADMIN_V2_EMAIL_KEYS = [
+  "smtp_host", "smtp_port", "smtp_user", "smtp_from_email", "smtp_from_name",
+  "email_enabled", "email_dry_run", "notifications_email_enabled",
+];
+
+const ADMIN_V2_STORAGE_KEYS = ["storage_provider", "storage_local_path", "max_upload_mb", "allowed_upload_types"];
+
+async function getCompanyConfig(companyId: number, keys: string[]) {
+  const { rows } = await pool.query(
+    `SELECT key, value FROM system_configurations WHERE company_id = $1 AND key = ANY($2::varchar[])`,
+    [companyId, keys],
+  );
+  return Object.fromEntries(rows.map((r: any) => [r.key, r.value])) as Record<string, string>;
+}
+
+async function upsertCompanyConfig(companyId: number, key: string, value: string, category: string, userId: number) {
+  const updated = await pool.query(
+    `UPDATE system_configurations SET value = $3, updated_at = NOW(), updated_by_user_id = $4
+     WHERE company_id = $1 AND key = $2`,
+    [companyId, key, value, userId],
+  );
+  if ((updated.rowCount ?? 0) === 0) {
+    await pool.query(
+      `INSERT INTO system_configurations (company_id, key, value, category, updated_by_user_id)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [companyId, key, value, category, userId],
+    );
+  }
+}
+
+async function enqueueBackgroundJob(params: {
+  companyId?: number | null;
+  jobType: string;
+  queueName?: string;
+  payload?: unknown;
+  runAt?: string | null;
+  createdByUserId?: number | null;
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO background_jobs
+      (company_id, job_type, queue_name, payload_json, run_at, created_by_user_id)
+     VALUES ($1,$2,$3,$4::jsonb,COALESCE($5::timestamptz, NOW()),$6)
+     RETURNING *`,
+    [
+      params.companyId ?? null,
+      params.jobType,
+      params.queueName ?? "default",
+      JSON.stringify(params.payload ?? {}),
+      params.runAt ?? null,
+      params.createdByUserId ?? null,
+    ],
+  );
+  return rows[0];
+}
+
+async function logDryRunEmail(params: {
+  companyId?: number | null;
+  recipientUserId?: number | null;
+  toEmail?: string | null;
+  templateKey: string;
+  subject: string;
+  payload?: unknown;
+  createdByUserId?: number | null;
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO email_logs
+      (company_id, recipient_user_id, to_email, template_key, subject, status, payload_json, created_by_user_id)
+     VALUES ($1,$2,$3,$4,$5,'dry_run',$6::jsonb,$7)
+     RETURNING *`,
+    [
+      params.companyId ?? null,
+      params.recipientUserId ?? null,
+      params.toEmail ?? null,
+      params.templateKey,
+      params.subject,
+      JSON.stringify(params.payload ?? {}),
+      params.createdByUserId ?? null,
+    ],
+  );
+  await enqueueBackgroundJob({
+    companyId: params.companyId ?? null,
+    jobType: "email",
+    queueName: "email",
+    payload: { templateKey: params.templateKey, toEmail: params.toEmail, dryRun: true },
+    createdByUserId: params.createdByUserId ?? null,
+  }).catch(() => {});
+  return rows[0];
+}
+
+function safeStoragePath(storageKey: string) {
+  const normalized = path.normalize(storageKey).replace(/^(\.\.[/\\])+/, "");
+  const absolute = path.resolve(UPLOADS_DIR, normalized);
+  if (!absolute.startsWith(UPLOADS_DIR)) return null;
+  return absolute;
+}
+
 app.get("/api/admin/stats", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (user.role !== "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" }); return;
     }
 
     // NOTE: subscription/plan columns (plan_type, plan_expiry_date, max_employees)
@@ -8491,7 +9571,7 @@ app.get("/api/admin/stats", auth, async (req, res) => {
       .from(companiesTable)
       .where(and(eq(companiesTable.isActive, true), eq(companiesTable.isDeleted, false)));
     // totalUsers = all non-deleted users across the platform (matches UI label
-    // "إجمالي المستخدمين"). Per-company `userCount` below uses active-only since
+    // "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط³طھط®ط¯ظ…ظٹظ†"). Per-company `userCount` below uses active-only since
     // that's the operationally meaningful number to a platform admin.
     const [totalUsersRow] = await db.select({ count: sql<number>`count(*)::int` })
       .from(usersTable).where(eq(usersTable.isDeleted, false));
@@ -8522,7 +9602,7 @@ app.get("/api/admin/companies", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (user.role !== "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" }); return;
     }
 
     const companies = await db.select().from(companiesTable)
@@ -8564,7 +9644,7 @@ app.get("/api/admin/companies", auth, async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/companies — create a full tenant in one call ────────────
+// â”€â”€â”€ POST /api/admin/companies â€” create a full tenant in one call â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Body shape:
 // {
 //   nameAr, nameEn, code, country?, city?, phone?, email?, website?,
@@ -8577,7 +9657,7 @@ app.post("/api/admin/companies", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (user.role !== "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" }); return;
     }
     const b = req.body as any;
     if (!b?.nameEn || !b?.nameAr) {
@@ -8609,9 +9689,9 @@ app.post("/api/admin/companies", auth, async (req, res) => {
       ],
     };
     const ROLE_AR: Record<string, string> = {
-      superadmin: "مدير النظام", hradmin: "مدير الموارد البشرية",
-      payrolladmin: "مدير الرواتب", manager: "مدير القسم",
-      employee: "موظف", recruiter: "موظف تعيين",
+      superadmin: "ظ…ط¯ظٹط± ط§ظ„ظ†ط¸ط§ظ…", hradmin: "ظ…ط¯ظٹط± ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
+      payrolladmin: "ظ…ط¯ظٹط± ط§ظ„ط±ظˆط§طھط¨", manager: "ظ…ط¯ظٹط± ط§ظ„ظ‚ط³ظ…",
+      employee: "ظ…ظˆط¸ظپ", recruiter: "ظ…ظˆط¸ظپ طھط¹ظٹظٹظ†",
     };
 
     const result = await db.transaction(async (tx) => {
@@ -8744,12 +9824,12 @@ app.post("/api/admin/companies", auth, async (req, res) => {
   }
 });
 
-// ─── PATCH /api/admin/companies/:id — superadmin edit + suspend/activate ─────
+// â”€â”€â”€ PATCH /api/admin/companies/:id â€” superadmin edit + suspend/activate â”€â”€â”€â”€â”€
 app.patch("/api/admin/companies/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (user.role !== "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+      res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" }); return;
     }
     const id = parseInt(req.params["id"]!);
     const allowed = [
@@ -8774,8 +9854,621 @@ app.patch("/api/admin/companies/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Company Registrations (self-service signup queue) ────────────────────────
-// No registrations table exists yet — return empty list so the UI renders cleanly.
+// â”€â”€â”€ Company Registrations (self-service signup queue) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// No registrations table exists yet â€” return empty list so the UI renders cleanly.
+// System Admin v1: roles, company settings, plans, analytics, audit logs.
+app.get("/api/admin/roles", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`
+      SELECT r.*, c.name_ar AS company_name_ar, c.name_en AS company_name_en
+      FROM roles r JOIN companies c ON c.id = r.company_id
+      WHERE c.is_deleted = FALSE
+      ORDER BY c.id, r.name
+    `);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/roles]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/permissions", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`SELECT * FROM permissions ORDER BY screen, action`);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/permissions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/role-permissions", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`
+      SELECT rp.id, rp.role_id, rp.permission_id, rp.data_scope, rp.custom_node_ids,
+             r.company_id, r.name AS role_name, p.screen, p.action, p.description
+      FROM role_permissions rp
+      JOIN roles r ON r.id = rp.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      ORDER BY r.company_id, r.name, p.screen, p.action
+    `);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/role-permissions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/role-permissions", auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const roleId = parseIntParam(req.body?.roleId);
+    let permissionIds: number[] | null = null;
+    if (Array.isArray(req.body?.permissionIds)) {
+      permissionIds = req.body.permissionIds.map((v: unknown) => parseIntParam(v)).filter(Boolean) as number[];
+    } else if (Array.isArray(req.body?.permissions)) {
+      permissionIds = [];
+      for (const item of req.body.permissions) {
+        if (item && item.allowed === false) continue;
+        let permissionId = parseIntParam(item?.permissionId ?? item?.id);
+        if (!permissionId && item?.screen && item?.action) {
+          const permissionLookup = await client.query(
+            `SELECT id FROM permissions WHERE screen = $1 AND action = $2 LIMIT 1`,
+            [String(item.screen), String(item.action)],
+          );
+          permissionId = parseIntParam(permissionLookup.rows[0]?.id);
+        }
+        if (!permissionId) { res.status(400).json({ success: false, message: "Each permission must include permissionId or screen/action" }); return; }
+        if (permissionId) permissionIds.push(permissionId);
+      }
+    }
+    const dataScope = String(req.body?.dataScope || "company");
+    if (!roleId) { res.status(400).json({ success: false, message: "roleId is required" }); return; }
+    if (!permissionIds) { res.status(400).json({ success: false, message: "permissionIds is required" }); return; }
+    const before = await client.query(`SELECT * FROM role_permissions WHERE role_id = $1 ORDER BY permission_id`, [roleId]);
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM role_permissions WHERE role_id = $1`, [roleId]);
+    for (const permissionId of permissionIds) {
+      await client.query(
+        `INSERT INTO role_permissions (role_id, permission_id, data_scope)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (role_id, permission_id) DO UPDATE SET data_scope = EXCLUDED.data_scope`,
+        [roleId, permissionId, dataScope],
+      );
+    }
+    const after = await client.query(`SELECT * FROM role_permissions WHERE role_id = $1 ORDER BY permission_id`, [roleId]);
+    await client.query("COMMIT");
+    await auditAdminAction(req, { actionType: "role_permissions_updated", entityType: "role", entityId: roleId, before: before.rows, after: after.rows });
+    res.json({ success: true, data: after.rows });
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[PATCH /api/admin/role-permissions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/admin/users/:id/permissions", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const userId = parseIntParam(req.params["id"]);
+    const { rows } = await pool.query(`
+      SELECT upo.*, p.screen, p.action, p.description
+      FROM user_permission_overrides upo
+      JOIN permissions p ON p.id = upo.permission_id
+      WHERE upo.user_id = $1
+      ORDER BY p.screen, p.action
+    `, [userId]);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/users/:id/permissions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/users/:id/permissions", auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const userId = parseIntParam(req.params["id"]);
+    const overrides = Array.isArray(req.body?.overrides) ? req.body.overrides : [];
+    const before = await client.query(`SELECT * FROM user_permission_overrides WHERE user_id = $1 ORDER BY permission_id`, [userId]);
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM user_permission_overrides WHERE user_id = $1`, [userId]);
+    for (const item of overrides) {
+      const permissionId = parseIntParam(item.permissionId);
+      const effect = item.effect === "deny" ? "deny" : "allow";
+      if (!permissionId) continue;
+      await client.query(
+        `INSERT INTO user_permission_overrides (user_id, permission_id, effect, data_scope, updated_by_user_id)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [userId, permissionId, effect, item.dataScope || null, user.userId],
+      );
+    }
+    const after = await client.query(`SELECT * FROM user_permission_overrides WHERE user_id = $1 ORDER BY permission_id`, [userId]);
+    await client.query("COMMIT");
+    await auditAdminAction(req, { actionType: "user_permission_overrides_updated", entityType: "user", entityId: userId, before: before.rows, after: after.rows });
+    res.json({ success: true, data: after.rows });
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[PATCH /api/admin/users/:id/permissions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/admin/companies/:id/settings", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const companyId = parseIntParam(req.params["id"]);
+    const company = await pool.query(`SELECT * FROM companies WHERE id = $1 AND is_deleted = FALSE`, [companyId]);
+    if (!company.rowCount) { res.status(404).json({ success: false, message: "Company not found" }); return; }
+    const modules = await pool.query(`SELECT module_key, is_enabled FROM company_modules WHERE company_id = $1 ORDER BY module_key`, [companyId]);
+    const branding = await pool.query(`SELECT * FROM company_branding WHERE company_id = $1`, [companyId]);
+    const subscription = await pool.query(`
+      SELECT cs.*, pp.code AS plan_code, pp.name_ar AS plan_name_ar, pp.name_en AS plan_name_en
+      FROM company_subscriptions cs LEFT JOIN platform_plans pp ON pp.id = cs.plan_id
+      WHERE cs.company_id = $1
+    `, [companyId]);
+    res.json({ success: true, data: { company: company.rows[0], modules: modules.rows, branding: branding.rows[0] ?? null, subscription: subscription.rows[0] ?? null } });
+  } catch (e) {
+    console.error("[GET /api/admin/companies/:id/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/companies/:id/settings", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const companyId = parseIntParam(req.params["id"]);
+    const b = req.body ?? {};
+    const before = await pool.query(`SELECT * FROM companies WHERE id = $1`, [companyId]);
+    const { rows } = await pool.query(`
+      UPDATE companies SET
+        max_users = COALESCE($2, max_users), max_employees = COALESCE($3, max_employees),
+        timezone = COALESCE($4, timezone), currency = COALESCE($5, currency),
+        locale = COALESCE($6, locale), updated_at = NOW()
+      WHERE id = $1 AND is_deleted = FALSE RETURNING *
+    `, [companyId, b.maxUsers ?? null, b.maxEmployees ?? null, b.timezone ?? null, b.currency ?? null, b.locale ?? null]);
+    if (!rows.length) { res.status(404).json({ success: false, message: "Company not found" }); return; }
+    await auditAdminAction(req, { companyId, actionType: "company_settings_updated", entityType: "company", entityId: companyId, before: before.rows[0], after: rows[0] });
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/admin/companies/:id/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/companies/:id/modules", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const companyId = parseIntParam(req.params["id"]);
+    const modules = req.body?.modules && typeof req.body.modules === "object" ? req.body.modules : {};
+    const before = await pool.query(`SELECT * FROM company_modules WHERE company_id = $1 ORDER BY module_key`, [companyId]);
+    for (const key of ADMIN_MODULES) {
+      if (!(key in modules)) continue;
+      await pool.query(`
+        INSERT INTO company_modules (company_id, module_key, is_enabled, updated_by_user_id)
+        VALUES ($1,$2,$3,$4)
+        ON CONFLICT (company_id, module_key) DO UPDATE
+        SET is_enabled = EXCLUDED.is_enabled, updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = NOW()
+      `, [companyId, key, !!modules[key], user.userId]);
+    }
+    const after = await pool.query(`SELECT * FROM company_modules WHERE company_id = $1 ORDER BY module_key`, [companyId]);
+    await auditAdminAction(req, { companyId, actionType: "company_modules_updated", entityType: "company", entityId: companyId, before: before.rows, after: after.rows });
+    res.json({ success: true, data: after.rows });
+  } catch (e) {
+    console.error("[PATCH /api/admin/companies/:id/modules]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/companies/:id/branding", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const companyId = parseIntParam(req.params["id"]);
+    const b = req.body ?? {};
+    const before = await pool.query(`SELECT * FROM company_branding WHERE company_id = $1`, [companyId]);
+    const { rows } = await pool.query(`
+      INSERT INTO company_branding
+        (company_id, logo_url, primary_color, secondary_color, accent_color, sidebar_color, topbar_color, background_color, theme_json, updated_by_user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+      ON CONFLICT (company_id) DO UPDATE SET
+        logo_url = EXCLUDED.logo_url, primary_color = EXCLUDED.primary_color,
+        secondary_color = EXCLUDED.secondary_color, accent_color = EXCLUDED.accent_color,
+        sidebar_color = EXCLUDED.sidebar_color, topbar_color = EXCLUDED.topbar_color,
+        background_color = EXCLUDED.background_color, theme_json = EXCLUDED.theme_json,
+        updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = NOW()
+      RETURNING *
+    `, [companyId, b.logoUrl ?? null, b.primaryColor ?? "#0f766e", b.secondaryColor ?? "#1d4ed8", b.accentColor ?? "#f59e0b", b.sidebarColor ?? null, b.topbarColor ?? null, b.backgroundColor ?? null, toJsonbParam(b.themeJson ?? {}), user.userId]);
+    await pool.query(`UPDATE companies SET logo = $2, primary_color = $3, secondary_color = $4, accent_color = $5, updated_at = NOW() WHERE id = $1`, [companyId, b.logoUrl ?? null, b.primaryColor ?? null, b.secondaryColor ?? null, b.accentColor ?? null]);
+    await auditAdminAction(req, { companyId, actionType: "company_branding_updated", entityType: "company", entityId: companyId, before: before.rows[0] ?? null, after: rows[0] });
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/admin/companies/:id/branding]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/plans", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`SELECT * FROM platform_plans ORDER BY id`);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/plans]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/admin/plans", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const b = req.body ?? {};
+    if (!b.code || !b.nameEn || !b.nameAr) { res.status(400).json({ success: false, message: "code, nameAr and nameEn are required" }); return; }
+    const { rows } = await pool.query(`
+      INSERT INTO platform_plans (code, name_ar, name_en, price, billing_cycle, max_users, max_employees, enabled_modules, trial_days, is_active)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10) RETURNING *
+    `, [b.code, b.nameAr, b.nameEn, b.price ?? 0, b.billingCycle ?? "monthly", b.maxUsers ?? 10, b.maxEmployees ?? 50, toJsonbParam(b.enabledModules ?? []), b.trialDays ?? 0, b.isActive ?? true]);
+    await auditAdminAction(req, { actionType: "plan_created", entityType: "platform_plan", entityId: rows[0].id, after: rows[0] });
+    res.status(201).json({ success: true, data: rows[0] });
+  } catch (e: any) {
+    console.error("[POST /api/admin/plans]", e);
+    res.status(e?.code === "23505" ? 409 : 500).json({ success: false, message: e?.code === "23505" ? "Plan code already exists" : "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/plans/:id", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const id = parseIntParam(req.params["id"]);
+    const before = await pool.query(`SELECT * FROM platform_plans WHERE id = $1`, [id]);
+    const b = req.body ?? {};
+    const { rows } = await pool.query(`
+      UPDATE platform_plans SET
+        code = COALESCE($2, code), name_ar = COALESCE($3, name_ar), name_en = COALESCE($4, name_en),
+        price = COALESCE($5, price), billing_cycle = COALESCE($6, billing_cycle),
+        max_users = COALESCE($7, max_users), max_employees = COALESCE($8, max_employees),
+        enabled_modules = COALESCE($9::jsonb, enabled_modules), trial_days = COALESCE($10, trial_days),
+        is_active = COALESCE($11, is_active), updated_at = NOW()
+      WHERE id = $1 RETURNING *
+    `, [id, b.code ?? null, b.nameAr ?? null, b.nameEn ?? null, b.price ?? null, b.billingCycle ?? null, b.maxUsers ?? null, b.maxEmployees ?? null, b.enabledModules === undefined ? null : toJsonbParam(b.enabledModules), b.trialDays ?? null, b.isActive ?? null]);
+    if (!rows.length) { res.status(404).json({ success: false, message: "Plan not found" }); return; }
+    await auditAdminAction(req, { actionType: "plan_updated", entityType: "platform_plan", entityId: id, before: before.rows[0], after: rows[0] });
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/admin/plans/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/subscriptions", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`
+      SELECT cs.*, c.name_ar AS company_name_ar, c.name_en AS company_name_en,
+             pp.code AS plan_code, pp.name_ar AS plan_name_ar, pp.name_en AS plan_name_en
+      FROM company_subscriptions cs
+      JOIN companies c ON c.id = cs.company_id
+      LEFT JOIN platform_plans pp ON pp.id = cs.plan_id
+      WHERE c.is_deleted = FALSE
+      ORDER BY cs.ends_at NULLS LAST, c.id
+    `);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/subscriptions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/companies/:id/subscription", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const companyId = parseIntParam(req.params["id"]);
+    const b = req.body ?? {};
+    const before = await pool.query(`SELECT * FROM company_subscriptions WHERE company_id = $1`, [companyId]);
+    const plan = b.planId ? { id: parseIntParam(b.planId) } : (b.planCode ? (await pool.query(`SELECT id FROM platform_plans WHERE code = $1`, [b.planCode])).rows[0] : null);
+    const { rows } = await pool.query(`
+      INSERT INTO company_subscriptions (company_id, plan_id, status, starts_at, ends_at, trial_ends_at, max_users, max_employees, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      ON CONFLICT (company_id) DO UPDATE SET
+        plan_id = COALESCE(EXCLUDED.plan_id, company_subscriptions.plan_id), status = EXCLUDED.status,
+        starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, trial_ends_at = EXCLUDED.trial_ends_at,
+        max_users = EXCLUDED.max_users, max_employees = EXCLUDED.max_employees, notes = EXCLUDED.notes, updated_at = NOW()
+      RETURNING *
+    `, [companyId, plan?.id ?? null, b.status ?? "active", b.startsAt ?? null, b.endsAt ?? null, b.trialEndsAt ?? null, b.maxUsers ?? null, b.maxEmployees ?? null, b.notes ?? null]);
+    await pool.query(`UPDATE companies SET plan_name = COALESCE($2::varchar, plan_name), subscription_status = $3::varchar, subscription_start = $4::date, subscription_end = $5::date, max_users = COALESCE($6::integer, max_users), max_employees = COALESCE($7::integer, max_employees), is_trial = ($3::varchar = 'trial'), updated_at = NOW() WHERE id = $1`, [companyId, b.planCode ?? null, b.status ?? "active", b.startsAt ?? null, b.endsAt ?? null, b.maxUsers ?? null, b.maxEmployees ?? null]);
+    await auditAdminAction(req, { companyId, actionType: "company_subscription_updated", entityType: "company_subscription", entityId: rows[0].id, before: before.rows[0] ?? null, after: rows[0] });
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/admin/companies/:id/subscription]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/summary", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM companies WHERE is_deleted = FALSE) AS total_companies,
+        (SELECT COUNT(*)::int FROM companies WHERE is_deleted = FALSE AND is_active = TRUE) AS active_companies,
+        (SELECT COUNT(*)::int FROM company_subscriptions WHERE status = 'trial') AS trial_companies,
+        (SELECT COUNT(*)::int FROM company_subscriptions WHERE status IN ('expired','suspended')) AS expired_or_suspended_companies,
+        (SELECT COUNT(*)::int FROM users WHERE is_deleted = FALSE) AS total_users,
+        (SELECT COUNT(*)::int FROM users WHERE is_deleted = FALSE AND is_active = TRUE) AS active_users,
+        (SELECT COUNT(*)::int FROM employees WHERE is_deleted = FALSE) AS total_employees
+    `);
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[GET /api/admin/analytics/summary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/companies-growth", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, COUNT(*)::int AS count FROM companies WHERE is_deleted = FALSE GROUP BY 1 ORDER BY 1`);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/analytics/companies-growth]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/users-growth", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, COUNT(*)::int AS count FROM users WHERE is_deleted = FALSE GROUP BY 1 ORDER BY 1`);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/analytics/users-growth]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/subscriptions", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const distribution = await pool.query(`
+      SELECT COALESCE(pp.code, 'unassigned') AS plan_code, COALESCE(pp.name_en, 'Unassigned') AS plan_name_en, COUNT(*)::int AS count
+      FROM company_subscriptions cs LEFT JOIN platform_plans pp ON pp.id = cs.plan_id
+      GROUP BY 1,2 ORDER BY 1
+    `);
+    const alerts = await pool.query(`
+      SELECT cs.*, c.name_en AS company_name_en, c.name_ar AS company_name_ar
+      FROM company_subscriptions cs JOIN companies c ON c.id = cs.company_id
+      WHERE cs.ends_at IS NOT NULL AND cs.ends_at <= CURRENT_DATE + INTERVAL '30 days'
+      ORDER BY cs.ends_at ASC
+    `);
+    res.json({ success: true, data: { distribution: distribution.rows, expiryAlerts: alerts.rows } });
+  } catch (e) {
+    console.error("[GET /api/admin/analytics/subscriptions]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/system-health", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    await pool.query("SELECT 1");
+    res.json({ success: true, data: { api: "healthy", database: "healthy", timestamp: new Date().toISOString() } });
+  } catch (e) {
+    console.error("[GET /api/admin/analytics/system-health]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/audit-logs", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const page = Math.max(1, parseIntParam(req.query["page"], 1));
+    const pageSize = Math.min(100, Math.max(1, parseIntParam(req.query["pageSize"], 25)));
+    const filters: string[] = [];
+    const values: unknown[] = [];
+    const add = (clause: string, value: unknown) => { values.push(value); filters.push(clause.replace("?", `$${values.length}`)); };
+    if (req.query["companyId"]) add("aal.company_id = ?", parseIntParam(req.query["companyId"]));
+    if (req.query["actorUserId"]) add("aal.actor_user_id = ?", parseIntParam(req.query["actorUserId"]));
+    if (req.query["actionType"]) add("aal.action_type = ?", String(req.query["actionType"]));
+    if (req.query["entityType"]) add("aal.entity_type = ?", String(req.query["entityType"]));
+    if (req.query["dateFrom"]) add("aal.created_at >= ?", String(req.query["dateFrom"]));
+    if (req.query["dateTo"]) add("aal.created_at <= ?", String(req.query["dateTo"]));
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const total = await pool.query(`SELECT COUNT(*)::int AS count FROM admin_audit_logs aal ${where}`, values);
+    const rowValues = [...values, pageSize, (page - 1) * pageSize];
+    const { rows } = await pool.query(`
+      SELECT aal.*, u.username AS actor_username, u.email AS actor_email, c.name_ar AS company_name_ar, c.name_en AS company_name_en
+      FROM admin_audit_logs aal
+      LEFT JOIN users u ON u.id = aal.actor_user_id
+      LEFT JOIN companies c ON c.id = aal.company_id
+      ${where}
+      ORDER BY aal.created_at DESC
+      LIMIT $${rowValues.length - 1} OFFSET $${rowValues.length}
+    `, rowValues);
+    res.json({ success: true, data: { rows, page, pageSize, total: total.rows[0]?.count ?? 0 } });
+  } catch (e) {
+    console.error("[GET /api/admin/audit-logs]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/audit-logs/:id", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const id = parseIntParam(req.params["id"]);
+    const { rows } = await pool.query(`
+      SELECT aal.*, u.username AS actor_username, u.email AS actor_email, c.name_ar AS company_name_ar, c.name_en AS company_name_en
+      FROM admin_audit_logs aal
+      LEFT JOIN users u ON u.id = aal.actor_user_id
+      LEFT JOIN companies c ON c.id = aal.company_id
+      WHERE aal.id = $1
+    `, [id]);
+    if (!rows.length) { res.status(404).json({ success: false, message: "Audit log not found" }); return; }
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[GET /api/admin/audit-logs/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/background-jobs", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const { rows } = await pool.query(`SELECT * FROM background_jobs ORDER BY created_at DESC LIMIT 100`);
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/admin/background-jobs]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/admin/background-jobs", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const job = await enqueueBackgroundJob({
+      companyId: req.body?.companyId ?? null,
+      jobType: String(req.body?.jobType || "manual"),
+      queueName: String(req.body?.queueName || "default"),
+      payload: req.body?.payload ?? {},
+      runAt: req.body?.runAt ?? null,
+      createdByUserId: user.userId,
+    });
+    await auditAdminAction(req, { companyId: job.company_id, actionType: "background_job_queued", entityType: "background_job", entityId: job.id, after: job });
+    res.status(201).json({ success: true, data: job });
+  } catch (e) {
+    console.error("[POST /api/admin/background-jobs]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/admin/background-jobs/run-due", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const { rows: jobs } = await pool.query(
+      `UPDATE background_jobs SET status = 'running', started_at = NOW(), attempts = attempts + 1, updated_at = NOW()
+       WHERE id IN (
+         SELECT id FROM background_jobs
+         WHERE status = 'queued' AND run_at <= NOW()
+         ORDER BY run_at ASC
+         LIMIT 20
+       )
+       RETURNING *`,
+    );
+    for (const job of jobs) {
+      await pool.query(
+        `UPDATE background_jobs SET status = 'completed', finished_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [job.id],
+      );
+    }
+    await auditAdminAction(req, { actionType: "background_jobs_run_due", entityType: "background_job", after: { count: jobs.length, by: user.userId } });
+    res.json({ success: true, data: { processed: jobs.length } });
+  } catch (e) {
+    console.error("[POST /api/admin/background-jobs/run-due]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/email/settings", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const companyId = parseIntParam(req.query["companyId"], 1);
+    const config = await getCompanyConfig(companyId, ADMIN_V2_EMAIL_KEYS);
+    const templates = await pool.query(`SELECT * FROM email_templates WHERE company_id = $1 ORDER BY template_key`, [companyId]);
+    const logs = await pool.query(`SELECT * FROM email_logs WHERE company_id = $1 ORDER BY created_at DESC LIMIT 20`, [companyId]);
+    res.json({ success: true, data: { companyId, config, templates: templates.rows, logs: logs.rows } });
+  } catch (e) {
+    console.error("[GET /api/admin/email/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/email/settings", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const companyId = parseIntParam(req.body?.companyId, user.companyId || 1);
+    const before = await getCompanyConfig(companyId, ADMIN_V2_EMAIL_KEYS);
+    for (const key of ADMIN_V2_EMAIL_KEYS) {
+      if (req.body?.config && Object.prototype.hasOwnProperty.call(req.body.config, key)) {
+        await upsertCompanyConfig(companyId, key, String(req.body.config[key] ?? ""), "email", user.userId);
+      }
+    }
+    const after = await getCompanyConfig(companyId, ADMIN_V2_EMAIL_KEYS);
+    await auditAdminAction(req, { companyId, actionType: "email_settings_updated", entityType: "system_configurations", before, after });
+    res.json({ success: true, data: after });
+  } catch (e) {
+    console.error("[PATCH /api/admin/email/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/admin/email/test", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const companyId = parseIntParam(req.body?.companyId, user.companyId || 1);
+    const toEmail = String(req.body?.toEmail || user.username);
+    const subject = "ZenJO test email";
+    const log = await logDryRunEmail({ companyId, toEmail, templateKey: "test_email", subject, payload: { message: "Dry-run test email" }, createdByUserId: user.userId });
+    await auditAdminAction(req, { companyId, actionType: "test_email_sent", entityType: "email_log", entityId: log.id, after: log });
+    res.status(201).json({ success: true, data: log });
+  } catch (e) {
+    console.error("[POST /api/admin/email/test]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/storage/settings", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const companyId = parseIntParam(req.query["companyId"], 1);
+    const config = await getCompanyConfig(companyId, ADMIN_V2_STORAGE_KEYS);
+    const files = await pool.query(`SELECT * FROM file_objects WHERE company_id = $1 AND is_deleted = false ORDER BY created_at DESC LIMIT 25`, [companyId]);
+    res.json({ success: true, data: { companyId, config, files: files.rows } });
+  } catch (e) {
+    console.error("[GET /api/admin/storage/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/admin/storage/settings", auth, async (req, res) => {
+  try {
+    const user = requirePlatformAdmin(req, res); if (!user) return;
+    const companyId = parseIntParam(req.body?.companyId, user.companyId || 1);
+    const before = await getCompanyConfig(companyId, ADMIN_V2_STORAGE_KEYS);
+    for (const key of ADMIN_V2_STORAGE_KEYS) {
+      if (req.body?.config && Object.prototype.hasOwnProperty.call(req.body.config, key)) {
+        await upsertCompanyConfig(companyId, key, String(req.body.config[key] ?? ""), "storage", user.userId);
+      }
+    }
+    const after = await getCompanyConfig(companyId, ADMIN_V2_STORAGE_KEYS);
+    await auditAdminAction(req, { companyId, actionType: "storage_settings_updated", entityType: "system_configurations", before, after });
+    res.json({ success: true, data: after });
+  } catch (e) {
+    console.error("[PATCH /api/admin/storage/settings]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/automation/summary", auth, async (req, res) => {
+  try {
+    if (!requirePlatformAdmin(req, res)) return;
+    const jobs = await pool.query(`SELECT status, COUNT(*)::int AS count FROM background_jobs GROUP BY status`);
+    const emails = await pool.query(`SELECT status, COUNT(*)::int AS count FROM email_logs GROUP BY status`);
+    const files = await pool.query(`SELECT COUNT(*)::int AS count FROM file_objects WHERE is_deleted = false`);
+    res.json({ success: true, data: { jobs: jobs.rows, emails: emails.rows, files: files.rows[0]?.count ?? 0 } });
+  } catch (e) {
+    console.error("[GET /api/admin/automation/summary]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.get("/api/admin/registrations", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (user.role !== "superadmin") {
@@ -8803,12 +10496,12 @@ app.post("/api/admin/registrations/:id/reject", auth, async (req, res) => {
 app.post("/api/admin/impersonate/end", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (user.role !== "superadmin") {
-    res.status(403).json({ success: false, message: "Forbidden — platform admin only" }); return;
+    res.status(403).json({ success: false, message: "Forbidden â€” platform admin only" }); return;
   }
   res.json({ success: true, message: "Impersonation ended" });
 });
 
-// ─── Employee self-service endpoints ─────────────────────────────────────────
+// â”€â”€â”€ Employee self-service endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/attendance/me", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -8843,7 +10536,7 @@ app.get("/api/attendance/me", auth, async (req, res) => {
   }
 });
 
-// ─── Attendance Corrections ───────────────────────────────────────────────────
+// â”€â”€â”€ Attendance Corrections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildCorrectionRow(c: any, emp?: any) {
   return {
@@ -8913,9 +10606,9 @@ app.post("/api/attendance/me/requests", auth, async (req, res) => {
       entityType: "attendance_correction",
       entityId: correction.id,
       notificationType: "attendance_correction_created",
-      titleAr: "طلب تصحيح حضور جديد",
+      titleAr: "ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط± ط¬ط¯ظٹط¯",
       titleEn: "New Attendance Correction Request",
-      messageAr: `قدّم ${user.username} طلب تصحيح حضور بتاريخ ${requestDate}.`,
+      messageAr: `ظ‚ط¯ظ‘ظ… ${user.username} ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط± ط¨طھط§ط±ظٹط® ${requestDate}.`,
       messageEn: `${user.username} submitted an attendance correction request for ${requestDate}.`,
       priority: "normal" as const,
       actionUrl: "/app/attendance",
@@ -9022,9 +10715,9 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
         entityType: "attendance_correction",
         entityId: correctionId,
         notificationType: "attendance_correction_manager_approved",
-        titleAr: "طلب تصحيح حضور بانتظار HR",
+        titleAr: "ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط± ط¨ط§ظ†طھط¸ط§ط± HR",
         titleEn: "Attendance Correction Awaiting HR",
-        messageAr: `وافق المدير ${user.username} على طلب التصحيح #${correctionId}. بانتظار اعتماد HR.`,
+        messageAr: `ظˆط§ظپظ‚ ط§ظ„ظ…ط¯ظٹط± ${user.username} ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„طھطµط­ظٹط­ #${correctionId}. ط¨ط§ظ†طھط¸ط§ط± ط§ط¹طھظ…ط§ط¯ HR.`,
         messageEn: `Manager ${user.username} approved correction request #${correctionId}. Awaiting HR approval.`,
         priority: "normal",
         actionUrl: "/app/attendance",
@@ -9099,9 +10792,9 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
           entityType: "attendance_correction",
           entityId: correctionId,
           notificationType: "attendance_correction_hr_approved",
-          titleAr: "تم اعتماد طلب تصحيح الحضور",
+          titleAr: "طھظ… ط§ط¹طھظ…ط§ط¯ ط·ظ„ط¨ طھطµط­ظٹط­ ط§ظ„ط­ط¶ظˆط±",
           titleEn: "Attendance Correction Approved",
-          messageAr: `تم اعتماد طلب تصحيح حضورك #${correctionId} من قِبل HR.`,
+          messageAr: `طھظ… ط§ط¹طھظ…ط§ط¯ ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط±ظƒ #${correctionId} ظ…ظ† ظ‚ظگط¨ظ„ HR.`,
           messageEn: `Your attendance correction request #${correctionId} has been approved by HR.`,
           priority: "normal",
           actionUrl: "/app/attendance",
@@ -9144,9 +10837,9 @@ app.put("/api/attendance/requests/:id/reject", auth, async (req, res) => {
         entityType: "attendance_correction",
         entityId: correctionId,
         notificationType: "attendance_correction_rejected",
-        titleAr: "تم رفض طلب تصحيح الحضور",
+        titleAr: "طھظ… ط±ظپط¶ ط·ظ„ط¨ طھطµط­ظٹط­ ط§ظ„ط­ط¶ظˆط±",
         titleEn: "Attendance Correction Rejected",
-        messageAr: `تم رفض طلب تصحيح حضورك #${correctionId}. السبب: ${notes.trim()}`,
+        messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط±ظƒ #${correctionId}. ط§ظ„ط³ط¨ط¨: ${notes.trim()}`,
         messageEn: `Your attendance correction request #${correctionId} was rejected. Reason: ${notes.trim()}`,
         priority: "normal",
         actionUrl: "/app/attendance",
@@ -9163,18 +10856,8 @@ app.get("/api/leave/me/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const [rows, types] = await Promise.all([
-      db.select().from(leaveRequestsTable)
-        .where(and(eq(leaveRequestsTable.employeeId, user.employeeId), eq(leaveRequestsTable.isDeleted, false)))
-        .orderBy(desc(leaveRequestsTable.createdAt)),
-      db.select().from(leaveTypesTable),
-    ]);
-    const typeMap = Object.fromEntries(types.map(t => [String(t.id), t]));
-    const enriched = rows.map(r => {
-      const lt = typeMap[String(r.leaveType)];
-      return { ...r, leaveTypeId: Number(r.leaveType) || r.leaveType, leaveTypeNameAr: lt?.nameAr ?? null, leaveTypeNameEn: lt?.nameEn ?? null };
-    });
-    res.json({ success: true, data: enriched });
+    const rows = await fetchLeaveRequestRows(user, req.query as Record<string, string>);
+    res.json({ success: true, data: rows });
   } catch (e) {
     console.error("[GET /api/leave/me/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -9212,9 +10895,9 @@ app.post("/api/leave/me/requests", auth, async (req, res) => {
       entityType: "leave_request",
       entityId: req2.id,
       notificationType: "leave_request_created",
-      titleAr: "طلب إجازة جديد",
+      titleAr: "ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¬ط¯ظٹط¯",
       titleEn: "New Leave Request",
-      messageAr: `قدّم ${user.username} طلب إجازة من ${dateRange}.`,
+      messageAr: `ظ‚ط¯ظ‘ظ… ${user.username} ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ظ…ظ† ${dateRange}.`,
       messageEn: `${user.username} submitted a leave request from ${dateRange}.`,
       priority: "normal" as const,
       actionUrl: "/app/leave",
@@ -9317,7 +11000,7 @@ app.post("/api/employee/assets/:id/request-return", auth, async (req, res) => {
     const [asset] = await db.select().from(assetsTable).where(and(eq(assetsTable.id, id), eq(assetsTable.assignedToEmployeeId, user.employeeId), eq(assetsTable.isDeleted, false)));
     if (!asset) { res.status(404).json({ success: false, message: "Asset not found or not assigned to you" }); return; }
     await db.update(assetsTable).set({ currentStatus: "pending_return" }).where(eq(assetsTable.id, id));
-    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Employee requested return of asset "${asset.nameAr}" (requested date: ${returnDate || "not specified"})${notes ? ` — ${notes}` : ""}`, employeeName: user.name || "Employee", companyId: user.companyId });
+    await db.insert(activityLogsTable).values({ type: "asset_updated", description: `Employee requested return of asset "${asset.nameAr}" (requested date: ${returnDate || "not specified"})${notes ? ` â€” ${notes}` : ""}`, employeeName: user.name || "Employee", companyId: user.companyId });
     res.json({ success: true, message: "Return request submitted" });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -9350,7 +11033,7 @@ app.get("/api/overtime/me/requests", auth, async (req, res) => {
   }
 });
 
-// POST /api/overtime/me/requests — employee self-service submit (must be before /:id routes)
+// POST /api/overtime/me/requests â€” employee self-service submit (must be before /:id routes)
 app.post("/api/overtime/me/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -9367,8 +11050,8 @@ app.post("/api/overtime/me/requests", auth, async (req, res) => {
       companyId: user.companyId, actorUserId: user.userId,
       entityType: "overtime_request", entityId: row.id,
       notificationType: "overtime_request_created",
-      titleAr: "طلب عمل إضافي جديد", titleEn: "New Overtime Request",
-      messageAr: `قدّم ${user.username} طلب عمل إضافي بتاريخ ${row.date} (${row.hours} ساعات).`,
+      titleAr: "ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¬ط¯ظٹط¯", titleEn: "New Overtime Request",
+      messageAr: `ظ‚ط¯ظ‘ظ… ${user.username} ط·ظ„ط¨ ط¹ظ…ظ„ ط¥ط¶ط§ظپظٹ ط¨طھط§ط±ظٹط® ${row.date} (${row.hours} ط³ط§ط¹ط§طھ).`,
       messageEn: `${user.username} submitted an overtime request on ${row.date} (${row.hours} hrs).`,
       priority: "normal" as const, actionUrl: "/app/overtime",
     };
@@ -9381,28 +11064,17 @@ app.post("/api/overtime/me/requests", auth, async (req, res) => {
   }
 });
 
-// PUT routes — frontend calls PUT /api/overtime/requests/:id/approve|reject
+// PUT routes â€” frontend calls PUT /api/overtime/requests/:id/approve|reject
 app.get("/api/overtime/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { employeeId, status } = req.query as Record<string, string>;
-    const conditions: any[] = [eq(overtimeRequestsTable.isDeleted, false)];
-    if (user.role === "employee") {
-      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-      conditions.push(eq(overtimeRequestsTable.employeeId, user.employeeId));
-    } else if (user.role === "manager") {
-      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
-      const deptEmps = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scopeConds, eq(employeesTable.isDeleted, false)));
-      const ids = deptEmps.map(e => e.id);
-      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
-      conditions.push(inArray(overtimeRequestsTable.employeeId, ids));
-    } else if (employeeId) {
-      conditions.push(eq(overtimeRequestsTable.employeeId, parseInt(employeeId)));
-    }
-    if (status) conditions.push(eq(overtimeRequestsTable.status, status));
-    const rows = await db.select().from(overtimeRequestsTable).where(and(...conditions)).orderBy(desc(overtimeRequestsTable.date));
+    const rows = await fetchOvertimeRows(user, req.query as Record<string, string>, false);
     res.json({ success: true, data: rows });
   } catch (e) {
+    if ((e as any)?.status === 403) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    console.error("[GET /api/overtime/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -9413,22 +11085,24 @@ app.get("/api/overtime/me/log", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
-    const rows = await db.select().from(overtimeRequestsTable)
-      .where(and(eq(overtimeRequestsTable.employeeId, user.employeeId), eq(overtimeRequestsTable.status, "approved")))
-      .orderBy(desc(overtimeRequestsTable.date));
+    const rows = await fetchOvertimeRows(user, req.query as Record<string, string>, true);
     res.json({ success: true, data: rows });
   } catch (e) {
+    console.error("[GET /api/overtime/me/log]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 app.get("/api/overtime/log", auth, async (req, res) => {
   try {
-    const rows = await db.select().from(overtimeRequestsTable)
-      .where(and(eq(overtimeRequestsTable.isDeleted, false), eq(overtimeRequestsTable.status, "approved")))
-      .orderBy(desc(overtimeRequestsTable.date));
+    const user = (req as AuthReq).user;
+    const rows = await fetchOvertimeRows(user, req.query as Record<string, string>, true);
     res.json({ success: true, data: rows });
   } catch (e) {
+    if ((e as any)?.status === 403) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    console.error("[GET /api/overtime/log]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -9488,13 +11162,13 @@ app.get("/api/compliance/my-summary", auth, async (req, res) => {
   }
 });
 
-// ─── Permissions ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/permissions/check", auth, async (req, res) => {
   res.json({ success: true, data: { allowed: true } });
 });
 
 
-// ─── Org chart ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Org chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/org-nodes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -9522,7 +11196,7 @@ app.get("/api/org-nodes/flat", auth, async (req, res) => {
   }
 });
 
-// ─── Reports ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function rptSafeDate(v: unknown, fallback: string): string {
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
   return fallback;
@@ -9532,7 +11206,7 @@ function rptSafeInt(v: unknown, fallback: number): number {
   return isNaN(n) ? fallback : n;
 }
 
-// ── Report shared helpers ──────────────────────────────────────────────────────
+// â”€â”€ Report shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function rptGetCompany(companyId: number) {
   const [co] = await db
     .select({ nameEn: companiesTable.nameEn, nameAr: companiesTable.nameAr })
@@ -9572,7 +11246,7 @@ function addSimpleSheet(
   return ws;
 }
 
-// ── 1. GET /api/reports/headcount ─────────────────────────────────────────────
+// â”€â”€ 1. GET /api/reports/headcount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/headcount", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -9609,14 +11283,14 @@ app.get("/api/reports/headcount", auth, async (req, res) => {
       wb.creator = "ZenJO HRMS";
       const summaryWs = wb.addWorksheet("Summary");
       summaryWs.columns = [{ width: 36 }, { width: 22 }];
-      const t1 = summaryWs.addRow([`${co?.nameEn ?? "ZenJO HRMS"} — Headcount Report`]);
+      const t1 = summaryWs.addRow([`${co?.nameEn ?? "ZenJO HRMS"} â€” Headcount Report`]);
       t1.getCell(1).font = { bold: true, size: 14, color: { argb: "FF1A6B4A" } };
       summaryWs.addRow([`Total Employees: ${total}`, `As of: ${new Date().toISOString().slice(0, 10)}`]);
-      if (orgNodeId)        summaryWs.addRow(["Filter — Org Unit",        orgNodeId]);
-      if (employmentStatus) summaryWs.addRow(["Filter — Employment Status", employmentStatus]);
-      if (nationality)      summaryWs.addRow(["Filter — Nationality",       nationality]);
-      if (gender)           summaryWs.addRow(["Filter — Gender",            gender]);
-      addSimpleSheet(wb, "By Department",  ["Department (EN)", "Department (AR)", "Count"],    byDept.map(r => [r.nameEn ?? "—", r.nameAr ?? "—", r.count]));
+      if (orgNodeId)        summaryWs.addRow(["Filter â€” Org Unit",        orgNodeId]);
+      if (employmentStatus) summaryWs.addRow(["Filter â€” Employment Status", employmentStatus]);
+      if (nationality)      summaryWs.addRow(["Filter â€” Nationality",       nationality]);
+      if (gender)           summaryWs.addRow(["Filter â€” Gender",            gender]);
+      addSimpleSheet(wb, "By Department",  ["Department (EN)", "Department (AR)", "Count"],    byDept.map(r => [r.nameEn ?? "â€”", r.nameAr ?? "â€”", r.count]));
       addSimpleSheet(wb, "By Status",      ["Employment Status", "Count"],                     byStatus.map(r => [r.status, r.count]));
       addSimpleSheet(wb, "By Gender",      ["Gender", "Count"],                                byGender.map(r => [r.gender, r.count]));
       addSimpleSheet(wb, "By Nationality", ["Nationality", "Count"],                           byNationality.map(r => [r.nationality ?? "Unknown", r.count]));
@@ -9650,7 +11324,7 @@ app.get("/api/reports/leave-summary", auth, async (req, res) => {
     const rows = await db
       .select({
         typeEn: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'unknown')`,
-        typeAr: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'غير محدد')`,
+        typeAr: sql<string>`coalesce(${leaveRequestsTable.leaveType}, 'ط؛ظٹط± ظ…ط­ط¯ط¯')`,
         status: leaveRequestsTable.status,
         count: sql<number>`count(*)::int`,
         totalDays: sql<number>`coalesce(sum(${leaveRequestsTable.totalDays}), 0)::numeric(10,2)`,
@@ -9664,7 +11338,7 @@ app.get("/api/reports/leave-summary", auth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
 });
 
-// ── 2. GET /api/reports/attendance-summary ────────────────────────────────────
+// â”€â”€ 2. GET /api/reports/attendance-summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/attendance-summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -9805,7 +11479,7 @@ app.get("/api/reports/overtime-summary", auth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
 });
 
-// ── 3. GET /api/reports/disciplinary-summary ──────────────────────────────────
+// â”€â”€ 3. GET /api/reports/disciplinary-summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/disciplinary-summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -9813,7 +11487,7 @@ app.get("/api/reports/disciplinary-summary", auth, async (req, res) => {
     const from = rptSafeDate(req.query["from"] ?? req.query["dateFrom"], `${new Date().getFullYear()}-01-01`);
     const to   = rptSafeDate(req.query["to"]   ?? req.query["dateTo"],   new Date().toISOString().slice(0, 10));
     const disciplinaryTypes = ["warning_issued", "suspension", "suspension_lift", "termination"];
-    const typeArMap: Record<string, string> = { warning_issued: "إنذار", suspension: "إيقاف", suspension_lift: "رفع الإيقاف", termination: "إنهاء خدمة" };
+    const typeArMap: Record<string, string> = { warning_issued: "ط¥ظ†ط°ط§ط±", suspension: "ط¥ظٹظ‚ط§ظپ", suspension_lift: "ط±ظپط¹ ط§ظ„ط¥ظٹظ‚ط§ظپ", termination: "ط¥ظ†ظ‡ط§ط، ط®ط¯ظ…ط©" };
     const whereConditions: Parameters<typeof and>[0][] = [
       eq(employeeActionsTable.companyId, user.companyId),
       inArray(employeeActionsTable.actionType, violationType ? [violationType] : disciplinaryTypes),
@@ -9844,20 +11518,20 @@ app.get("/api/reports/disciplinary-summary", auth, async (req, res) => {
       const buffer = await generateExcelBuffer({
         sheetName: "Disciplinary Summary",
         reportTitle: "Disciplinary Summary Report",
-        reportTitleAr: "تقرير الإجراءات التأديبية",
+        reportTitleAr: "طھظ‚ط±ظٹط± ط§ظ„ط¥ط¬ط±ط§ط،ط§طھ ط§ظ„طھط£ط¯ظٹط¨ظٹط©",
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { From: from, To: to, ...(orgNodeId ? { "Org Unit": orgNodeId } : {}), ...(violationType ? { Type: violationType } : {}) },
         columns: [
-          { key: "employeeCode",  header: "Emp. Code",       headerAr: "الكود",            width: 14 },
-          { key: "nameEn",        header: "Employee (EN)",    headerAr: "الموظف",           width: 28 },
-          { key: "nameAr",        header: "الموظف",           headerAr: "Employee (AR)",    width: 28, isArabic: true },
-          { key: "orgNodeNameEn", header: "Org Unit",         headerAr: "الوحدة",           width: 22 },
-          { key: "actionType",    header: "Violation Type",   headerAr: "نوع المخالفة",    width: 22 },
-          { key: "actionTypeAr",  header: "نوع المخالفة",     headerAr: "Violation (AR)",   width: 22, isArabic: true },
-          { key: "status",        header: "Status",           headerAr: "الحالة",           width: 14 },
-          { key: "effectiveDate", header: "Effective Date",   headerAr: "التاريخ",          width: 16, isDate: true },
-          { key: "notes",         header: "Notes",            headerAr: "ملاحظات",          width: 34 },
+          { key: "employeeCode",  header: "Emp. Code",       headerAr: "ط§ظ„ظƒظˆط¯",            width: 14 },
+          { key: "nameEn",        header: "Employee (EN)",    headerAr: "ط§ظ„ظ…ظˆط¸ظپ",           width: 28 },
+          { key: "nameAr",        header: "ط§ظ„ظ…ظˆط¸ظپ",           headerAr: "Employee (AR)",    width: 28, isArabic: true },
+          { key: "orgNodeNameEn", header: "Org Unit",         headerAr: "ط§ظ„ظˆط­ط¯ط©",           width: 22 },
+          { key: "actionType",    header: "Violation Type",   headerAr: "ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©",    width: 22 },
+          { key: "actionTypeAr",  header: "ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©",     headerAr: "Violation (AR)",   width: 22, isArabic: true },
+          { key: "status",        header: "Status",           headerAr: "ط§ظ„ط­ط§ظ„ط©",           width: 14 },
+          { key: "effectiveDate", header: "Effective Date",   headerAr: "ط§ظ„طھط§ط±ظٹط®",          width: 16, isDate: true },
+          { key: "notes",         header: "Notes",            headerAr: "ظ…ظ„ط§ط­ط¸ط§طھ",          width: 34 },
         ],
         data: enriched as Record<string, unknown>[],
       });
@@ -9875,10 +11549,13 @@ app.get("/api/reports/disciplinary-summary", auth, async (req, res) => {
   }
 });
 
-// ── 4. GET /api/reports/payroll-summary ───────────────────────────────────────
+// â”€â”€ 4. GET /api/reports/payroll-summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/payroll-summary", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const { orgNodeId, format } = req.query as Record<string, string>;
     const year  = rptSafeInt(req.query["year"],  new Date().getFullYear());
     const month = rptSafeInt(req.query["month"], 0);
@@ -9955,26 +11632,26 @@ app.get("/api/reports/payroll-summary", auth, async (req, res) => {
       const buffer = await generateExcelBuffer({
         sheetName: "Payroll Ledger",
         reportTitle: "Payroll Summary Report",
-        reportTitleAr: "تقرير ملخص الرواتب",
+        reportTitleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط±ظˆط§طھط¨",
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { Period: monthLabel, ...(orgNodeId ? { "Org Unit": orgNodeId } : {}) },
         columns: [
-          { key: "employeeCode",      header: "Code",              headerAr: "الكود",                width: 14 },
-          { key: "nameEn",            header: "Name (EN)",          headerAr: "الاسم",                width: 26 },
-          { key: "nameAr",            header: "الاسم بالعربية",     headerAr: "Name (AR)",            width: 26, isArabic: true },
-          { key: "orgNodeNameEn",     header: "Org Unit",           headerAr: "الوحدة",               width: 20 },
-          { key: "runMonth",          header: "Month",              headerAr: "الشهر",                width: 10, isNumeric: true },
-          { key: "basicSalary",       header: "Basic (JOD)",        headerAr: "الأساسي",             width: 16, isCurrency: true },
-          { key: "housingAllowance",  header: "Housing (JOD)",      headerAr: "سكن",                 width: 16, isCurrency: true },
-          { key: "transportAllowance", header: "Transport (JOD)",   headerAr: "مواصلات",             width: 16, isCurrency: true },
-          { key: "overtimeEarnings",  header: "Overtime (JOD)",     headerAr: "إضافي",               width: 16, isCurrency: true },
-          { key: "grossSalary",       header: "Gross (JOD)",        headerAr: "الإجمالي",            width: 18, isCurrency: true },
-          { key: "sscDeduction",      header: "SSC (JOD)",          headerAr: "ضمان اجتماعي",       width: 16, isCurrency: true },
-          { key: "incomeTaxDeduction", header: "Tax (JOD)",         headerAr: "ضريبة الدخل",        width: 16, isCurrency: true },
-          { key: "totalDeductions",   header: "Total Deduct. (JOD)", headerAr: "إجمالي الاستقطاعات", width: 20, isCurrency: true },
-          { key: "netSalary",         header: "Net (JOD)",          headerAr: "الصافي",              width: 18, isCurrency: true },
-          { key: "bankName",          header: "Bank",               headerAr: "البنك",               width: 18 },
+          { key: "employeeCode",      header: "Code",              headerAr: "ط§ظ„ظƒظˆط¯",                width: 14 },
+          { key: "nameEn",            header: "Name (EN)",          headerAr: "ط§ظ„ط§ط³ظ…",                width: 26 },
+          { key: "nameAr",            header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",     headerAr: "Name (AR)",            width: 26, isArabic: true },
+          { key: "orgNodeNameEn",     header: "Org Unit",           headerAr: "ط§ظ„ظˆط­ط¯ط©",               width: 20 },
+          { key: "runMonth",          header: "Month",              headerAr: "ط§ظ„ط´ظ‡ط±",                width: 10, isNumeric: true },
+          { key: "basicSalary",       header: "Basic (JOD)",        headerAr: "ط§ظ„ط£ط³ط§ط³ظٹ",             width: 16, isCurrency: true },
+          { key: "housingAllowance",  header: "Housing (JOD)",      headerAr: "ط³ظƒظ†",                 width: 16, isCurrency: true },
+          { key: "transportAllowance", header: "Transport (JOD)",   headerAr: "ظ…ظˆط§طµظ„ط§طھ",             width: 16, isCurrency: true },
+          { key: "overtimeEarnings",  header: "Overtime (JOD)",     headerAr: "ط¥ط¶ط§ظپظٹ",               width: 16, isCurrency: true },
+          { key: "grossSalary",       header: "Gross (JOD)",        headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ",            width: 18, isCurrency: true },
+          { key: "sscDeduction",      header: "SSC (JOD)",          headerAr: "ط¶ظ…ط§ظ† ط§ط¬طھظ…ط§ط¹ظٹ",       width: 16, isCurrency: true },
+          { key: "incomeTaxDeduction", header: "Tax (JOD)",         headerAr: "ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„",        width: 16, isCurrency: true },
+          { key: "totalDeductions",   header: "Total Deduct. (JOD)", headerAr: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط§ط³طھظ‚ط·ط§ط¹ط§طھ", width: 20, isCurrency: true },
+          { key: "netSalary",         header: "Net (JOD)",          headerAr: "ط§ظ„طµط§ظپظٹ",              width: 18, isCurrency: true },
+          { key: "bankName",          header: "Bank",               headerAr: "ط§ظ„ط¨ظ†ظƒ",               width: 18 },
           { key: "iban",              header: "IBAN",               headerAr: "IBAN",                width: 28 },
         ],
         data: payslips.map(numRow) as Record<string, unknown>[],
@@ -9998,7 +11675,7 @@ app.get("/api/reports/payroll-summary", auth, async (req, res) => {
   }
 });
 
-// ── 5. GET /api/reports/ssc-contributions ────────────────────────────────────
+// â”€â”€ 5. GET /api/reports/ssc-contributions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/ssc-contributions", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10141,7 +11818,7 @@ app.get("/api/reports/income-tax-summary", auth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
 });
 
-// ── 6. GET /api/reports/turnover ──────────────────────────────────────────────
+// â”€â”€ 6. GET /api/reports/turnover â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/turnover", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10189,16 +11866,16 @@ app.get("/api/reports/turnover", auth, async (req, res) => {
       const buffer = await generateExcelBuffer({
         sheetName: "Turnover Report",
         reportTitle: "Employee Turnover Report",
-        reportTitleAr: "تقرير دوران الموظفين",
+        reportTitleAr: "طھظ‚ط±ظٹط± ط¯ظˆط±ط§ظ† ط§ظ„ظ…ظˆط¸ظپظٹظ†",
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { Year: String(year), From: from, To: to },
         columns: [
-          { key: "monthName",  header: "Month",        headerAr: "الشهر",             width: 14 },
-          { key: "hired",      header: "Hired",        headerAr: "موظفون جدد",        width: 14, isNumeric: true },
-          { key: "resigned",   header: "Resigned",     headerAr: "استقالات",          width: 14, isNumeric: true },
-          { key: "terminated", header: "Terminated",   headerAr: "إنهاء خدمة",       width: 16, isNumeric: true },
-          { key: "exits",      header: "Total Exits",  headerAr: "إجمالي المغادرين", width: 16, isNumeric: true },
+          { key: "monthName",  header: "Month",        headerAr: "ط§ظ„ط´ظ‡ط±",             width: 14 },
+          { key: "hired",      header: "Hired",        headerAr: "ظ…ظˆط¸ظپظˆظ† ط¬ط¯ط¯",        width: 14, isNumeric: true },
+          { key: "resigned",   header: "Resigned",     headerAr: "ط§ط³طھظ‚ط§ظ„ط§طھ",          width: 14, isNumeric: true },
+          { key: "terminated", header: "Terminated",   headerAr: "ط¥ظ†ظ‡ط§ط، ط®ط¯ظ…ط©",       width: 16, isNumeric: true },
+          { key: "exits",      header: "Total Exits",  headerAr: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط؛ط§ط¯ط±ظٹظ†", width: 16, isNumeric: true },
         ],
         data: monthly.map(m => ({ ...m, exits: m.resigned + m.terminated })),
       });
@@ -10233,7 +11910,7 @@ app.get("/api/reports/compliance-summary", auth, async (req, res) => {
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.sscNumber)));
     const [nonJordRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
-        ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
+        ne(employeesTable.nationality, "ط£ط±ط¯ظ†ظٹ"), ne(employeesTable.nationality, "Jordanian")));
     const [expiredRow] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"),
         isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
@@ -10252,9 +11929,9 @@ app.get("/api/reports/compliance-summary", auth, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "Internal server error" }); }
 });
 
-// ─── Enhanced Step-3 Report Endpoints ────────────────────────────────────────
+// â”€â”€â”€ Enhanced Step-3 Report Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── 7. GET /api/reports/leave-analysis ────────────────────────────────────────
+// â”€â”€ 7. GET /api/reports/leave-analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/leave-analysis", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10334,7 +12011,7 @@ app.get("/api/reports/leave-analysis", auth, async (req, res) => {
   }
 });
 
-// ── 8. GET /api/reports/income-tax ────────────────────────────────────────────
+// â”€â”€ 8. GET /api/reports/income-tax â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/income-tax", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10388,20 +12065,20 @@ app.get("/api/reports/income-tax", auth, async (req, res) => {
       const co = await rptGetCompany(user.companyId);
       const buffer = await generateExcelBuffer({
         sheetName: "Income Tax",
-        reportTitle: `Income Tax Summary — ${year}`,
-        reportTitleAr: `ملخص ضريبة الدخل — ${year}`,
+        reportTitle: `Income Tax Summary â€” ${year}`,
+        reportTitleAr: `ظ…ظ„ط®طµ ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„ â€” ${year}`,
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { Year: String(year), Source: check ? "Actual payroll data" : "Estimated from current salaries", ...(orgNodeId ? { "Org Unit": orgNodeId } : {}) },
         columns: [
-          { key: "employeeCode",     header: "Code",                   headerAr: "الكود",                 width: 14 },
-          { key: "nameEn",           header: "Name (EN)",              headerAr: "الاسم",                 width: 28 },
-          { key: "nameAr",           header: "الاسم بالعربية",         headerAr: "Name (AR)",             width: 28, isArabic: true },
-          { key: "orgNodeNameEn",    header: "Org Unit",               headerAr: "الوحدة",                width: 22 },
-          { key: "annualGross",      header: "Annual Gross (JOD)",     headerAr: "الإجمالي السنوي",      width: 22, isCurrency: true },
-          { key: "extraExemption",   header: "Extra Exemption (JOD)",  headerAr: "إعفاء إضافي",          width: 22, isCurrency: true },
-          { key: "totalTax",         header: "Income Tax Paid (JOD)", headerAr: "ضريبة الدخل المدفوعة", width: 22, isCurrency: true },
-          { key: "effectiveTaxRate", header: "Effective Rate %",       headerAr: "معدل الضريبة %",        width: 20, isNumeric: true },
+          { key: "employeeCode",     header: "Code",                   headerAr: "ط§ظ„ظƒظˆط¯",                 width: 14 },
+          { key: "nameEn",           header: "Name (EN)",              headerAr: "ط§ظ„ط§ط³ظ…",                 width: 28 },
+          { key: "nameAr",           header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",         headerAr: "Name (AR)",             width: 28, isArabic: true },
+          { key: "orgNodeNameEn",    header: "Org Unit",               headerAr: "ط§ظ„ظˆط­ط¯ط©",                width: 22 },
+          { key: "annualGross",      header: "Annual Gross (JOD)",     headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ظ†ظˆظٹ",      width: 22, isCurrency: true },
+          { key: "extraExemption",   header: "Extra Exemption (JOD)",  headerAr: "ط¥ط¹ظپط§ط، ط¥ط¶ط§ظپظٹ",          width: 22, isCurrency: true },
+          { key: "totalTax",         header: "Income Tax Paid (JOD)", headerAr: "ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„ ط§ظ„ظ…ط¯ظپظˆط¹ط©", width: 22, isCurrency: true },
+          { key: "effectiveTaxRate", header: "Effective Rate %",       headerAr: "ظ…ط¹ط¯ظ„ ط§ظ„ط¶ط±ظٹط¨ط© %",        width: 20, isNumeric: true },
         ],
         data: rows as Record<string, unknown>[],
       });
@@ -10418,7 +12095,7 @@ app.get("/api/reports/income-tax", auth, async (req, res) => {
   }
 });
 
-// ── 9. GET /api/reports/compliance-status ────────────────────────────────────
+// â”€â”€ 9. GET /api/reports/compliance-status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/compliance-status", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10451,7 +12128,7 @@ app.get("/api/reports/compliance-status", auth, async (req, res) => {
       .orderBy(asc(employeesTable.firstNameEn));
 
     const enriched = emps.map(emp => {
-      const isJordanian = emp.nationality === "أردني" || emp.nationality === "Jordanian";
+      const isJordanian = emp.nationality === "ط£ط±ط¯ظ†ظٹ" || emp.nationality === "Jordanian";
       const sscStatus = emp.isSSCExempt ? "exempt" : (emp.sscNumber ? "enrolled" : "missing");
       let workPermitStatus = "n/a";
       if (!isJordanian) {
@@ -10471,20 +12148,20 @@ app.get("/api/reports/compliance-status", auth, async (req, res) => {
       const buffer = await generateExcelBuffer({
         sheetName: "Compliance Status",
         reportTitle: "Employee Compliance Status Report",
-        reportTitleAr: "تقرير حالة الامتثال الوظيفي",
+        reportTitleAr: "طھظ‚ط±ظٹط± ط­ط§ظ„ط© ط§ظ„ط§ظ…طھط«ط§ظ„ ط§ظ„ظˆط¸ظٹظپظٹ",
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { "As Of": today, ...(orgNodeId ? { "Org Unit": orgNodeId } : {}), ...(nationality ? { Nationality: nationality } : {}) },
         columns: [
-          { key: "employeeCode",     header: "Code",          headerAr: "الكود",          width: 14 },
-          { key: "nameEn",           header: "Name (EN)",     headerAr: "الاسم",           width: 28 },
-          { key: "nameAr",           header: "الاسم بالعربية", headerAr: "Name (AR)",      width: 28, isArabic: true },
-          { key: "orgNodeNameEn",    header: "Org Unit",      headerAr: "الوحدة",          width: 22 },
-          { key: "nationality",      header: "Nationality",   headerAr: "الجنسية",         width: 16 },
-          { key: "sscStatus",        header: "SSC Status",    headerAr: "حالة الضمان",    width: 16 },
-          { key: "workPermitStatus", header: "Work Permit",   headerAr: "تصريح العمل",    width: 16 },
-          { key: "workPermitExpiry", header: "Permit Expiry", headerAr: "انتهاء التصريح", width: 16, isDate: true },
-          { key: "trafficLight",     header: "Status",        headerAr: "التقييم",         width: 12 },
+          { key: "employeeCode",     header: "Code",          headerAr: "ط§ظ„ظƒظˆط¯",          width: 14 },
+          { key: "nameEn",           header: "Name (EN)",     headerAr: "ط§ظ„ط§ط³ظ…",           width: 28 },
+          { key: "nameAr",           header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©", headerAr: "Name (AR)",      width: 28, isArabic: true },
+          { key: "orgNodeNameEn",    header: "Org Unit",      headerAr: "ط§ظ„ظˆط­ط¯ط©",          width: 22 },
+          { key: "nationality",      header: "Nationality",   headerAr: "ط§ظ„ط¬ظ†ط³ظٹط©",         width: 16 },
+          { key: "sscStatus",        header: "SSC Status",    headerAr: "ط­ط§ظ„ط© ط§ظ„ط¶ظ…ط§ظ†",    width: 16 },
+          { key: "workPermitStatus", header: "Work Permit",   headerAr: "طھطµط±ظٹط­ ط§ظ„ط¹ظ…ظ„",    width: 16 },
+          { key: "workPermitExpiry", header: "Permit Expiry", headerAr: "ط§ظ†طھظ‡ط§ط، ط§ظ„طھطµط±ظٹط­", width: 16, isDate: true },
+          { key: "trafficLight",     header: "Status",        headerAr: "ط§ظ„طھظ‚ظٹظٹظ…",         width: 12 },
         ],
         data: enriched as Record<string, unknown>[],
         rowColorFn: (record) => {
@@ -10516,7 +12193,7 @@ app.get("/api/reports/compliance-status", auth, async (req, res) => {
   }
 });
 
-// ── 10. GET /api/reports/salary-components ────────────────────────────────────
+// â”€â”€ 10. GET /api/reports/salary-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/reports/salary-components", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -10593,29 +12270,29 @@ app.get("/api/reports/salary-components", auth, async (req, res) => {
       const monthLabel = new Date(year, month - 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
       const buffer = await generateExcelBuffer({
         sheetName: "Salary Components",
-        reportTitle: `Salary Components — ${monthLabel}`,
-        reportTitleAr: `مكونات الرواتب — ${monthLabel}`,
+        reportTitle: `Salary Components â€” ${monthLabel}`,
+        reportTitleAr: `ظ…ظƒظˆظ†ط§طھ ط§ظ„ط±ظˆط§طھط¨ â€” ${monthLabel}`,
         companyName: co?.nameEn ?? "ZenJO HRMS",
         companyNameAr: co?.nameAr ?? "",
         filters: { Period: monthLabel, Source: run ? `Payroll Run #${run.id} (${run.status})` : "Estimated from current salaries", ...(orgNodeId ? { "Org Unit": orgNodeId } : {}) },
         columns: [
-          { key: "employeeCode",       header: "Code",               headerAr: "الكود",              width: 14 },
-          { key: "nameEn",             header: "Name (EN)",          headerAr: "الاسم",               width: 26 },
-          { key: "nameAr",             header: "الاسم بالعربية",     headerAr: "Name (AR)",           width: 26, isArabic: true },
-          { key: "orgNodeNameEn",      header: "Org Unit",           headerAr: "الوحدة",              width: 20 },
-          { key: "basicSalary",        header: "Basic (JOD)",        headerAr: "الأساسي",            width: 16, isCurrency: true },
-          { key: "housingAllowance",   header: "Housing (JOD)",      headerAr: "سكن",                width: 16, isCurrency: true },
-          { key: "transportAllowance", header: "Transport (JOD)",    headerAr: "مواصلات",            width: 16, isCurrency: true },
-          { key: "mobileAllowance",    header: "Mobile (JOD)",       headerAr: "هاتف",               width: 14, isCurrency: true },
-          { key: "mealAllowance",      header: "Meals (JOD)",        headerAr: "وجبات",              width: 14, isCurrency: true },
-          { key: "otherAllowances",    header: "Other Allow. (JOD)", headerAr: "بدلات أخرى",        width: 18, isCurrency: true },
-          { key: "overtimeEarnings",   header: "Overtime (JOD)",     headerAr: "إضافي",              width: 16, isCurrency: true },
-          { key: "grossSalary",        header: "Gross (JOD)",        headerAr: "الإجمالي",           width: 16, isCurrency: true },
-          { key: "sscDeduction",       header: "SSC (JOD)",          headerAr: "ضمان اجتماعي",      width: 16, isCurrency: true },
-          { key: "incomeTaxDeduction", header: "Tax (JOD)",          headerAr: "ضريبة الدخل",       width: 16, isCurrency: true },
-          { key: "loanDeductions",     header: "Loans (JOD)",        headerAr: "قروض",               width: 16, isCurrency: true },
-          { key: "otherDeductions",    header: "Other Deduct. (JOD)", headerAr: "استقطاعات أخرى",  width: 18, isCurrency: true },
-          { key: "netSalary",          header: "Net (JOD)",          headerAr: "الصافي",             width: 16, isCurrency: true },
+          { key: "employeeCode",       header: "Code",               headerAr: "ط§ظ„ظƒظˆط¯",              width: 14 },
+          { key: "nameEn",             header: "Name (EN)",          headerAr: "ط§ظ„ط§ط³ظ…",               width: 26 },
+          { key: "nameAr",             header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",     headerAr: "Name (AR)",           width: 26, isArabic: true },
+          { key: "orgNodeNameEn",      header: "Org Unit",           headerAr: "ط§ظ„ظˆط­ط¯ط©",              width: 20 },
+          { key: "basicSalary",        header: "Basic (JOD)",        headerAr: "ط§ظ„ط£ط³ط§ط³ظٹ",            width: 16, isCurrency: true },
+          { key: "housingAllowance",   header: "Housing (JOD)",      headerAr: "ط³ظƒظ†",                width: 16, isCurrency: true },
+          { key: "transportAllowance", header: "Transport (JOD)",    headerAr: "ظ…ظˆط§طµظ„ط§طھ",            width: 16, isCurrency: true },
+          { key: "mobileAllowance",    header: "Mobile (JOD)",       headerAr: "ظ‡ط§طھظپ",               width: 14, isCurrency: true },
+          { key: "mealAllowance",      header: "Meals (JOD)",        headerAr: "ظˆط¬ط¨ط§طھ",              width: 14, isCurrency: true },
+          { key: "otherAllowances",    header: "Other Allow. (JOD)", headerAr: "ط¨ط¯ظ„ط§طھ ط£ط®ط±ظ‰",        width: 18, isCurrency: true },
+          { key: "overtimeEarnings",   header: "Overtime (JOD)",     headerAr: "ط¥ط¶ط§ظپظٹ",              width: 16, isCurrency: true },
+          { key: "grossSalary",        header: "Gross (JOD)",        headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ",           width: 16, isCurrency: true },
+          { key: "sscDeduction",       header: "SSC (JOD)",          headerAr: "ط¶ظ…ط§ظ† ط§ط¬طھظ…ط§ط¹ظٹ",      width: 16, isCurrency: true },
+          { key: "incomeTaxDeduction", header: "Tax (JOD)",          headerAr: "ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„",       width: 16, isCurrency: true },
+          { key: "loanDeductions",     header: "Loans (JOD)",        headerAr: "ظ‚ط±ظˆط¶",               width: 16, isCurrency: true },
+          { key: "otherDeductions",    header: "Other Deduct. (JOD)", headerAr: "ط§ط³طھظ‚ط·ط§ط¹ط§طھ ط£ط®ط±ظ‰",  width: 18, isCurrency: true },
+          { key: "netSalary",          header: "Net (JOD)",          headerAr: "ط§ظ„طµط§ظپظٹ",             width: 16, isCurrency: true },
         ],
         data: rows as Record<string, unknown>[],
       });
@@ -10632,7 +12309,7 @@ app.get("/api/reports/salary-components", auth, async (req, res) => {
   }
 });
 
-// ─── Excel Export ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Excel Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ReportResult {
   columns: ExportColumn[];
@@ -10653,7 +12330,7 @@ async function buildReportData(
   const to    = rptSafeDate(query["to"],   new Date().toISOString().slice(0, 10));
   const monthLabel = new Date(year, month - 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
 
-  // ── Headcount ──────────────────────────────────────────────────────────────
+  // â”€â”€ Headcount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "headcount") {
     const data = await db
       .select({ status: employeesTable.employmentStatus, count: sql<number>`count(*)::int` })
@@ -10662,17 +12339,17 @@ async function buildReportData(
       .groupBy(employeesTable.employmentStatus);
     return {
       titleEn: "Headcount Report",
-      titleAr: "تقرير الكوادر البشرية",
+      titleAr: "طھظ‚ط±ظٹط± ط§ظ„ظƒظˆط§ط¯ط± ط§ظ„ط¨ط´ط±ظٹط©",
       filters: {},
       columns: [
-        { key: "status", header: "Employment Status", headerAr: "حالة التوظيف", width: 24 },
-        { key: "count",  header: "Count",             headerAr: "العدد",         width: 14, isNumeric: true },
+        { key: "status", header: "Employment Status", headerAr: "ط­ط§ظ„ط© ط§ظ„طھظˆط¸ظٹظپ", width: 24 },
+        { key: "count",  header: "Count",             headerAr: "ط§ظ„ط¹ط¯ط¯",         width: 14, isNumeric: true },
       ],
       data: data as Record<string, unknown>[],
     };
   }
 
-  // ── Leave Summary ──────────────────────────────────────────────────────────
+  // â”€â”€ Leave Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "leave") {
     const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
     const endOfMonth   = new Date(year, month, 0).toISOString().slice(0, 10);
@@ -10699,19 +12376,19 @@ async function buildReportData(
       .orderBy(desc(sql`count(*)`));
     return {
       titleEn: "Leave Summary Report",
-      titleAr: "تقرير ملخص الإجازات",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط¥ط¬ط§ط²ط§طھ",
       filters: { Month: monthLabel },
       columns: [
-        { key: "typeEn",    header: "Leave Type",  headerAr: "نوع الإجازة",    width: 24 },
-        { key: "status",    header: "Status",      headerAr: "الحالة",         width: 16 },
-        { key: "count",     header: "Requests",    headerAr: "عدد الطلبات",    width: 14, isNumeric: true },
-        { key: "totalDays", header: "Total Days",  headerAr: "إجمالي الأيام", width: 14, isNumeric: true },
+        { key: "typeEn",    header: "Leave Type",  headerAr: "ظ†ظˆط¹ ط§ظ„ط¥ط¬ط§ط²ط©",    width: 24 },
+        { key: "status",    header: "Status",      headerAr: "ط§ظ„ط­ط§ظ„ط©",         width: 16 },
+        { key: "count",     header: "Requests",    headerAr: "ط¹ط¯ط¯ ط§ظ„ط·ظ„ط¨ط§طھ",    width: 14, isNumeric: true },
+        { key: "totalDays", header: "Total Days",  headerAr: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط£ظٹط§ظ…", width: 14, isNumeric: true },
       ],
       data: data.map(r => ({ ...r, totalDays: Number(r.totalDays) })) as Record<string, unknown>[],
     };
   }
 
-  // ── Attendance ─────────────────────────────────────────────────────────────
+  // â”€â”€ Attendance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "attendance") {
     const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
     const endOfMonth   = new Date(year, month, 0).toISOString().slice(0, 10);
@@ -10745,21 +12422,21 @@ async function buildReportData(
       .orderBy(asc(employeesTable.firstNameEn));
     return {
       titleEn: "Attendance Summary Report",
-      titleAr: "تقرير ملخص الحضور",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط­ط¶ظˆط±",
       filters: { Month: monthLabel },
       columns: [
-        { key: "nameEn",           header: "Name (EN)",     headerAr: "الاسم بالإنجليزية",  width: 28 },
-        { key: "nameAr",           header: "الاسم بالعربية", headerAr: "Name (AR)",           width: 28, isArabic: true },
-        { key: "orgNodeNameEn",    header: "Org Unit",      headerAr: "الوحدة التنظيمية",    width: 22 },
-        { key: "presentDays",      header: "Present Days",  headerAr: "أيام الحضور",         width: 15, isNumeric: true },
-        { key: "absentDays",       header: "Absent Days",   headerAr: "أيام الغياب",         width: 15, isNumeric: true },
-        { key: "totalLateMinutes", header: "Late Minutes",  headerAr: "دقائق التأخير",       width: 15, isNumeric: true },
+        { key: "nameEn",           header: "Name (EN)",     headerAr: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©",  width: 28 },
+        { key: "nameAr",           header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©", headerAr: "Name (AR)",           width: 28, isArabic: true },
+        { key: "orgNodeNameEn",    header: "Org Unit",      headerAr: "ط§ظ„ظˆط­ط¯ط© ط§ظ„طھظ†ط¸ظٹظ…ظٹط©",    width: 22 },
+        { key: "presentDays",      header: "Present Days",  headerAr: "ط£ظٹط§ظ… ط§ظ„ط­ط¶ظˆط±",         width: 15, isNumeric: true },
+        { key: "absentDays",       header: "Absent Days",   headerAr: "ط£ظٹط§ظ… ط§ظ„ط؛ظٹط§ط¨",         width: 15, isNumeric: true },
+        { key: "totalLateMinutes", header: "Late Minutes",  headerAr: "ط¯ظ‚ط§ط¦ظ‚ ط§ظ„طھط£ط®ظٹط±",       width: 15, isNumeric: true },
       ],
       data: data.map(r => ({ ...r, orgNodeNameEn: r.orgNodeNameEn ?? "" })) as Record<string, unknown>[],
     };
   }
 
-  // ── Overtime ───────────────────────────────────────────────────────────────
+  // â”€â”€ Overtime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "overtime") {
     const data = await db
       .select({
@@ -10792,15 +12469,15 @@ async function buildReportData(
       );
     return {
       titleEn: "Overtime Summary Report",
-      titleAr: "تقرير ملخص العمل الإضافي",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط¹ظ…ظ„ ط§ظ„ط¥ط¶ط§ظپظٹ",
       filters: { From: from, To: to },
       columns: [
-        { key: "nameEn",        header: "Name (EN)",        headerAr: "الاسم بالإنجليزية",  width: 28 },
-        { key: "nameAr",        header: "الاسم بالعربية",   headerAr: "Name (AR)",           width: 28, isArabic: true },
-        { key: "orgNodeNameEn", header: "Org Unit",         headerAr: "الوحدة التنظيمية",    width: 22 },
-        { key: "totalHours",    header: "Total Hours",      headerAr: "إجمالي الساعات",      width: 15, isNumeric: true },
-        { key: "approvedHours", header: "Approved Hours",   headerAr: "ساعات معتمدة",        width: 16, isNumeric: true },
-        { key: "totalCost",     header: "OT Cost (JOD)",    headerAr: "تكلفة إضافي (دينار)", width: 18, isCurrency: true },
+        { key: "nameEn",        header: "Name (EN)",        headerAr: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©",  width: 28 },
+        { key: "nameAr",        header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",   headerAr: "Name (AR)",           width: 28, isArabic: true },
+        { key: "orgNodeNameEn", header: "Org Unit",         headerAr: "ط§ظ„ظˆط­ط¯ط© ط§ظ„طھظ†ط¸ظٹظ…ظٹط©",    width: 22 },
+        { key: "totalHours",    header: "Total Hours",      headerAr: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ط§ط¹ط§طھ",      width: 15, isNumeric: true },
+        { key: "approvedHours", header: "Approved Hours",   headerAr: "ط³ط§ط¹ط§طھ ظ…ط¹طھظ…ط¯ط©",        width: 16, isNumeric: true },
+        { key: "totalCost",     header: "OT Cost (JOD)",    headerAr: "طھظƒظ„ظپط© ط¥ط¶ط§ظپظٹ (ط¯ظٹظ†ط§ط±)", width: 18, isCurrency: true },
       ],
       data: data.map(r => ({
         ...r,
@@ -10812,14 +12489,14 @@ async function buildReportData(
     };
   }
 
-  // ── Disciplinary ───────────────────────────────────────────────────────────
+  // â”€â”€ Disciplinary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "disciplinary") {
     const disciplinaryTypes = ["warning_issued", "suspension", "suspension_lift", "termination"];
     const typeArMap: Record<string, string> = {
-      warning_issued:  "إنذار",
-      suspension:      "إيقاف",
-      suspension_lift: "رفع الإيقاف",
-      termination:     "إنهاء خدمة",
+      warning_issued:  "ط¥ظ†ط°ط§ط±",
+      suspension:      "ط¥ظٹظ‚ط§ظپ",
+      suspension_lift: "ط±ظپط¹ ط§ظ„ط¥ظٹظ‚ط§ظپ",
+      termination:     "ط¥ظ†ظ‡ط§ط، ط®ط¯ظ…ط©",
     };
     const rows = await db
       .select({
@@ -10837,13 +12514,13 @@ async function buildReportData(
       .groupBy(employeeActionsTable.actionType, employeeActionsTable.status);
     return {
       titleEn: "Disciplinary Summary Report",
-      titleAr: "تقرير ملخص الإجراءات التأديبية",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط¥ط¬ط±ط§ط،ط§طھ ط§ظ„طھط£ط¯ظٹط¨ظٹط©",
       filters: { From: from, To: to },
       columns: [
-        { key: "typeEn", header: "Violation Type (EN)", headerAr: "نوع المخالفة",    width: 24 },
-        { key: "typeAr", header: "نوع المخالفة",         headerAr: "Violation (AR)", width: 24, isArabic: true },
-        { key: "status", header: "Status",              headerAr: "الحالة",          width: 16 },
-        { key: "count",  header: "Count",               headerAr: "العدد",           width: 12, isNumeric: true },
+        { key: "typeEn", header: "Violation Type (EN)", headerAr: "ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©",    width: 24 },
+        { key: "typeAr", header: "ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©",         headerAr: "Violation (AR)", width: 24, isArabic: true },
+        { key: "status", header: "Status",              headerAr: "ط§ظ„ط­ط§ظ„ط©",          width: 16 },
+        { key: "count",  header: "Count",               headerAr: "ط§ظ„ط¹ط¯ط¯",           width: 12, isNumeric: true },
       ],
       data: rows.map(r => ({
         typeEn: r.typeEn,
@@ -10854,7 +12531,7 @@ async function buildReportData(
     };
   }
 
-  // ── Payroll Summary ────────────────────────────────────────────────────────
+  // â”€â”€ Payroll Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "payroll") {
     const conditions: Parameters<typeof and>[0][] = [
       eq(payrollRunsTable.companyId, user.companyId),
@@ -10865,19 +12542,19 @@ async function buildReportData(
     const rows = await db.select().from(payrollRunsTable).where(and(...conditions)).orderBy(desc(payrollRunsTable.runMonth));
     return {
       titleEn: "Payroll Summary Report",
-      titleAr: "تقرير ملخص الرواتب",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط§ظ„ط±ظˆط§طھط¨",
       filters: { Year: String(year), ...(month > 0 ? { Month: monthLabel } : {}) },
       columns: [
-        { key: "runYear",          header: "Year",             headerAr: "السنة",              width: 10, isNumeric: true },
-        { key: "runMonth",         header: "Month",            headerAr: "الشهر",              width: 10, isNumeric: true },
-        { key: "employeeCount",    header: "Employees",        headerAr: "عدد الموظفين",       width: 14, isNumeric: true },
-        { key: "totalGross",       header: "Gross (JOD)",      headerAr: "الإجمالي (دينار)",   width: 18, isCurrency: true },
-        { key: "totalNet",         header: "Net (JOD)",        headerAr: "الصافي (دينار)",     width: 18, isCurrency: true },
-        { key: "totalDeductions",  header: "Deductions (JOD)", headerAr: "الاستقطاعات",        width: 18, isCurrency: true },
-        { key: "totalSscEmployee", header: "SSC Employee",     headerAr: "تأمين الموظف",       width: 18, isCurrency: true },
-        { key: "totalSscEmployer", header: "SSC Employer",     headerAr: "تأمين صاحب العمل",  width: 18, isCurrency: true },
-        { key: "totalIncomeTax",   header: "Income Tax",       headerAr: "ضريبة الدخل",        width: 18, isCurrency: true },
-        { key: "status",           header: "Status",           headerAr: "الحالة",             width: 14 },
+        { key: "runYear",          header: "Year",             headerAr: "ط§ظ„ط³ظ†ط©",              width: 10, isNumeric: true },
+        { key: "runMonth",         header: "Month",            headerAr: "ط§ظ„ط´ظ‡ط±",              width: 10, isNumeric: true },
+        { key: "employeeCount",    header: "Employees",        headerAr: "ط¹ط¯ط¯ ط§ظ„ظ…ظˆط¸ظپظٹظ†",       width: 14, isNumeric: true },
+        { key: "totalGross",       header: "Gross (JOD)",      headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ (ط¯ظٹظ†ط§ط±)",   width: 18, isCurrency: true },
+        { key: "totalNet",         header: "Net (JOD)",        headerAr: "ط§ظ„طµط§ظپظٹ (ط¯ظٹظ†ط§ط±)",     width: 18, isCurrency: true },
+        { key: "totalDeductions",  header: "Deductions (JOD)", headerAr: "ط§ظ„ط§ط³طھظ‚ط·ط§ط¹ط§طھ",        width: 18, isCurrency: true },
+        { key: "totalSscEmployee", header: "SSC Employee",     headerAr: "طھط£ظ…ظٹظ† ط§ظ„ظ…ظˆط¸ظپ",       width: 18, isCurrency: true },
+        { key: "totalSscEmployer", header: "SSC Employer",     headerAr: "طھط£ظ…ظٹظ† طµط§ط­ط¨ ط§ظ„ط¹ظ…ظ„",  width: 18, isCurrency: true },
+        { key: "totalIncomeTax",   header: "Income Tax",       headerAr: "ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„",        width: 18, isCurrency: true },
+        { key: "status",           header: "Status",           headerAr: "ط§ظ„ط­ط§ظ„ط©",             width: 14 },
       ],
       data: rows.map(r => ({
         ...r,
@@ -10891,16 +12568,16 @@ async function buildReportData(
     };
   }
 
-  // ── SSC Contributions ──────────────────────────────────────────────────────
+  // â”€â”€ SSC Contributions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "ssc") {
     const sscCols: ExportColumn[] = [
-      { key: "nameEn",                  header: "Name (EN)",              headerAr: "الاسم بالإنجليزية",   width: 28 },
-      { key: "nameAr",                  header: "الاسم بالعربية",         headerAr: "Name (AR)",            width: 28, isArabic: true },
-      { key: "sscNumber",               header: "SSC Number",             headerAr: "رقم التأمين",         width: 18 },
-      { key: "orgNodeNameEn",           header: "Org Unit",               headerAr: "الوحدة التنظيمية",    width: 22 },
-      { key: "basicSalary",             header: "Basic Salary (JOD)",     headerAr: "الراتب الأساسي",      width: 20, isCurrency: true },
-      { key: "sscDeduction",            header: "Employee SSC (7.5%)",    headerAr: "تأمين الموظف",        width: 20, isCurrency: true },
-      { key: "sscEmployerContribution", header: "Employer SSC (14.25%)",  headerAr: "تأمين صاحب العمل",   width: 22, isCurrency: true },
+      { key: "nameEn",                  header: "Name (EN)",              headerAr: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©",   width: 28 },
+      { key: "nameAr",                  header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",         headerAr: "Name (AR)",            width: 28, isArabic: true },
+      { key: "sscNumber",               header: "SSC Number",             headerAr: "ط±ظ‚ظ… ط§ظ„طھط£ظ…ظٹظ†",         width: 18 },
+      { key: "orgNodeNameEn",           header: "Org Unit",               headerAr: "ط§ظ„ظˆط­ط¯ط© ط§ظ„طھظ†ط¸ظٹظ…ظٹط©",    width: 22 },
+      { key: "basicSalary",             header: "Basic Salary (JOD)",     headerAr: "ط§ظ„ط±ط§طھط¨ ط§ظ„ط£ط³ط§ط³ظٹ",      width: 20, isCurrency: true },
+      { key: "sscDeduction",            header: "Employee SSC (7.5%)",    headerAr: "طھط£ظ…ظٹظ† ط§ظ„ظ…ظˆط¸ظپ",        width: 20, isCurrency: true },
+      { key: "sscEmployerContribution", header: "Employer SSC (14.25%)",  headerAr: "طھط£ظ…ظٹظ† طµط§ط­ط¨ ط§ظ„ط¹ظ…ظ„",   width: 22, isCurrency: true },
     ];
     const runs = await db
       .select({ id: payrollRunsTable.id })
@@ -10930,7 +12607,7 @@ async function buildReportData(
         .orderBy(asc(employeesTable.firstNameEn));
       return {
         titleEn: "SSC Contributions Report",
-        titleAr: "تقرير اشتراكات الضمان الاجتماعي",
+        titleAr: "طھظ‚ط±ظٹط± ط§ط´طھط±ط§ظƒط§طھ ط§ظ„ط¶ظ…ط§ظ† ط§ظ„ط§ط¬طھظ…ط§ط¹ظٹ",
         filters: { Month: monthLabel },
         columns: sscCols,
         data: rows.map(r => ({
@@ -10964,8 +12641,8 @@ async function buildReportData(
         .orderBy(asc(employeesTable.firstNameEn));
       return {
         titleEn: "SSC Contributions Report (Estimated)",
-        titleAr: "تقرير اشتراكات الضمان (تقديري)",
-        filters: { Month: monthLabel, Note: "No payroll run found — estimates used" },
+        titleAr: "طھظ‚ط±ظٹط± ط§ط´طھط±ط§ظƒط§طھ ط§ظ„ط¶ظ…ط§ظ† (طھظ‚ط¯ظٹط±ظٹ)",
+        filters: { Month: monthLabel, Note: "No payroll run found â€” estimates used" },
         columns: sscCols,
         data: rows.map(r => ({
           ...r,
@@ -10979,15 +12656,15 @@ async function buildReportData(
     }
   }
 
-  // ── Income Tax ─────────────────────────────────────────────────────────────
+  // â”€â”€ Income Tax â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "income-tax") {
     const taxCols: ExportColumn[] = [
-      { key: "nameEn",         header: "Name (EN)",              headerAr: "الاسم بالإنجليزية",   width: 28 },
-      { key: "nameAr",         header: "الاسم بالعربية",         headerAr: "Name (AR)",            width: 28, isArabic: true },
-      { key: "orgNodeNameEn",  header: "Org Unit",               headerAr: "الوحدة التنظيمية",    width: 22 },
-      { key: "annualGross",    header: "Annual Gross (JOD)",     headerAr: "الإجمالي السنوي",     width: 22, isCurrency: true },
-      { key: "totalTax",       header: "Income Tax (JOD)",       headerAr: "ضريبة الدخل",         width: 20, isCurrency: true },
-      { key: "extraExemption", header: "Extra Exemption (JOD)",  headerAr: "الإعفاء الإضافي",     width: 22, isCurrency: true },
+      { key: "nameEn",         header: "Name (EN)",              headerAr: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©",   width: 28 },
+      { key: "nameAr",         header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",         headerAr: "Name (AR)",            width: 28, isArabic: true },
+      { key: "orgNodeNameEn",  header: "Org Unit",               headerAr: "ط§ظ„ظˆط­ط¯ط© ط§ظ„طھظ†ط¸ظٹظ…ظٹط©",    width: 22 },
+      { key: "annualGross",    header: "Annual Gross (JOD)",     headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ظ†ظˆظٹ",     width: 22, isCurrency: true },
+      { key: "totalTax",       header: "Income Tax (JOD)",       headerAr: "ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„",         width: 20, isCurrency: true },
+      { key: "extraExemption", header: "Extra Exemption (JOD)",  headerAr: "ط§ظ„ط¥ط¹ظپط§ط، ط§ظ„ط¥ط¶ط§ظپظٹ",     width: 22, isCurrency: true },
     ];
     const checkPayslips = await db
       .select({ id: payslipsTable.id })
@@ -11028,7 +12705,7 @@ async function buildReportData(
         .orderBy(desc(sql`coalesce(sum(${payslipsTable.grossSalary}), 0)`));
       return {
         titleEn: "Income Tax Summary Report",
-        titleAr: "تقرير ملخص ضريبة الدخل",
+        titleAr: "طھظ‚ط±ظٹط± ظ…ظ„ط®طµ ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„",
         filters: { Year: String(year) },
         columns: taxCols,
         data: rows.map(r => ({
@@ -11057,8 +12734,8 @@ async function buildReportData(
         ));
       return {
         titleEn: "Income Tax Summary Report (Estimated)",
-        titleAr: "تقرير ضريبة الدخل (تقديري)",
-        filters: { Year: String(year), Note: "No payroll runs found — estimates used" },
+        titleAr: "طھظ‚ط±ظٹط± ط¶ط±ظٹط¨ط© ط§ظ„ط¯ط®ظ„ (طھظ‚ط¯ظٹط±ظٹ)",
+        filters: { Year: String(year), Note: "No payroll runs found â€” estimates used" },
         columns: taxCols,
         data: rows.map(r => ({
           ...r,
@@ -11071,7 +12748,7 @@ async function buildReportData(
     }
   }
 
-  // ── Turnover ───────────────────────────────────────────────────────────────
+  // â”€â”€ Turnover â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "turnover") {
     const [hireRow]    = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), gte(employeesTable.hireDate, from), lte(employeesTable.hireDate, to)));
@@ -11084,11 +12761,11 @@ async function buildReportData(
     const rate  = avg > 0 ? parseFloat(((exits / avg) * 100).toFixed(2)) : 0;
     return {
       titleEn: "Turnover Report",
-      titleAr: "تقرير معدل دوران الموظفين",
+      titleAr: "طھظ‚ط±ظٹط± ظ…ط¹ط¯ظ„ ط¯ظˆط±ط§ظ† ط§ظ„ظ…ظˆط¸ظپظٹظ†",
       filters: { From: from, To: to },
       columns: [
-        { key: "metric", header: "Metric", headerAr: "المؤشر", width: 30 },
-        { key: "value",  header: "Value",  headerAr: "القيمة", width: 20 },
+        { key: "metric", header: "Metric", headerAr: "ط§ظ„ظ…ط¤ط´ط±", width: 30 },
+        { key: "value",  header: "Value",  headerAr: "ط§ظ„ظ‚ظٹظ…ط©", width: 20 },
       ],
       data: [
         { metric: "Hires",             value: hireRow?.count ?? 0 },
@@ -11101,7 +12778,7 @@ async function buildReportData(
     };
   }
 
-  // ── Compliance ─────────────────────────────────────────────────────────────
+  // â”€â”€ Compliance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "compliance") {
     const today    = new Date().toISOString().slice(0, 10);
     const soonDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -11110,7 +12787,7 @@ async function buildReportData(
     const [sscRow]       = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.sscNumber)));
     const [nonJordRow]   = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
-      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), ne(employeesTable.nationality, "أردني"), ne(employeesTable.nationality, "Jordanian")));
+      .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), ne(employeesTable.nationality, "ط£ط±ط¯ظ†ظٹ"), ne(employeesTable.nationality, "Jordanian")));
     const [expiredRow]   = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
       .where(and(eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false), eq(employeesTable.employmentStatus, "active"), isNotNull(employeesTable.workPermitExpiry), lte(sql`${employeesTable.workPermitExpiry}::date`, today)));
     const [expiringSoon] = await db.select({ count: sql<number>`count(*)::int` }).from(employeesTable)
@@ -11119,11 +12796,11 @@ async function buildReportData(
     const sscEnrolled = sscRow?.count ?? 0;
     return {
       titleEn: "Compliance Summary Report",
-      titleAr: "تقرير الامتثال والمخاطر",
+      titleAr: "طھظ‚ط±ظٹط± ط§ظ„ط§ظ…طھط«ط§ظ„ ظˆط§ظ„ظ…ط®ط§ط·ط±",
       filters: { "As Of": today },
       columns: [
-        { key: "metric", header: "Compliance Metric", headerAr: "مؤشر الامتثال", width: 36 },
-        { key: "value",  header: "Value",             headerAr: "القيمة",         width: 16 },
+        { key: "metric", header: "Compliance Metric", headerAr: "ظ…ط¤ط´ط± ط§ظ„ط§ظ…طھط«ط§ظ„", width: 36 },
+        { key: "value",  header: "Value",             headerAr: "ط§ظ„ظ‚ظٹظ…ط©",         width: 16 },
       ],
       data: [
         { metric: "Active Employees",              value: totalActive },
@@ -11136,7 +12813,7 @@ async function buildReportData(
     };
   }
 
-  // ── Employee Directory ─────────────────────────────────────────────────────
+  // â”€â”€ Employee Directory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (reportType === "employees") {
     const emps = await db
       .select({
@@ -11158,20 +12835,20 @@ async function buildReportData(
       .orderBy(asc(employeesTable.firstNameEn));
     return {
       titleEn: "Employee Directory",
-      titleAr: "دليل الموظفين",
+      titleAr: "ط¯ظ„ظٹظ„ ط§ظ„ظ…ظˆط¸ظپظٹظ†",
       filters: {},
       columns: [
-        { key: "employeeCode",     header: "Emp. Code",        headerAr: "كود الموظف",          width: 14 },
-        { key: "nameEn",           header: "Name (EN)",        headerAr: "الاسم بالإنجليزية",  width: 30 },
-        { key: "nameAr",           header: "الاسم بالعربية",   headerAr: "Name (AR)",           width: 30, isArabic: true },
-        { key: "orgNodeNameEn",    header: "Org Unit",         headerAr: "الوحدة التنظيمية",    width: 24 },
-        { key: "gender",           header: "Gender",           headerAr: "الجنس",               width: 12 },
-        { key: "nationality",      header: "Nationality",      headerAr: "الجنسية",             width: 16 },
-        { key: "hireDate",         header: "Hire Date",        headerAr: "تاريخ التعيين",       width: 14, isDate: true },
-        { key: "employmentStatus", header: "Status",           headerAr: "الحالة",              width: 14 },
-        { key: "basicSalary",      header: "Basic Salary (JOD)", headerAr: "الراتب الأساسي",   width: 20, isCurrency: true },
-        { key: "sscNumber",        header: "SSC Number",       headerAr: "رقم الضمان",         width: 18 },
-        { key: "personalPhone",    header: "Phone",            headerAr: "الهاتف",              width: 16 },
+        { key: "employeeCode",     header: "Emp. Code",        headerAr: "ظƒظˆط¯ ط§ظ„ظ…ظˆط¸ظپ",          width: 14 },
+        { key: "nameEn",           header: "Name (EN)",        headerAr: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹط©",  width: 30 },
+        { key: "nameAr",           header: "ط§ظ„ط§ط³ظ… ط¨ط§ظ„ط¹ط±ط¨ظٹط©",   headerAr: "Name (AR)",           width: 30, isArabic: true },
+        { key: "orgNodeNameEn",    header: "Org Unit",         headerAr: "ط§ظ„ظˆط­ط¯ط© ط§ظ„طھظ†ط¸ظٹظ…ظٹط©",    width: 24 },
+        { key: "gender",           header: "Gender",           headerAr: "ط§ظ„ط¬ظ†ط³",               width: 12 },
+        { key: "nationality",      header: "Nationality",      headerAr: "ط§ظ„ط¬ظ†ط³ظٹط©",             width: 16 },
+        { key: "hireDate",         header: "Hire Date",        headerAr: "طھط§ط±ظٹط® ط§ظ„طھط¹ظٹظٹظ†",       width: 14, isDate: true },
+        { key: "employmentStatus", header: "Status",           headerAr: "ط§ظ„ط­ط§ظ„ط©",              width: 14 },
+        { key: "basicSalary",      header: "Basic Salary (JOD)", headerAr: "ط§ظ„ط±ط§طھط¨ ط§ظ„ط£ط³ط§ط³ظٹ",   width: 20, isCurrency: true },
+        { key: "sscNumber",        header: "SSC Number",       headerAr: "ط±ظ‚ظ… ط§ظ„ط¶ظ…ط§ظ†",         width: 18 },
+        { key: "personalPhone",    header: "Phone",            headerAr: "ط§ظ„ظ‡ط§طھظپ",              width: 16 },
       ],
       data: emps.map(r => ({
         ...r,
@@ -11184,7 +12861,7 @@ async function buildReportData(
     };
   }
 
-  return { titleEn: "Report", titleAr: "تقرير", filters: {}, columns: [], data: [] };
+  return { titleEn: "Report", titleAr: "طھظ‚ط±ظٹط±", filters: {}, columns: [], data: [] };
 }
 
 app.get("/api/export/:reportType", auth, async (req, res) => {
@@ -11230,23 +12907,106 @@ app.get("/api/export/:reportType", auth, async (req, res) => {
   }
 });
 
-// ─── Probation evaluations ────────────────────────────────────────────────────
-const probationEvaluationsStore: any[] = [];
-let probationEvalIdSeq = 1;
+// â”€â”€â”€ Probation evaluations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function probationEvalRow(row: any) {
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    employeeId: row.employee_id,
+    evaluationStage: row.evaluation_stage,
+    evaluationDate: row.evaluation_date,
+    commitmentScore: row.commitment_score,
+    workQualityScore: row.work_quality_score,
+    learningScore: row.learning_score,
+    behaviorScore: row.behavior_score,
+    teamworkScore: row.teamwork_score,
+    commitmentNotes: row.commitment_notes,
+    workQualityNotes: row.work_quality_notes,
+    learningNotes: row.learning_notes,
+    behaviorNotes: row.behavior_notes,
+    teamworkNotes: row.teamwork_notes,
+    overallComments: row.overall_comments,
+    evaluatedBy: row.evaluated_by,
+    recommendation: row.recommendation,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 app.get("/api/probation/evaluations", auth, async (req, res) => {
-  const { employeeId } = req.query as Record<string, string>;
-  const result = probationEvaluationsStore.filter(e => !employeeId || String(e.employeeId) === employeeId);
-  res.json({ success: true, data: result });
+  try {
+    const user = (req as AuthReq).user;
+    const { employeeId } = req.query as Record<string, string>;
+    const params: any[] = [user.companyId];
+    let where = "company_id = $1";
+    if (employeeId) {
+      params.push(Number(employeeId));
+      where += ` AND employee_id = $${params.length}`;
+    }
+    const { rows } = await pool.query(`SELECT * FROM probation_evaluations WHERE ${where} ORDER BY evaluation_date NULLS LAST, id`, params);
+    res.json({ success: true, data: rows.map(probationEvalRow) });
+  } catch (e) {
+    console.error("[GET /api/probation/evaluations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.post("/api/probation/evaluations", auth, async (req, res) => {
-  const record = { id: probationEvalIdSeq++, ...req.body, createdAt: new Date() };
-  probationEvaluationsStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const body = req.body || {};
+    const employeeId = Number(body.employeeId);
+    if (!employeeId || !body.evaluationStage) return res.status(400).json({ success: false, message: "employeeId and evaluationStage are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO probation_evaluations
+        (company_id, employee_id, evaluation_stage, evaluation_date, commitment_score, work_quality_score, learning_score, behavior_score, teamwork_score,
+         commitment_notes, work_quality_notes, learning_notes, behavior_notes, teamwork_notes, overall_comments, evaluated_by, recommendation)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       RETURNING *`,
+      [
+        user.companyId, employeeId, body.evaluationStage, body.evaluationDate || null,
+        Number(body.commitmentScore || 0), Number(body.workQualityScore || 0), Number(body.learningScore || 0), Number(body.behaviorScore || 0), Number(body.teamworkScore || 0),
+        body.commitmentNotes || null, body.workQualityNotes || null, body.learningNotes || null, body.behaviorNotes || null, body.teamworkNotes || null,
+        body.overallComments || null, body.evaluatedBy || user.username, body.recommendation || null,
+      ],
+    );
+    res.status(201).json({ success: true, data: probationEvalRow(rows[0]) });
+  } catch (e) {
+    console.error("[POST /api/probation/evaluations]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-// ─── Career paths ─────────────────────────────────────────────────────────────
+app.put("/api/probation/evaluations/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params.id);
+    const body = req.body || {};
+    const { rows } = await pool.query(
+      `UPDATE probation_evaluations SET
+        evaluation_stage=$3, evaluation_date=$4, commitment_score=$5, work_quality_score=$6, learning_score=$7, behavior_score=$8, teamwork_score=$9,
+        commitment_notes=$10, work_quality_notes=$11, learning_notes=$12, behavior_notes=$13, teamwork_notes=$14, overall_comments=$15,
+        evaluated_by=$16, recommendation=$17, updated_at=now()
+       WHERE id=$1 AND company_id=$2
+       RETURNING *`,
+      [
+        id, user.companyId, body.evaluationStage, body.evaluationDate || null,
+        Number(body.commitmentScore || 0), Number(body.workQualityScore || 0), Number(body.learningScore || 0), Number(body.behaviorScore || 0), Number(body.teamworkScore || 0),
+        body.commitmentNotes || null, body.workQualityNotes || null, body.learningNotes || null, body.behaviorNotes || null, body.teamworkNotes || null,
+        body.overallComments || null, body.evaluatedBy || user.username, body.recommendation || null,
+      ],
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: "Evaluation not found" });
+    res.json({ success: true, data: probationEvalRow(rows[0]) });
+  } catch (e) {
+    console.error("[PUT /api/probation/evaluations/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// â”€â”€â”€ Career paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.get("/api/career-paths", auth, async (req, res) => {
   try {
@@ -11304,7 +13064,7 @@ app.post("/api/career-paths", auth, async (req, res) => {
       res.status(400).json({ success: false, message: "fromJobDescriptionId and toJobDescriptionId are required" }); return;
     }
     if (fromJobDescriptionId === toJobDescriptionId) {
-      res.status(400).json({ success: false, message: "لا يمكن أن يكون المسار من وإلى نفس المسمى / Cannot create a path from and to the same job" }); return;
+      res.status(400).json({ success: false, message: "ظ„ط§ ظٹظ…ظƒظ† ط£ظ† ظٹظƒظˆظ† ط§ظ„ظ…ط³ط§ط± ظ…ظ† ظˆط¥ظ„ظ‰ ظ†ظپط³ ط§ظ„ظ…ط³ظ…ظ‰ / Cannot create a path from and to the same job" }); return;
     }
     const jds = await db
       .select({ id: jobDescriptionsTable.id, companyId: jobDescriptionsTable.companyId })
@@ -11321,7 +13081,7 @@ app.post("/api/career-paths", auth, async (req, res) => {
       .from(careerPathsTable)
       .where(and(eq(careerPathsTable.fromJobDescriptionId, fromJobDescriptionId), eq(careerPathsTable.toJobDescriptionId, toJobDescriptionId)));
     if (existing.length > 0) {
-      res.status(409).json({ success: false, message: "هذا المسار موجود مسبقاً / This career path already exists" }); return;
+      res.status(409).json({ success: false, message: "ظ‡ط°ط§ ط§ظ„ظ…ط³ط§ط± ظ…ظˆط¬ظˆط¯ ظ…ط³ط¨ظ‚ط§ظ‹ / This career path already exists" }); return;
     }
     const [created] = await db.insert(careerPathsTable).values({
       companyId: user.companyId,
@@ -11354,9 +13114,9 @@ app.delete("/api/career-paths/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Roles ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/roles — all roles for company with their permissions
+// GET /api/roles â€” all roles for company with their permissions
 app.get("/api/roles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -11387,7 +13147,7 @@ app.get("/api/roles", auth, async (req, res) => {
   }
 });
 
-// GET /api/user-roles — users with their roles for assignment screen
+// GET /api/user-roles â€” users with their roles for assignment screen
 app.get("/api/user-roles", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -11402,6 +13162,25 @@ app.get("/api/user-roles", auth, async (req, res) => {
       .where(eq(rolesTable.companyId, user.companyId))
       .orderBy(asc(rolesTable.name));
 
+    const employeeIds = users.map(u => u.employeeId).filter((id): id is number => !!id);
+    const employeeMeta = employeeIds.length
+      ? await pool.query(`
+        SELECT
+          e.id,
+          e.employee_code AS "employeeCode",
+          concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "employeeNameAr",
+          concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "employeeNameEn",
+          e.direct_manager_id AS "managerEmployeeId",
+          mgr.employee_code AS "managerEmployeeCode",
+          concat_ws(' ', mgr.first_name_ar, mgr.middle_name_ar, mgr.last_name_ar) AS "managerNameAr",
+          concat_ws(' ', mgr.first_name_en, mgr.middle_name_en, mgr.last_name_en) AS "managerNameEn"
+        FROM employees e
+        LEFT JOIN employees mgr ON mgr.id = e.direct_manager_id
+        WHERE e.company_id = $1 AND e.id = ANY($2::int[]) AND e.is_deleted = false
+      `, [user.companyId, employeeIds])
+      : { rows: [] as any[] };
+    const empMap = new Map(employeeMeta.rows.map((row: any) => [row.id, row]));
+
     const userRows = users.map(u => ({
       id: u.id,
       username: u.username,
@@ -11409,6 +13188,13 @@ app.get("/api/user-roles", auth, async (req, res) => {
       role: u.role,
       isActive: u.isActive,
       employeeId: u.employeeId,
+      employeeCode: u.employeeId ? empMap.get(u.employeeId)?.employeeCode ?? null : null,
+      employeeNameAr: u.employeeId ? empMap.get(u.employeeId)?.employeeNameAr ?? null : null,
+      employeeNameEn: u.employeeId ? empMap.get(u.employeeId)?.employeeNameEn ?? null : null,
+      managerEmployeeId: u.employeeId ? empMap.get(u.employeeId)?.managerEmployeeId ?? null : null,
+      managerEmployeeCode: u.employeeId ? empMap.get(u.employeeId)?.managerEmployeeCode ?? null : null,
+      managerNameAr: u.employeeId ? empMap.get(u.employeeId)?.managerNameAr ?? null : null,
+      managerNameEn: u.employeeId ? empMap.get(u.employeeId)?.managerNameEn ?? null : null,
       lastLoginAt: u.lastLoginAt,
     }));
 
@@ -11427,7 +13213,473 @@ app.get("/api/user-roles", auth, async (req, res) => {
   }
 });
 
-// ─── Job descriptions ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Job descriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+type JobProfileBridgeConfig = {
+  payloadKey: string;
+  outputKey: string;
+  table: string;
+  fkColumn: string;
+  masterTable: string;
+};
+
+const jobProfileBridgeConfigs: JobProfileBridgeConfig[] = [
+  { payloadKey: "responsibilityIds", outputKey: "responsibilities", table: "job_profile_responsibilities", fkColumn: "responsibility_id", masterTable: "responsibilities" },
+  { payloadKey: "qualificationIds", outputKey: "qualifications", table: "job_profile_educational_qualifications", fkColumn: "educational_qualification_id", masterTable: "educational_qualifications" },
+  { payloadKey: "specializationIds", outputKey: "specializations", table: "job_profile_specializations", fkColumn: "specialization_id", masterTable: "specializations" },
+  { payloadKey: "universityIds", outputKey: "universities", table: "job_profile_universities", fkColumn: "university_id", masterTable: "universities" },
+  { payloadKey: "courseIds", outputKey: "courses", table: "job_profile_training_courses", fkColumn: "training_course_id", masterTable: "training_courses" },
+  { payloadKey: "skillIds", outputKey: "skillsList", table: "job_profile_skills", fkColumn: "skill_id", masterTable: "skills" },
+  { payloadKey: "languageIds", outputKey: "languagesList", table: "job_profile_languages", fkColumn: "language_id", masterTable: "languages" },
+  { payloadKey: "experienceLevelIds", outputKey: "experienceLevels", table: "job_profile_experience_levels", fkColumn: "experience_level_id", masterTable: "experience_levels" },
+];
+
+function canMutateJobProfiles(user: AuthReq["user"]) {
+  return ["hradmin", "superadmin"].includes(user.role);
+}
+
+function canSeeJobProfileCompensation(user: AuthReq["user"]) {
+  return ["hradmin", "payrolladmin", "superadmin"].includes(user.role);
+}
+
+function normalizeIdList(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map(v => Number(typeof v === "object" && v !== null ? (v as any).id : v)).filter(Number.isFinite)));
+}
+
+function jobProfileMigrationMessage(e: any) {
+  return e?.code === "42703" || e?.code === "42P01"
+    ? "Phase 2 job profile migration is not applied"
+    : "Internal server error";
+}
+
+function jobProfileErrorStatus(e: any) {
+  return e?.code === "42703" || e?.code === "42P01" ? 503 : 500;
+}
+
+function camelJobProfile(row: any, showCompensation: boolean) {
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    code: row.code,
+    orgNodeId: row.org_node_id,
+    titleAr: row.title_ar,
+    titleEn: row.title_en,
+    grade: row.grade,
+    gradeId: row.grade_id,
+    gradeNameAr: row.grade_name_ar,
+    gradeNameEn: row.grade_name_en,
+    responsibilityGroupId: row.responsibility_group_id,
+    responsibilityGroupNameAr: row.responsibility_group_name_ar,
+    responsibilityGroupNameEn: row.responsibility_group_name_en,
+    minSalary: showCompensation ? row.min_salary : null,
+    maxSalary: showCompensation ? row.max_salary : null,
+    minExperienceYears: row.min_experience_years,
+    maxExperienceYears: row.max_experience_years,
+    reportingToJobDescriptionId: row.reporting_to_job_description_id,
+    reportingToTitleAr: row.reporting_to_title_ar,
+    reportingToTitleEn: row.reporting_to_title_en,
+    employmentType: row.employment_type,
+    jobSummaryAr: row.job_summary_ar,
+    jobSummaryEn: row.job_summary_en,
+    responsibilitiesTextAr: row.responsibilities_text_ar ?? row.responsibilities,
+    responsibilitiesTextEn: row.responsibilities_text_en ?? row.responsibilities,
+    requirementsAr: row.requirements_ar ?? row.requirements,
+    requirementsEn: row.requirements_en ?? row.requirements,
+    responsibilities: row.responsibilities,
+    requirements: row.requirements,
+    skills: row.skills,
+    qualifications: row.qualifications,
+    status: row.status,
+    version: row.version,
+    isTemplate: row.is_template,
+    isActive: row.is_active,
+    isDeleted: row.is_deleted,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    orgNodeNameAr: row.org_node_name_ar,
+    orgNodeNameEn: row.org_node_name_en,
+    responsibilitiesCount: Number(row.responsibilities_count ?? 0),
+    skillsCount: Number(row.skills_count ?? 0),
+    languagesCount: Number(row.languages_count ?? 0),
+    qualificationsCount: Number(row.qualifications_count ?? 0),
+  };
+}
+
+function jobProfileBaseSelect() {
+  return `
+    SELECT jd.*,
+      jg.name_ar AS grade_name_ar,
+      jg.name_en AS grade_name_en,
+      rg.name_ar AS responsibility_group_name_ar,
+      rg.name_en AS responsibility_group_name_en,
+      org.name_ar AS org_node_name_ar,
+      org.name_en AS org_node_name_en,
+      rpt.title_ar AS reporting_to_title_ar,
+      rpt.title_en AS reporting_to_title_en,
+      (SELECT COUNT(*)::int FROM job_profile_responsibilities x WHERE x.job_description_id = jd.id AND x.company_id = jd.company_id AND x.is_deleted = false) AS responsibilities_count,
+      (SELECT COUNT(*)::int FROM job_profile_skills x WHERE x.job_description_id = jd.id AND x.company_id = jd.company_id AND x.is_deleted = false) AS skills_count,
+      (SELECT COUNT(*)::int FROM job_profile_languages x WHERE x.job_description_id = jd.id AND x.company_id = jd.company_id AND x.is_deleted = false) AS languages_count,
+      (SELECT COUNT(*)::int FROM job_profile_educational_qualifications x WHERE x.job_description_id = jd.id AND x.company_id = jd.company_id AND x.is_deleted = false) AS qualifications_count
+    FROM job_descriptions jd
+    LEFT JOIN job_grades jg ON jg.id = jd.grade_id AND jg.company_id = jd.company_id AND jg.is_deleted = false
+    LEFT JOIN responsibility_groups rg ON rg.id = jd.responsibility_group_id AND rg.company_id = jd.company_id AND rg.is_deleted = false
+    LEFT JOIN org_nodes org ON org.id = jd.org_node_id AND org.company_id = jd.company_id AND org.is_deleted = false
+    LEFT JOIN job_descriptions rpt ON rpt.id = jd.reporting_to_job_description_id AND rpt.company_id = jd.company_id
+  `;
+}
+
+function buildJobProfileWhere(req: express.Request, params: any[], companyId: number) {
+  const where = [`jd.company_id = $${params.push(companyId)}`, `COALESCE(jd.is_deleted, false) = false`];
+  const q = String(req.query["q"] ?? req.query["search"] ?? "").trim();
+  if (q) {
+    const n = params.push(`%${q.toLowerCase()}%`);
+    where.push(`(lower(coalesce(jd.code,'')) LIKE $${n} OR lower(jd.title_ar) LIKE $${n} OR lower(jd.title_en) LIKE $${n} OR lower(coalesce(jd.job_summary_ar,'')) LIKE $${n} OR lower(coalesce(jd.job_summary_en,'')) LIKE $${n})`);
+  }
+  const active = String(req.query["active"] ?? req.query["isActive"] ?? "");
+  if (active === "true") where.push(`jd.is_active = true`);
+  if (active === "false") where.push(`jd.is_active = false`);
+  const scalarFilters: Record<string, string> = {
+    gradeId: "jd.grade_id",
+    responsibilityGroupId: "jd.responsibility_group_id",
+    orgNodeId: "jd.org_node_id",
+    status: "jd.status",
+  };
+  for (const [key, col] of Object.entries(scalarFilters)) {
+    const raw = req.query[key];
+    if (raw !== undefined && raw !== "") {
+      if (key === "status") where.push(`${col} = $${params.push(String(raw))}`);
+      else where.push(`${col} = $${params.push(Number(raw))}`);
+    }
+  }
+  const relationFilters: Array<[string, string, string]> = [
+    ["skillId", "job_profile_skills", "skill_id"],
+    ["languageId", "job_profile_languages", "language_id"],
+    ["qualificationId", "job_profile_educational_qualifications", "educational_qualification_id"],
+    ["responsibilityId", "job_profile_responsibilities", "responsibility_id"],
+  ];
+  for (const [queryKey, table, column] of relationFilters) {
+    const raw = req.query[queryKey];
+    if (raw !== undefined && raw !== "") {
+      where.push(`EXISTS (SELECT 1 FROM ${table} jf WHERE jf.job_description_id = jd.id AND jf.company_id = jd.company_id AND jf.${column} = $${params.push(Number(raw))} AND jf.is_deleted = false)`);
+    }
+  }
+  return where.join(" AND ");
+}
+
+function jobProfileSort(req: express.Request) {
+  const allowed: Record<string, string> = {
+    code: "jd.code",
+    titleAr: "jd.title_ar",
+    titleEn: "jd.title_en",
+    grade: "jd.grade",
+    status: "jd.status",
+    updatedAt: "jd.updated_at",
+    createdAt: "jd.created_at",
+  };
+  const col = allowed[String(req.query["sortBy"] || "")] || "jd.title_en";
+  const dir = String(req.query["sortDir"] || "asc").toLowerCase() === "desc" ? "DESC" : "ASC";
+  return `${col} ${dir}, jd.id DESC`;
+}
+
+function buildJobProfilePayload(body: any, user: AuthReq["user"], partial = false) {
+  const values: Record<string, any> = {};
+  const errors: string[] = [];
+  const takeString = (key: string, col: string, required = false) => {
+    if (body[key] === undefined) {
+      if (!partial && required) errors.push(`${key} is required`);
+      return;
+    }
+    const v = body[key] === null ? null : String(body[key]).trim();
+    if (required && !v) errors.push(`${key} is required`);
+    values[col] = v || null;
+  };
+  const takeNumber = (key: string, col: string) => {
+    if (body[key] === undefined) return;
+    if (body[key] === null || body[key] === "") { values[col] = null; return; }
+    const n = Number(body[key]);
+    if (!Number.isFinite(n)) errors.push(`${key} must be a number`);
+    else values[col] = n;
+  };
+  const takeBoolean = (key: string, col: string) => {
+    if (body[key] !== undefined) values[col] = body[key] === true || body[key] === "true";
+  };
+  takeString("code", "code");
+  takeString("titleAr", "title_ar", true);
+  takeString("titleEn", "title_en", true);
+  takeString("grade", "grade");
+  takeNumber("gradeId", "grade_id");
+  takeNumber("responsibilityGroupId", "responsibility_group_id");
+  takeNumber("orgNodeId", "org_node_id");
+  takeNumber("minSalary", "min_salary");
+  takeNumber("maxSalary", "max_salary");
+  takeNumber("minExperienceYears", "min_experience_years");
+  takeNumber("maxExperienceYears", "max_experience_years");
+  takeNumber("reportingToJobDescriptionId", "reporting_to_job_description_id");
+  takeString("employmentType", "employment_type");
+  takeString("jobSummaryAr", "job_summary_ar");
+  takeString("jobSummaryEn", "job_summary_en");
+  takeString("responsibilitiesTextAr", "responsibilities_text_ar");
+  takeString("responsibilitiesTextEn", "responsibilities_text_en");
+  takeString("requirementsAr", "requirements_ar");
+  takeString("requirementsEn", "requirements_en");
+  takeString("responsibilities", "responsibilities");
+  takeString("requirements", "requirements");
+  takeString("skills", "skills");
+  takeString("qualifications", "qualifications");
+  takeString("status", "status");
+  takeBoolean("isTemplate", "is_template");
+  takeBoolean("isActive", "is_active");
+  if (!partial) {
+    values["company_id"] = user.companyId;
+    values["created_by"] = user.userId;
+    values["updated_by"] = user.userId;
+    if (!values["code"]) values["code"] = `JOB-${Date.now().toString(36).toUpperCase()}`;
+    if (!values["status"]) values["status"] = values["is_active"] === false ? "inactive" : "active";
+  } else {
+    values["updated_by"] = user.userId;
+  }
+  if (values["min_salary"] != null && values["max_salary"] != null && Number(values["min_salary"]) > Number(values["max_salary"])) errors.push("minSalary cannot exceed maxSalary");
+  if (values["min_experience_years"] != null && values["max_experience_years"] != null && Number(values["min_experience_years"]) > Number(values["max_experience_years"])) errors.push("minExperienceYears cannot exceed maxExperienceYears");
+  return { values, errors };
+}
+
+async function assertJobProfileRefs(companyId: number, values: Record<string, any>, excludeJobId?: number) {
+  const checks: Array<[string, string, any]> = [
+    ["grade_id", "job_grades", values["grade_id"]],
+    ["responsibility_group_id", "responsibility_groups", values["responsibility_group_id"]],
+    ["org_node_id", "org_nodes", values["org_node_id"]],
+    ["reporting_to_job_description_id", "job_descriptions", values["reporting_to_job_description_id"]],
+  ];
+  for (const [label, table, id] of checks) {
+    if (!id) continue;
+    if (label === "reporting_to_job_description_id" && Number(id) === Number(excludeJobId)) return "A job profile cannot report to itself";
+    const { rows } = await pool.query(`SELECT id FROM ${table} WHERE id = $1 AND company_id = $2 AND COALESCE(is_deleted, false) = false LIMIT 1`, [id, companyId]);
+    if (!rows.length) return `Invalid ${label}`;
+  }
+  return null;
+}
+
+async function assertBridgeRefs(companyId: number, body: any) {
+  for (const cfg of jobProfileBridgeConfigs) {
+    const ids = normalizeIdList(body[cfg.payloadKey]);
+    if (!ids.length) continue;
+    const { rows } = await pool.query(
+      `SELECT id FROM ${cfg.masterTable} WHERE company_id = $1 AND id = ANY($2::int[]) AND COALESCE(is_deleted, false) = false`,
+      [companyId, ids],
+    );
+    if (rows.length !== ids.length) return `Invalid ${cfg.payloadKey}`;
+  }
+  return null;
+}
+
+async function ensureJobProfileUniqueCode(companyId: number, code: string | null | undefined, excludeId?: number) {
+  if (!code) return null;
+  const params: any[] = [companyId, code.toLowerCase()];
+  let extra = "";
+  if (excludeId) { params.push(excludeId); extra = `AND id <> $3`; }
+  const { rows } = await pool.query(
+    `SELECT id FROM job_descriptions WHERE company_id = $1 AND lower(code) = $2 AND COALESCE(is_deleted, false) = false ${extra} LIMIT 1`,
+    params,
+  );
+  return rows.length ? "Duplicate job profile code" : null;
+}
+
+async function syncJobProfileBridges(client: any, companyId: number, jobId: number, body: any) {
+  for (const cfg of jobProfileBridgeConfigs) {
+    if (body[cfg.payloadKey] === undefined) continue;
+    const ids = normalizeIdList(body[cfg.payloadKey]);
+    await client.query(`UPDATE ${cfg.table} SET is_deleted = true, updated_at = NOW() WHERE company_id = $1 AND job_description_id = $2 AND is_deleted = false`, [companyId, jobId]);
+    for (let i = 0; i < ids.length; i++) {
+      await client.query(
+        `INSERT INTO ${cfg.table} (company_id, job_description_id, ${cfg.fkColumn}, requirement_level, priority, updated_at) VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [companyId, jobId, ids[i], "required", i],
+      );
+    }
+  }
+}
+
+async function getJobProfileRelations(companyId: number, jobId: number) {
+  const relations: Record<string, any[]> = {};
+  for (const cfg of jobProfileBridgeConfigs) {
+    const { rows } = await pool.query(
+      `SELECT b.id AS bridge_id, b.requirement_level, b.weight, b.priority, b.notes_ar, b.notes_en,
+              m.id, m.code, m.name_ar, m.name_en, m.description_ar, m.description_en
+       FROM ${cfg.table} b
+       INNER JOIN ${cfg.masterTable} m ON m.id = b.${cfg.fkColumn} AND m.company_id = b.company_id
+       WHERE b.company_id = $1 AND b.job_description_id = $2 AND b.is_deleted = false AND COALESCE(m.is_deleted, false) = false
+       ORDER BY b.priority ASC, m.name_en ASC`,
+      [companyId, jobId],
+    );
+    relations[cfg.outputKey] = rows.map(r => ({
+      bridgeId: r.bridge_id,
+      id: r.id,
+      code: r.code,
+      nameAr: r.name_ar,
+      nameEn: r.name_en,
+      descriptionAr: r.description_ar,
+      descriptionEn: r.description_en,
+      requirementLevel: r.requirement_level,
+      weight: r.weight,
+      priority: r.priority,
+      notesAr: r.notes_ar,
+      notesEn: r.notes_en,
+    }));
+  }
+  return relations;
+}
+
+app.get("/api/job-profiles/dropdown", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const q = String(req.query["q"] ?? req.query["search"] ?? "").trim();
+    const params: any[] = [user.companyId];
+    const where = [`company_id = $1`, `COALESCE(is_deleted, false) = false`, `is_active = true`];
+    if (q) {
+      const n = params.push(`%${q.toLowerCase()}%`);
+      where.push(`(lower(coalesce(code,'')) LIKE $${n} OR lower(title_ar) LIKE $${n} OR lower(title_en) LIKE $${n})`);
+    }
+    const limit = Math.min(Math.max(Number(req.query["limit"] || 50), 1), 100);
+    const { rows } = await pool.query(
+      `SELECT id, code, title_ar, title_en, grade, status, is_active FROM job_descriptions WHERE ${where.join(" AND ")} ORDER BY title_en ASC LIMIT $${params.push(limit)}`,
+      params,
+    );
+    res.json({ success: true, data: rows.map(r => ({ id: r.id, code: r.code, titleAr: r.title_ar, titleEn: r.title_en, grade: r.grade, status: r.status, isActive: r.is_active })) });
+  } catch (e: any) {
+    console.error("[GET /api/job-profiles/dropdown]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  }
+});
+
+app.get("/api/job-profiles", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const page = Math.max(Number(req.query["page"] || 1), 1);
+    const pageSize = Math.min(Math.max(Number(req.query["pageSize"] || req.query["limit"] || 20), 1), 100);
+    const offset = (page - 1) * pageSize;
+    const params: any[] = [];
+    const where = buildJobProfileWhere(req, params, user.companyId);
+    const countParams = [...params];
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*)::int AS total FROM job_descriptions jd WHERE ${where}`, countParams);
+    const { rows } = await pool.query(`${jobProfileBaseSelect()} WHERE ${where} ORDER BY ${jobProfileSort(req)} LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`, params);
+    const total = countRows[0]?.total ?? 0;
+    res.json({
+      success: true,
+      data: rows.map(r => camelJobProfile(r, canSeeJobProfileCompensation(user))),
+      meta: { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+    });
+  } catch (e: any) {
+    console.error("[GET /api/job-profiles]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  }
+});
+
+app.post("/api/job-profiles", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!canMutateJobProfiles(user)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+  const client = await pool.connect();
+  try {
+    const { values, errors } = buildJobProfilePayload(req.body, user, false);
+    if (errors.length) { res.status(400).json({ success: false, message: errors.join(", ") }); return; }
+    const refError = await assertJobProfileRefs(user.companyId, values);
+    if (refError) { res.status(400).json({ success: false, message: refError }); return; }
+    const bridgeError = await assertBridgeRefs(user.companyId, req.body);
+    if (bridgeError) { res.status(400).json({ success: false, message: bridgeError }); return; }
+    const uniqueError = await ensureJobProfileUniqueCode(user.companyId, values["code"]);
+    if (uniqueError) { res.status(409).json({ success: false, message: uniqueError }); return; }
+    await client.query("BEGIN");
+    const columns = Object.keys(values);
+    const params = Object.values(values);
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+    const { rows } = await client.query(`INSERT INTO job_descriptions (${columns.join(", ")}) VALUES (${placeholders}) RETURNING *`, params);
+    await syncJobProfileBridges(client, user.companyId, rows[0].id, req.body);
+    await client.query("COMMIT");
+    await logActivity(user.companyId, "job_profile_created", `Job profile created: ${rows[0].title_en}`, null);
+    res.status(201).json({ success: true, data: { ...camelJobProfile(rows[0], canSeeJobProfileCompensation(user)), ...(await getJobProfileRelations(user.companyId, rows[0].id)) } });
+  } catch (e: any) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[POST /api/job-profiles]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/job-profiles/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const { rows } = await pool.query(`${jobProfileBaseSelect()} WHERE jd.id = $1 AND jd.company_id = $2 AND COALESCE(jd.is_deleted, false) = false LIMIT 1`, [id, user.companyId]);
+    if (!rows.length) { res.status(404).json({ success: false, message: "Job profile not found" }); return; }
+    res.json({ success: true, data: { ...camelJobProfile(rows[0], canSeeJobProfileCompensation(user)), ...(await getJobProfileRelations(user.companyId, id)) } });
+  } catch (e: any) {
+    console.error("[GET /api/job-profiles/:id]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/job-profiles/:id", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!canMutateJobProfiles(user)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+  const client = await pool.connect();
+  try {
+    const id = Number(req.params["id"]);
+    const exists = await pool.query(`SELECT * FROM job_descriptions WHERE id = $1 AND company_id = $2 AND COALESCE(is_deleted, false) = false LIMIT 1`, [id, user.companyId]);
+    if (!exists.rows.length) { res.status(404).json({ success: false, message: "Job profile not found" }); return; }
+    const { values, errors } = buildJobProfilePayload(req.body, user, true);
+    if (errors.length) { res.status(400).json({ success: false, message: errors.join(", ") }); return; }
+    const refError = await assertJobProfileRefs(user.companyId, { ...exists.rows[0], ...values }, id);
+    if (refError) { res.status(400).json({ success: false, message: refError }); return; }
+    const bridgeError = await assertBridgeRefs(user.companyId, req.body);
+    if (bridgeError) { res.status(400).json({ success: false, message: bridgeError }); return; }
+    const uniqueError = await ensureJobProfileUniqueCode(user.companyId, values["code"], id);
+    if (uniqueError) { res.status(409).json({ success: false, message: uniqueError }); return; }
+    await client.query("BEGIN");
+    let row = exists.rows[0];
+    if (Object.keys(values).length) {
+      const keys = Object.keys(values);
+      const sets = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+      const params = [...Object.values(values), id, user.companyId];
+      const updated = await client.query(`UPDATE job_descriptions SET ${sets}, updated_at = NOW() WHERE id = $${params.length - 1} AND company_id = $${params.length} AND COALESCE(is_deleted, false) = false RETURNING *`, params);
+      row = updated.rows[0];
+    }
+    await syncJobProfileBridges(client, user.companyId, id, req.body);
+    await client.query("COMMIT");
+    await logActivity(user.companyId, "job_profile_updated", `Job profile updated: ${row.title_en}`, null);
+    res.json({ success: true, data: { ...camelJobProfile(row, canSeeJobProfileCompensation(user)), ...(await getJobProfileRelations(user.companyId, id)) } });
+  } catch (e: any) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[PATCH /api/job-profiles/:id]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete("/api/job-profiles/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canMutateJobProfiles(user)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const id = Number(req.params["id"]);
+    const [empRef] = await db.select({ id: employeesTable.id }).from(employeesTable)
+      .where(and(eq(employeesTable.jobDescriptionId as any, id), eq(employeesTable.isDeleted, false)))
+      .limit(1);
+    if (empRef) { res.status(409).json({ success: false, message: "Cannot delete: employees are assigned to this job profile" }); return; }
+    const { rows } = await pool.query(
+      `UPDATE job_descriptions SET is_deleted = true, is_active = false, status = 'inactive', updated_by = $1, updated_at = NOW()
+       WHERE id = $2 AND company_id = $3 AND COALESCE(is_deleted, false) = false RETURNING *`,
+      [user.userId, id, user.companyId],
+    );
+    if (!rows.length) { res.status(404).json({ success: false, message: "Job profile not found" }); return; }
+    await logActivity(user.companyId, "job_profile_deleted", `Job profile deleted: ${rows[0].title_en}`, null);
+    res.json({ success: true, data: camelJobProfile(rows[0], canSeeJobProfileCompensation(user)) });
+  } catch (e: any) {
+    console.error("[DELETE /api/job-profiles/:id]", e);
+    res.status(jobProfileErrorStatus(e)).json({ success: false, message: jobProfileMigrationMessage(e) });
+  }
+});
 
 app.get("/api/job-descriptions", auth, async (req, res) => {
   try {
@@ -11492,7 +13744,7 @@ app.post("/api/job-descriptions", auth, async (req, res) => {
     }
     const { titleAr, titleEn, grade, minSalary, maxSalary, orgNodeId, responsibilities, requirements, skills, qualifications, isActive } = req.body as Record<string, unknown>;
     if (!titleAr || !titleEn) {
-      res.status(400).json({ success: false, message: "title_ar و title_en مطلوبان / title_ar and title_en are required" }); return;
+      res.status(400).json({ success: false, message: "title_ar ظˆ title_en ظ…ط·ظ„ظˆط¨ط§ظ† / title_ar and title_en are required" }); return;
     }
     const [created] = await db.insert(jobDescriptionsTable).values({
       companyId: user.companyId,
@@ -11508,7 +13760,7 @@ app.post("/api/job-descriptions", auth, async (req, res) => {
       qualifications: (qualifications as string) || null,
       isActive: isActive !== false,
     }).returning();
-    await logActivity(user.companyId, "job_description_created", `تم إنشاء المسمى الوظيفي: ${titleEn}`, null);
+    await logActivity(user.companyId, "job_description_created", `طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ظ…ط³ظ…ظ‰ ط§ظ„ظˆط¸ظٹظپظٹ: ${titleEn}`, null);
     res.status(201).json({ success: true, data: created });
   } catch (e) {
     console.error(e);
@@ -11542,7 +13794,7 @@ app.put("/api/job-descriptions/:id", auth, async (req, res) => {
     if (isActive !== undefined) updates.isActive = Boolean(isActive);
 
     const [updated] = await db.update(jobDescriptionsTable).set(updates).where(eq(jobDescriptionsTable.id, id)).returning();
-    await logActivity(user.companyId, "job_description_updated", `تم تعديل المسمى الوظيفي: ${updated.titleEn}`, null);
+    await logActivity(user.companyId, "job_description_updated", `طھظ… طھط¹ط¯ظٹظ„ ط§ظ„ظ…ط³ظ…ظ‰ ط§ظ„ظˆط¸ظٹظپظٹ: ${updated.titleEn}`, null);
     res.json({ success: true, data: updated });
   } catch (e) {
     console.error(e);
@@ -11565,18 +13817,18 @@ app.delete("/api/job-descriptions/:id", auth, async (req, res) => {
       .where(sql`${careerPathsTable.fromJobDescriptionId} = ${id} OR ${careerPathsTable.toJobDescriptionId} = ${id}`)
       .limit(1);
     if (pathRef) {
-      res.status(409).json({ success: false, message: "لا يمكن حذف هذا المسمى لأنه مرتبط بمسار مسيرة وظيفية / Cannot delete — this job description is referenced by a career path" }); return;
+      res.status(409).json({ success: false, message: "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ‡ط°ط§ ط§ظ„ظ…ط³ظ…ظ‰ ظ„ط£ظ†ظ‡ ظ…ط±طھط¨ط· ط¨ظ…ط³ط§ط± ظ…ط³ظٹط±ط© ظˆط¸ظٹظپظٹط© / Cannot delete â€” this job description is referenced by a career path" }); return;
     }
 
     const [empRef] = await db.select({ id: employeesTable.id }).from(employeesTable)
       .where(and(eq(employeesTable.jobDescriptionId as any, id), eq(employeesTable.isDeleted, false)))
       .limit(1);
     if (empRef) {
-      res.status(409).json({ success: false, message: "لا يمكن حذف هذا المسمى لأنه مرتبط بموظف أو أكثر / Cannot delete — one or more employees are assigned to this job description" }); return;
+      res.status(409).json({ success: false, message: "ظ„ط§ ظٹظ…ظƒظ† ط­ط°ظپ ظ‡ط°ط§ ط§ظ„ظ…ط³ظ…ظ‰ ظ„ط£ظ†ظ‡ ظ…ط±طھط¨ط· ط¨ظ…ظˆط¸ظپ ط£ظˆ ط£ظƒط«ط± / Cannot delete â€” one or more employees are assigned to this job description" }); return;
     }
 
     await db.delete(jobDescriptionsTable).where(eq(jobDescriptionsTable.id, id));
-    await logActivity(user.companyId, "job_description_deleted", `تم حذف المسمى الوظيفي: ${existing.titleEn}`, null);
+    await logActivity(user.companyId, "job_description_deleted", `طھظ… ط­ط°ظپ ط§ظ„ظ…ط³ظ…ظ‰ ط§ظ„ظˆط¸ظٹظپظٹ: ${existing.titleEn}`, null);
     res.status(204).send();
   } catch (e) {
     console.error(e);
@@ -11584,16 +13836,200 @@ app.delete("/api/job-descriptions/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Pre-employment ───────────────────────────────────────────────────────────
-app.get("/api/pre-employment", auth, async (_req, res) => {
-  res.json({ success: true, data: [] });
+// â”€â”€â”€ Pre-employment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function preEmploymentRow(row: any) {
+  const employeeNameAr = [row.first_name_ar, row.middle_name_ar, row.last_name_ar].filter(Boolean).join(" ");
+  const employeeNameEn = [row.first_name_en, row.middle_name_en, row.last_name_en].filter(Boolean).join(" ");
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    employeeId: row.employee_id,
+    employeeCode: row.employee_code,
+    employeeNameAr,
+    employeeNameEn,
+    departmentAr: row.department_ar,
+    departmentEn: row.department_en,
+    jobTitleAr: row.job_title_ar,
+    jobTitleEn: row.job_title_en,
+    candidateNameAr: row.candidate_name_ar,
+    candidateNameEn: row.candidate_name_en,
+    candidateEmail: row.candidate_email,
+    candidatePhone: row.candidate_phone,
+    source: row.source,
+    hiringStage: row.hiring_stage,
+    probationStartDate: row.probation_start_date,
+    probationEndDate: row.probation_end_date,
+    evaluationStatus: row.evaluation_status,
+    performanceRating: row.performance_rating,
+    evaluationDate: row.evaluation_date,
+    evaluationNotes: row.evaluation_notes,
+    outcome: row.outcome,
+    sscRegistered: row.ssc_registered,
+    sscRegistrationDate: row.ssc_registration_date,
+    sscRegistrationRequiredMonth: row.ssc_registration_required_month,
+    sscRegistrationRequiredYear: row.ssc_registration_required_year,
+    sscStatus: row.ssc_status,
+    sscNotes: row.ssc_notes,
+    sscNumber: row.ssc_number,
+    policeClearanceProvided: row.police_clearance_provided,
+    medicalCertificateProvided: row.medical_certificate_provided,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function getPreEmploymentRecord(companyId: number, filters: { id?: number; employeeId?: number }) {
+  const params: any[] = [companyId];
+  let where = "per.company_id = $1 AND per.is_deleted = false";
+  if (filters.id) {
+    params.push(filters.id);
+    where += ` AND per.id = $${params.length}`;
+  }
+  if (filters.employeeId) {
+    params.push(filters.employeeId);
+    where += ` AND per.employee_id = $${params.length}`;
+  }
+  const { rows } = await pool.query(
+    `SELECT per.*, e.employee_code, e.first_name_ar, e.middle_name_ar, e.last_name_ar, e.first_name_en, e.middle_name_en, e.last_name_en,
+            d.name_ar AS department_ar, d.name_en AS department_en, jt.title_ar AS job_title_ar, jt.title_en AS job_title_en
+       FROM pre_employment_records per
+       JOIN employees e ON e.id = per.employee_id
+       LEFT JOIN departments d ON d.id = e.department_id
+       LEFT JOIN job_titles jt ON jt.id = e.job_title_id
+      WHERE ${where}
+      ORDER BY per.created_at DESC, per.id DESC`,
+    params,
+  );
+  return rows.map(preEmploymentRow);
+}
+
+app.get("/api/pre-employment", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "recruiter"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const data = await getPreEmploymentRecord(user.companyId, {});
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/pre-employment]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/pre-employment/by-employee/:employeeId", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "recruiter"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const data = await getPreEmploymentRecord(user.companyId, { employeeId: Number(req.params.employeeId) });
+    if (!data[0]) return res.status(404).json({ success: false, message: "Pre-employment record not found" });
+    res.json({ success: true, data: data[0] });
+  } catch (e) {
+    console.error("[GET /api/pre-employment/by-employee/:employeeId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 app.post("/api/pre-employment", auth, async (req, res) => {
-  res.status(201).json({ success: true, data: { id: 1, ...req.body } });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "recruiter"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = Number(req.body.employeeId);
+    const probationStartDate = String(req.body.probationStartDate || "");
+    if (!employeeId || !probationStartDate) return res.status(400).json({ success: false, message: "employeeId and probationStartDate are required" });
+    const start = new Date(`${probationStartDate}T00:00:00Z`);
+    start.setMonth(start.getMonth() + 3);
+    const probationEndDate = start.toISOString().slice(0, 10);
+    const reqMonth = new Date(`${probationStartDate}T00:00:00Z`);
+    const { rows } = await pool.query(
+      `INSERT INTO pre_employment_records
+        (company_id, employee_id, probation_start_date, probation_end_date, evaluation_status, ssc_registration_required_month,
+         ssc_registration_required_year, created_by_user_id, candidate_name_ar, candidate_name_en, candidate_email, candidate_phone, source, hiring_stage)
+       VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13,'probation'))
+       RETURNING id`,
+      [
+        user.companyId, employeeId, probationStartDate, probationEndDate, reqMonth.getUTCMonth() + 1, reqMonth.getUTCFullYear(), user.userId,
+        req.body.candidateNameAr || null, req.body.candidateNameEn || null, req.body.candidateEmail || null, req.body.candidatePhone || null,
+        req.body.source || null, req.body.hiringStage || null,
+      ],
+    );
+    await logActivity(user.companyId, "pre_employment_created", `Pre-employment record created for employee #${employeeId}`, user.username);
+    const data = await getPreEmploymentRecord(user.companyId, { id: rows[0].id });
+    res.status(201).json({ success: true, data: data[0] });
+  } catch (e) {
+    console.error("[POST /api/pre-employment]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
-// ─── Registration ─────────────────────────────────────────────────────────────
+app.put("/api/pre-employment/:id/ssc-register", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "recruiter"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params.id);
+    const { rows } = await pool.query(
+      `UPDATE pre_employment_records SET
+        ssc_registered = $3,
+        ssc_registration_date = $4,
+        ssc_number = $5,
+        ssc_status = $6,
+        ssc_notes = $7,
+        updated_at = now()
+       WHERE id = $1 AND company_id = $2 AND is_deleted = false
+       RETURNING id`,
+      [id, user.companyId, req.body.status === "registered", req.body.registrationDate || null, req.body.sscNumber || null, req.body.status || "registered", req.body.notes || null],
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: "Pre-employment record not found" });
+    await logActivity(user.companyId, "pre_employment_ssc_updated", `SSC details updated for pre-employment record #${id}`, user.username);
+    const data = await getPreEmploymentRecord(user.companyId, { id });
+    res.json({ success: true, data: data[0] });
+  } catch (e) {
+    console.error("[PUT /api/pre-employment/:id/ssc-register]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/pre-employment/:id/evaluate", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params.id);
+    const { rows } = await pool.query(
+      `UPDATE pre_employment_records SET
+        evaluation_status=$3, evaluation_date=$4, performance_rating=$5, evaluation_notes=$6, outcome=$7,
+        police_clearance_provided=$8, medical_certificate_provided=$9, ssc_registered=$10, updated_at=now()
+       WHERE id=$1 AND company_id=$2 AND is_deleted=false
+       RETURNING id`,
+      [
+        id, user.companyId, req.body.evaluationStatus || "pending", req.body.evaluationDate || null, req.body.performanceRating || null,
+        req.body.evaluationNotes || null, req.body.outcome || null, !!req.body.policeClearanceProvided, !!req.body.medicalCertificateProvided, !!req.body.sscRegistered,
+      ],
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: "Pre-employment record not found" });
+    await logActivity(user.companyId, "pre_employment_evaluated", `Probation evaluation completed for pre-employment record #${id}`, user.username);
+    const data = await getPreEmploymentRecord(user.companyId, { id });
+    res.json({ success: true, data: data[0] });
+  } catch (e) {
+    console.error("[PUT /api/pre-employment/:id/evaluate]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.delete("/api/pre-employment/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rowCount } = await pool.query(
+      `UPDATE pre_employment_records SET is_deleted=true, updated_at=now() WHERE id=$1 AND company_id=$2 AND is_deleted=false`,
+      [Number(req.params.id), user.companyId],
+    );
+    if (!rowCount) return res.status(404).json({ success: false, message: "Pre-employment record not found" });
+    res.json({ success: true, data: { id: Number(req.params.id) } });
+  } catch (e) {
+    console.error("[DELETE /api/pre-employment/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// â”€â”€â”€ Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/register/company", async (req, res) => {
   try {
     const { companyName, adminUsername, adminEmail, adminPassword } = req.body as { companyName: string; adminUsername: string; adminEmail: string; adminPassword: string };
@@ -11608,7 +14044,7 @@ app.post("/api/register/company", async (req, res) => {
   }
 });
 
-// ─── Workflow: Multi-Step Employee Action Workflows ───────────────────────────
+// â”€â”€â”€ Workflow: Multi-Step Employee Action Workflows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Ensure approvalStepsJson column exists (idempotent)
 ;(async () => {
@@ -11712,7 +14148,7 @@ app.get("/api/workflow/salary-changes", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     let data = await queryWorkflowActions(user.companyId, SALARY_ACTION_TYPES);
-    // Employees can only see their own salary change records — no cross-employee leakage
+    // Employees can only see their own salary change records â€” no cross-employee leakage
     if (user.role === 'employee') {
       if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
       data = data.filter(r => r.employeeId === user.employeeId);
@@ -11750,7 +14186,7 @@ app.get("/api/workflow/requests/:id", auth, async (req, res) => {
     const [action] = await db.select().from(employeeActionsTable)
       .where(and(eq(employeeActionsTable.id, actionId), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
     if (!action) { res.status(404).json({ success: false, message: "Not found" }); return; }
-    // Employees can only access their own records — return 404 (not 403) to avoid ID enumeration
+    // Employees can only access their own records â€” return 404 (not 403) to avoid ID enumeration
     if (user.role === 'employee' && action.employeeId !== user.employeeId) {
       res.status(404).json({ success: false, message: "Not found" }); return;
     }
@@ -11760,7 +14196,7 @@ app.get("/api/workflow/requests/:id", auth, async (req, res) => {
   }
 });
 
-// POST /api/workflow/requests — create new workflow request
+// POST /api/workflow/requests â€” create new workflow request
 app.post("/api/workflow/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -11795,7 +14231,7 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
       res.status(400).json({ success: false, message: "Invalid actionType for workflow" }); return;
     }
 
-    // Salary-change specific validation — must run before DB lookup
+    // Salary-change specific validation â€” must run before DB lookup
     if (actionType === 'salary_change') {
       const basicSalary = parseFloat(String(extra.basicSalary ?? ''));
       if (extra.basicSalary == null || extra.basicSalary === '') {
@@ -11912,7 +14348,7 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
       : STATUS_ACTION_TYPES.includes(actionType) ? "status_change_created"
       : "employee_action";
     await logActivity(user.companyId, auditCreateType, `${actionType} workflow request created for employee #${employeeId}`, null);
-    // ── Notification ───────────────────────────────────────────────────────
+    // â”€â”€ Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const wfCrLabelEn = ACTION_TYPE_LABELS[actionType]?.en ?? actionType;
     const wfCrLabelAr = ACTION_TYPE_LABELS[actionType]?.ar ?? actionType;
     await notifyRole(user.companyId, "hradmin", {
@@ -11921,9 +14357,9 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
       entityType: "workflow_request",
       entityId: inserted.id,
       notificationType: "workflow_request_created",
-      titleAr: `طلب سير عمل: ${wfCrLabelAr}`,
+      titleAr: `ط·ظ„ط¨ ط³ظٹط± ط¹ظ…ظ„: ${wfCrLabelAr}`,
       titleEn: `Workflow Request: ${wfCrLabelEn}`,
-      messageAr: `طلب "${wfCrLabelAr}" للموظف #${employeeId} يحتاج إلى موافقة.`,
+      messageAr: `ط·ظ„ط¨ "${wfCrLabelAr}" ظ„ظ„ظ…ظˆط¸ظپ #${employeeId} ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط©.`,
       messageEn: `A "${wfCrLabelEn}" workflow request for employee #${employeeId} requires approval.`,
       priority: "normal",
       actionUrl: "/app/workflow-requests",
@@ -11935,7 +14371,7 @@ app.post("/api/workflow/requests", auth, async (req, res) => {
   }
 });
 
-// POST /api/workflow/requests/:id/approve — advance to next step or apply side effects
+// POST /api/workflow/requests/:id/approve â€” advance to next step or apply side effects
 app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -11985,12 +14421,17 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
       await db.update(employeeActionsTable)
         .set({ status: nextStatus, approvalStepsJson: JSON.stringify(approvalData) })
         .where(eq(employeeActionsTable.id, actionId));
+      await pool.query(
+        `INSERT INTO workflow_actions (company_id, workflow_request_id, actor_user_id, action, status_before, status_after, notes)
+         VALUES ($1,$2,$3,'approve',$4,$5,$6)`,
+        [user.companyId, actionId, user.userId, action.status, nextStatus, req.body.notes ?? null],
+      );
       const auditAdvType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
         : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_approved"
         : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_approved"
         : "employee_action";
       await logActivity(user.companyId, auditAdvType, `${action.actionType} advanced to ${nextStatus} for employee #${action.employeeId}`, null);
-      // ── Notification: next approver role ──────────────────────────────────
+      // â”€â”€ Notification: next approver role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (nextStatus === 'pending_hr' || nextStatus === 'pending_hradmin') {
         await notifyRole(user.companyId, "hradmin", {
           companyId: user.companyId,
@@ -11998,9 +14439,9 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
           entityType: "workflow_request",
           entityId: action.id,
           notificationType: "workflow_step_advanced",
-          titleAr: `طلب سير عمل يحتاج موافقتك`,
+          titleAr: `ط·ظ„ط¨ ط³ظٹط± ط¹ظ…ظ„ ظٹط­طھط§ط¬ ظ…ظˆط§ظپظ‚طھظƒ`,
           titleEn: `Workflow Request Needs Your Approval`,
-          messageAr: `طلب "${ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType}" انتقل إلى مرحلة جديدة.`,
+          messageAr: `ط·ظ„ط¨ "${ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType}" ط§ظ†طھظ‚ظ„ ط¥ظ„ظ‰ ظ…ط±ط­ظ„ط© ط¬ط¯ظٹط¯ط©.`,
           messageEn: `A "${ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType}" request advanced to the next step.`,
           priority: "normal",
           actionUrl: "/app/workflow-requests",
@@ -12008,7 +14449,7 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
       }
       res.json({ success: true, nextStatus });
     } else {
-      // Final approval — apply side effects
+      // Final approval â€” apply side effects
       const [emp] = await db.select().from(employeesTable)
         .where(and(eq(employeesTable.id, action.employeeId), eq(employeesTable.companyId, user.companyId))).limit(1);
       if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
@@ -12093,13 +14534,18 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
           if (toInsert.length) await tx.insert(employeeSalaryComponentsTable).values(toInsert);
         }
       });
+      await pool.query(
+        `INSERT INTO workflow_actions (company_id, workflow_request_id, actor_user_id, action, status_before, status_after, notes)
+         VALUES ($1,$2,$3,'approve',$4,'applied',$5)`,
+        [user.companyId, actionId, user.userId, action.status, req.body.notes ?? null],
+      );
 
       const auditFinalType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_approved"
         : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_applied"
         : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_applied"
         : "employee_action";
       await logActivity(user.companyId, auditFinalType, `${action.actionType} fully approved and applied for employee #${action.employeeId}`, null);
-      // ── Notification: final approval ───────────────────────────────────────
+      // â”€â”€ Notification: final approval â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const wfFinalLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
       const wfFinalLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
       await notifyEmployee(action.employeeId, user.companyId, {
@@ -12108,9 +14554,9 @@ app.post("/api/workflow/requests/:id/approve", auth, async (req, res) => {
         entityType: "workflow_request",
         entityId: action.id,
         notificationType: "workflow_request_approved",
-        titleAr: `تمت الموافقة النهائية على: ${wfFinalLabelAr}`,
+        titleAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط© ط¹ظ„ظ‰: ${wfFinalLabelAr}`,
         titleEn: `Final Approval: ${wfFinalLabelEn}`,
-        messageAr: `تمت الموافقة النهائية وتطبيق إجراء "${wfFinalLabelAr}" الخاص بك.`,
+        messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط© ظˆطھط·ط¨ظٹظ‚ ط¥ط¬ط±ط§ط، "${wfFinalLabelAr}" ط§ظ„ط®ط§طµ ط¨ظƒ.`,
         messageEn: `Your "${wfFinalLabelEn}" request has been fully approved and applied.`,
         priority: "high",
         actionUrl: "/app/my-profile",
@@ -12158,13 +14604,18 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
     await db.update(employeeActionsTable)
       .set({ status: 'rejected', approvalStepsJson: JSON.stringify(approvalData) })
       .where(eq(employeeActionsTable.id, actionId));
+    await pool.query(
+      `INSERT INTO workflow_actions (company_id, workflow_request_id, actor_user_id, action, status_before, status_after, notes)
+       VALUES ($1,$2,$3,'reject',$4,'rejected',$5)`,
+      [user.companyId, actionId, user.userId, action.status, req.body.notes ?? null],
+    );
 
     const auditRejType = CAREER_ACTION_TYPES.includes(action.actionType) ? "movement_rejected"
       : SALARY_ACTION_TYPES.includes(action.actionType) ? "salary_change_rejected"
       : STATUS_ACTION_TYPES.includes(action.actionType) ? "status_change_rejected"
       : "employee_action";
     await logActivity(user.companyId, auditRejType, `${action.actionType} rejected for employee #${action.employeeId}`, null);
-    // ── Notification ───────────────────────────────────────────────────────
+    // â”€â”€ Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const wfRejLabelEn = ACTION_TYPE_LABELS[action.actionType]?.en ?? action.actionType;
     const wfRejLabelAr = ACTION_TYPE_LABELS[action.actionType]?.ar ?? action.actionType;
     await notifyEmployee(action.employeeId, user.companyId, {
@@ -12173,9 +14624,9 @@ app.post("/api/workflow/requests/:id/reject", auth, async (req, res) => {
       entityType: "workflow_request",
       entityId: action.id,
       notificationType: "workflow_request_rejected",
-      titleAr: `تم رفض طلب: ${wfRejLabelAr}`,
+      titleAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨: ${wfRejLabelAr}`,
       titleEn: `Request Rejected: ${wfRejLabelEn}`,
-      messageAr: `تم رفض طلب "${wfRejLabelAr}" الخاص بك.`,
+      messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ "${wfRejLabelAr}" ط§ظ„ط®ط§طµ ط¨ظƒ.`,
       messageEn: `Your "${wfRejLabelEn}" request was rejected.`,
       priority: "high",
       actionUrl: "/app/my-profile",
@@ -12216,7 +14667,7 @@ app.post("/api/workflow/requests/:id/cancel", auth, async (req, res) => {
   }
 });
 
-// GET /api/workflow/employee-list — all active employees for workflow dropdowns
+// GET /api/workflow/employee-list â€” all active employees for workflow dropdowns
 app.get("/api/workflow/employee-list", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12248,9 +14699,87 @@ app.get("/api/workflow/employee-list", auth, async (req, res) => {
   }
 });
 
-// ─── Notifications API ────────────────────────────────────────────────────────
+// â”€â”€â”€ Notifications API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/notifications — list for the authenticated user
+// Generic workflow aliases for Enterprise Automation v2.
+app.get("/api/workflows", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const allTypes = [...CAREER_ACTION_TYPES, ...SALARY_ACTION_TYPES, ...STATUS_ACTION_TYPES];
+    let data = await queryWorkflowActions(user.companyId, allTypes);
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      data = data.filter(r => r.employeeId === user.employeeId);
+    }
+    if (user.role === "manager") {
+      const scope = await getEmployeeScopeConditions(req as AuthReq);
+      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
+      const ids = new Set(team.map(e => e.id));
+      data = data.filter(r => ids.has(r.employeeId));
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/workflows]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/workflows/pending", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const allTypes = [...CAREER_ACTION_TYPES, ...SALARY_ACTION_TYPES, ...STATUS_ACTION_TYPES];
+    let data = (await queryWorkflowActions(user.companyId, allTypes)).filter(r => canApproveWorkflowStep(user.role, r.status));
+    if (user.role === "manager") {
+      const scope = await getEmployeeScopeConditions(req as AuthReq);
+      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
+      const ids = new Set(team.map(e => e.id));
+      data = data.filter(r => ids.has(r.employeeId));
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error("[GET /api/workflows/pending]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/workflows/:id/approve", auth, (req, res, next) => {
+  req.url = `/api/workflow/requests/${req.params.id}/approve`;
+  (app as any)._router.handle(req, res, next);
+});
+
+app.post("/api/workflows/:id/reject", auth, (req, res, next) => {
+  req.url = `/api/workflow/requests/${req.params.id}/reject`;
+  (app as any)._router.handle(req, res, next);
+});
+
+app.get("/api/workflows/:id/history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseIntParam(req.params.id);
+    const [action] = await db.select().from(employeeActionsTable)
+      .where(and(eq(employeeActionsTable.id, id), eq(employeeActionsTable.companyId, user.companyId))).limit(1);
+    if (!action) { res.status(404).json({ success: false, message: "Workflow not found" }); return; }
+    if (user.role === "employee" && action.employeeId !== user.employeeId) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    if (user.role === "manager") {
+      const scope = await getEmployeeScopeConditions(req as AuthReq);
+      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
+      if (!team.some(e => e.id === action.employeeId)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    }
+    let parsed: any = { chain: getApprovalChain(action.actionType), steps: [] };
+    if (action.approvalStepsJson) {
+      try { parsed = JSON.parse(action.approvalStepsJson); } catch {}
+    }
+    const { rows } = await pool.query(`SELECT * FROM workflow_actions WHERE workflow_request_id = $1 ORDER BY created_at DESC`, [id]);
+    res.json({ success: true, data: { workflow: action, approval: parsed, actions: rows } });
+  } catch (e) {
+    console.error("[GET /api/workflows/:id/history]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// GET /api/notifications â€” list for the authenticated user
 app.get("/api/notifications", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12291,7 +14820,7 @@ app.get("/api/notifications/unread-count", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/notifications/read-all — mark all unread as read
+// PATCH /api/notifications/read-all â€” mark all unread as read
 app.patch("/api/notifications/read-all", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12308,7 +14837,7 @@ app.patch("/api/notifications/read-all", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/notifications/:id/read — mark single notification as read
+// PATCH /api/notifications/:id/read â€” mark single notification as read
 app.patch("/api/notifications/:id/read", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12327,7 +14856,7 @@ app.patch("/api/notifications/:id/read", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/notifications/:id — soft-delete
+// DELETE /api/notifications/:id â€” soft-delete
 app.delete("/api/notifications/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12346,15 +14875,3309 @@ app.delete("/api/notifications/:id", auth, async (req, res) => {
   }
 });
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.get("/api/notifications/preferences", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { rows } = await pool.query(
+      `SELECT * FROM notification_preferences WHERE user_id = $1 ORDER BY notification_type`,
+      [user.userId],
+    );
+    if (!rows.length) {
+      res.json({ success: true, data: [{ notification_type: "*", in_app_enabled: true, email_enabled: false }] }); return;
+    }
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/notifications/preferences]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/notifications/preferences", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const notificationType = String(req.body?.notificationType || "*");
+    const inAppEnabled = req.body?.inAppEnabled !== false;
+    const emailEnabled = req.body?.emailEnabled === true;
+    const { rows } = await pool.query(
+      `INSERT INTO notification_preferences
+        (company_id, user_id, notification_type, in_app_enabled, email_enabled, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (user_id, notification_type) DO UPDATE
+         SET in_app_enabled = EXCLUDED.in_app_enabled,
+             email_enabled = EXCLUDED.email_enabled,
+             updated_at = NOW()
+       RETURNING *`,
+      [user.companyId, user.userId, notificationType, inAppEnabled, emailEnabled],
+    );
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/notifications/preferences]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/notifications/test", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    await notifyUsers([user.userId], {
+      companyId: user.companyId,
+      actorUserId: user.userId,
+      entityType: "notification",
+      notificationType: "test_notification",
+      titleAr: "ط¥ط´ط¹ط§ط± طھط¬ط±ظٹط¨ظٹ",
+      titleEn: "Test notification",
+      messageAr: "طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„ط¥ط´ط¹ط§ط± ط§ظ„طھط¬ط±ظٹط¨ظٹ ط¨ظ†ط¬ط§ط­.",
+      messageEn: "A test notification was delivered successfully.",
+      priority: "normal",
+      actionUrl: "/app/dashboard",
+    });
+    res.status(201).json({ success: true });
+  } catch (e) {
+    console.error("[POST /api/notifications/test]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+type MasterDataField = {
+  key: string;
+  column: string;
+  required?: boolean;
+  type?: "string" | "number" | "boolean" | "json";
+};
+
+type MasterDataConfig = {
+  route: string;
+  table: string;
+  labelAr: string;
+  labelEn: string;
+  defaultSort: string;
+  fields: MasterDataField[];
+  searchColumns: string[];
+  extraSelect?: string;
+  joins?: string;
+  filters?: Record<string, string>;
+};
+
+const masterDataModules: MasterDataConfig[] = [
+  {
+    route: "responsibility-groups",
+    table: "responsibility_groups",
+    labelAr: "ظ…ط¬ظ…ظˆط¹ط§طھ ط§ظ„ظ…ط³ط¤ظˆظ„ظٹط§طھ",
+    labelEn: "Responsibility Groups",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "responsibilities",
+    table: "responsibilities",
+    labelAr: "ط§ظ„ظ…ط³ط¤ظˆظ„ظٹط§طھ",
+    labelEn: "Responsibilities",
+    defaultSort: "priority_order",
+    extraSelect: `, rg.name_ar AS responsibility_group_name_ar, rg.name_en AS responsibility_group_name_en`,
+    joins: `LEFT JOIN responsibility_groups rg ON rg.id = t.responsibility_group_id AND rg.company_id = t.company_id AND rg.is_deleted = false`,
+    filters: { responsibilityGroupId: "responsibility_group_id" },
+    fields: [
+      { key: "responsibilityGroupId", column: "responsibility_group_id", required: true, type: "number" },
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "priorityOrder", column: "priority_order", type: "number" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "job-grades",
+    table: "job_grades",
+    labelAr: "ط§ظ„ط¯ط±ط¬ط§طھ ط§ظ„ظˆط¸ظٹظپظٹط©",
+    labelEn: "Job Grades",
+    defaultSort: "level_order",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "gradeCode", column: "grade_code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "salaryBandMin", column: "salary_band_min", type: "number" },
+      { key: "salaryBandMax", column: "salary_band_max", type: "number" },
+      { key: "levelOrder", column: "level_order", type: "number" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "grade_code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "educational-qualifications",
+    table: "educational_qualifications",
+    labelAr: "ط§ظ„ظ…ط¤ظ‡ظ„ط§طھ ط§ظ„ط¹ظ„ظ…ظٹط©",
+    labelEn: "Educational Qualifications",
+    defaultSort: "level_order",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "levelOrder", column: "level_order", type: "number" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "specializations",
+    table: "specializations",
+    labelAr: "ط§ظ„طھط®طµطµط§طھ",
+    labelEn: "Specializations",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "universities",
+    table: "universities",
+    labelAr: "ط§ظ„ط¬ط§ظ…ط¹ط§طھ",
+    labelEn: "Universities",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "country", column: "country" },
+      { key: "city", column: "city" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en", "country", "city"],
+  },
+  {
+    route: "training-courses",
+    table: "training_courses",
+    labelAr: "ط§ظ„ط¯ظˆط±ط§طھ ط§ظ„طھط¯ط±ظٹط¨ظٹط©",
+    labelEn: "Training Courses",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "providerAr", column: "provider_ar" },
+      { key: "providerEn", column: "provider_en" },
+      { key: "durationHours", column: "duration_hours", type: "number" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en", "provider_ar", "provider_en"],
+  },
+  {
+    route: "skills",
+    table: "skills",
+    labelAr: "ط§ظ„ظ…ظ‡ط§ط±ط§طھ",
+    labelEn: "Skills",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "skillCategory", column: "skill_category" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en", "skill_category"],
+  },
+  {
+    route: "languages",
+    table: "languages",
+    labelAr: "ط§ظ„ظ„ط؛ط§طھ",
+    labelEn: "Languages",
+    defaultSort: "name_en",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "proficiencyLevels", column: "proficiency_levels_json", type: "json" },
+      { key: "isRtl", column: "is_rtl", type: "boolean" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+  {
+    route: "experience-levels",
+    table: "experience_levels",
+    labelAr: "ظ…ط³طھظˆظٹط§طھ ط§ظ„ط®ط¨ط±ط©",
+    labelEn: "Experience Levels",
+    defaultSort: "level_order",
+    fields: [
+      { key: "code", column: "code", required: true },
+      { key: "nameAr", column: "name_ar", required: true },
+      { key: "nameEn", column: "name_en", required: true },
+      { key: "descriptionAr", column: "description_ar" },
+      { key: "descriptionEn", column: "description_en" },
+      { key: "minYears", column: "min_years", type: "number" },
+      { key: "maxYears", column: "max_years", type: "number" },
+      { key: "levelOrder", column: "level_order", type: "number" },
+      { key: "isActive", column: "is_active", type: "boolean" },
+    ],
+    searchColumns: ["code", "name_ar", "name_en", "description_ar", "description_en"],
+  },
+];
+
+function requireMasterDataRole(req: express.Request, res: express.Response): AuthReq["user"] | null {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return null;
+  }
+  return user;
+}
+
+function normalizeMasterValue(field: MasterDataField, value: any) {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (field.type === "number") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : "__INVALID_NUMBER__";
+  }
+  if (field.type === "boolean") return value === true || value === "true";
+  if (field.type === "json") return typeof value === "string" ? value : JSON.stringify(value ?? []);
+  return String(value).trim();
+}
+
+function masterPayload(config: MasterDataConfig, body: any, partial = false) {
+  const values: Record<string, any> = {};
+  const errors: string[] = [];
+  for (const field of config.fields) {
+    const raw = body?.[field.key];
+    const value = normalizeMasterValue(field, raw);
+    if (value === undefined) {
+      if (!partial && field.required) errors.push(`${field.key} is required`);
+      continue;
+    }
+    if (field.required && (value === null || value === "")) errors.push(`${field.key} is required`);
+    if (value === "__INVALID_NUMBER__") errors.push(`${field.key} must be a valid number`);
+    else values[field.column] = value;
+  }
+  return { values, errors };
+}
+
+async function ensureMasterRefs(config: MasterDataConfig, values: Record<string, any>, companyId: number) {
+  if (config.table === "responsibilities" && values["responsibility_group_id"]) {
+    const { rows } = await pool.query(
+      `SELECT id FROM responsibility_groups WHERE id = $1 AND company_id = $2 AND is_deleted = false LIMIT 1`,
+      [values["responsibility_group_id"], companyId],
+    );
+    if (!rows.length) return "Invalid responsibilityGroupId";
+  }
+  if (config.table === "job_grades" && values["salary_band_min"] != null && values["salary_band_max"] != null) {
+    if (Number(values["salary_band_min"]) > Number(values["salary_band_max"])) return "salaryBandMin cannot exceed salaryBandMax";
+  }
+  if (config.table === "experience_levels" && values["min_years"] != null && values["max_years"] != null) {
+    if (Number(values["min_years"]) > Number(values["max_years"])) return "minYears cannot exceed maxYears";
+  }
+  return null;
+}
+
+async function ensureMasterUnique(config: MasterDataConfig, values: Record<string, any>, companyId: number, excludeId?: number) {
+  const checks: Array<[string, any, string]> = [];
+  if (values["code"]) checks.push(["code", values["code"], "Duplicate code"]);
+  if (values["name_ar"]) checks.push(["name_ar", values["name_ar"], "Duplicate Arabic name"]);
+  if (values["name_en"]) checks.push(["name_en", values["name_en"], "Duplicate English name"]);
+  for (const [column, value, message] of checks) {
+    const params: any[] = [companyId, String(value).toLowerCase()];
+    let extra = "";
+    if (excludeId) { params.push(excludeId); extra = `AND id <> $3`; }
+    const { rows } = await pool.query(
+      `SELECT id FROM ${config.table} WHERE company_id = $1 AND lower(${column}) = $2 AND is_deleted = false ${extra} LIMIT 1`,
+      params,
+    );
+    if (rows.length) return message;
+  }
+  return null;
+}
+
+function masterWhere(config: MasterDataConfig, req: express.Request, params: any[], companyId: number) {
+  const where: string[] = [`t.company_id = $${params.push(companyId)}`, `t.is_deleted = false`];
+  const active = String(req.query["active"] ?? req.query["isActive"] ?? "");
+  if (active === "true") where.push(`t.is_active = true`);
+  if (active === "false") where.push(`t.is_active = false`);
+  const q = String(req.query["q"] ?? req.query["search"] ?? "").trim();
+  if (q) {
+    const n = params.push(`%${q.toLowerCase()}%`);
+    where.push(`(${config.searchColumns.map(c => `lower(coalesce(t.${c}::text,'')) LIKE $${n}`).join(" OR ")})`);
+  }
+  if (config.filters) {
+    for (const [queryKey, column] of Object.entries(config.filters)) {
+      const raw = req.query[queryKey];
+      if (raw !== undefined && raw !== "") where.push(`t.${column} = $${params.push(Number(raw))}`);
+    }
+  }
+  return where.join(" AND ");
+}
+
+function masterSort(config: MasterDataConfig, req: express.Request) {
+  const allowed = new Set(["id", "code", "name_ar", "name_en", "is_active", "created_at", "updated_at", config.defaultSort, ...config.fields.map(f => f.column)]);
+  const sortBy = String(req.query["sortBy"] || config.defaultSort);
+  const sortColumn = allowed.has(sortBy) ? sortBy : config.defaultSort;
+  const dir = String(req.query["sortDir"] || "asc").toLowerCase() === "desc" ? "DESC" : "ASC";
+  return `t.${sortColumn} ${dir}, t.id DESC`;
+}
+
+function masterSelect(config: MasterDataConfig) {
+  return `SELECT t.*${config.extraSelect || ""} FROM ${config.table} t ${config.joins || ""}`;
+}
+
+for (const config of masterDataModules) {
+  app.get(`/api/${config.route}/dropdown`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const params: any[] = [];
+      const where = masterWhere(config, req, params, user.companyId);
+      const limit = Math.min(Math.max(Number(req.query["limit"] || 50), 1), 100);
+      const { rows } = await pool.query(
+        `${masterSelect(config)} WHERE ${where} ORDER BY ${masterSort(config, req)} LIMIT $${params.push(limit)}`,
+        params,
+      );
+      res.json({ success: true, data: rows.map(r => ({ id: r.id, code: r.code, nameAr: r.name_ar, nameEn: r.name_en, isActive: r.is_active, raw: r })) });
+    } catch (e) {
+      console.error(`[GET /api/${config.route}/dropdown]`, e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.get(`/api/${config.route}/search`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      req.query["active"] = req.query["active"] ?? "true";
+      const params: any[] = [];
+      const where = masterWhere(config, req, params, user.companyId);
+      const limit = Math.min(Math.max(Number(req.query["limit"] || 20), 1), 50);
+      const { rows } = await pool.query(
+        `${masterSelect(config)} WHERE ${where} ORDER BY ${masterSort(config, req)} LIMIT $${params.push(limit)}`,
+        params,
+      );
+      res.json({ success: true, data: rows });
+    } catch (e) {
+      console.error(`[GET /api/${config.route}/search]`, e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.get(`/api/${config.route}/lazy`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const page = Math.max(Number(req.query["page"] || 1), 1);
+      const pageSize = Math.min(Math.max(Number(req.query["pageSize"] || req.query["limit"] || 20), 1), 100);
+      const offset = (page - 1) * pageSize;
+      const params: any[] = [];
+      const where = masterWhere(config, req, params, user.companyId);
+      const countParams = [...params];
+      const { rows: countRows } = await pool.query(`SELECT COUNT(*)::int AS total FROM ${config.table} t WHERE ${where}`, countParams);
+      const { rows } = await pool.query(
+        `${masterSelect(config)} WHERE ${where} ORDER BY ${masterSort(config, req)} LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`,
+        params,
+      );
+      res.json({ success: true, data: { items: rows, total: countRows[0]?.total ?? 0, page, pageSize } });
+    } catch (e) {
+      console.error(`[GET /api/${config.route}/lazy]`, e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.get(`/api/${config.route}`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const page = Math.max(Number(req.query["page"] || 1), 1);
+      const pageSize = Math.min(Math.max(Number(req.query["pageSize"] || req.query["limit"] || 20), 1), 100);
+      const offset = (page - 1) * pageSize;
+      const params: any[] = [];
+      const where = masterWhere(config, req, params, user.companyId);
+      const countParams = [...params];
+      const { rows: countRows } = await pool.query(`SELECT COUNT(*)::int AS total FROM ${config.table} t WHERE ${where}`, countParams);
+      const { rows } = await pool.query(
+        `${masterSelect(config)} WHERE ${where} ORDER BY ${masterSort(config, req)} LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`,
+        params,
+      );
+      res.json({ success: true, data: rows, meta: { total: countRows[0]?.total ?? 0, page, pageSize } });
+    } catch (e) {
+      console.error(`[GET /api/${config.route}]`, e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.get(`/api/${config.route}/:id`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const { rows } = await pool.query(
+        `${masterSelect(config)} WHERE t.company_id = $1 AND t.id = $2 AND t.is_deleted = false LIMIT 1`,
+        [user.companyId, Number(req.params["id"])],
+      );
+      if (!rows.length) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      res.json({ success: true, data: rows[0] });
+    } catch (e) {
+      console.error(`[GET /api/${config.route}/:id]`, e);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.post(`/api/${config.route}`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const { values, errors } = masterPayload(config, req.body, false);
+      if (errors.length) { res.status(400).json({ success: false, message: errors.join(", ") }); return; }
+      const refError = await ensureMasterRefs(config, values, user.companyId);
+      if (refError) { res.status(400).json({ success: false, message: refError }); return; }
+      const uniqueError = await ensureMasterUnique(config, values, user.companyId);
+      if (uniqueError) { res.status(409).json({ success: false, message: uniqueError }); return; }
+      const columns = ["company_id", ...Object.keys(values), "created_by", "updated_by"];
+      const params = [user.companyId, ...Object.values(values), user.userId, user.userId];
+      const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+      const { rows } = await pool.query(
+        `INSERT INTO ${config.table} (${columns.join(", ")}) VALUES (${placeholders}) RETURNING *`,
+        params,
+      );
+      await logActivity(user.companyId, "hr_master_data_created", `${config.labelEn} created: ${values["code"]}`, null);
+      res.status(201).json({ success: true, data: rows[0] });
+    } catch (e: any) {
+      console.error(`[POST /api/${config.route}]`, e);
+      res.status(500).json({ success: false, message: e?.code === "42P01" ? "HR master data migration is not applied" : "Internal server error" });
+    }
+  });
+
+  app.patch(`/api/${config.route}/:id`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const id = Number(req.params["id"]);
+      const existing = await pool.query(`SELECT * FROM ${config.table} WHERE id = $1 AND company_id = $2 AND is_deleted = false LIMIT 1`, [id, user.companyId]);
+      if (!existing.rows.length) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      const { values, errors } = masterPayload(config, req.body, true);
+      if (errors.length) { res.status(400).json({ success: false, message: errors.join(", ") }); return; }
+      if (!Object.keys(values).length) { res.json({ success: true, data: existing.rows[0] }); return; }
+      const merged = { ...existing.rows[0], ...values };
+      const refError = await ensureMasterRefs(config, merged, user.companyId);
+      if (refError) { res.status(400).json({ success: false, message: refError }); return; }
+      const uniqueError = await ensureMasterUnique(config, values, user.companyId, id);
+      if (uniqueError) { res.status(409).json({ success: false, message: uniqueError }); return; }
+      const sets = [...Object.keys(values), "updated_by", "updated_at"].map((col, i) => col === "updated_at" ? `${col} = NOW()` : `${col} = $${i + 1}`).join(", ");
+      const params = [...Object.values(values), user.userId, id, user.companyId];
+      const { rows } = await pool.query(
+        `UPDATE ${config.table} SET ${sets} WHERE id = $${params.length - 1} AND company_id = $${params.length} AND is_deleted = false RETURNING *`,
+        params,
+      );
+      await logActivity(user.companyId, "hr_master_data_updated", `${config.labelEn} updated: ${rows[0]?.code || id}`, null);
+      res.json({ success: true, data: rows[0] });
+    } catch (e: any) {
+      console.error(`[PATCH /api/${config.route}/:id]`, e);
+      res.status(500).json({ success: false, message: e?.code === "42P01" ? "HR master data migration is not applied" : "Internal server error" });
+    }
+  });
+
+  app.delete(`/api/${config.route}/:id`, auth, async (req, res) => {
+    try {
+      const user = requireMasterDataRole(req, res);
+      if (!user) return;
+      const id = Number(req.params["id"]);
+      if (config.table === "responsibility_groups") {
+        const used = await pool.query(
+          `SELECT id FROM responsibilities WHERE company_id = $1 AND responsibility_group_id = $2 AND is_deleted = false LIMIT 1`,
+          [user.companyId, id],
+        );
+        if (used.rows.length) { res.status(409).json({ success: false, message: "Cannot delete a responsibility group while responsibilities use it" }); return; }
+      }
+      const { rows } = await pool.query(
+        `UPDATE ${config.table} SET is_deleted = true, is_active = false, updated_by = $1, updated_at = NOW()
+         WHERE id = $2 AND company_id = $3 AND is_deleted = false RETURNING *`,
+        [user.userId, id, user.companyId],
+      );
+      if (!rows.length) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      await logActivity(user.companyId, "hr_master_data_deleted", `${config.labelEn} deleted: ${rows[0]?.code || id}`, null);
+      res.json({ success: true, data: rows[0] });
+    } catch (e: any) {
+      console.error(`[DELETE /api/${config.route}/:id]`, e);
+      res.status(500).json({ success: false, message: e?.code === "42P01" ? "HR master data migration is not applied" : "Internal server error" });
+    }
+  });
+}
+
+app.get("/api/hr-master-data/modules", auth, async (req, res) => {
+  try {
+    const user = requireMasterDataRole(req, res);
+    if (!user) return;
+    res.json({ success: true, data: masterDataModules.map(({ route, table, labelAr, labelEn }) => ({ route, table, labelAr, labelEn })) });
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// â”€â”€â”€ Phase 3: Recruitment & Hiring / ATS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+type RecruitmentRole = "superadmin" | "hradmin" | "manager" | "payrolladmin" | "employee" | "recruiter";
+
+function recruitmentMigrationMessage(e: any) {
+  return e?.code === "42P01" || e?.code === "42703"
+    ? "Phase 3 recruitment migration is not applied"
+    : "Internal server error";
+}
+
+function recruitmentErrorStatus(e: any) {
+  return e?.code === "42P01" || e?.code === "42703" ? 503 : 500;
+}
+
+function canReadRecruitment(user: AuthReq["user"]) {
+  return ["superadmin", "hradmin", "manager", "payrolladmin", "recruiter"].includes(user.role);
+}
+
+function canManageRecruitment(user: AuthReq["user"]) {
+  return ["hradmin", "recruiter", "superadmin"].includes(user.role);
+}
+
+function canCreateRecruitmentRequest(user: AuthReq["user"]) {
+  return ["hradmin", "manager", "recruiter", "superadmin"].includes(user.role);
+}
+
+function canReviewOffers(user: AuthReq["user"]) {
+  return ["hradmin", "payrolladmin", "superadmin"].includes(user.role);
+}
+
+function toInt(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toNumString(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? String(n) : null;
+}
+
+function atsPage(req: express.Request) {
+  const page = Math.max(Number(req.query["page"] || 1), 1);
+  const pageSize = Math.min(Math.max(Number(req.query["pageSize"] || req.query["limit"] || 20), 1), 100);
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+function atsName(row: any) {
+  return {
+    titleAr: row.title_ar,
+    titleEn: row.title_en,
+    nameAr: row.name_ar,
+    nameEn: row.name_en,
+    fullNameAr: row.full_name_ar,
+    fullNameEn: row.full_name_en,
+  };
+}
+
+function camelAts(row: any) {
+  if (!row) return row;
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(row)) {
+    out[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] = value;
+  }
+  return out;
+}
+
+async function assertCompanyRef(table: string, id: number | null, companyId: number, label: string) {
+  if (!id) return null;
+  const { rows } = await pool.query(`SELECT id FROM ${table} WHERE id = $1 AND company_id = $2 AND COALESCE(is_deleted, false) = false LIMIT 1`, [id, companyId]);
+  return rows.length ? null : `Invalid ${label}`;
+}
+
+async function getDefaultRecruitmentStage(companyId: number, code = "applied") {
+  const { rows } = await pool.query(
+    `SELECT id, code, name_ar, name_en FROM recruitment_pipeline_stages
+      WHERE company_id = $1 AND code = $2 AND is_deleted = false LIMIT 1`,
+    [companyId, code],
+  );
+  return rows[0] ?? null;
+}
+
+async function notifyRecruitmentRole(companyId: number, role: string, actorUserId: number, titleAr: string, titleEn: string, messageAr: string, messageEn: string, entityType: string, entityId: number, actionUrl: string) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM users WHERE company_id = $1 AND role = $2 AND is_active = true AND is_deleted = false LIMIT 20`,
+      [companyId, role],
+    );
+    for (const recipient of rows) {
+      await pool.query(
+        `INSERT INTO notifications
+          (company_id, recipient_user_id, actor_user_id, notification_type, title_ar, title_en, message_ar, message_en, priority, status, entity_type, entity_id, action_url)
+         VALUES ($1,$2,$3,'recruitment',$4,$5,$6,$7,'normal','unread',$8,$9,$10)`,
+        [companyId, recipient.id, actorUserId, titleAr, titleEn, messageAr, messageEn, entityType, entityId, actionUrl],
+      );
+    }
+  } catch {}
+}
+
+async function createRecruitmentEmailLog(companyId: number, userId: number, toEmail: string | null, templateKey: string, subject: string, payload: any) {
+  try {
+    await pool.query(
+      `INSERT INTO email_logs (company_id, to_email, template_key, subject, status, payload_json, created_by_user_id)
+       VALUES ($1,$2,$3,$4,'dry_run',$5::jsonb,$6)`,
+      [companyId, toEmail, templateKey, subject, JSON.stringify(payload ?? {}), userId],
+    );
+  } catch {}
+}
+
+async function getRecruitmentRequestDetail(companyId: number, id: number) {
+  const { rows } = await pool.query(
+    `SELECT rr.*,
+            jd.title_ar AS job_profile_title_ar, jd.title_en AS job_profile_title_en,
+            d.name_ar AS department_name_ar, d.name_en AS department_name_en,
+            org.name_ar AS org_node_name_ar, org.name_en AS org_node_name_en,
+            e.first_name_ar || ' ' || e.last_name_ar AS manager_name_ar,
+            e.first_name_en || ' ' || e.last_name_en AS manager_name_en
+       FROM recruitment_requests rr
+       LEFT JOIN job_descriptions jd ON jd.id = rr.job_profile_id AND jd.company_id = rr.company_id
+       LEFT JOIN departments d ON d.id = rr.department_id AND d.company_id = rr.company_id
+       LEFT JOIN org_nodes org ON org.id = rr.org_node_id AND org.company_id = rr.company_id
+       LEFT JOIN employees e ON e.id = rr.manager_employee_id AND e.company_id = rr.company_id
+      WHERE rr.company_id = $1 AND rr.id = $2 AND rr.is_deleted = false LIMIT 1`,
+    [companyId, id],
+  );
+  if (!rows[0]) return null;
+  const approvers = await pool.query(`SELECT * FROM recruitment_request_approvers WHERE company_id = $1 AND recruitment_request_id = $2 ORDER BY step_order`, [companyId, id]);
+  return { ...camelAts(rows[0]), approvers: approvers.rows.map(camelAts) };
+}
+
+async function getCandidateDetail(companyId: number, id: number) {
+  const { rows } = await pool.query(
+    `SELECT c.*,
+            rr.title_ar AS request_title_ar, rr.title_en AS request_title_en,
+            s.code AS stage_code, s.name_ar AS stage_name_ar, s.name_en AS stage_name_en
+       FROM candidates c
+       LEFT JOIN recruitment_requests rr ON rr.id = c.recruitment_request_id AND rr.company_id = c.company_id
+       LEFT JOIN recruitment_pipeline_stages s ON s.id = c.current_stage_id AND s.company_id = c.company_id
+      WHERE c.company_id = $1 AND c.id = $2 AND c.is_deleted = false LIMIT 1`,
+    [companyId, id],
+  );
+  if (!rows[0]) return null;
+  const [notes, documents, history, interviews, offers, skills, languages, education, experiences] = await Promise.all([
+    pool.query(`SELECT * FROM candidate_notes WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false ORDER BY created_at DESC`, [companyId, id]),
+    pool.query(`SELECT * FROM candidate_documents WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false ORDER BY created_at DESC`, [companyId, id]),
+    pool.query(
+      `SELECT h.*, fs.name_ar AS from_stage_ar, fs.name_en AS from_stage_en, ts.name_ar AS to_stage_ar, ts.name_en AS to_stage_en, u.username AS moved_by_username
+         FROM candidate_pipeline_history h
+         LEFT JOIN recruitment_pipeline_stages fs ON fs.id = h.from_stage_id
+         LEFT JOIN recruitment_pipeline_stages ts ON ts.id = h.to_stage_id
+         LEFT JOIN users u ON u.id = h.moved_by_user_id
+        WHERE h.company_id = $1 AND h.candidate_id = $2 ORDER BY h.moved_at DESC`,
+      [companyId, id],
+    ),
+    pool.query(`SELECT * FROM interviews WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false ORDER BY scheduled_at DESC`, [companyId, id]),
+    pool.query(`SELECT * FROM job_offers WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false ORDER BY created_at DESC`, [companyId, id]),
+    pool.query(`SELECT cs.*, s.name_ar, s.name_en, s.code FROM candidate_skills cs LEFT JOIN skills s ON s.id = cs.skill_id AND s.company_id = cs.company_id WHERE cs.company_id = $1 AND cs.candidate_id = $2 AND cs.is_deleted = false`, [companyId, id]),
+    pool.query(`SELECT cl.*, l.name_ar, l.name_en, l.code FROM candidate_languages cl LEFT JOIN languages l ON l.id = cl.language_id AND l.company_id = cl.company_id WHERE cl.company_id = $1 AND cl.candidate_id = $2 AND cl.is_deleted = false`, [companyId, id]),
+    pool.query(`SELECT * FROM candidate_education WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false`, [companyId, id]),
+    pool.query(`SELECT * FROM candidate_experiences WHERE company_id = $1 AND candidate_id = $2 AND is_deleted = false ORDER BY start_date DESC NULLS LAST`, [companyId, id]),
+  ]);
+  return {
+    ...camelAts(rows[0]),
+    notes: notes.rows.map(camelAts),
+    documents: documents.rows.map(camelAts),
+    history: history.rows.map(camelAts),
+    interviews: interviews.rows.map(camelAts),
+    offers: offers.rows.map(camelAts),
+    skills: skills.rows.map(camelAts),
+    languages: languages.rows.map(camelAts),
+    education: education.rows.map(camelAts),
+    experiences: experiences.rows.map(camelAts),
+  };
+}
+
+app.get("/api/recruitment/dashboard", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const companyId = user.companyId;
+    const [positions, candidates, stages, offers, interviews, hired] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS count FROM recruitment_requests WHERE company_id = $1 AND is_deleted = false AND status IN ('approved','open','pending_manager','pending_hr','pending_payroll')`, [companyId]),
+      pool.query(`SELECT COUNT(*)::int AS count FROM candidates WHERE company_id = $1 AND is_deleted = false`, [companyId]),
+      pool.query(
+        `SELECT s.id, s.code, s.name_ar, s.name_en, COUNT(c.id)::int AS count
+           FROM recruitment_pipeline_stages s
+           LEFT JOIN candidates c ON c.current_stage_id = s.id AND c.company_id = s.company_id AND c.is_deleted = false
+          WHERE s.company_id = $1 AND s.is_deleted = false
+          GROUP BY s.id ORDER BY s.stage_order`,
+        [companyId],
+      ),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM job_offers WHERE company_id = $1 AND is_deleted = false GROUP BY status`, [companyId]),
+      pool.query(`SELECT COUNT(*)::int AS count FROM interviews WHERE company_id = $1 AND is_deleted = false AND scheduled_at >= NOW()`, [companyId]),
+      pool.query(`SELECT COUNT(*)::int AS count FROM candidates WHERE company_id = $1 AND is_deleted = false AND status = 'hired'`, [companyId]),
+    ]);
+    const totalOffers = offers.rows.reduce((sum, r) => sum + Number(r.count), 0);
+    const acceptedOffers = offers.rows.filter(r => ["accepted", "approved"].includes(r.status)).reduce((sum, r) => sum + Number(r.count), 0);
+    res.json({
+      success: true,
+      data: {
+        openPositions: positions.rows[0]?.count ?? 0,
+        totalCandidates: candidates.rows[0]?.count ?? 0,
+        upcomingInterviews: interviews.rows[0]?.count ?? 0,
+        hiredCandidates: hired.rows[0]?.count ?? 0,
+        offerAcceptanceRate: totalOffers ? Math.round((acceptedOffers / totalOffers) * 100) : 0,
+        candidatesByStage: stages.rows.map(camelAts),
+        offersByStatus: offers.rows.map(camelAts),
+      },
+    });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/dashboard]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/pipeline/stages", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `SELECT * FROM recruitment_pipeline_stages WHERE company_id = $1 AND is_deleted = false AND is_active = true ORDER BY stage_order, id`,
+      [user.companyId],
+    );
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/pipeline/stages]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { page, pageSize, offset } = atsPage(req);
+    const params: any[] = [user.companyId];
+    const where = [`rr.company_id = $1`, `rr.is_deleted = false`];
+    const q = String(req.query["q"] ?? "").trim();
+    if (q) {
+      const n = params.push(`%${q.toLowerCase()}%`);
+      where.push(`(lower(rr.request_number) LIKE $${n} OR lower(rr.title_ar) LIKE $${n} OR lower(rr.title_en) LIKE $${n})`);
+    }
+    if (req.query["status"]) where.push(`rr.status = $${params.push(String(req.query["status"]))}`);
+    if (req.query["urgency"]) where.push(`rr.urgency = $${params.push(String(req.query["urgency"]))}`);
+    if (req.query["departmentId"]) where.push(`rr.department_id = $${params.push(Number(req.query["departmentId"]))}`);
+    if (user.role === "manager" && user.employeeId) where.push(`(rr.manager_employee_id = $${params.push(user.employeeId)} OR rr.requested_by_user_id = $${params.push(user.userId)})`);
+    const whereSql = where.join(" AND ");
+    const count = await pool.query(`SELECT COUNT(*)::int AS total FROM recruitment_requests rr WHERE ${whereSql}`, params);
+    const { rows } = await pool.query(
+      `SELECT rr.*, jd.title_ar AS job_profile_title_ar, jd.title_en AS job_profile_title_en, d.name_ar AS department_name_ar, d.name_en AS department_name_en
+         FROM recruitment_requests rr
+         LEFT JOIN job_descriptions jd ON jd.id = rr.job_profile_id AND jd.company_id = rr.company_id
+         LEFT JOIN departments d ON d.id = rr.department_id AND d.company_id = rr.company_id
+        WHERE ${whereSql}
+        ORDER BY rr.created_at DESC LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`,
+      params,
+    );
+    const total = count.rows[0]?.total ?? 0;
+    res.json({ success: true, data: rows.map(camelAts), meta: { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/requests]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canCreateRecruitmentRequest(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const titleAr = String(req.body.titleAr ?? "").trim();
+    const titleEn = String(req.body.titleEn ?? "").trim();
+    if (!titleAr || !titleEn) return res.status(400).json({ success: false, message: "Arabic and English titles are required" });
+    const jobProfileId = toInt(req.body.jobProfileId);
+    const departmentId = toInt(req.body.departmentId);
+    const orgNodeId = toInt(req.body.orgNodeId);
+    const managerEmployeeId = toInt(req.body.managerEmployeeId) ?? user.employeeId;
+    for (const err of [
+      await assertCompanyRef("job_descriptions", jobProfileId, user.companyId, "jobProfileId"),
+      await assertCompanyRef("departments", departmentId, user.companyId, "departmentId"),
+      await assertCompanyRef("org_nodes", orgNodeId, user.companyId, "orgNodeId"),
+      await assertCompanyRef("employees", managerEmployeeId, user.companyId, "managerEmployeeId"),
+    ]) {
+      if (err) return res.status(400).json({ success: false, message: err });
+    }
+    let inherited: any = {};
+    if (jobProfileId) {
+      const detail = await pool.query(`${jobProfileBaseSelect()} WHERE jd.id = $1 AND jd.company_id = $2 LIMIT 1`, [jobProfileId, user.companyId]);
+      inherited = detail.rows[0] ? camelJobProfile(detail.rows[0], true) : {};
+    }
+    const status = req.body.submit === false ? "draft" : "pending_manager";
+    const requestNumber = `REQ-${Date.now().toString(36).toUpperCase()}`;
+    const { rows } = await pool.query(
+      `INSERT INTO recruitment_requests
+        (company_id, request_number, job_profile_id, department_id, org_node_id, manager_employee_id, requested_by_user_id,
+         title_ar, title_en, required_headcount, hiring_reason, employment_type, min_salary, max_salary, urgency,
+         expected_joining_date, inherited_profile_json, status, current_approval_step, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$20) RETURNING id`,
+      [
+        user.companyId, requestNumber, jobProfileId, departmentId, orgNodeId, managerEmployeeId, user.userId,
+        titleAr, titleEn, Math.max(Number(req.body.requiredHeadcount || 1), 1), req.body.hiringReason || "replacement",
+        req.body.employmentType || "full_time", toNumString(req.body.minSalary), toNumString(req.body.maxSalary),
+        req.body.urgency || "normal", req.body.expectedJoiningDate || null, JSON.stringify(inherited), status,
+        status === "draft" ? null : "manager", user.userId,
+      ],
+    );
+    const requestId = rows[0].id;
+    const approvers = [
+      [1, "manager"],
+      [2, "hradmin"],
+      [3, "payrolladmin"],
+      [4, "hradmin"],
+    ];
+    for (const [order, role] of approvers) {
+      await pool.query(
+        `INSERT INTO recruitment_request_approvers (company_id, recruitment_request_id, step_order, approver_role)
+         VALUES ($1,$2,$3,$4) ON CONFLICT (recruitment_request_id, step_order) DO NOTHING`,
+        [user.companyId, requestId, order, role],
+      );
+    }
+    await logActivity(user.companyId, "recruitment_request_created", `Recruitment request created: ${titleEn}`, user.username);
+    await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "ط·ظ„ط¨ طھظˆط¸ظٹظپ ط¬ط¯ظٹط¯", "New hiring request", titleAr, titleEn, "recruitment_request", requestId, "/app/recruitment/requests");
+    res.status(201).json({ success: true, data: await getRecruitmentRequestDetail(user.companyId, requestId) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/requests]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/requests/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "payrolladmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const detail = await getRecruitmentRequestDetail(user.companyId, id);
+    if (!detail) return res.status(404).json({ success: false, message: "Request not found" });
+    const pending = (detail.approvers ?? []).find((a: any) => a.decision === "pending");
+    if (!pending) return res.status(409).json({ success: false, message: "Request is already finalized" });
+    if (user.role !== "superadmin" && pending.approverRole !== user.role && !(pending.approverRole === "manager" && user.role === "hradmin")) {
+      return res.status(403).json({ success: false, message: `This step requires ${pending.approverRole}` });
+    }
+    await pool.query(`UPDATE recruitment_request_approvers SET decision = 'approved', approver_user_id = $1, decided_at = NOW(), notes = $2, updated_at = NOW() WHERE id = $3`, [user.userId, req.body.notes || null, pending.id]);
+    const after = await getRecruitmentRequestDetail(user.companyId, id);
+    const next = (after?.approvers ?? []).find((a: any) => a.decision === "pending");
+    const nextStatus = next ? `pending_${next.approverRole === "hradmin" ? "hr" : next.approverRole.replace("admin", "")}` : "approved";
+    await pool.query(`UPDATE recruitment_requests SET status = $3::varchar, current_approval_step = $4, approved_at = CASE WHEN $3::varchar = 'approved' THEN NOW() ELSE approved_at END, updated_by = $1, updated_at = NOW() WHERE id = $2 AND company_id = $5`, [user.userId, id, nextStatus, next?.approverRole ?? null, user.companyId]);
+    await logActivity(user.companyId, "recruitment_request_approved", `Recruitment request approved step: ${id}`, user.username);
+    if (next) await notifyRecruitmentRole(user.companyId, next.approverRole, user.userId, "ط·ظ„ط¨ طھظˆط¸ظٹظپ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯", "Hiring request awaiting approval", after.titleAr, after.titleEn, "recruitment_request", id, "/app/recruitment/approvals");
+    res.json({ success: true, data: await getRecruitmentRequestDetail(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/requests/:id/approve]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/requests/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "payrolladmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const detail = await getRecruitmentRequestDetail(user.companyId, id);
+    if (!detail) return res.status(404).json({ success: false, message: "Request not found" });
+    await pool.query(`UPDATE recruitment_requests SET status = 'rejected', rejected_at = NOW(), rejection_reason = $1, updated_by = $2, updated_at = NOW() WHERE id = $3 AND company_id = $4`, [req.body.reason || req.body.notes || null, user.userId, id, user.companyId]);
+    await pool.query(`UPDATE recruitment_request_approvers SET decision = 'rejected', approver_user_id = $1, decided_at = NOW(), notes = $2, updated_at = NOW() WHERE recruitment_request_id = $3 AND company_id = $4 AND decision = 'pending'`, [user.userId, req.body.reason || null, id, user.companyId]);
+    await logActivity(user.companyId, "recruitment_request_rejected", `Recruitment request rejected: ${id}`, user.username);
+    res.json({ success: true, data: await getRecruitmentRequestDetail(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/requests/:id/reject]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/requests/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canCreateRecruitmentRequest(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const existing = await getRecruitmentRequestDetail(user.companyId, id);
+    if (!existing) return res.status(404).json({ success: false, message: "Request not found" });
+    if (user.role === "manager" && existing.requestedByUserId !== user.userId && existing.managerEmployeeId !== user.employeeId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const allowed: Record<string, string> = {
+      titleAr: "title_ar",
+      titleEn: "title_en",
+      hiringReason: "hiring_reason",
+      employmentType: "employment_type",
+      urgency: "urgency",
+      expectedJoiningDate: "expected_joining_date",
+      status: "status",
+    };
+    const values: any[] = [];
+    const sets: string[] = [];
+    for (const [bodyKey, col] of Object.entries(allowed)) {
+      if (req.body[bodyKey] !== undefined) {
+        values.push(req.body[bodyKey] || null);
+        sets.push(`${col} = $${values.length}`);
+      }
+    }
+    for (const [bodyKey, col] of [["jobProfileId", "job_profile_id"], ["departmentId", "department_id"], ["orgNodeId", "org_node_id"], ["managerEmployeeId", "manager_employee_id"], ["requiredHeadcount", "required_headcount"], ["minSalary", "min_salary"], ["maxSalary", "max_salary"]] as const) {
+      if (req.body[bodyKey] !== undefined) {
+        values.push(["minSalary", "maxSalary"].includes(bodyKey) ? toNumString(req.body[bodyKey]) : toInt(req.body[bodyKey]));
+        sets.push(`${col} = $${values.length}`);
+      }
+    }
+    if (!sets.length) return res.json({ success: true, data: existing });
+    values.push(user.userId, id, user.companyId);
+    const { rows } = await pool.query(
+      `UPDATE recruitment_requests SET ${sets.join(", ")}, updated_by = $${values.length - 2}, updated_at = NOW()
+       WHERE id = $${values.length - 1} AND company_id = $${values.length} AND is_deleted = false RETURNING id`,
+      values,
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: "Request not found" });
+    await logActivity(user.companyId, "recruitment_request_updated", `Recruitment request updated: ${id}`, user.username);
+    res.json({ success: true, data: await getRecruitmentRequestDetail(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/requests/:id]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/candidates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { page, pageSize, offset } = atsPage(req);
+    const params: any[] = [user.companyId];
+    const where = [`c.company_id = $1`, `c.is_deleted = false`];
+    const q = String(req.query["q"] ?? "").trim();
+    if (q) {
+      const n = params.push(`%${q.toLowerCase()}%`);
+      where.push(`(lower(c.full_name_ar) LIKE $${n} OR lower(c.full_name_en) LIKE $${n} OR lower(coalesce(c.email,'')) LIKE $${n} OR lower(coalesce(c.phone,'')) LIKE $${n})`);
+    }
+    if (req.query["status"]) where.push(`c.status = $${params.push(String(req.query["status"]))}`);
+    if (req.query["source"]) where.push(`c.source = $${params.push(String(req.query["source"]))}`);
+    if (req.query["stageId"]) where.push(`c.current_stage_id = $${params.push(Number(req.query["stageId"]))}`);
+    if (req.query["requestId"]) where.push(`c.recruitment_request_id = $${params.push(Number(req.query["requestId"]))}`);
+    const whereSql = where.join(" AND ");
+    const total = await pool.query(`SELECT COUNT(*)::int AS total FROM candidates c WHERE ${whereSql}`, params);
+    const { rows } = await pool.query(
+      `SELECT c.*, s.code AS stage_code, s.name_ar AS stage_name_ar, s.name_en AS stage_name_en, rr.title_ar AS request_title_ar, rr.title_en AS request_title_en
+         FROM candidates c
+         LEFT JOIN recruitment_pipeline_stages s ON s.id = c.current_stage_id AND s.company_id = c.company_id
+         LEFT JOIN recruitment_requests rr ON rr.id = c.recruitment_request_id AND rr.company_id = c.company_id
+        WHERE ${whereSql}
+        ORDER BY c.created_at DESC LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`,
+      params,
+    );
+    const count = total.rows[0]?.total ?? 0;
+    res.json({ success: true, data: rows.map(camelAts), meta: { total: count, page, pageSize, totalPages: Math.max(1, Math.ceil(count / pageSize)) } });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/candidates]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/pipeline", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["superadmin", "hradmin", "manager", "recruiter"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const stages = await pool.query(
+      `SELECT * FROM recruitment_pipeline_stages WHERE company_id = $1 AND is_deleted = false AND is_active = true ORDER BY stage_order, id`,
+      [user.companyId],
+    );
+    const candidates = await pool.query(
+      `SELECT c.*, s.code AS stage_code, s.name_ar AS stage_name_ar, s.name_en AS stage_name_en
+         FROM candidates c
+         LEFT JOIN recruitment_pipeline_stages s ON s.id = c.current_stage_id AND s.company_id = c.company_id
+        WHERE c.company_id = $1 AND c.is_deleted = false
+        ORDER BY c.updated_at DESC LIMIT 500`,
+      [user.companyId],
+    );
+    res.json({
+      success: true,
+      data: stages.rows.map(stage => ({
+        ...camelAts(stage),
+        candidates: candidates.rows.filter(c => c.current_stage_id === stage.id).map(camelAts),
+      })),
+    });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/pipeline]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const fullNameAr = String(req.body.fullNameAr ?? "").trim();
+    const fullNameEn = String(req.body.fullNameEn ?? "").trim();
+    if (!fullNameAr || !fullNameEn) return res.status(400).json({ success: false, message: "Arabic and English candidate names are required" });
+    const requestId = toInt(req.body.recruitmentRequestId);
+    if (requestId) {
+      const err = await assertCompanyRef("recruitment_requests", requestId, user.companyId, "recruitmentRequestId");
+      if (err) return res.status(400).json({ success: false, message: err });
+    }
+    const stage = req.body.stageId ? { id: Number(req.body.stageId) } : await getDefaultRecruitmentStage(user.companyId);
+    const candidateNumber = `CAN-${Date.now().toString(36).toUpperCase()}`;
+    const { rows } = await pool.query(
+      `INSERT INTO candidates
+        (company_id, candidate_number, recruitment_request_id, current_stage_id, first_name_ar, last_name_ar, first_name_en, last_name_en,
+         full_name_ar, full_name_en, email, phone, nationality, current_company, current_salary, expected_salary, notice_period_days,
+         years_of_experience, source, tags_json, rating, status, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,'active',$22,$22) RETURNING id`,
+      [
+        user.companyId, candidateNumber, requestId, stage?.id ?? null,
+        req.body.firstNameAr || null, req.body.lastNameAr || null, req.body.firstNameEn || null, req.body.lastNameEn || null,
+        fullNameAr, fullNameEn, req.body.email || null, req.body.phone || null, req.body.nationality || null, req.body.currentCompany || null,
+        toNumString(req.body.currentSalary), toNumString(req.body.expectedSalary), toInt(req.body.noticePeriodDays), toNumString(req.body.yearsOfExperience),
+        req.body.source || null, JSON.stringify(Array.isArray(req.body.tags) ? req.body.tags : []), toNumString(req.body.rating), user.userId,
+      ],
+    );
+    if (stage?.id) {
+      await pool.query(`INSERT INTO candidate_pipeline_history (company_id, candidate_id, to_stage_id, to_status, moved_by_user_id, notes) VALUES ($1,$2,$3,'active',$4,'Candidate created')`, [user.companyId, rows[0].id, stage.id, user.userId]);
+    }
+    await logActivity(user.companyId, "candidate_created", `Candidate created: ${fullNameEn}`, user.username);
+    await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "ظ…ط±ط´ط­ ط¬ط¯ظٹط¯", "New candidate", fullNameAr, fullNameEn, "candidate", rows[0].id, "/app/recruitment/candidates");
+    res.status(201).json({ success: true, data: await getCandidateDetail(user.companyId, rows[0].id) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/candidates/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const data = await getCandidateDetail(user.companyId, Number(req.params["id"]));
+    if (!data) return res.status(404).json({ success: false, message: "Candidate not found" });
+    res.json({ success: true, data });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/candidates/:id]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/candidates/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const allowed: Record<string, string> = {
+      fullNameAr: "full_name_ar", fullNameEn: "full_name_en", email: "email", phone: "phone", nationality: "nationality",
+      currentCompany: "current_company", source: "source", status: "status", rejectionReason: "rejection_reason",
+    };
+    const values: any[] = [];
+    const sets: string[] = [];
+    for (const [bodyKey, col] of Object.entries(allowed)) {
+      if (req.body[bodyKey] !== undefined) {
+        values.push(req.body[bodyKey] || null);
+        sets.push(`${col} = $${values.length}`);
+      }
+    }
+    for (const [bodyKey, col] of [["currentSalary", "current_salary"], ["expectedSalary", "expected_salary"], ["noticePeriodDays", "notice_period_days"], ["yearsOfExperience", "years_of_experience"], ["rating", "rating"]] as const) {
+      if (req.body[bodyKey] !== undefined) {
+        values.push(bodyKey === "noticePeriodDays" ? toInt(req.body[bodyKey]) : toNumString(req.body[bodyKey]));
+        sets.push(`${col} = $${values.length}`);
+      }
+    }
+    if (req.body.tags !== undefined) {
+      values.push(JSON.stringify(Array.isArray(req.body.tags) ? req.body.tags : []));
+      sets.push(`tags_json = $${values.length}::jsonb`);
+    }
+    if (!sets.length) return res.json({ success: true, data: await getCandidateDetail(user.companyId, id) });
+    values.push(user.userId, id, user.companyId);
+    const { rows } = await pool.query(`UPDATE candidates SET ${sets.join(", ")}, updated_by = $${values.length - 2}, updated_at = NOW() WHERE id = $${values.length - 1} AND company_id = $${values.length} AND is_deleted = false RETURNING id`, values);
+    if (!rows.length) return res.status(404).json({ success: false, message: "Candidate not found" });
+    await logActivity(user.companyId, "candidate_updated", `Candidate updated: ${id}`, user.username);
+    res.json({ success: true, data: await getCandidateDetail(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/candidates/:id]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/candidates/:id/move", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "recruiter", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const toStageId = Number(req.body.toStageId);
+    const candidate = await getCandidateDetail(user.companyId, id);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const stage = await pool.query(`SELECT * FROM recruitment_pipeline_stages WHERE id = $1 AND company_id = $2 AND is_deleted = false LIMIT 1`, [toStageId, user.companyId]);
+    if (!stage.rows[0]) return res.status(400).json({ success: false, message: "Invalid stage" });
+    const toStatus = stage.rows[0].is_hired ? "hired" : stage.rows[0].is_rejected ? "rejected" : stage.rows[0].code;
+    await pool.query(`UPDATE candidates SET current_stage_id = $1, status = $2, rejection_reason = $3, updated_by = $4, updated_at = NOW() WHERE id = $5 AND company_id = $6`, [toStageId, toStatus, req.body.rejectionReason || null, user.userId, id, user.companyId]);
+    await pool.query(`INSERT INTO candidate_pipeline_history (company_id, candidate_id, from_stage_id, to_stage_id, from_status, to_status, rejection_reason, moved_by_user_id, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [user.companyId, id, candidate.currentStageId, toStageId, candidate.status, toStatus, req.body.rejectionReason || null, user.userId, req.body.notes || null]);
+    await logActivity(user.companyId, "candidate_stage_moved", `Candidate moved: ${id} -> ${stage.rows[0].code}`, user.username);
+    await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "طھط­ط¯ظٹط« ظ…ط³ط§ط± ط§ظ„ظ…ط±ط´ط­", "Candidate pipeline updated", candidate.fullNameAr, candidate.fullNameEn, "candidate", id, "/app/recruitment/pipeline");
+    res.json({ success: true, data: await getCandidateDetail(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/candidates/:id/move]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/notes", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user) || user.role === "employee") return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const candidate = await getCandidateDetail(user.companyId, id);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const { rows } = await pool.query(
+      `INSERT INTO candidate_notes (company_id, candidate_id, note_type, note_ar, note_en, visibility, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING *`,
+      [user.companyId, id, req.body.noteType || "note", req.body.noteAr || null, req.body.noteEn || null, req.body.visibility || "internal", user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates/:id/notes]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/education", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.params["id"]);
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const qualificationId = toInt(req.body.educationalQualificationId);
+    const specializationId = toInt(req.body.specializationId);
+    const universityId = toInt(req.body.universityId);
+    for (const err of [
+      await assertCompanyRef("educational_qualifications", qualificationId, user.companyId, "educationalQualificationId"),
+      await assertCompanyRef("specializations", specializationId, user.companyId, "specializationId"),
+      await assertCompanyRef("universities", universityId, user.companyId, "universityId"),
+    ]) {
+      if (err) return res.status(400).json({ success: false, message: err });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO candidate_education (company_id, candidate_id, educational_qualification_id, specialization_id, university_id, institution_name, graduation_year, grade)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [user.companyId, candidateId, qualificationId, specializationId, universityId, req.body.institutionName || null, toInt(req.body.graduationYear), req.body.grade || null],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates/:id/education]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/skills", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.params["id"]);
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const skillId = toInt(req.body.skillId);
+    const err = await assertCompanyRef("skills", skillId, user.companyId, "skillId");
+    if (err) return res.status(400).json({ success: false, message: err });
+    const { rows } = await pool.query(
+      `INSERT INTO candidate_skills (company_id, candidate_id, skill_id, skill_name, proficiency)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [user.companyId, candidateId, skillId, req.body.skillName || null, req.body.proficiency || "intermediate"],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates/:id/skills]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/languages", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.params["id"]);
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const languageId = toInt(req.body.languageId);
+    const err = await assertCompanyRef("languages", languageId, user.companyId, "languageId");
+    if (err) return res.status(400).json({ success: false, message: err });
+    const { rows } = await pool.query(
+      `INSERT INTO candidate_languages (company_id, candidate_id, language_id, language_name, proficiency)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [user.companyId, candidateId, languageId, req.body.languageName || null, req.body.proficiency || "professional"],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates/:id/languages]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/documents", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.params["id"]);
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const { rows } = await pool.query(
+      `INSERT INTO candidate_documents (company_id, candidate_id, file_object_id, document_type, file_name, file_url, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
+      [user.companyId, candidateId, toInt(req.body.fileObjectId), req.body.documentType || "resume", req.body.fileName || null, req.body.fileUrl || null, req.body.notes || null, user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/candidates/:id/documents]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/interviews", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "recruiter", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.body.candidateId);
+    const scheduledAt = String(req.body.scheduledAt || "");
+    if (!candidateId || !scheduledAt) return res.status(400).json({ success: false, message: "candidateId and scheduledAt are required" });
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const { rows } = await pool.query(
+      `INSERT INTO interviews
+        (company_id, candidate_id, recruitment_request_id, stage_id, interview_type, scheduled_at, duration_minutes, location, meeting_url, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,
+      [user.companyId, candidateId, candidate.recruitmentRequestId, candidate.currentStageId, req.body.interviewType || "hr", scheduledAt, Number(req.body.durationMinutes || 60), req.body.location || null, req.body.meetingUrl || null, req.body.notes || null, user.userId],
+    );
+    await createRecruitmentEmailLog(user.companyId, user.userId, candidate.email, "recruitment_interview_invitation", "Interview invitation", { candidateId, scheduledAt });
+    await logActivity(user.companyId, "interview_scheduled", `Interview scheduled for candidate #${candidateId}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/interviews]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/interviews/:id/feedback", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "recruiter", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const interviewId = Number(req.params["id"]);
+    const interview = await pool.query(`SELECT * FROM interviews WHERE id = $1 AND company_id = $2 AND is_deleted = false LIMIT 1`, [interviewId, user.companyId]);
+    if (!interview.rows[0]) return res.status(404).json({ success: false, message: "Interview not found" });
+    const { rows } = await pool.query(
+      `INSERT INTO interview_feedback
+        (company_id, interview_id, interviewer_user_id, technical_score, communication_score, culture_score, overall_score, recommendation, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [
+        user.companyId, interviewId, user.userId, toNumString(req.body.technicalScore), toNumString(req.body.communicationScore),
+        toNumString(req.body.cultureScore), toNumString(req.body.overallScore), req.body.recommendation || "advance", req.body.notes || null,
+      ],
+    );
+    await pool.query(`UPDATE interviews SET status = 'completed', updated_by = $1, updated_at = NOW() WHERE id = $2 AND company_id = $3`, [user.userId, interviewId, user.companyId]);
+    await logActivity(user.companyId, "interview_feedback_submitted", `Interview feedback submitted: ${interviewId}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/interviews/:id/feedback]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/interviews", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { page, pageSize, offset } = atsPage(req);
+    const params: any[] = [user.companyId];
+    const where = [`i.company_id = $1`, `i.is_deleted = false`];
+    if (req.query["status"]) where.push(`i.status = $${params.push(String(req.query["status"]))}`);
+    const total = await pool.query(`SELECT COUNT(*)::int AS total FROM interviews i WHERE ${where.join(" AND ")}`, params);
+    const { rows } = await pool.query(
+      `SELECT i.*, c.full_name_ar AS candidate_name_ar, c.full_name_en AS candidate_name_en
+         FROM interviews i JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
+        WHERE ${where.join(" AND ")} ORDER BY i.scheduled_at DESC LIMIT $${params.push(pageSize)} OFFSET $${params.push(offset)}`,
+      params,
+    );
+    const count = total.rows[0]?.total ?? 0;
+    res.json({ success: true, data: rows.map(camelAts), meta: { total: count, page, pageSize, totalPages: Math.max(1, Math.ceil(count / pageSize)) } });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/interviews]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/offers", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReviewOffers(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const candidateId = Number(req.body.candidateId);
+    const salary = toNumString(req.body.salary);
+    const joiningDate = String(req.body.joiningDate || "");
+    if (!candidateId || !salary || !joiningDate) return res.status(400).json({ success: false, message: "candidateId, salary, and joiningDate are required" });
+    const candidate = await getCandidateDetail(user.companyId, candidateId);
+    if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const { rows } = await pool.query(
+      `INSERT INTO job_offers
+        (company_id, candidate_id, recruitment_request_id, job_profile_id, department_id, org_node_id, manager_employee_id, grade_id,
+         salary, housing_allowance, transport_allowance, mobile_allowance, probation_months, joining_date, contract_type, employment_type, status, expires_at, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19) RETURNING *`,
+      [
+        user.companyId, candidateId, candidate.recruitmentRequestId, req.body.jobProfileId || null, req.body.departmentId || null, req.body.orgNodeId || null, req.body.managerEmployeeId || null, req.body.gradeId || null,
+        salary, toNumString(req.body.housingAllowance) ?? "0", toNumString(req.body.transportAllowance) ?? "0", toNumString(req.body.mobileAllowance) ?? "0",
+        Number(req.body.probationMonths || 3), joiningDate, req.body.contractType || "permanent", req.body.employmentType || "full_time", req.body.status || "pending_approval", req.body.expiresAt || null, user.userId,
+      ],
+    );
+    await createRecruitmentEmailLog(user.companyId, user.userId, candidate.email, "recruitment_offer", "Job offer", { candidateId, offerId: rows[0].id });
+    await logActivity(user.companyId, "job_offer_created", `Job offer created for candidate #${candidateId}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/recruitment/offers]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/offers/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReviewOffers(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `UPDATE job_offers SET status = 'approved', approved_at = NOW(), updated_by = $1, updated_at = NOW()
+       WHERE id = $2 AND company_id = $3 AND is_deleted = false RETURNING *`,
+      [user.userId, Number(req.params["id"]), user.companyId],
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: "Offer not found" });
+    await logActivity(user.companyId, "job_offer_approved", `Job offer approved: ${req.params["id"]}`, user.username);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/offers/:id/approve]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.patch("/api/recruitment/offers/:id/accept", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReviewOffers(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `UPDATE job_offers SET status = 'accepted', accepted_at = NOW(), updated_by = $1, updated_at = NOW()
+       WHERE id = $2 AND company_id = $3 AND is_deleted = false RETURNING *`,
+      [user.userId, Number(req.params["id"]), user.companyId],
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: "Offer not found" });
+    await logActivity(user.companyId, "job_offer_accepted", `Job offer accepted: ${req.params["id"]}`, user.username);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/recruitment/offers/:id/accept]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/offers", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `SELECT o.*, c.full_name_ar AS candidate_name_ar, c.full_name_en AS candidate_name_en
+         FROM job_offers o JOIN candidates c ON c.id = o.candidate_id AND c.company_id = o.company_id
+        WHERE o.company_id = $1 AND o.is_deleted = false ORDER BY o.created_at DESC LIMIT 100`,
+      [user.companyId],
+    );
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/offers]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const candidate = await getCandidateDetail(user.companyId, Number(req.params["id"]));
+    if (!candidate) { res.status(404).json({ success: false, message: "Candidate not found" }); return; }
+    if (candidate.convertedEmployeeId) { res.status(409).json({ success: false, message: "Candidate is already converted" }); return; }
+    const offer = (candidate.offers ?? []).find((o: any) => ["approved", "accepted"].includes(o.status)) ?? candidate.offers?.[0];
+    const joinDate = req.body.hireDate || offer?.joiningDate || new Date().toISOString().slice(0, 10);
+    const empCode = req.body.employeeCode || `REC-${Date.now().toString(36).toUpperCase()}`;
+    const [firstEn, ...restEn] = String(candidate.fullNameEn).split(" ");
+    const [firstAr, ...restAr] = String(candidate.fullNameAr).split(" ");
+    const workEmail = req.body.workEmail || candidate.email || `${empCode.toLowerCase()}@local.zenjo`;
+    const username = req.body.username || workEmail.split("@")[0].replace(/[^a-zA-Z0-9._-]/g, ".").toLowerCase();
+    await client.query("BEGIN");
+    const emp = await client.query(
+      `INSERT INTO employees
+        (company_id, employee_code, first_name_ar, last_name_ar, first_name_en, last_name_en, gender, date_of_birth, national_id,
+         nationality, personal_email, work_email, personal_phone, department_id, org_node_id, job_description_id, direct_manager_id,
+         employment_type, hire_date, probation_end_date, contract_type, employment_status, basic_salary, housing_allowance, transport_allowance, mobile_allowance, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,($19::date + interval '3 months')::date,$20,'active',$21,$22,$23,$24,$25)
+       RETURNING id`,
+      [
+        user.companyId, empCode, firstAr || candidate.fullNameAr, restAr.join(" ") || firstAr || candidate.fullNameAr,
+        firstEn || candidate.fullNameEn, restEn.join(" ") || firstEn || candidate.fullNameEn,
+        req.body.gender || "male", req.body.dateOfBirth || "1995-01-01", req.body.nationalId || `NID${Date.now()}`,
+        candidate.nationality || "Jordanian", candidate.email || null, workEmail, candidate.phone || null,
+        offer?.departmentId || req.body.departmentId || null, offer?.orgNodeId || req.body.orgNodeId || null, offer?.jobProfileId || req.body.jobProfileId || null,
+        offer?.managerEmployeeId || req.body.managerEmployeeId || null, offer?.employmentType || "fulltime", joinDate, offer?.contractType || "permanent",
+        offer?.salary || req.body.basicSalary || "500", offer?.housingAllowance || "0", offer?.transportAllowance || "0", offer?.mobileAllowance || "0",
+        `Converted from candidate #${candidate.id}`,
+      ],
+    );
+    const role = await client.query(`SELECT id FROM roles WHERE company_id = $1 AND name = 'employee' LIMIT 1`, [user.companyId]);
+    const usr = await client.query(
+      `INSERT INTO users (employee_id, company_id, username, password_hash, email, role, role_id, is_active, must_change_password)
+       VALUES ($1,$2,$3,$4,$5,'employee',$6,true,true) RETURNING id`,
+      [emp.rows[0].id, user.companyId, username, hashPassword(req.body.password || "Welcome@1234"), workEmail, role.rows[0]?.id ?? null],
+    );
+    await client.query(`UPDATE candidates SET status = 'hired', converted_employee_id = $1, converted_user_id = $2, hired_at = NOW(), updated_by = $3, updated_at = NOW() WHERE id = $4 AND company_id = $5`, [emp.rows[0].id, usr.rows[0].id, user.userId, candidate.id, user.companyId]);
+    await client.query(
+      `INSERT INTO onboarding_batches (company_id, candidate_id, employee_id, batch_number, status, start_date, checklist_json, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,'created',$5,$6::jsonb,$7,$7)`,
+      [user.companyId, candidate.id, emp.rows[0].id, `ONB-${Date.now().toString(36).toUpperCase()}`, joinDate, JSON.stringify(["contract", "documents", "orientation", "systems_access"]), user.userId],
+    );
+    await client.query(`COMMIT`);
+    await logActivity(user.companyId, "candidate_converted_to_employee", `Candidate converted to employee: ${candidate.fullNameEn}`, user.username);
+    await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "طھظ… طھط¹ظٹظٹظ† ظ…ط±ط´ط­", "Candidate hired", candidate.fullNameAr, candidate.fullNameEn, "candidate", candidate.id, "/app/employees");
+    await createRecruitmentEmailLog(user.companyId, user.userId, workEmail, "recruitment_onboarding", "Onboarding started", { candidateId: candidate.id, employeeId: emp.rows[0].id });
+    res.status(201).json({ success: true, data: { employeeId: emp.rows[0].id, userId: usr.rows[0].id, username, defaultPassword: req.body.password ? undefined : "Welcome@1234" } });
+  } catch (e: any) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[POST /api/recruitment/candidates/:id/convert-to-employee]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/recruitment/approvals", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "payrolladmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const roleClause = user.role === "superadmin" ? "" : "AND a.approver_role = $2";
+    const params = user.role === "superadmin" ? [user.companyId] : [user.companyId, user.role];
+    const { rows } = await pool.query(
+      `SELECT a.*, rr.title_ar, rr.title_en, rr.request_number, rr.status AS request_status
+         FROM recruitment_request_approvers a
+         JOIN recruitment_requests rr ON rr.id = a.recruitment_request_id AND rr.company_id = a.company_id
+        WHERE a.company_id = $1 AND a.decision = 'pending' AND rr.is_deleted = false ${roleClause}
+        ORDER BY rr.created_at DESC LIMIT 100`,
+      params,
+    );
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/approvals]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
+app.get("/api/recruitment/reports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadRecruitment(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const source = await pool.query(`SELECT COALESCE(source,'unknown') AS source, COUNT(*)::int AS count FROM candidates WHERE company_id = $1 AND is_deleted = false GROUP BY COALESCE(source,'unknown') ORDER BY count DESC`, [user.companyId]);
+    const velocity = await pool.query(`SELECT AVG(EXTRACT(EPOCH FROM (hired_at - created_at))/86400)::numeric(10,2) AS avg_days FROM candidates WHERE company_id = $1 AND status = 'hired' AND hired_at IS NOT NULL`, [user.companyId]);
+    const recent = await pool.query(`SELECT date_trunc('day', created_at)::date AS day, COUNT(*)::int AS count FROM candidates WHERE company_id = $1 AND created_at >= NOW() - interval '30 days' GROUP BY 1 ORDER BY 1`, [user.companyId]);
+    res.json({ success: true, data: { sourceEffectiveness: source.rows.map(camelAts), avgTimeToHireDays: velocity.rows[0]?.avg_days ?? 0, candidateTrend: recent.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/recruitment/reports]", e);
+    res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
+  }
+});
+
 async function logActivity(companyId: number, type: string, description: string, employeeName: string | null) {
   try {
     await db.insert(activityLogsTable).values({ companyId, type, description, employeeName });
   } catch {}
 }
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PORT = parseInt(process.env["API_PORT"] ?? "3001");
+// â”€â”€â”€ Bundle A: Payroll + Attendance Core Expansion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+type BundleUser = AuthReq["user"];
+const BUNDLE_A_MISSING = "Bundle A migration is required. Apply migrations/bundle-a-payroll-attendance.sql first.";
+
+function bundleAStatus(e: any) {
+  return ["42P01", "42703"].includes(String(e?.code ?? "")) ? 503 : 500;
+}
+
+function bundleAMessage(e: any) {
+  return ["42P01", "42703"].includes(String(e?.code ?? "")) ? BUNDLE_A_MISSING : "Internal server error";
+}
+
+function canReadBundleA(user: BundleUser) {
+  return ["hradmin", "payrolladmin", "manager", "employee"].includes(user.role);
+}
+
+function canManageBundleA(user: BundleUser) {
+  return ["hradmin", "payrolladmin"].includes(user.role);
+}
+
+function canApproveBundleA(user: BundleUser) {
+  return ["hradmin", "payrolladmin", "manager"].includes(user.role);
+}
+
+function bundleAEmployeeScope(user: BundleUser, alias = "pa") {
+  if (user.role === "employee") return { sql: `${alias}.employee_id = $SCOPE`, value: user.employeeId ?? -1 };
+  if (user.role === "manager") return { sql: `${alias}.employee_id IN (SELECT id FROM employees WHERE company_id = $COMPANY AND (direct_manager_id = $MANAGER OR id = $MANAGER) AND is_deleted = false)`, value: user.employeeId ?? -1 };
+  return null;
+}
+
+function parseMoney(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : fallback;
+}
+
+function jod(value: number) {
+  return (Math.round(value * 1000) / 1000).toFixed(3);
+}
+
+async function getPayrollAdjustment(companyId: number, id: number) {
+  const { rows } = await pool.query(
+    `SELECT pa.*, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en, pat.category,
+            e.employee_code,
+            CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+            CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+            d.name_ar AS department_name_ar, d.name_en AS department_name_en
+       FROM payroll_adjustments pa
+       JOIN payroll_adjustment_types pat ON pat.id = pa.adjustment_type_id AND pat.company_id = pa.company_id
+       JOIN employees e ON e.id = pa.employee_id AND e.company_id = pa.company_id
+       LEFT JOIN departments d ON d.id = pa.department_id AND d.company_id = pa.company_id
+      WHERE pa.company_id = $1 AND pa.id = $2 AND pa.is_deleted = false
+      LIMIT 1`,
+    [companyId, id],
+  );
+  return rows[0] ? camelAts(rows[0]) : null;
+}
+
+async function insertBundleAHistory(companyId: number, adjustmentId: number, actionType: string, actorUserId: number, before: any, after: any, notes?: string) {
+  await pool.query(
+    `INSERT INTO payroll_adjustment_history (company_id, payroll_adjustment_id, action_type, before_json, after_json, actor_user_id, notes)
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7)`,
+    [companyId, adjustmentId, actionType, before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null, actorUserId, notes ?? null],
+  );
+}
+
+app.get("/api/payroll-attendance/dashboard", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const scope = bundleAEmployeeScope(user);
+    let employeeFilter = "";
+    if (scope) {
+      if (user.role === "employee") { params.push(scope.value); employeeFilter = ` AND pa.employee_id = $${params.length}`; }
+      if (user.role === "manager") { params.push(scope.value); employeeFilter = ` AND pa.employee_id IN (SELECT id FROM employees WHERE company_id = $1 AND (direct_manager_id = $${params.length} OR id = $${params.length}) AND is_deleted = false)`; }
+    }
+    const [summary, violations, liabilities, trends] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total, COALESCE(SUM(CASE WHEN direction='add' THEN amount ELSE 0 END),0)::numeric AS additions, COALESCE(SUM(CASE WHEN direction='deduct' THEN amount ELSE 0 END),0)::numeric AS deductions, COUNT(*) FILTER (WHERE status='pending')::int AS pending FROM payroll_adjustments pa WHERE pa.company_id=$1 AND pa.is_deleted=false${employeeFilter}`, params),
+      pool.query(`SELECT violation_type, COUNT(*)::int AS count, COALESCE(SUM(payroll_impact_amount),0)::numeric AS amount FROM attendance_violations av WHERE av.company_id=$1 AND av.is_deleted=false GROUP BY violation_type ORDER BY count DESC`, [user.companyId]),
+      pool.query(`SELECT COUNT(*)::int AS recurring_count, COALESCE(SUM(remaining_amount),0)::numeric AS remaining FROM payroll_adjustments pa WHERE pa.company_id=$1 AND pa.is_deleted=false AND recurrence_type IN ('monthly','installments','date_range') AND status IN ('pending','approved','applied')${employeeFilter}`, params),
+      pool.query(`SELECT date_trunc('month', created_at)::date AS month, COUNT(*)::int AS count, COALESCE(SUM(amount),0)::numeric AS total FROM payroll_adjustments pa WHERE pa.company_id=$1 AND pa.is_deleted=false${employeeFilter} GROUP BY 1 ORDER BY 1 DESC LIMIT 6`, params),
+    ]);
+    res.json({ success: true, data: { summary: camelAts(summary.rows[0]), violations: violations.rows.map(camelAts), liabilities: camelAts(liabilities.rows[0]), trends: trends.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-attendance/dashboard]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments/types", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT * FROM payroll_adjustment_types WHERE company_id=$1 AND is_deleted=false AND is_active=true ORDER BY category, code`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/types]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/payroll-adjustments/types", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, category = "earning", defaultCalculationMode = "after_net" } = req.body;
+    if (!code || !nameAr || !nameEn) return res.status(400).json({ success: false, message: "code, nameAr, and nameEn are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO payroll_adjustment_types (company_id, code, name_ar, name_en, category, default_calculation_mode, affects_tax, affects_ssc, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, category, defaultCalculationMode, req.body.affectsTax === true, req.body.affectsSsc === true, user.userId],
+    );
+    await logActivity(user.companyId, "payroll_adjustment_type_created", `Payroll adjustment type created: ${code}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/payroll-adjustments/types]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const page = Math.max(1, Number(req.query["page"] ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(req.query["pageSize"] ?? 20)));
+    const params: any[] = [user.companyId];
+    const where = [`pa.company_id = $1`, `pa.is_deleted = false`];
+    if (req.query["status"]) where.push(`pa.status = $${params.push(String(req.query["status"]))}`);
+    if (req.query["recurrenceType"]) where.push(`pa.recurrence_type = $${params.push(String(req.query["recurrenceType"]))}`);
+    if (req.query["typeId"]) where.push(`pa.adjustment_type_id = $${params.push(Number(req.query["typeId"]))}`);
+    if (req.query["employeeId"]) where.push(`pa.employee_id = $${params.push(Number(req.query["employeeId"]))}`);
+    if (req.query["month"]) where.push(`pa.payroll_month = $${params.push(Number(req.query["month"]))}`);
+    if (req.query["year"]) where.push(`pa.payroll_year = $${params.push(Number(req.query["year"]))}`);
+    if (req.query["q"]) {
+      const q = `%${String(req.query["q"]).toLowerCase()}%`;
+      where.push(`(lower(pa.adjustment_number) LIKE $${params.push(q)} OR lower(coalesce(pa.title_ar,'')) LIKE $${params.length} OR lower(coalesce(pa.title_en,'')) LIKE $${params.length} OR lower(CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar)) LIKE $${params.length} OR lower(CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en)) LIKE $${params.length})`);
+    }
+    if (user.role === "employee") where.push(`pa.employee_id = $${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`pa.employee_id IN (SELECT id FROM employees WHERE company_id = $1 AND (direct_manager_id = $${params.push(user.employeeId ?? -1)} OR id = $${params.length}) AND is_deleted=false)`);
+    const count = await pool.query(`SELECT COUNT(*)::int AS total FROM payroll_adjustments pa JOIN employees e ON e.id=pa.employee_id AND e.company_id=pa.company_id WHERE ${where.join(" AND ")}`, params);
+    const { rows } = await pool.query(
+      `SELECT pa.*, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en, pat.category,
+              e.employee_code,
+              CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+              CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+              d.name_ar AS department_name_ar, d.name_en AS department_name_en
+         FROM payroll_adjustments pa
+         JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id AND pat.company_id=pa.company_id
+         JOIN employees e ON e.id=pa.employee_id AND e.company_id=pa.company_id
+         LEFT JOIN departments d ON d.id=pa.department_id AND d.company_id=pa.company_id
+        WHERE ${where.join(" AND ")}
+        ORDER BY pa.created_at DESC LIMIT $${params.push(pageSize)} OFFSET $${params.push((page - 1) * pageSize)}`,
+      params,
+    );
+    const total = count.rows[0]?.total ?? 0;
+    res.json({ success: true, data: rows.map(camelAts), meta: { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments/:id(\\d+)", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const detail = await getPayrollAdjustment(user.companyId, id);
+    if (!detail) return res.status(404).json({ success: false, message: "Adjustment not found" });
+    if (user.role === "employee" && detail.employeeId !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden" });
+    const [approvals, history, docs, installments] = await Promise.all([
+      pool.query(`SELECT * FROM payroll_adjustment_approvals WHERE company_id=$1 AND payroll_adjustment_id=$2 ORDER BY step_order`, [user.companyId, id]),
+      pool.query(`SELECT * FROM payroll_adjustment_history WHERE company_id=$1 AND payroll_adjustment_id=$2 ORDER BY created_at DESC`, [user.companyId, id]),
+      pool.query(`SELECT * FROM payroll_adjustment_documents WHERE company_id=$1 AND payroll_adjustment_id=$2 AND is_deleted=false ORDER BY created_at DESC`, [user.companyId, id]),
+      pool.query(`SELECT * FROM payroll_adjustment_installments WHERE company_id=$1 AND payroll_adjustment_id=$2 ORDER BY installment_no`, [user.companyId, id]),
+    ]);
+    res.json({ success: true, data: { ...detail, approvals: approvals.rows.map(camelAts), history: history.rows.map(camelAts), documents: docs.rows.map(camelAts), installments: installments.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/:id]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/payroll-adjustments/preview", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = Number(req.body.employeeId);
+    const amount = parseMoney(req.body.amount);
+    const direction = req.body.direction === "deduct" ? "deduct" : "add";
+    const mode = req.body.calculationMode || "after_net";
+    const emp = await pool.query(`SELECT id, company_id, basic_salary, housing_allowance, transport_allowance, mobile_allowance, meal_allowance, other_allowances FROM employees WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [employeeId, user.companyId]);
+    if (!emp.rows[0]) return res.status(404).json({ success: false, message: "Employee not found" });
+    const e = emp.rows[0];
+    const currentGross = ["basic_salary","housing_allowance","transport_allowance","mobile_allowance","meal_allowance","other_allowances"].reduce((sum, key) => sum + Number(e[key] ?? 0), 0);
+    const currentDeductions = Math.round(currentGross * 0.075 * 1000) / 1000;
+    const currentNet = currentGross - currentDeductions;
+    const signed = direction === "add" ? amount : -amount;
+    const finalGross = mode === "before_gross" ? currentGross + signed : currentGross;
+    const finalDeductions = mode === "before_gross" || mode === "before_tax" ? Math.max(0, currentDeductions + (signed > 0 ? signed * 0.075 : 0)) : currentDeductions;
+    const finalNet = mode === "after_net" || mode === "after_tax" ? currentNet + signed : finalGross - finalDeductions;
+    res.json({ success: true, data: { employeeId, currentGross: jod(currentGross), currentDeductions: jod(currentDeductions), currentNet: jod(currentNet), adjustmentImpact: jod(signed), calculationMode: mode, finalGross: jod(finalGross), finalDeductions: jod(finalDeductions), finalNet: jod(finalNet), sections: { earnings: direction === "add" ? amount : 0, deductions: direction === "deduct" ? amount : 0, postNet: mode === "after_net" ? signed : 0 } } });
+  } catch (e: any) {
+    console.error("[POST /api/payroll-adjustments/preview]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/payroll-adjustments", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = Number(req.body.employeeId);
+    const typeId = Number(req.body.adjustmentTypeId);
+    const amount = parseMoney(req.body.amount);
+    if (!employeeId || !typeId || amount <= 0) return res.status(400).json({ success: false, message: "employeeId, adjustmentTypeId, and positive amount are required" });
+    const emp = await pool.query(`SELECT id, company_id, department_id, direct_manager_id FROM employees WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [employeeId, user.companyId]);
+    if (!emp.rows[0]) return res.status(404).json({ success: false, message: "Employee not found" });
+    if (user.role === "manager" && emp.rows[0].direct_manager_id !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden: manager scope only" });
+    const type = await pool.query(`SELECT * FROM payroll_adjustment_types WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [typeId, user.companyId]);
+    if (!type.rows[0]) return res.status(400).json({ success: false, message: "Invalid adjustment type" });
+    const number = `ADJ-${Date.now().toString(36).toUpperCase()}`;
+    const status = user.role === "manager" ? "pending" : (req.body.status || "draft");
+    const approvalStep = status === "pending" ? (user.role === "manager" ? "hradmin" : "manager") : null;
+    const { rows } = await pool.query(
+      `INSERT INTO payroll_adjustments
+        (company_id, adjustment_number, employee_id, department_id, adjustment_type_id, direction, calculation_mode, recurrence_type, amount,
+         effective_date, end_date, payroll_month, payroll_year, installment_count, remaining_amount, title_ar, title_en, reason_ar, reason_en,
+         status, approval_step, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22) RETURNING *`,
+      [
+        user.companyId, number, employeeId, emp.rows[0].department_id, typeId, req.body.direction === "deduct" ? "deduct" : "add",
+        req.body.calculationMode || type.rows[0].default_calculation_mode || "after_net",
+        req.body.recurrenceType || "one_time", amount, req.body.effectiveDate || new Date().toISOString().slice(0, 10),
+        req.body.endDate || null, toInt(req.body.payrollMonth), toInt(req.body.payrollYear), toInt(req.body.installmentCount),
+        req.body.recurrenceType === "installments" ? amount : null, req.body.titleAr || null, req.body.titleEn || null,
+        req.body.reasonAr || null, req.body.reasonEn || null, status, approvalStep, user.userId,
+      ],
+    );
+    const id = Number(rows[0].id);
+    const chain = ["manager", "hradmin", "payrolladmin"];
+    for (let i = 0; i < chain.length; i++) {
+      await pool.query(`INSERT INTO payroll_adjustment_approvals (company_id, payroll_adjustment_id, step_order, approver_role) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [user.companyId, id, i + 1, chain[i]]);
+    }
+    if ((req.body.recurrenceType || "one_time") === "installments" && Number(req.body.installmentCount) > 0) {
+      const count = Number(req.body.installmentCount);
+      const each = Math.round((amount / count) * 1000) / 1000;
+      const now = new Date();
+      for (let i = 1; i <= count; i++) {
+        const due = new Date(now.getFullYear(), now.getMonth() + i - 1, 1);
+        await pool.query(`INSERT INTO payroll_adjustment_installments (company_id, payroll_adjustment_id, employee_id, installment_no, due_month, due_year, amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [user.companyId, id, employeeId, i, due.getMonth() + 1, due.getFullYear(), each]);
+      }
+    }
+    await insertBundleAHistory(user.companyId, id, "created", user.userId, null, rows[0], req.body.reasonEn || req.body.reasonAr);
+    await logActivity(user.companyId, "payroll_adjustment_created", `Payroll adjustment created: ${number}`, user.username);
+    await notifyRole(user.companyId, "payrolladmin", { actorUserId: user.userId, entityType: "payroll_adjustment", entityId: id, notificationType: "payroll_adjustment_submitted", titleAr: "طھط¹ط¯ظٹظ„ ط±ط§طھط¨ ط¬ط¯ظٹط¯", titleEn: "New payroll adjustment", messageAr: req.body.titleAr || number, messageEn: req.body.titleEn || number, actionUrl: "/app/payroll-attendance" });
+    res.status(201).json({ success: true, data: await getPayrollAdjustment(user.companyId, id) });
+  } catch (e: any) {
+    console.error("[POST /api/payroll-adjustments]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.patch("/api/payroll-adjustments/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const before = await getPayrollAdjustment(user.companyId, id);
+    if (!before) return res.status(404).json({ success: false, message: "Adjustment not found" });
+    const pending = await pool.query(`SELECT * FROM payroll_adjustment_approvals WHERE company_id=$1 AND payroll_adjustment_id=$2 AND decision='pending' ORDER BY step_order LIMIT 1`, [user.companyId, id]);
+    const step = pending.rows[0];
+    if (step && user.role !== "hradmin" && step.approver_role !== user.role) return res.status(403).json({ success: false, message: `This step requires ${step.approver_role}` });
+    if (step) await pool.query(`UPDATE payroll_adjustment_approvals SET decision='approved', approver_user_id=$1, decided_at=NOW(), notes=$2, updated_at=NOW() WHERE id=$3`, [user.userId, req.body.notes || null, step.id]);
+    const next = await pool.query(`SELECT * FROM payroll_adjustment_approvals WHERE company_id=$1 AND payroll_adjustment_id=$2 AND decision='pending' ORDER BY step_order LIMIT 1`, [user.companyId, id]);
+    const nextStatus = next.rows[0] ? "pending" : "approved";
+    await pool.query(`UPDATE payroll_adjustments SET status=$1, approval_step=$2, approved_at=CASE WHEN $1::varchar='approved' THEN NOW() ELSE approved_at END, updated_by=$3, updated_at=NOW() WHERE id=$4 AND company_id=$5`, [nextStatus, next.rows[0]?.approver_role ?? null, user.userId, id, user.companyId]);
+    const after = await getPayrollAdjustment(user.companyId, id);
+    await insertBundleAHistory(user.companyId, id, "approved", user.userId, before, after, req.body.notes);
+    await logActivity(user.companyId, "payroll_adjustment_approved", `Payroll adjustment approved step: ${id}`, user.username);
+    res.json({ success: true, data: after });
+  } catch (e: any) {
+    console.error("[PATCH /api/payroll-adjustments/:id/approve]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.patch("/api/payroll-adjustments/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const before = await getPayrollAdjustment(user.companyId, id);
+    if (!before) return res.status(404).json({ success: false, message: "Adjustment not found" });
+    await pool.query(`UPDATE payroll_adjustment_approvals SET decision='rejected', approver_user_id=$1, decided_at=NOW(), notes=$2, updated_at=NOW() WHERE company_id=$3 AND payroll_adjustment_id=$4 AND decision='pending'`, [user.userId, req.body.reason || null, user.companyId, id]);
+    await pool.query(`UPDATE payroll_adjustments SET status='rejected', rejected_at=NOW(), rejection_reason=$1, updated_by=$2, updated_at=NOW() WHERE id=$3 AND company_id=$4`, [req.body.reason || null, user.userId, id, user.companyId]);
+    const after = await getPayrollAdjustment(user.companyId, id);
+    await insertBundleAHistory(user.companyId, id, "rejected", user.userId, before, after, req.body.reason);
+    res.json({ success: true, data: after });
+  } catch (e: any) {
+    console.error("[PATCH /api/payroll-adjustments/:id/reject]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.patch("/api/payroll-adjustments/:id/apply", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const before = await getPayrollAdjustment(user.companyId, id);
+    if (!before) return res.status(404).json({ success: false, message: "Adjustment not found" });
+    if (before.status !== "approved") return res.status(409).json({ success: false, message: "Only approved adjustments can be applied" });
+    await pool.query(`UPDATE payroll_adjustments SET status='applied', payroll_run_id=$1, payslip_id=$2, applied_at=NOW(), updated_by=$3, updated_at=NOW() WHERE id=$4 AND company_id=$5`, [toInt(req.body.payrollRunId), toInt(req.body.payslipId), user.userId, id, user.companyId]);
+    const after = await getPayrollAdjustment(user.companyId, id);
+    await insertBundleAHistory(user.companyId, id, "applied", user.userId, before, after, "Applied to payroll");
+    await pool.query(`INSERT INTO payroll_audit_events (company_id, payroll_run_id, payslip_id, employee_id, entity_type, entity_id, event_type, before_json, after_json, actor_user_id, notes) VALUES ($1,$2,$3,$4,'payroll_adjustment',$5,'applied',$6::jsonb,$7::jsonb,$8,$9)`, [user.companyId, toInt(req.body.payrollRunId), toInt(req.body.payslipId), before.employeeId, id, JSON.stringify(before), JSON.stringify(after), user.userId, "Applied adjustment"]);
+    res.json({ success: true, data: after });
+  } catch (e: any) {
+    console.error("[PATCH /api/payroll-adjustments/:id/apply]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments/employee/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const employeeId = Number(req.params["id"]);
+    if (user.role === "employee" && employeeId !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden" });
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const r = await requestLike(`/api/payroll-adjustments?employeeId=${employeeId}`, req, res);
+    return r;
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/employee/:id]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+async function requestLike(_path: string, req: express.Request, res: express.Response) {
+  const user = (req as AuthReq).user;
+  const employeeId = Number(req.params["id"]);
+  const { rows } = await pool.query(`SELECT pa.*, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en FROM payroll_adjustments pa JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id WHERE pa.company_id=$1 AND pa.employee_id=$2 AND pa.is_deleted=false ORDER BY pa.created_at DESC`, [user.companyId, employeeId]);
+  res.json({ success: true, data: rows.map(camelAts) });
+}
+
+app.get("/api/payroll-adjustments/recurring", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT * FROM payroll_adjustments WHERE company_id=$1 AND is_deleted=false AND recurrence_type IN ('monthly','installments','date_range') ORDER BY effective_date DESC`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/recurring]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments/approvals", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const roleFilter = user.role === "hradmin" ? "" : ` AND paa.approver_role = $${params.push(user.role)}`;
+    const { rows } = await pool.query(`SELECT paa.*, pa.adjustment_number, pa.amount, pa.direction, pa.title_ar, pa.title_en, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM payroll_adjustment_approvals paa JOIN payroll_adjustments pa ON pa.id=paa.payroll_adjustment_id AND pa.company_id=paa.company_id JOIN employees e ON e.id=pa.employee_id AND e.company_id=pa.company_id WHERE paa.company_id=$1 AND paa.decision='pending' AND pa.is_deleted=false${roleFilter} ORDER BY paa.created_at DESC`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/approvals]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-adjustments/history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT pah.*, u.username FROM payroll_adjustment_history pah LEFT JOIN users u ON u.id=pah.actor_user_id WHERE pah.company_id=$1 ORDER BY pah.created_at DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-adjustments/history]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/attendance-intelligence/analytics", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const from = String(req.query["from"] || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+    const to = String(req.query["to"] || new Date().toISOString().slice(0, 10));
+    const params: any[] = [user.companyId, from, to];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND ar.employee_id = $${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND ar.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    const [summary, trend] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS records, COUNT(*) FILTER (WHERE ar.status='late')::int AS late, COUNT(*) FILTER (WHERE ar.status='absent')::int AS absent, COALESCE(SUM(ar.late_minutes),0)::int AS late_minutes, COALESCE(SUM(ar.overtime_minutes),0)::int AS overtime_minutes FROM attendance_records ar JOIN employees e ON e.id=ar.employee_id AND e.company_id=$1 WHERE ar.date BETWEEN $2 AND $3${scope}`, params),
+      pool.query(`SELECT ar.date, COUNT(*)::int AS records, COUNT(*) FILTER (WHERE ar.status='late')::int AS late, COUNT(*) FILTER (WHERE ar.status='absent')::int AS absent FROM attendance_records ar JOIN employees e ON e.id=ar.employee_id AND e.company_id=$1 WHERE ar.date BETWEEN $2 AND $3${scope} GROUP BY ar.date ORDER BY ar.date`, params),
+    ]);
+    res.json({ success: true, data: { summary: camelAts(summary.rows[0]), trend: trend.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/attendance-intelligence/analytics]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/attendance-intelligence/violations", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`av.company_id=$1`, `av.is_deleted=false`];
+    if (req.query["status"]) where.push(`av.status=$${params.push(String(req.query["status"]))}`);
+    if (req.query["type"]) where.push(`av.violation_type=$${params.push(String(req.query["type"]))}`);
+    if (user.role === "employee") where.push(`av.employee_id=$${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`av.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`);
+    const { rows } = await pool.query(`SELECT av.*, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM attendance_violations av JOIN employees e ON e.id=av.employee_id AND e.company_id=av.company_id WHERE ${where.join(" AND ")} ORDER BY av.violation_date DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/attendance-intelligence/violations]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/attendance-intelligence/process", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const from = String(req.body.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+    const to = String(req.body.to || new Date().toISOString().slice(0, 10));
+    const records = await pool.query(`SELECT ar.*, e.department_id FROM attendance_records ar JOIN employees e ON e.id=ar.employee_id WHERE e.company_id=$1 AND ar.date BETWEEN $2 AND $3`, [user.companyId, from, to]);
+    let created = 0;
+    for (const row of records.rows) {
+      if (Number(row.late_minutes || 0) > 0) {
+        await pool.query(`INSERT INTO attendance_violations (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by) VALUES ($1,$2,$3,'late',$4,$5,$6,$7,'open',$8,$9,$9) ON CONFLICT DO NOTHING`, [user.companyId, row.employee_id, row.id, row.date, row.late_minutes, Number(row.late_minutes) > 60 ? "high" : "medium", jod(Number(row.late_minutes) * 0.05), "Auto-detected lateness", user.userId]);
+        created++;
+      }
+      if (row.status === "absent") {
+        await pool.query(`INSERT INTO attendance_violations (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by) VALUES ($1,$2,$3,'absence',$4,480,'high',0,'open','Auto-detected absence',$5,$5) ON CONFLICT DO NOTHING`, [user.companyId, row.employee_id, row.id, row.date, user.userId]);
+        created++;
+      }
+    }
+    await logActivity(user.companyId, "attendance_intelligence_processed", `Attendance intelligence processed ${from} to ${to}: ${created} findings`, user.username);
+    res.json({ success: true, data: { from, to, processed: records.rows.length, createdViolations: created } });
+  } catch (e: any) {
+    console.error("[POST /api/attendance-intelligence/process]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/shift-scheduler/patterns", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT * FROM attendance_shift_patterns WHERE company_id=$1 AND is_deleted=false ORDER BY code`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/shift-scheduler/patterns]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/shift-scheduler/patterns", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn } = req.body;
+    if (!code || !nameAr || !nameEn) return res.status(400).json({ success: false, message: "code, nameAr, and nameEn are required" });
+    const { rows } = await pool.query(`INSERT INTO attendance_shift_patterns (company_id, code, name_ar, name_en, shift_type, start_time, end_time, break_minutes, grace_in_minutes, grace_out_minutes, weekly_days_json, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$12) RETURNING *`, [user.companyId, code, nameAr, nameEn, req.body.shiftType || "fixed", req.body.startTime || "09:00", req.body.endTime || "17:00", Number(req.body.breakMinutes || 60), Number(req.body.graceInMinutes || 10), Number(req.body.graceOutMinutes || 10), JSON.stringify(req.body.weeklyDays || ["sun","mon","tue","wed","thu"]), user.userId]);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/shift-scheduler/patterns]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/shift-scheduler/schedules", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT s.*, p.name_ar AS shift_name_ar, p.name_en AS shift_name_en, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en, d.name_ar AS department_name_ar, d.name_en AS department_name_en FROM attendance_schedules s JOIN attendance_shift_patterns p ON p.id=s.shift_pattern_id LEFT JOIN employees e ON e.id=s.employee_id AND e.company_id=s.company_id LEFT JOIN departments d ON d.id=s.department_id AND d.company_id=s.company_id WHERE s.company_id=$1 AND s.is_deleted=false ORDER BY s.effective_from DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/shift-scheduler/schedules]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.post("/api/shift-scheduler/schedules", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const patternId = Number(req.body.shiftPatternId);
+    const pattern = await pool.query(`SELECT id FROM attendance_shift_patterns WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [patternId, user.companyId]);
+    if (!pattern.rows[0]) return res.status(400).json({ success: false, message: "Invalid shift pattern" });
+    const { rows } = await pool.query(`INSERT INTO attendance_schedules (company_id, employee_id, department_id, shift_pattern_id, schedule_date, effective_from, effective_to, source, notes, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING *`, [user.companyId, toInt(req.body.employeeId), toInt(req.body.departmentId), patternId, req.body.scheduleDate || null, req.body.effectiveFrom || new Date().toISOString().slice(0,10), req.body.effectiveTo || null, req.body.source || "employee", req.body.notes || null, user.userId]);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/shift-scheduler/schedules]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/payroll-audit/history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT pae.*, u.username FROM payroll_audit_events pae LEFT JOIN users u ON u.id=pae.actor_user_id WHERE pae.company_id=$1 ORDER BY pae.created_at DESC LIMIT 200`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-audit/history]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+// â”€â”€â”€ Bundle B: Performance & Workflow Automation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const BUNDLE_B_MISSING = "Bundle B migration is required. Apply migrations/bundle-b-performance-workflows.sql first.";
+
+function bundleBStatus(e: any) {
+  return ["42P01", "42703"].includes(String(e?.code ?? "")) ? 503 : 500;
+}
+
+function bundleBMessage(e: any) {
+  return ["42P01", "42703"].includes(String(e?.code ?? "")) ? BUNDLE_B_MISSING : "Internal server error";
+}
+
+function canReadBundleB(user: BundleUser) {
+  return ["hradmin", "manager", "employee", "payrolladmin"].includes(user.role);
+}
+
+function canManageBundleB(user: BundleUser) {
+  return ["hradmin"].includes(user.role);
+}
+
+function canApproveBundleB(user: BundleUser) {
+  return ["hradmin", "manager", "payrolladmin"].includes(user.role);
+}
+
+function bundleBEmployeeScope(user: BundleUser, alias = "pe") {
+  if (user.role === "employee") return ` AND ${alias}.employee_id = $`;
+  if (user.role === "manager") return ` AND ${alias}.employee_id IN (SELECT id FROM employees WHERE company_id = $1 AND direct_manager_id = $`;
+  return "";
+}
+
+function ratingFromScore(score: number | null | undefined) {
+  if (score === null || score === undefined || !Number.isFinite(Number(score))) return null;
+  const n = Number(score);
+  if (n >= 90) return "EXCELLENT";
+  if (n >= 75) return "GOOD";
+  if (n >= 60) return "MEETS";
+  return "LOW";
+}
+
+async function bundleBWorkflowTemplate(companyId: number, code = "PERFORMANCE_REVIEW_APPROVAL") {
+  const { rows } = await pool.query(`SELECT * FROM performance_workflow_templates WHERE company_id=$1 AND code=$2 AND is_deleted=false LIMIT 1`, [companyId, code]);
+  return rows[0] ?? null;
+}
+
+async function createBundleBWorkflow(companyId: number, entityType: string, entityId: number, employeeId: number | null, actorUserId: number, context: any = {}) {
+  const template = await bundleBWorkflowTemplate(companyId);
+  if (!template) return null;
+  const firstStep = await pool.query(`SELECT * FROM performance_workflow_steps WHERE company_id=$1 AND template_id=$2 AND is_deleted=false ORDER BY step_order LIMIT 1`, [companyId, template.id]);
+  const step = firstStep.rows[0];
+  const dueAt = step?.sla_hours ? `NOW() + INTERVAL '${Number(step.sla_hours)} hours'` : "NULL";
+  const { rows } = await pool.query(
+    `INSERT INTO performance_workflow_instances
+      (company_id, template_id, entity_type, entity_id, employee_id, status, current_step_order, current_approver_role, due_at, context_json, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,${dueAt},$8::jsonb,$9,$9) RETURNING *`,
+    [companyId, template.id, entityType, entityId, employeeId, step?.step_order ?? 1, step?.approver_role ?? "hradmin", JSON.stringify(context), actorUserId],
+  );
+  await pool.query(
+    `INSERT INTO performance_workflow_actions (company_id, workflow_instance_id, actor_user_id, action_type, step_order, status_after, snapshot_json)
+     VALUES ($1,$2,$3,'created',$4,'pending',$5::jsonb)`,
+    [companyId, rows[0].id, actorUserId, rows[0].current_step_order, JSON.stringify(context)],
+  );
+  return camelAts(rows[0]);
+}
+
+app.get("/api/performance/dashboard", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND pe.employee_id = $${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND pe.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    const [evaluations, goals, workflows, promotions] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='approved')::int AS approved, COUNT(*) FILTER (WHERE status IN ('draft','self_review','manager_review','hr_review','pending_approval'))::int AS open, COALESCE(AVG(final_score),0)::numeric AS average_score FROM performance_evaluations pe WHERE pe.company_id=$1 AND pe.is_deleted=false${scope}`, params),
+      pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='completed')::int AS completed, COALESCE(AVG(achievement_percent),0)::numeric AS average_achievement FROM performance_goals pg WHERE pg.company_id=$1 AND pg.is_deleted=false`, [user.companyId]),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM performance_workflow_instances WHERE company_id=$1 AND is_deleted=false GROUP BY status`, [user.companyId]),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM performance_promotion_recommendations WHERE company_id=$1 AND is_deleted=false GROUP BY status`, [user.companyId]),
+    ]);
+    res.json({ success: true, data: { evaluations: camelAts(evaluations.rows[0]), goals: camelAts(goals.rows[0]), workflows: workflows.rows.map(camelAts), promotions: promotions.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/performance/dashboard]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/rating-policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT p.*, COALESCE(json_agg(si ORDER BY si.sort_order) FILTER (WHERE si.id IS NOT NULL), '[]') AS scale_items FROM performance_rating_policies p LEFT JOIN performance_rating_scale_items si ON si.policy_id=p.id AND si.company_id=p.company_id AND si.is_deleted=false WHERE p.company_id=$1 AND p.is_deleted=false GROUP BY p.id ORDER BY p.is_default DESC, p.code`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/rating-policies]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/rating-policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, policyType = "numeric" } = req.body;
+    if (!code || !nameAr || !nameEn) return res.status(400).json({ success: false, message: "code, nameAr, and nameEn are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO performance_rating_policies (company_id, code, name_ar, name_en, description_ar, description_en, policy_type, min_score, max_score, passing_score, is_default, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$11) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, req.body.descriptionAr || null, req.body.descriptionEn || null, policyType, req.body.minScore ?? 0, req.body.maxScore ?? 100, req.body.passingScore ?? 60, user.userId],
+    );
+    await logActivity(user.companyId, "performance_rating_policy_created", `Performance rating policy created: ${code}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/rating-policies]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/cycles", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT c.*, p.name_ar AS rating_policy_name_ar, p.name_en AS rating_policy_name_en FROM performance_evaluation_cycles c LEFT JOIN performance_rating_policies p ON p.id=c.rating_policy_id AND p.company_id=c.company_id WHERE c.company_id=$1 AND c.is_deleted=false ORDER BY c.period_start DESC, c.id DESC`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/cycles]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/cycles", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, periodStart, periodEnd } = req.body;
+    if (!code || !nameAr || !nameEn || !periodStart || !periodEnd) return res.status(400).json({ success: false, message: "code, nameAr, nameEn, periodStart, and periodEnd are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO performance_evaluation_cycles (company_id, code, name_ar, name_en, cycle_type, period_start, period_end, due_date, rating_policy_id, status, settings_json, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$12) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, req.body.cycleType || "annual", periodStart, periodEnd, req.body.dueDate || null, toInt(req.body.ratingPolicyId), req.body.status || "draft", JSON.stringify(req.body.settings || {}), user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/cycles]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/goals", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`pg.company_id=$1`, `pg.is_deleted=false`];
+    if (req.query["cycleId"]) where.push(`pg.cycle_id=$${params.push(Number(req.query["cycleId"]))}`);
+    if (req.query["status"]) where.push(`pg.status=$${params.push(String(req.query["status"]))}`);
+    if (user.role === "employee") where.push(`pg.employee_id=$${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`(pg.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false) OR pg.scope_type='department')`);
+    const { rows } = await pool.query(`SELECT pg.*, d.name_ar AS department_name_ar, d.name_en AS department_name_en, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM performance_goals pg LEFT JOIN departments d ON d.id=pg.department_id AND d.company_id=pg.company_id LEFT JOIN employees e ON e.id=pg.employee_id AND e.company_id=pg.company_id WHERE ${where.join(" AND ")} ORDER BY pg.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/goals]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/goals", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = toInt(req.body.employeeId);
+    if (user.role === "manager" && employeeId) {
+      const scoped = await pool.query(`SELECT id FROM employees WHERE id=$1 AND company_id=$2 AND direct_manager_id=$3 AND is_deleted=false`, [employeeId, user.companyId, user.employeeId]);
+      if (!scoped.rows[0]) return res.status(403).json({ success: false, message: "Forbidden: manager scope only" });
+    }
+    const { titleAr, titleEn } = req.body;
+    if (!titleAr || !titleEn) return res.status(400).json({ success: false, message: "titleAr and titleEn are required" });
+    const actual = Number(req.body.actualValue ?? 0);
+    const target = Number(req.body.targetValue ?? 0);
+    const achievement = target > 0 ? Math.min(200, Math.round((actual / target) * 100000) / 1000) : Number(req.body.achievementPercent ?? 0);
+    const { rows } = await pool.query(
+      `INSERT INTO performance_goals (company_id, cycle_id, parent_goal_id, scope_type, department_id, employee_id, owner_user_id, code, title_ar, title_en, description_ar, description_en, metric_type, target_value, actual_value, achievement_percent, weight, status, due_date, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20) RETURNING *`,
+      [user.companyId, toInt(req.body.cycleId), toInt(req.body.parentGoalId), req.body.scopeType || "employee", toInt(req.body.departmentId), employeeId, toInt(req.body.ownerUserId), req.body.code || null, titleAr, titleEn, req.body.descriptionAr || null, req.body.descriptionEn || null, req.body.metricType || "percentage", req.body.targetValue ?? null, req.body.actualValue ?? null, achievement, req.body.weight ?? 0, req.body.status || "not_started", req.body.dueDate || null, user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/goals]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/evaluations", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`pe.company_id=$1`, `pe.is_deleted=false`];
+    if (req.query["status"]) where.push(`pe.status=$${params.push(String(req.query["status"]))}`);
+    if (req.query["cycleId"]) where.push(`pe.cycle_id=$${params.push(Number(req.query["cycleId"]))}`);
+    if (user.role === "employee") where.push(`pe.employee_id=$${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`pe.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`);
+    const { rows } = await pool.query(`SELECT pe.*, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en, c.name_ar AS cycle_name_ar, c.name_en AS cycle_name_en FROM performance_evaluations pe JOIN employees e ON e.id=pe.employee_id AND e.company_id=pe.company_id LEFT JOIN performance_evaluation_cycles c ON c.id=pe.cycle_id AND c.company_id=pe.company_id WHERE ${where.join(" AND ")} ORDER BY pe.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/evaluations]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/evaluations", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = Number(req.body.employeeId);
+    if (!employeeId) return res.status(400).json({ success: false, message: "employeeId is required" });
+    const recommendation = req.body.recommendation || null;
+    const allowedRecommendations = new Set(["none", "promotion", "salary_increment", "development_plan", "disciplinary_review", "probation_extend"]);
+    if (recommendation && !allowedRecommendations.has(String(recommendation))) {
+      return res.status(400).json({ success: false, message: "Invalid recommendation" });
+    }
+    const emp = await pool.query(`SELECT id, direct_manager_id FROM employees WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [employeeId, user.companyId]);
+    if (!emp.rows[0]) return res.status(404).json({ success: false, message: "Employee not found" });
+    if (user.role === "manager" && emp.rows[0].direct_manager_id !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden: manager scope only" });
+    const scores = [req.body.selfScore, req.body.managerScore, req.body.hrScore, req.body.peerScore].map(v => Number(v)).filter(v => Number.isFinite(v));
+    const finalScore = req.body.finalScore !== undefined ? Number(req.body.finalScore) : (scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 1000) / 1000 : null);
+    const finalRating = ratingFromScore(finalScore);
+    const { rows } = await pool.query(
+      `INSERT INTO performance_evaluations (company_id, cycle_id, employee_id, manager_employee_id, job_profile_id, rating_policy_id, evaluation_type, status, self_score, manager_score, hr_score, peer_score, final_score, final_rating_code, strengths_ar, strengths_en, improvement_ar, improvement_en, recommendation, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20) RETURNING *`,
+      [user.companyId, toInt(req.body.cycleId), employeeId, emp.rows[0].direct_manager_id, toInt(req.body.jobProfileId), toInt(req.body.ratingPolicyId), req.body.evaluationType || "manager", req.body.status || "draft", req.body.selfScore ?? null, req.body.managerScore ?? null, req.body.hrScore ?? null, req.body.peerScore ?? null, finalScore, finalRating, req.body.strengthsAr || null, req.body.strengthsEn || null, req.body.improvementAr || null, req.body.improvementEn || null, recommendation, user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/evaluations]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/evaluations/:id/submit", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "employee"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: "Invalid evaluation id" });
+    const row = await pool.query(`SELECT * FROM performance_evaluations WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const evaluation = row.rows[0];
+    if (!evaluation) return res.status(404).json({ success: false, message: "Evaluation not found" });
+    if (user.role === "employee" && evaluation.employee_id !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden" });
+    await pool.query(`UPDATE performance_evaluations SET status='pending_approval', submitted_at=NOW(), updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, id, user.companyId]);
+    const workflow = await createBundleBWorkflow(user.companyId, "performance_evaluation", id, evaluation.employee_id, user.userId, { source: "evaluation_submit", evaluationId: id });
+    await notifyRole(user.companyId, "hradmin", { actorUserId: user.userId, entityType: "performance_evaluation", entityId: id, notificationType: "performance_evaluation_submitted", titleAr: "طھظ‚ظٹظٹظ… ط£ط¯ط§ط، ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯", titleEn: "Performance evaluation awaiting approval", messageAr: `طھظ‚ظٹظٹظ… ط±ظ‚ظ… ${id} ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط¹طھظ…ط§ط¯.`, messageEn: `Evaluation #${id} is awaiting approval.`, actionUrl: "/app/performance-workflows" });
+    res.json({ success: true, data: { id, workflow } });
+  } catch (e: any) {
+    console.error("[POST /api/performance/evaluations/:id/submit]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/workflow-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT t.*, COALESCE(json_agg(s ORDER BY s.step_order) FILTER (WHERE s.id IS NOT NULL), '[]') AS steps FROM performance_workflow_templates t LEFT JOIN performance_workflow_steps s ON s.template_id=t.id AND s.company_id=t.company_id AND s.is_deleted=false WHERE t.company_id=$1 AND t.is_deleted=false GROUP BY t.id ORDER BY t.code`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/workflow-templates]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/workflow-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, entityType } = req.body;
+    if (!code || !nameAr || !nameEn || !entityType) return res.status(400).json({ success: false, message: "code, nameAr, nameEn, and entityType are required" });
+    const { rows } = await pool.query(`INSERT INTO performance_workflow_templates (company_id, code, name_ar, name_en, entity_type, trigger_type, condition_json, sla_hours, escalation_policy_json, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb,$10,$10) RETURNING *`, [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, entityType, req.body.triggerType || "manual", JSON.stringify(req.body.condition || {}), toInt(req.body.slaHours), JSON.stringify(req.body.escalationPolicy || {}), user.userId]);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/workflow-templates]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/workflow-instances", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`wi.company_id=$1`, `wi.is_deleted=false`];
+    if (req.query["status"]) where.push(`wi.status=$${params.push(String(req.query["status"]))}`);
+    if (user.role === "employee") where.push(`wi.employee_id=$${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`wi.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`);
+    const { rows } = await pool.query(`SELECT wi.*, t.name_ar AS template_name_ar, t.name_en AS template_name_en, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM performance_workflow_instances wi LEFT JOIN performance_workflow_templates t ON t.id=wi.template_id AND t.company_id=wi.company_id LEFT JOIN employees e ON e.id=wi.employee_id AND e.company_id=wi.company_id WHERE ${where.join(" AND ")} ORDER BY wi.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/workflow-instances]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/approvals/pending", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const roleFilter = user.role === "hradmin" ? "" : ` AND wi.current_approver_role=$${params.push(user.role)}`;
+    const { rows } = await pool.query(`SELECT wi.*, t.name_ar AS template_name_ar, t.name_en AS template_name_en, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM performance_workflow_instances wi LEFT JOIN performance_workflow_templates t ON t.id=wi.template_id AND t.company_id=wi.company_id LEFT JOIN employees e ON e.id=wi.employee_id AND e.company_id=wi.company_id WHERE wi.company_id=$1 AND wi.status IN ('pending','escalated') AND wi.is_deleted=false${roleFilter} ORDER BY wi.due_at NULLS LAST, wi.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/approvals/pending]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/workflow-instances/:id/approve", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const current = await pool.query(`SELECT * FROM performance_workflow_instances WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const instance = current.rows[0];
+    if (!instance) return res.status(404).json({ success: false, message: "Workflow not found" });
+    if (user.role !== "hradmin" && instance.current_approver_role !== user.role) return res.status(403).json({ success: false, message: `This step requires ${instance.current_approver_role}` });
+    const next = await pool.query(`SELECT * FROM performance_workflow_steps WHERE company_id=$1 AND template_id=$2 AND step_order>$3 AND is_deleted=false ORDER BY step_order LIMIT 1`, [user.companyId, instance.template_id, instance.current_step_order]);
+    const beforeStatus = instance.status;
+    const nextStep = next.rows[0];
+    const nextStatus = nextStep ? "pending" : "approved";
+    await pool.query(`UPDATE performance_workflow_instances SET status=$1, current_step_order=$2, current_approver_role=$3, completed_at=CASE WHEN $1::varchar='approved' THEN NOW() ELSE completed_at END, updated_by=$4, updated_at=NOW() WHERE id=$5 AND company_id=$6`, [nextStatus, nextStep?.step_order ?? instance.current_step_order, nextStep?.approver_role ?? null, user.userId, id, user.companyId]);
+    await pool.query(`INSERT INTO performance_workflow_actions (company_id, workflow_instance_id, actor_user_id, action_type, step_order, status_before, status_after, notes_ar, notes_en) VALUES ($1,$2,$3,'approved',$4,$5,$6,$7,$8)`, [user.companyId, id, user.userId, instance.current_step_order, beforeStatus, nextStatus, req.body.notesAr || null, req.body.notesEn || req.body.note || null]);
+    if (!nextStep && instance.entity_type === "performance_evaluation") {
+      await pool.query(`UPDATE performance_evaluations SET status='approved', approved_at=NOW(), updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, instance.entity_id, user.companyId]);
+    }
+    const updated = await pool.query(`SELECT * FROM performance_workflow_instances WHERE id=$1`, [id]);
+    res.json({ success: true, data: camelAts(updated.rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/performance/workflow-instances/:id/approve]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/workflow-instances/:id/reject", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canApproveBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const current = await pool.query(`SELECT * FROM performance_workflow_instances WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const instance = current.rows[0];
+    if (!instance) return res.status(404).json({ success: false, message: "Workflow not found" });
+    if (user.role !== "hradmin" && instance.current_approver_role !== user.role) return res.status(403).json({ success: false, message: `This step requires ${instance.current_approver_role}` });
+    await pool.query(`UPDATE performance_workflow_instances SET status='rejected', completed_at=NOW(), updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, id, user.companyId]);
+    await pool.query(`INSERT INTO performance_workflow_actions (company_id, workflow_instance_id, actor_user_id, action_type, step_order, status_before, status_after, notes_ar, notes_en) VALUES ($1,$2,$3,'rejected',$4,$5,'rejected',$6,$7)`, [user.companyId, id, user.userId, instance.current_step_order, instance.status, req.body.notesAr || null, req.body.reason || req.body.notesEn || null]);
+    res.json({ success: true, data: { id, status: "rejected" } });
+  } catch (e: any) {
+    console.error("[POST /api/performance/workflow-instances/:id/reject]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/escalations", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT * FROM performance_escalations WHERE company_id=$1 AND is_deleted=false ORDER BY created_at DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/escalations]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/escalations/process", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const due = await pool.query(`SELECT * FROM performance_workflow_instances WHERE company_id=$1 AND is_deleted=false AND status='pending' AND due_at IS NOT NULL AND due_at < NOW()`, [user.companyId]);
+    let created = 0;
+    for (const row of due.rows) {
+      await pool.query(`INSERT INTO performance_escalations (company_id, workflow_instance_id, entity_type, entity_id, escalation_reason, from_role, to_role, due_at, created_by, updated_by) VALUES ($1,$2,$3,$4,'SLA breached',$5,'hradmin',$6,$7,$7)`, [user.companyId, row.id, row.entity_type, row.entity_id, row.current_approver_role, row.due_at, user.userId]);
+      await pool.query(`UPDATE performance_workflow_instances SET status='escalated', current_approver_role='hradmin', updated_by=$1, updated_at=NOW() WHERE id=$2`, [user.userId, row.id]);
+      created++;
+    }
+    res.json({ success: true, data: { processed: due.rows.length, created } });
+  } catch (e: any) {
+    console.error("[POST /api/performance/escalations/process]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/promotions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`pr.company_id=$1`, `pr.is_deleted=false`];
+    if (user.role === "manager") where.push(`pr.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`);
+    const { rows } = await pool.query(`SELECT pr.*, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar, CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en FROM performance_promotion_recommendations pr JOIN employees e ON e.id=pr.employee_id AND e.company_id=pr.company_id WHERE ${where.join(" AND ")} ORDER BY pr.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/performance/promotions]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.post("/api/performance/promotions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "manager"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = Number(req.body.employeeId);
+    if (!employeeId) return res.status(400).json({ success: false, message: "employeeId is required" });
+    if (user.role === "manager") {
+      const scoped = await pool.query(`SELECT id FROM employees WHERE id=$1 AND company_id=$2 AND direct_manager_id=$3 AND is_deleted=false`, [employeeId, user.companyId, user.employeeId]);
+      if (!scoped.rows[0]) return res.status(403).json({ success: false, message: "Forbidden: manager scope only" });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO performance_promotion_recommendations (company_id, evaluation_id, employee_id, current_job_profile_id, recommended_job_profile_id, current_grade_id, recommended_grade_id, current_salary, recommended_salary, increment_amount, increment_percent, reason_ar, reason_en, status, effective_date, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending',$14,$15,$15) RETURNING *`,
+      [user.companyId, toInt(req.body.evaluationId), employeeId, toInt(req.body.currentJobProfileId), toInt(req.body.recommendedJobProfileId), toInt(req.body.currentGradeId), toInt(req.body.recommendedGradeId), req.body.currentSalary ?? null, req.body.recommendedSalary ?? null, req.body.incrementAmount ?? null, req.body.incrementPercent ?? null, req.body.reasonAr || null, req.body.reasonEn || null, req.body.effectiveDate || null, user.userId],
+    );
+    const workflow = await createBundleBWorkflow(user.companyId, "promotion_recommendation", Number(rows[0].id), employeeId, user.userId, { source: "promotion_recommendation", recommendationId: rows[0].id });
+    if (workflow) await pool.query(`UPDATE performance_promotion_recommendations SET workflow_instance_id=$1 WHERE id=$2`, [workflow.id, rows[0].id]);
+    res.status(201).json({ success: true, data: { ...camelAts(rows[0]), workflow } });
+  } catch (e: any) {
+    console.error("[POST /api/performance/promotions]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+app.get("/api/performance/analytics", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleB(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const [departments, ratings, bottlenecks, trends] = await Promise.all([
+      pool.query(`SELECT d.name_ar, d.name_en, COUNT(pe.id)::int AS evaluations, COALESCE(AVG(pe.final_score),0)::numeric AS avg_score FROM employees e LEFT JOIN departments d ON d.id=e.department_id AND d.company_id=e.company_id LEFT JOIN performance_evaluations pe ON pe.employee_id=e.id AND pe.company_id=e.company_id AND pe.is_deleted=false WHERE e.company_id=$1 AND e.is_deleted=false GROUP BY d.id, d.name_ar, d.name_en ORDER BY avg_score DESC`, [user.companyId]),
+      pool.query(`SELECT final_rating_code, COUNT(*)::int AS count FROM performance_evaluations WHERE company_id=$1 AND is_deleted=false GROUP BY final_rating_code`, [user.companyId]),
+      pool.query(`SELECT current_approver_role, COUNT(*)::int AS count FROM performance_workflow_instances WHERE company_id=$1 AND is_deleted=false AND status IN ('pending','escalated') GROUP BY current_approver_role`, [user.companyId]),
+      pool.query(`SELECT date_trunc('month', created_at)::date AS month, COUNT(*)::int AS count, COALESCE(AVG(final_score),0)::numeric AS avg_score FROM performance_evaluations WHERE company_id=$1 AND is_deleted=false GROUP BY 1 ORDER BY 1 DESC LIMIT 12`, [user.companyId]),
+    ]);
+    res.json({ success: true, data: { departments: departments.rows.map(camelAts), ratings: ratings.rows.map(camelAts), bottlenecks: bottlenecks.rows.map(camelAts), trends: trends.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/performance/analytics]", e);
+    res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });
+  }
+});
+
+// Bundle C: Documents, Forms & Reporting
+const BUNDLE_C_MISSING = "Bundle C migration is required. Apply migrations/bundle-c-documents-reporting.sql first.";
+function bundleCStatus(e: any) {
+  return e?.code === "42P01" || e?.code === "42703" ? 503 : 500;
+}
+function bundleCMessage(e: any) {
+  return bundleCStatus(e) === 503 ? BUNDLE_C_MISSING : "Internal server error";
+}
+function canReadBundleC(user: any) {
+  return ["hradmin", "manager", "employee", "payrolladmin", "recruiter"].includes(user?.role);
+}
+function canManageBundleC(user: any, moduleScope = "hr") {
+  if (user?.role === "hradmin") return true;
+  if (user?.role === "payrolladmin") return moduleScope === "payroll";
+  if (user?.role === "recruiter") return moduleScope === "recruitment";
+  return false;
+}
+function bundleCModuleScope(user: any, requested?: any) {
+  const scope = String(requested || "").trim();
+  if (scope) return scope;
+  if (user?.role === "payrolladmin") return "payroll";
+  if (user?.role === "recruiter") return "recruitment";
+  if (user?.role === "employee") return "employee";
+  return "hr";
+}
+function bundleCVisibilityClause(alias: string, user: any, params: any[]) {
+  const scopeCol = `${alias}.module_scope`;
+  if (user.role === "payrolladmin") return ` AND ${scopeCol}='payroll'`;
+  if (user.role === "recruiter") return ` AND ${scopeCol}='recruitment'`;
+  return "";
+}
+function bundleCDocumentScope(alias: string, user: any, params: any[]) {
+  if (user.role === "employee") return ` AND ${alias}.employee_id=$${params.push(user.employeeId ?? -1)}`;
+  if (user.role === "manager") {
+    return ` AND (${alias}.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false) OR ${alias}.employee_id IS NULL)`;
+  }
+  if (user.role === "payrolladmin") return ` AND ${alias}.source_module='payroll'`;
+  if (user.role === "recruiter") return ` AND ${alias}.source_module='recruitment'`;
+  return "";
+}
+
+app.get("/api/document-reporting/dashboard", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const docParams: any[] = [user.companyId];
+    const docScope = bundleCDocumentScope("ed", user, docParams);
+    const [docs, forms, reports, exports, expiring] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='pending_approval')::int AS pending, COUNT(*) FILTER (WHERE status='approved')::int AS approved FROM enterprise_documents ed WHERE ed.company_id=$1 AND ed.is_deleted=false${docScope}`, docParams),
+      pool.query(`SELECT COUNT(*)::int AS templates FROM enterprise_form_templates WHERE company_id=$1 AND is_deleted=false`, [user.companyId]),
+      pool.query(`SELECT COUNT(*)::int AS reports FROM enterprise_report_definitions WHERE company_id=$1 AND is_deleted=false`, [user.companyId]),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM enterprise_export_jobs WHERE company_id=$1 AND is_deleted=false GROUP BY status`, [user.companyId]),
+      pool.query(`SELECT COUNT(*)::int AS count FROM enterprise_documents ed WHERE ed.company_id=$1 AND ed.is_deleted=false AND ed.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '45 days'${docScope}`, docParams),
+    ]);
+    res.json({ success: true, data: { documents: camelAts(docs.rows[0]), forms: camelAts(forms.rows[0]), reports: camelAts(reports.rows[0]), exports: exports.rows.map(camelAts), expiring: camelAts(expiring.rows[0]) } });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/dashboard]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/documents", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`ed.company_id=$1`, `ed.is_deleted=false`];
+    if (req.query["status"]) where.push(`ed.status=$${params.push(String(req.query["status"]))}`);
+    if (req.query["categoryId"]) where.push(`ed.category_id=$${params.push(Number(req.query["categoryId"]))}`);
+    if (req.query["q"]) where.push(`(ed.title_ar ILIKE $${params.push(`%${req.query["q"]}%`)} OR ed.title_en ILIKE $${params.length} OR ed.document_number ILIKE $${params.length})`);
+    const scoped = bundleCDocumentScope("ed", user, params);
+    const limit = Math.min(Number(req.query["pageSize"] || 50), 100);
+    const offset = Math.max(Number(req.query["page"] || 1) - 1, 0) * limit;
+    const { rows } = await pool.query(
+      `SELECT ed.*, c.name_ar AS category_name_ar, c.name_en AS category_name_en,
+        CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+        CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en
+       FROM enterprise_documents ed
+       LEFT JOIN enterprise_document_categories c ON c.id=ed.category_id AND c.company_id=ed.company_id
+       LEFT JOIN employees e ON e.id=ed.employee_id AND e.company_id=ed.company_id
+       WHERE ${where.join(" AND ")}${scoped}
+       ORDER BY ed.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+      params,
+    );
+    const total = await pool.query(`SELECT COUNT(*)::int AS count FROM enterprise_documents ed WHERE ${where.join(" AND ")}${scoped}`, params);
+    res.json({ success: true, data: { items: rows.map(camelAts), total: total.rows[0]?.count ?? 0, page: Math.floor(offset / limit) + 1, pageSize: limit } });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/documents]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/document-categories", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const visibility = bundleCVisibilityClause("dc", user, params);
+    const { rows } = await pool.query(`SELECT * FROM enterprise_document_categories dc WHERE dc.company_id=$1 AND dc.is_deleted=false${visibility} ORDER BY dc.module_scope, dc.code`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/document-categories]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/document-categories", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const moduleScope = bundleCModuleScope(user, req.body.moduleScope);
+    if (!canManageBundleC(user, moduleScope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn } = req.body;
+    if (!code || !nameAr || !nameEn) return res.status(400).json({ success: false, message: "code, nameAr, and nameEn are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_document_categories (company_id, code, name_ar, name_en, description_ar, description_en, module_scope, retention_months, requires_expiry, requires_approval, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, req.body.descriptionAr || null, req.body.descriptionEn || null, moduleScope, toInt(req.body.retentionMonths), !!req.body.requiresExpiry, !!req.body.requiresApproval, user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/document-categories]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/document-categories/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_document_categories WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Document category not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `UPDATE enterprise_document_categories SET
+        name_ar=COALESCE($1,name_ar), name_en=COALESCE($2,name_en), description_ar=$3, description_en=$4,
+        retention_months=COALESCE($5,retention_months), requires_expiry=COALESCE($6,requires_expiry), requires_approval=COALESCE($7,requires_approval),
+        is_active=COALESCE($8,is_active), updated_by=$9, updated_at=NOW()
+       WHERE id=$10 AND company_id=$11 RETURNING *`,
+      [req.body.nameAr ?? null, req.body.nameEn ?? null, req.body.descriptionAr ?? row.description_ar, req.body.descriptionEn ?? row.description_en, toInt(req.body.retentionMonths), req.body.requiresExpiry, req.body.requiresApproval, req.body.isActive, user.userId, id, user.companyId],
+    );
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/document-categories/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.delete("/api/document-reporting/document-categories/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_document_categories WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Document category not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    await pool.query(`UPDATE enterprise_document_categories SET is_deleted=true, updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, id, user.companyId]);
+    res.json({ success: true, data: { id, isDeleted: true } });
+  } catch (e: any) {
+    console.error("[DELETE /api/document-reporting/document-categories/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/documents", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const sourceModule = bundleCModuleScope(user, req.body.sourceModule);
+    if (!canManageBundleC(user, sourceModule)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { titleAr, titleEn } = req.body;
+    if (!titleAr || !titleEn) return res.status(400).json({ success: false, message: "titleAr and titleEn are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_documents (company_id, category_id, employee_id, candidate_id, source_module, entity_type, entity_id, title_ar, title_en, document_number, status, tags, metadata_json, file_object_id, file_name, file_url, issued_at, expires_at, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$19) RETURNING *`,
+      [user.companyId, toInt(req.body.categoryId), toInt(req.body.employeeId), toInt(req.body.candidateId), sourceModule, req.body.entityType || null, toInt(req.body.entityId), titleAr, titleEn, req.body.documentNumber || null, req.body.status || "draft", JSON.stringify(req.body.tags || []), JSON.stringify(req.body.metadata || {}), toInt(req.body.fileObjectId), req.body.fileName || null, req.body.fileUrl || null, req.body.issuedAt || null, req.body.expiresAt || null, user.userId],
+    );
+    await logActivity(user.companyId, "enterprise_document_created", `Enterprise document created: ${titleEn}`, user.username);
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/documents]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/documents/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_documents WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Document not found" });
+    if (!canManageBundleC(user, row.source_module)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `UPDATE enterprise_documents SET title_ar=COALESCE($1,title_ar), title_en=COALESCE($2,title_en), status=COALESCE($3,status), tags=COALESCE($4::jsonb,tags), metadata_json=COALESCE($5::jsonb,metadata_json), expires_at=COALESCE($6,expires_at), updated_by=$7, updated_at=NOW() WHERE id=$8 AND company_id=$9 RETURNING *`,
+      [req.body.titleAr ?? null, req.body.titleEn ?? null, req.body.status ?? null, req.body.tags ? JSON.stringify(req.body.tags) : null, req.body.metadata ? JSON.stringify(req.body.metadata) : null, req.body.expiresAt ?? null, user.userId, id, user.companyId],
+    );
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/documents/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.delete("/api/document-reporting/documents/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_documents WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Document not found" });
+    if (!canManageBundleC(user, row.source_module)) return res.status(403).json({ success: false, message: "Forbidden" });
+    await pool.query(`UPDATE enterprise_documents SET is_deleted=true, updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, id, user.companyId]);
+    res.json({ success: true, data: { id, isDeleted: true } });
+  } catch (e: any) {
+    console.error("[DELETE /api/document-reporting/documents/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/form-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const visibility = bundleCVisibilityClause("ft", user, params);
+    const { rows } = await pool.query(`SELECT * FROM enterprise_form_templates ft WHERE ft.company_id=$1 AND ft.is_deleted=false${visibility} ORDER BY ft.status, ft.code`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/form-templates]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/form-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const moduleScope = bundleCModuleScope(user, req.body.moduleScope);
+    if (!canManageBundleC(user, moduleScope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn } = req.body;
+    if (!code || !nameAr || !nameEn) return res.status(400).json({ success: false, message: "code, nameAr, and nameEn are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_form_templates (company_id, code, name_ar, name_en, description_ar, description_en, module_scope, form_schema_json, status, is_public_self_service, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$11) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, req.body.descriptionAr || null, req.body.descriptionEn || null, moduleScope, JSON.stringify(req.body.formSchema || { sections: [] }), req.body.status || "draft", !!req.body.isPublicSelfService, user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/form-templates]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/form-templates/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_form_templates WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Form template not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`UPDATE enterprise_form_templates SET name_ar=COALESCE($1,name_ar), name_en=COALESCE($2,name_en), form_schema_json=COALESCE($3::jsonb,form_schema_json), status=COALESCE($4,status), is_active=COALESCE($5,is_active), updated_by=$6, updated_at=NOW() WHERE id=$7 AND company_id=$8 RETURNING *`, [req.body.nameAr ?? null, req.body.nameEn ?? null, req.body.formSchema ? JSON.stringify(req.body.formSchema) : null, req.body.status ?? null, req.body.isActive, user.userId, id, user.companyId]);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/form-templates/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.delete("/api/document-reporting/form-templates/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_form_templates WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Form template not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    await pool.query(`UPDATE enterprise_form_templates SET is_deleted=true, updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, id, user.companyId]);
+    res.json({ success: true, data: { id, isDeleted: true } });
+  } catch (e: any) {
+    console.error("[DELETE /api/document-reporting/form-templates/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/form-submissions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const where = [`fs.company_id=$1`, `fs.is_deleted=false`];
+    if (user.role === "employee") where.push(`fs.employee_id=$${params.push(user.employeeId ?? -1)}`);
+    if (user.role === "manager") where.push(`fs.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`);
+    const { rows } = await pool.query(`SELECT fs.*, ft.name_ar AS template_name_ar, ft.name_en AS template_name_en FROM enterprise_form_submissions fs JOIN enterprise_form_templates ft ON ft.id=fs.template_id AND ft.company_id=fs.company_id WHERE ${where.join(" AND ")} ORDER BY fs.created_at DESC LIMIT 100`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/form-submissions]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/form-submissions", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const templateId = Number(req.body.templateId);
+    if (!templateId) return res.status(400).json({ success: false, message: "templateId is required" });
+    const template = await pool.query(`SELECT * FROM enterprise_form_templates WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [templateId, user.companyId]);
+    if (!template.rows[0]) return res.status(404).json({ success: false, message: "Form template not found" });
+    if (!canManageBundleC(user, template.rows[0].module_scope) && user.role !== "employee" && user.role !== "manager") return res.status(403).json({ success: false, message: "Forbidden" });
+    const employeeId = toInt(req.body.employeeId) || user.employeeId || null;
+    if (user.role === "employee" && employeeId !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_form_submissions (company_id, template_id, employee_id, candidate_id, submitted_by, status, payload_json, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$5,$5) RETURNING *`,
+      [user.companyId, templateId, employeeId, toInt(req.body.candidateId), user.userId, req.body.status || "submitted", JSON.stringify(req.body.payload || {})],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/form-submissions]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/form-submissions/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT fs.*, ft.module_scope FROM enterprise_form_submissions fs JOIN enterprise_form_templates ft ON ft.id=fs.template_id AND ft.company_id=fs.company_id WHERE fs.id=$1 AND fs.company_id=$2 AND fs.is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Form submission not found" });
+    if (!canManageBundleC(user, row.module_scope) && !(user.role === "employee" && row.employee_id === user.employeeId)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`UPDATE enterprise_form_submissions SET status=COALESCE($1,status), payload_json=COALESCE($2::jsonb,payload_json), updated_by=$3, updated_at=NOW() WHERE id=$4 AND company_id=$5 RETURNING *`, [req.body.status ?? null, req.body.payload ? JSON.stringify(req.body.payload) : null, user.userId, id, user.companyId]);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/form-submissions/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/pdf-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT * FROM enterprise_pdf_templates WHERE company_id=$1 AND is_deleted=false ORDER BY status, template_type, code`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/pdf-templates]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/pdf-templates", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleC(user, "hr")) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, htmlTemplate } = req.body;
+    if (!code || !nameAr || !nameEn || !htmlTemplate) return res.status(400).json({ success: false, message: "code, nameAr, nameEn, and htmlTemplate are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_pdf_templates (company_id, code, name_ar, name_en, template_type, language_mode, html_template, variables_json, branding_json, status, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$11) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, req.body.templateType || "letter", req.body.languageMode || "bilingual", htmlTemplate, JSON.stringify(req.body.variables || []), JSON.stringify(req.body.branding || {}), req.body.status || "draft", user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/pdf-templates]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/pdf-templates/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManageBundleC(user, "hr")) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const { rows } = await pool.query(`UPDATE enterprise_pdf_templates SET name_ar=COALESCE($1,name_ar), name_en=COALESCE($2,name_en), html_template=COALESCE($3,html_template), status=COALESCE($4,status), updated_by=$5, updated_at=NOW() WHERE id=$6 AND company_id=$7 AND is_deleted=false RETURNING *`, [req.body.nameAr ?? null, req.body.nameEn ?? null, req.body.htmlTemplate ?? null, req.body.status ?? null, user.userId, id, user.companyId]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: "PDF template not found" });
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/pdf-templates/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/pdf-templates/:id/preview", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const { rows } = await pool.query(`SELECT * FROM enterprise_pdf_templates WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const template = rows[0];
+    if (!template) return res.status(404).json({ success: false, message: "PDF template not found" });
+    const variables = req.body.variables || {};
+    let html = String(template.html_template || "");
+    for (const [key, value] of Object.entries(variables)) html = html.replace(new RegExp(`{{\\\\s*${key}\\\\s*}}`, "g"), String(value ?? ""));
+    res.json({ success: true, data: { id, html, format: "html-preview", pdfGeneration: "not_configured" } });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/pdf-templates/:id/preview]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/reports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    const visibility = bundleCVisibilityClause("rd", user, params);
+    const { rows } = await pool.query(`SELECT * FROM enterprise_report_definitions rd WHERE rd.company_id=$1 AND rd.is_deleted=false${visibility} ORDER BY rd.module_scope, rd.code`, params);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/reports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/reports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const moduleScope = bundleCModuleScope(user, req.body.moduleScope);
+    if (!canManageBundleC(user, moduleScope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { code, nameAr, nameEn, reportType } = req.body;
+    if (!code || !nameAr || !nameEn || !reportType) return res.status(400).json({ success: false, message: "code, nameAr, nameEn, and reportType are required" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_report_definitions (company_id, code, name_ar, name_en, report_type, module_scope, query_config_json, filters_json, columns_json, chart_config_json, visibility_roles, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12,$12) RETURNING *`,
+      [user.companyId, String(code).trim().toUpperCase(), nameAr, nameEn, reportType, moduleScope, JSON.stringify(req.body.queryConfig || {}), JSON.stringify(req.body.filters || []), JSON.stringify(req.body.columns || []), JSON.stringify(req.body.chartConfig || {}), JSON.stringify(req.body.visibilityRoles || [user.role]), user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/reports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/reports/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT * FROM enterprise_report_definitions WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Report definition not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`UPDATE enterprise_report_definitions SET name_ar=COALESCE($1,name_ar), name_en=COALESCE($2,name_en), filters_json=COALESCE($3::jsonb,filters_json), columns_json=COALESCE($4::jsonb,columns_json), is_active=COALESCE($5,is_active), updated_by=$6, updated_at=NOW() WHERE id=$7 AND company_id=$8 RETURNING *`, [req.body.nameAr ?? null, req.body.nameEn ?? null, req.body.filters ? JSON.stringify(req.body.filters) : null, req.body.columns ? JSON.stringify(req.body.columns) : null, req.body.isActive, user.userId, id, user.companyId]);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/reports/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/scheduled-reports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT sr.*, rd.name_ar AS report_name_ar, rd.name_en AS report_name_en FROM enterprise_scheduled_reports sr JOIN enterprise_report_definitions rd ON rd.id=sr.report_definition_id AND rd.company_id=sr.company_id WHERE sr.company_id=$1 AND sr.is_deleted=false ORDER BY sr.next_run_at NULLS LAST, sr.created_at DESC`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/scheduled-reports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/scheduled-reports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const reportDefinitionId = Number(req.body.reportDefinitionId);
+    if (!reportDefinitionId || !req.body.scheduleNameAr || !req.body.scheduleNameEn || !req.body.cronExpression) return res.status(400).json({ success: false, message: "reportDefinitionId, scheduleNameAr, scheduleNameEn, and cronExpression are required" });
+    const report = await pool.query(`SELECT * FROM enterprise_report_definitions WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [reportDefinitionId, user.companyId]);
+    if (!report.rows[0]) return res.status(404).json({ success: false, message: "Report definition not found" });
+    if (!canManageBundleC(user, report.rows[0].module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_scheduled_reports (company_id, report_definition_id, schedule_name_ar, schedule_name_en, cron_expression, export_format, recipients_json, next_run_at, status, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$10) RETURNING *`,
+      [user.companyId, reportDefinitionId, req.body.scheduleNameAr, req.body.scheduleNameEn, req.body.cronExpression, req.body.exportFormat || "pdf", JSON.stringify(req.body.recipients || []), req.body.nextRunAt || null, req.body.status || "active", user.userId],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/scheduled-reports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.patch("/api/document-reporting/scheduled-reports/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = Number(req.params["id"]);
+    const existing = await pool.query(`SELECT sr.*, rd.module_scope FROM enterprise_scheduled_reports sr JOIN enterprise_report_definitions rd ON rd.id=sr.report_definition_id AND rd.company_id=sr.company_id WHERE sr.id=$1 AND sr.company_id=$2 AND sr.is_deleted=false`, [id, user.companyId]);
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: "Scheduled report not found" });
+    if (!canManageBundleC(user, row.module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`UPDATE enterprise_scheduled_reports SET schedule_name_ar=COALESCE($1,schedule_name_ar), schedule_name_en=COALESCE($2,schedule_name_en), cron_expression=COALESCE($3,cron_expression), status=COALESCE($4,status), updated_by=$5, updated_at=NOW() WHERE id=$6 AND company_id=$7 RETURNING *`, [req.body.scheduleNameAr ?? null, req.body.scheduleNameEn ?? null, req.body.cronExpression ?? null, req.body.status ?? null, user.userId, id, user.companyId]);
+    res.json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[PATCH /api/document-reporting/scheduled-reports/:id]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/exports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT ej.*, rd.name_ar AS report_name_ar, rd.name_en AS report_name_en FROM enterprise_export_jobs ej LEFT JOIN enterprise_report_definitions rd ON rd.id=ej.report_definition_id AND rd.company_id=ej.company_id WHERE ej.company_id=$1 AND ej.is_deleted=false ORDER BY ej.created_at DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/exports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/exports", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const moduleScope = bundleCModuleScope(user, req.body.moduleScope);
+    if (!canManageBundleC(user, moduleScope) && user.role !== "manager" && user.role !== "employee") return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_export_jobs (company_id, report_definition_id, requested_by, export_type, export_format, status, filters_json, started_at, finished_at, file_name)
+       VALUES ($1,$2,$3,$4,$5,'completed',$6::jsonb,NOW(),NOW(),$7) RETURNING *`,
+      [user.companyId, toInt(req.body.reportDefinitionId), user.userId, req.body.exportType || moduleScope, req.body.exportFormat || "xlsx", JSON.stringify(req.body.filters || {}), req.body.fileName || `export-${Date.now()}.${req.body.exportFormat || "xlsx"}`],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/exports]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/print-history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(`SELECT ph.*, u.username AS actor_username, u.email AS actor_email FROM enterprise_print_history ph LEFT JOIN users u ON u.id=ph.actor_user_id WHERE ph.company_id=$1 AND ph.is_deleted=false ORDER BY ph.created_at DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: rows.map(camelAts) });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/print-history]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.post("/api/document-reporting/print-history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `INSERT INTO enterprise_print_history (company_id, document_id, pdf_template_id, report_definition_id, actor_user_id, action_type, output_format, ip_address, user_agent, snapshot_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) RETURNING *`,
+      [user.companyId, toInt(req.body.documentId), toInt(req.body.pdfTemplateId), toInt(req.body.reportDefinitionId), user.userId, req.body.actionType || "preview", req.body.outputFormat || "pdf", req.ip || null, req.get("user-agent") || null, JSON.stringify(req.body.snapshot || {})],
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/document-reporting/print-history]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+app.get("/api/document-reporting/analytics", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleC(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const [documentsByStatus, documentsByModule, submissions, exports, printActions] = await Promise.all([
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM enterprise_documents WHERE company_id=$1 AND is_deleted=false GROUP BY status`, [user.companyId]),
+      pool.query(`SELECT source_module, COUNT(*)::int AS count FROM enterprise_documents WHERE company_id=$1 AND is_deleted=false GROUP BY source_module`, [user.companyId]),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM enterprise_form_submissions WHERE company_id=$1 AND is_deleted=false GROUP BY status`, [user.companyId]),
+      pool.query(`SELECT export_type, status, COUNT(*)::int AS count FROM enterprise_export_jobs WHERE company_id=$1 AND is_deleted=false GROUP BY export_type, status`, [user.companyId]),
+      pool.query(`SELECT action_type, COUNT(*)::int AS count FROM enterprise_print_history WHERE company_id=$1 AND is_deleted=false GROUP BY action_type`, [user.companyId]),
+    ]);
+    res.json({ success: true, data: { documentsByStatus: documentsByStatus.rows.map(camelAts), documentsByModule: documentsByModule.rows.map(camelAts), submissions: submissions.rows.map(camelAts), exports: exports.rows.map(camelAts), printActions: printActions.rows.map(camelAts) } });
+  } catch (e: any) {
+    console.error("[GET /api/document-reporting/analytics]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
+// Bundle D: production export hardening
+type BundleDExportDataset = "employees" | "attendance" | "payroll" | "recruitment" | "evaluations" | "reports" | "workflows";
+
+function bundleDCanExport(user: any, dataset: BundleDExportDataset) {
+  if (user?.role === "hradmin") return true;
+  if (dataset === "payroll") return user?.role === "payrolladmin";
+  if (dataset === "recruitment") return user?.role === "recruiter";
+  if (dataset === "attendance") return ["manager", "employee"].includes(user?.role);
+  if (dataset === "evaluations") return ["manager", "employee", "payrolladmin"].includes(user?.role);
+  if (dataset === "employees") return user?.role === "manager";
+  if (dataset === "reports") return ["payrolladmin", "manager"].includes(user?.role);
+  if (dataset === "workflows") return ["manager", "payrolladmin"].includes(user?.role);
+  return false;
+}
+
+function csvEscape(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function toCsv(columns: ExportColumn[], data: Record<string, unknown>[]) {
+  const header = columns.map(c => csvEscape(c.headerAr ? `${c.header} / ${c.headerAr}` : c.header)).join(",");
+  const rows = data.map(row => columns.map(c => csvEscape(row[c.key])).join(","));
+  return "\uFEFF" + [header, ...rows].join("\r\n");
+}
+
+function pdfEscape(value: unknown) {
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/[^\x20-\x7E]/g, "?");
+}
+
+function simplePdfBuffer(title: string, columns: ExportColumn[], data: Record<string, unknown>[]) {
+  const lines = [title, `Generated: ${new Date().toISOString()}`, "", columns.map(c => c.header).join(" | ")];
+  for (const row of data.slice(0, 80)) {
+    lines.push(columns.map(c => String(row[c.key] ?? "").slice(0, 24)).join(" | "));
+  }
+  const content = [
+    "BT",
+    "/F1 10 Tf",
+    "50 790 Td",
+    ...lines.flatMap((line, index) => index === 0 ? [`(${pdfEscape(line)}) Tj`] : ["0 -14 Td", `(${pdfEscape(line)}) Tj`]),
+    "ET",
+  ].join("\n");
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj",
+    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+    `5 0 obj << /Length ${Buffer.byteLength(content, "utf8")} >> stream\n${content}\nendstream endobj`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(pdf, "utf8"));
+    pdf += object + "\n";
+  }
+  const xref = Buffer.byteLength(pdf, "utf8");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i++) pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, "utf8");
+}
+
+async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
+  if (dataset === "employees") {
+    const params: any[] = [user.companyId];
+    let scope = "";
+    if (user.role === "manager") scope = ` AND e.direct_manager_id=$${params.push(user.employeeId ?? -1)}`;
+    const { rows } = await pool.query(
+      `SELECT e.employee_code AS "employeeCode", CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "nameEn",
+              CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "nameAr", d.name_en AS department, e.employment_status AS status
+       FROM employees e LEFT JOIN departments d ON d.id=e.department_id AND d.company_id=e.company_id
+       WHERE e.company_id=$1 AND e.is_deleted=false${scope} ORDER BY e.employee_code LIMIT 500`,
+      params,
+    );
+    return { title: "Employee Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ظ…ظˆط¸ظپظٹظ†", rows, columns: [
+      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯", width: 16 },
+      { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ", width: 24 },
+      { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", width: 24, isArabic: true },
+      { key: "department", header: "Department", headerAr: "ط§ظ„ظ‚ط³ظ…", width: 20 },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©", width: 16 },
+    ] as ExportColumn[] };
+  }
+
+  if (dataset === "attendance") {
+    const params: any[] = [user.companyId];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND ar.employee_id=$${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND ar.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    const { rows } = await pool.query(
+      `SELECT ar.date AS date, e.employee_code AS "employeeCode", CONCAT_WS(' ', e.first_name_en, e.last_name_en) AS employee,
+              ar.status, ar.clock_in AS "checkIn", ar.clock_out AS "checkOut"
+       FROM attendance_records ar JOIN employees e ON e.id=ar.employee_id
+       WHERE e.company_id=$1${scope} ORDER BY ar.date DESC LIMIT 500`,
+      params,
+    );
+    return { title: "Attendance Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ط­ط¶ظˆط±", rows, columns: [
+      { key: "date", header: "Date", headerAr: "ط§ظ„طھط§ط±ظٹط®", isDate: true },
+      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
+      { key: "employee", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+      { key: "checkIn", header: "Check In", headerAr: "ط§ظ„ط¯ط®ظˆظ„" },
+      { key: "checkOut", header: "Check Out", headerAr: "ط§ظ„ط®ط±ظˆط¬" },
+    ] as ExportColumn[] };
+  }
+
+  if (dataset === "payroll") {
+    const { rows } = await pool.query(
+      `SELECT pr.run_month AS month, pr.run_year AS year, pr.status, e.employee_code AS "employeeCode",
+              ps.gross_salary AS gross, ps.total_deductions AS deductions, ps.net_salary AS net
+       FROM payslips ps JOIN payroll_runs pr ON pr.id=ps.payroll_run_id
+       JOIN employees e ON e.id=ps.employee_id AND e.company_id=pr.company_id
+       WHERE pr.company_id=$1 ORDER BY pr.run_year DESC, pr.run_month DESC, e.employee_code LIMIT 500`,
+      [user.companyId],
+    );
+    return { title: "Payroll Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ط±ظˆط§طھط¨", rows, columns: [
+      { key: "month", header: "Month", headerAr: "ط§ظ„ط´ظ‡ط±", isNumeric: true },
+      { key: "year", header: "Year", headerAr: "ط§ظ„ط³ظ†ط©", isNumeric: true },
+      { key: "employeeCode", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
+      { key: "gross", header: "Gross", headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ", isCurrency: true },
+      { key: "deductions", header: "Deductions", headerAr: "ط§ظ„ط§ظ‚طھط·ط§ط¹ط§طھ", isCurrency: true },
+      { key: "net", header: "Net", headerAr: "ط§ظ„طµط§ظپظٹ", isCurrency: true },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+    ] as ExportColumn[] };
+  }
+
+  if (dataset === "recruitment") {
+    const { rows } = await pool.query(
+      `SELECT c.candidate_number AS code, c.full_name_en AS "nameEn", c.full_name_ar AS "nameAr", c.email, c.phone, c.status,
+              COALESCE(s.name_en, c.status) AS stage, c.rating
+       FROM candidates c
+       LEFT JOIN recruitment_pipeline_stages s ON s.id=c.current_stage_id AND s.company_id=c.company_id
+       WHERE c.company_id=$1 AND c.is_deleted=false ORDER BY c.created_at DESC LIMIT 500`,
+      [user.companyId],
+    );
+    return { title: "Recruitment Pipeline Export", titleAr: "طھطµط¯ظٹط± ظ…ط³ط§ط± ط§ظ„طھظˆط¸ظٹظپ", rows, columns: [
+      { key: "code", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
+      { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ" },
+      { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", isArabic: true },
+      { key: "email", header: "Email", headerAr: "ط§ظ„ط¨ط±ظٹط¯" },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+      { key: "stage", header: "Stage", headerAr: "ط§ظ„ظ…ط±ط­ظ„ط©" },
+      { key: "rating", header: "Rating", headerAr: "ط§ظ„طھظ‚ظٹظٹظ…", isNumeric: true },
+    ] as ExportColumn[] };
+  }
+
+  if (dataset === "evaluations") {
+    const params: any[] = [user.companyId];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND pe.employee_id=$${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND pe.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    const { rows } = await pool.query(
+      `SELECT e.employee_code AS "employeeCode", CONCAT_WS(' ', e.first_name_en, e.last_name_en) AS employee,
+              pe.status, pe.final_score AS "finalScore", pe.final_rating_code AS rating, pe.recommendation
+       FROM performance_evaluations pe JOIN employees e ON e.id=pe.employee_id AND e.company_id=pe.company_id
+       WHERE pe.company_id=$1 AND pe.is_deleted=false${scope} ORDER BY pe.created_at DESC LIMIT 500`,
+      params,
+    );
+    return { title: "Performance Evaluation Export", titleAr: "طھطµط¯ظٹط± طھظ‚ظٹظٹظ… ط§ظ„ط£ط¯ط§ط،", rows, columns: [
+      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
+      { key: "employee", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+      { key: "finalScore", header: "Final Score", headerAr: "ط§ظ„ظ†طھظٹط¬ط©", isNumeric: true },
+      { key: "rating", header: "Rating", headerAr: "ط§ظ„طھظ‚ط¯ظٹط±" },
+      { key: "recommendation", header: "Recommendation", headerAr: "ط§ظ„طھظˆطµظٹط©" },
+    ] as ExportColumn[] };
+  }
+
+  if (dataset === "workflows") {
+    const { rows } = await pool.query(
+      `SELECT entity_type AS "entityType", entity_id AS "entityId", status, current_approver_role AS "approverRole", created_at AS "createdAt"
+       FROM performance_workflow_instances WHERE company_id=$1 AND is_deleted=false ORDER BY created_at DESC LIMIT 500`,
+      [user.companyId],
+    );
+    return { title: "Workflow Export", titleAr: "طھطµط¯ظٹط± ط³ظٹط± ط§ظ„ط¹ظ…ظ„", rows, columns: [
+      { key: "entityType", header: "Entity", headerAr: "ط§ظ„ظƒظٹط§ظ†" },
+      { key: "entityId", header: "ID", headerAr: "ط§ظ„ظ…ط¹ط±ظپ" },
+      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+      { key: "approverRole", header: "Approver Role", headerAr: "ط¯ظˆط± ط§ظ„ظ…ط¹طھظ…ط¯" },
+      { key: "createdAt", header: "Created", headerAr: "طھط§ط±ظٹط® ط§ظ„ط¥ظ†ط´ط§ط،", isDate: true },
+    ] as ExportColumn[] };
+  }
+
+  const { rows } = await pool.query(
+    `SELECT code, name_en AS "nameEn", name_ar AS "nameAr", report_type AS "reportType", module_scope AS "moduleScope", is_active AS "isActive"
+     FROM enterprise_report_definitions WHERE company_id=$1 AND is_deleted=false ORDER BY module_scope, code LIMIT 500`,
+    [user.companyId],
+  );
+  return { title: "Report Definitions Export", titleAr: "طھطµط¯ظٹط± طھط¹ط±ظٹظپط§طھ ط§ظ„طھظ‚ط§ط±ظٹط±", rows, columns: [
+    { key: "code", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
+    { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ" },
+    { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", isArabic: true },
+    { key: "reportType", header: "Type", headerAr: "ط§ظ„ظ†ظˆط¹" },
+    { key: "moduleScope", header: "Module", headerAr: "ط§ظ„ظˆط­ط¯ط©" },
+    { key: "isActive", header: "Active", headerAr: "ظ†ط´ط·" },
+  ] as ExportColumn[] };
+}
+
+app.get("/api/production/exports/:dataset", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const dataset = String(req.params["dataset"] || "") as BundleDExportDataset;
+    const format = String(req.query["format"] || "xlsx").toLowerCase();
+    const allowedDatasets = new Set(["employees", "attendance", "payroll", "recruitment", "evaluations", "reports", "workflows"]);
+    if (!allowedDatasets.has(dataset)) return res.status(404).json({ success: false, message: "Export dataset not found" });
+    if (!["csv", "xlsx", "pdf"].includes(format)) return res.status(400).json({ success: false, message: "format must be csv, xlsx, or pdf" });
+    if (!bundleDCanExport(user, dataset)) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const exportData = await bundleDExportData(user, dataset);
+    const fileBase = `zenjo-${dataset}-${new Date().toISOString().slice(0, 10)}`;
+    if (format === "csv") {
+      const csv = toCsv(exportData.columns, exportData.rows);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.csv"`);
+      res.send(csv);
+      return;
+    }
+    if (format === "pdf") {
+      const pdf = simplePdfBuffer(exportData.title, exportData.columns, exportData.rows);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.pdf"`);
+      res.send(pdf);
+      return;
+    }
+    const company = await pool.query(`SELECT name_en, name_ar FROM companies WHERE id=$1`, [user.companyId]);
+    const buffer = await generateExcelBuffer({
+      sheetName: dataset,
+      columns: exportData.columns,
+      data: exportData.rows,
+      companyName: company.rows[0]?.name_en || "ZenJO",
+      companyNameAr: company.rows[0]?.name_ar || undefined,
+      reportTitle: exportData.title,
+      reportTitleAr: exportData.titleAr,
+    });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.xlsx"`);
+    res.send(buffer);
+  } catch (e: any) {
+    console.error("[GET /api/production/exports/:dataset]", e);
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`ZenJO API server running on http://localhost:${PORT}`);
 });

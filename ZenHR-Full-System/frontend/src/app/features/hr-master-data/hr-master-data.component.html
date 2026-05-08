@@ -1,0 +1,163 @@
+<section class="master-shell" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'">
+  <header class="master-hero">
+    <div>
+      <span class="kicker">{{ t('الإعدادات / بيانات الموارد البشرية', 'Settings / HR Master Data') }}</span>
+      <h1>{{ t('بيانات الموارد البشرية الرئيسية', 'HR Master Data') }}</h1>
+      <p>{{ t('مركز موحد لإدارة البيانات المرجعية المستخدمة في التوظيف والملفات والمسارات والتقييم والرواتب مستقبلا.', 'A central reference-data hub for recruiting, profiles, career paths, evaluation, and future payroll integration.') }}</p>
+    </div>
+    <button class="primary-action" type="button" (click)="openAdd()">
+      <span class="material-icons">add</span>
+      {{ t('إضافة سجل', 'Add record') }}
+    </button>
+  </header>
+
+  <div class="master-layout">
+    <aside class="module-rail">
+      <button type="button" *ngFor="let module of modules" [class.active]="module.route === active.route" (click)="setModule(module)">
+        <span class="material-icons">{{ module.icon }}</span>
+        <strong>{{ label(module) }}</strong>
+        <small>{{ i18n.currentLang === 'ar' ? module.descriptionAr : module.descriptionEn }}</small>
+      </button>
+    </aside>
+
+    <main class="module-panel">
+      <div class="module-head">
+        <div>
+          <span class="kicker">{{ t('وحدة نشطة', 'Active module') }}</span>
+          <h2>{{ label(active) }}</h2>
+          <p>{{ i18n.currentLang === 'ar' ? active.descriptionAr : active.descriptionEn }}</p>
+        </div>
+        <div class="module-stats">
+          <strong>{{ total }}</strong>
+          <span>{{ t('سجل', 'records') }}</span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="search-box">
+          <span class="material-icons">search</span>
+          <input [ngModel]="search" (ngModelChange)="onSearch($event)" [placeholder]="t('ابحث بالرمز أو الاسم أو الوصف...', 'Search code, name, or description...')" />
+        </label>
+        <select [(ngModel)]="activeFilter" (ngModelChange)="page=1; load()">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option value="true">{{ t('نشط', 'Active') }}</option>
+          <option value="false">{{ t('غير نشط', 'Inactive') }}</option>
+        </select>
+        <select [(ngModel)]="pageSize" (ngModelChange)="page=1; load()">
+          <option [ngValue]="10">10</option>
+          <option [ngValue]="20">20</option>
+          <option [ngValue]="50">50</option>
+        </select>
+      </div>
+
+      <div class="error-banner" *ngIf="error">{{ error }}</div>
+      <div class="skeleton-list" *ngIf="loading">
+        <div *ngFor="let n of [1,2,3,4,5]"></div>
+      </div>
+
+      <div class="empty-state" *ngIf="!loading && rows.length === 0">
+        <span class="material-icons">inventory_2</span>
+        <strong>{{ t('لا توجد بيانات', 'No records yet') }}</strong>
+        <p>{{ t('أضف أول سجل أو غيّر معايير البحث.', 'Add the first record or change your search criteria.') }}</p>
+      </div>
+
+      <div class="data-table-card" *ngIf="!loading && rows.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th (click)="sort('code')">{{ t('الكود', 'Code') }}</th>
+              <th (click)="sort('name_ar')">{{ t('الاسم', 'Name') }}</th>
+              <th>{{ t('الوصف', 'Description') }}</th>
+              <th>{{ t('الحالة', 'Status') }}</th>
+              <th (click)="sort('updated_at')">{{ t('آخر تحديث', 'Updated') }}</th>
+              <th>{{ t('الإجراءات', 'Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows">
+              <td><code>{{ row.code }}</code></td>
+              <td>
+                <strong>{{ i18n.currentLang === 'ar' ? row.name_ar : row.name_en }}</strong>
+                <small>{{ i18n.currentLang === 'ar' ? row.name_en : row.name_ar }}</small>
+              </td>
+              <td>{{ i18n.currentLang === 'ar' ? (row.description_ar || '-') : (row.description_en || '-') }}</td>
+              <td><span class="status-pill" [class.active]="row.is_active">{{ row.is_active ? t('نشط', 'Active') : t('غير نشط', 'Inactive') }}</span></td>
+              <td>{{ row.updated_at | date:'short' }}</td>
+              <td>
+                <div class="row-actions">
+                  <button type="button" (click)="openEdit(row)" [attr.title]="t('تعديل', 'Edit')"><span class="material-icons">edit</span></button>
+                  <button type="button" (click)="duplicate(row)" [attr.title]="t('نسخ', 'Duplicate')"><span class="material-icons">content_copy</span></button>
+                  <button type="button" (click)="toggleActive(row)" [attr.title]="row.is_active ? t('تعطيل', 'Deactivate') : t('تفعيل', 'Activate')"><span class="material-icons">{{ row.is_active ? 'toggle_off' : 'toggle_on' }}</span></button>
+                  <button type="button" class="danger" (click)="remove(row)" [attr.title]="t('حذف', 'Delete')"><span class="material-icons">delete</span></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="pager">
+        <button type="button" (click)="changePage(-1)" [disabled]="page <= 1">{{ t('السابق', 'Previous') }}</button>
+        <span>{{ t('صفحة', 'Page') }} {{ page }} / {{ pages() }}</span>
+        <button type="button" (click)="changePage(1)" [disabled]="page >= pages()">{{ t('التالي', 'Next') }}</button>
+      </footer>
+    </main>
+  </div>
+
+  <div class="drawer-backdrop" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
+  <aside class="master-drawer" *ngIf="drawerOpen" (click)="$event.stopPropagation()">
+    <header>
+      <div>
+        <span class="kicker">{{ label(active) }}</span>
+        <h2>{{ editing ? t('تعديل سجل', 'Edit record') : t('إضافة سجل', 'Add record') }}</h2>
+      </div>
+      <button type="button" (click)="closeDrawer()"><span class="material-icons">close</span></button>
+    </header>
+
+    <div class="form-grid">
+      <label *ngFor="let field of active.fields" [class.full]="field.full || field.type === 'textarea' || field.type === 'json-list'">
+        <span>{{ label(field) }} <b *ngIf="field.required">*</b></span>
+        <ng-container [ngSwitch]="field.type">
+          <textarea *ngSwitchCase="'textarea'" [(ngModel)]="form[field.key]"></textarea>
+          <input *ngSwitchCase="'number'" type="number" [(ngModel)]="form[field.key]" />
+          <label *ngSwitchCase="'boolean'" class="toggle-row">
+            <input type="checkbox" [(ngModel)]="form[field.key]" />
+            <span>{{ form[field.key] ? t('مفعّل', 'Enabled') : t('غير مفعّل', 'Disabled') }}</span>
+          </label>
+          <div *ngSwitchCase="'select'" class="select-with-add">
+            <select [(ngModel)]="form[field.key]">
+              <option [ngValue]="null">{{ t('اختر...', 'Select...') }}</option>
+              <option *ngFor="let option of dropdowns[field.module || ''] || []" [ngValue]="option.id">
+                {{ i18n.currentLang === 'ar' ? option.nameAr : option.nameEn }}
+              </option>
+            </select>
+            <button *ngIf="field.module === 'responsibility-groups'" type="button" (click)="inlineGroupOpen = !inlineGroupOpen">
+              <span class="material-icons">add</span>
+            </button>
+          </div>
+          <textarea *ngSwitchCase="'json-list'" [(ngModel)]="form[field.key]" [placeholder]="t('اكتب كل مستوى في سطر منفصل أو استخدم JSON', 'One level per line or JSON')"></textarea>
+          <input *ngSwitchDefault type="text" [(ngModel)]="form[field.key]" />
+        </ng-container>
+        <small class="field-error" *ngIf="formErrors[field.key]">{{ formErrors[field.key] }}</small>
+      </label>
+    </div>
+
+    <section class="inline-add" *ngIf="inlineGroupOpen">
+      <strong>{{ t('إضافة مجموعة مسؤوليات فورية', 'Add responsibility group on the fly') }}</strong>
+      <div>
+        <input [(ngModel)]="inlineGroup.code" [placeholder]="t('الكود', 'Code')" />
+        <input [(ngModel)]="inlineGroup.nameAr" [placeholder]="t('الاسم العربي', 'Arabic name')" />
+        <input [(ngModel)]="inlineGroup.nameEn" [placeholder]="t('الاسم الإنجليزي', 'English name')" />
+        <button type="button" (click)="addInlineGroup()">{{ t('إضافة', 'Add') }}</button>
+      </div>
+    </section>
+
+    <footer>
+      <button class="ghost" type="button" (click)="closeDrawer()">{{ t('إلغاء', 'Cancel') }}</button>
+      <button class="primary-action" type="button" (click)="save()" [disabled]="saving">
+        <span class="material-icons">{{ saving ? 'progress_activity' : 'save' }}</span>
+        {{ saving ? t('جار الحفظ...', 'Saving...') : t('حفظ', 'Save') }}
+      </button>
+    </footer>
+  </aside>
+</section>

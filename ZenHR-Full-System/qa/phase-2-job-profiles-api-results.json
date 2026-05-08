@@ -1,0 +1,451 @@
+{
+  "generatedAt": "2026-05-07T12:17:58.791Z",
+  "baseUrl": "http://localhost:3001",
+  "phase": "Phase 2 Dynamic Job Profiles Final Validation",
+  "summary": {
+    "ok": true,
+    "blockers": []
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "ok": true,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "admin": {
+      "status": 200,
+      "ok": true,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    },
+    "manager": {
+      "status": 200,
+      "ok": true,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "ok": true,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "payroll": {
+      "status": 200,
+      "ok": true,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "recruiter": {
+      "status": 200,
+      "ok": true,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "nexora.hr": {
+      "status": 200,
+      "ok": true,
+      "role": "hradmin",
+      "companyId": 4,
+      "employeeId": 10
+    }
+  },
+  "health": {
+    "status": 200,
+    "ok": true
+  },
+  "masterData": {
+    "responsibility-groups": [
+      {
+        "id": 11,
+        "code": "P2-MOVGC5QF-RG1"
+      }
+    ],
+    "responsibilities": [
+      {
+        "id": 4,
+        "code": "P2-MOVGC5QF-R1"
+      },
+      {
+        "id": 5,
+        "code": "P2-MOVGC5QF-R2"
+      }
+    ],
+    "job-grades": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-G1"
+      }
+    ],
+    "educational-qualifications": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-Q1"
+      }
+    ],
+    "specializations": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-SP1"
+      }
+    ],
+    "universities": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-U1"
+      }
+    ],
+    "training-courses": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-C1"
+      }
+    ],
+    "skills": [
+      {
+        "id": 5,
+        "code": "P2-MOVGC5QF-S1"
+      },
+      {
+        "id": 6,
+        "code": "P2-MOVGC5QF-S2"
+      },
+      {
+        "id": 7,
+        "code": "P2-MOVGC5QF-NX-S1"
+      }
+    ],
+    "languages": [
+      {
+        "id": 4,
+        "code": "P2-MOVGC5QF-L1"
+      },
+      {
+        "id": 5,
+        "code": "P2-MOVGC5QF-L2"
+      }
+    ],
+    "experience-levels": [
+      {
+        "id": 3,
+        "code": "P2-MOVGC5QF-E1"
+      }
+    ]
+  },
+  "api": {
+    "listInitial": {
+      "status": 200,
+      "ok": true,
+      "count": 5,
+      "meta": {
+        "total": 8,
+        "page": 1,
+        "pageSize": 5,
+        "totalPages": 2
+      }
+    },
+    "dropdownInitial": {
+      "status": 200,
+      "ok": true,
+      "count": 8
+    },
+    "create": {
+      "status": 201,
+      "ok": true,
+      "id": 23,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 23,
+          "companyId": 1,
+          "code": "P2-MOVGC5QF-JP1",
+          "orgNodeId": null,
+          "titleAr": "???? ??? ???? MOVGC5QF",
+          "titleEn": "Validation Systems Analyst MOVGC5QF",
+          "grade": "Validation",
+          "gradeId": 3,
+          "responsibilityGroupId": 11,
+          "minSalary": "950.000",
+          "maxSalary": "1750.000",
+          "minExperienceYears": 2,
+          "maxExperienceYears": 5,
+          "reportingToJobDescriptionId": null,
+          "employmentType": "full_time",
+          "jobSummaryAr": "??? ????? ??????? ??????? ??????? MOVGC5QF",
+          "jobSummaryEn": "Phase 2 validation job profile MOVGC5QF",
+          "responsibilitiesTextAr": "????? ??????? ???????? MOVGC5QF",
+          "responsibilitiesTextEn": "Lead analysis and documentation MOVGC5QF",
+          "requirementsAr": "???? ????? ??????? ????? MOVGC5QF",
+          "requirementsEn": "Practical experience and communication skills MOVGC5QF",
+          "responsibilities": [
+            {
+              "bridgeId": 1,
+              "id": 4,
+              "code": "P2-MOVGC5QF-R1",
+              "nameAr": "????? ???? ????? MOVGC5QF",
+              "nameEn": "Manage work scope MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "requirements": null,
+          "skills": null,
+          "qualifications": [
+            {
+              "bridgeId": 1,
+              "id": 3,
+              "code": "P2-MOVGC5QF-Q1",
+              "nameAr": "????????? MOVGC5QF",
+              "nameEn": "Bachelor Degree MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "status": "active",
+          "version": 1,
+          "isTemplate": false,
+          "isActive": true,
+          "isDeleted": false,
+          "createdBy": 2,
+          "updatedBy": 2,
+          "createdAt": "2026-05-07T12:17:59.160Z",
+          "updatedAt": "2026-05-07T12:17:59.160Z",
+          "responsibilitiesCount": 0,
+          "skillsCount": 0,
+          "languagesCount": 0,
+          "qualificationsCount": 0,
+          "specializations": [
+            {
+              "bridgeId": 1,
+              "id": 3,
+              "code": "P2-MOVGC5QF-SP1",
+              "nameAr": "????? ????????? MOVGC5QF",
+              "nameEn": "Software Engineering MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "universities": [
+            {
+              "bridgeId": 1,
+              "id": 3,
+              "code": "P2-MOVGC5QF-U1",
+              "nameAr": "??????? ???????? MOVGC5QF",
+              "nameEn": "University of Jordan MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "courses": [
+            {
+              "bridgeId": 1,
+              "id": 3,
+              "code": "P2-MOVGC5QF-C1",
+              "nameAr": "????? ???????? ??????? MOVGC5QF",
+              "nameEn": "Agile Project Management MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "skillsList": [
+            {
+              "bridgeId": 1,
+              "id": 5,
+              "code": "P2-MOVGC5QF-S1",
+              "nameAr": "????? ??????? MOVGC5QF",
+              "nameEn": "Business Analysis MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "languagesList": [
+            {
+              "bridgeId": 1,
+              "id": 4,
+              "code": "P2-MOVGC5QF-L1",
+              "nameAr": "??????? MOVGC5QF",
+              "nameEn": "Arabic MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ],
+          "experienceLevels": [
+            {
+              "bridgeId": 1,
+              "id": 3,
+              "code": "P2-MOVGC5QF-E1",
+              "nameAr": "????? ?????? MOVGC5QF",
+              "nameEn": "Mid Level MOVGC5QF",
+              "descriptionAr": null,
+              "descriptionEn": null,
+              "requirementLevel": "required",
+              "weight": 0,
+              "priority": 0,
+              "notesAr": null,
+              "notesEn": null
+            }
+          ]
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "status": 200,
+      "ok": true,
+      "relationCounts": {
+        "responsibilities": 1,
+        "qualifications": 1,
+        "specializations": 1,
+        "universities": 1,
+        "courses": 1,
+        "skills": 1,
+        "languages": 1,
+        "experienceLevels": 1
+      }
+    },
+    "patchMain": {
+      "status": 200,
+      "ok": true,
+      "titleEn": "Validation Senior Systems Analyst MOVGC5QF",
+      "maxSalary": "1850.000"
+    },
+    "patchBridges": {
+      "status": 200,
+      "ok": true
+    },
+    "detailAfterBridgePatch": {
+      "status": 200,
+      "ok": true,
+      "relationCounts": {
+        "responsibilities": 2,
+        "skills": 2,
+        "languages": 2
+      }
+    },
+    "search": {
+      "englishFound": true,
+      "arabicFound": true,
+      "statuses": [
+        200,
+        200
+      ]
+    },
+    "filters": {
+      "gradeFound": true,
+      "groupFound": true,
+      "skillFound": true,
+      "languageFound": true,
+      "statuses": [
+        200,
+        200,
+        200,
+        200
+      ]
+    },
+    "softDelete": {
+      "status": 200,
+      "ok": true,
+      "stillVisible": false
+    }
+  },
+  "rbac": {
+    "salaryMasking": {
+      "manager": {
+        "status": 200,
+        "minSalary": null,
+        "maxSalary": null
+      },
+      "employee": {
+        "status": 200,
+        "minSalary": null,
+        "maxSalary": null
+      },
+      "payroll": {
+        "status": 200,
+        "minSalary": "950.000",
+        "maxSalary": "1850.000"
+      }
+    },
+    "forbiddenMutations": {
+      "manager": 403,
+      "employee": 403,
+      "payroll": 403,
+      "recruiter": 403
+    },
+    "superadminCreate": {
+      "status": 201,
+      "ok": true,
+      "id": 24
+    }
+  },
+  "tenantIsolation": {
+    "crossCompanyMasterAttach": {
+      "status": 400,
+      "ok": false,
+      "expected": 400
+    },
+    "otherTenantCreate": {
+      "status": 201,
+      "ok": true,
+      "id": 25
+    },
+    "hrCannotSeeOtherTenant": {
+      "status": 200,
+      "visible": false
+    }
+  },
+  "legacy": {
+    "jobDescriptions": {
+      "status": 200,
+      "ok": true,
+      "count": 10
+    },
+    "jobTitles": {
+      "status": 200,
+      "ok": true,
+      "count": 9
+    }
+  },
+  "errors": []
+}

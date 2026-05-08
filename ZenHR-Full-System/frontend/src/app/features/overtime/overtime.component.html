@@ -227,7 +227,7 @@
     <div class="request-list" *ngIf="!requestsLoading() && filteredRequestRows().length > 0">
       <article class="request-card" *ngFor="let request of filteredRequestRows()">
         <div class="request-top">
-          <strong>{{ isEmployee ? (request.reason || (lang === 'ar' ? 'طلب عمل إضافي' : 'Overtime request')) : (request.fullNameAr || '--') }}</strong>
+          <strong>{{ isEmployee ? (request.reason || (lang === 'ar' ? 'طلب عمل إضافي' : 'Overtime request')) : employeeName(request) }}</strong>
           <span class="status-pill" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span>
         </div>
         <div class="request-meta">

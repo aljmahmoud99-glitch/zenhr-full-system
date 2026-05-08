@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-05-08T11:31:40.747Z",
+  "mode": "Chrome DevTools Protocol fallback; Browser Use Node REPL tool was unavailable.",
+  "browser": {
+    "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "frontend": "http://localhost:5000",
+    "backend": "http://localhost:3001"
+  },
+  "auth": [
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/companies",
+      "textLength": 888,
+      "storedUser": "admin",
+      "storedRole": "superadmin"
+    }
+  ],
+  "pages": [
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "route": "/admin/companies",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/companies",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 888,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nإدارة الشركات\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة\nإدارة الشركات\nمدير النظام\n/\ncorporate_",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 22,
+      "tables": 1,
+      "cards": 1,
+      "dir": "rtl"
+    },
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "route": "/admin/plans-subscriptions",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/plans-subscriptions",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 2522,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nالخطط والاشتراكات\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة\nالخطط والاشتراكات\nمدير النظام\n/\nco",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 33,
+      "tables": 0,
+      "cards": 4,
+      "dir": "rtl"
+    },
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "route": "/admin/analytics",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/analytics",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 1006,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nتحليلات النظام\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة\nتحليلات النظام\nمدير النظام\n/\ncorporat",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 12,
+      "tables": 0,
+      "cards": 7,
+      "dir": "rtl"
+    },
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "route": "/admin/audit-logs",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/audit-logs",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 4930,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nسجلات التدقيق\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة\nسجلات التدقيق\nمدير النظام\n/\ncorporate_",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 18,
+      "tables": 1,
+      "cards": 0,
+      "dir": "rtl"
+    },
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "route": "/admin/automation",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/admin/automation",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 4341,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nالأتمتة\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة\nالأتمتة\nمدير النظام\n/\ncorporate_fare\nمدير ال",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 19,
+      "tables": 3,
+      "cards": 10,
+      "dir": "rtl"
+    }
+  ],
+  "search": [
+    {
+      "user": "admin",
+      "route": "/admin/companies",
+      "openedByClick": true,
+      "inputFound": true,
+      "placeholder": "ابحث عن موظفين، شركات، تقارير، خطط...",
+      "passed": true,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالمنصة\nchevron_right\nإدارة الشركات\nsearch\nCtrl K\nmanage_search\nالبحث العام\nالمستخدمون\nmanage_accounts\nnexora.hr\nhradmin / hr@nexora.jo\nkeyboard_return\nmanage_accounts\nhr\nhradmin / hr@zenjo.jo\nkeyboard_return\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nمدير المنصة\nA\nadmin\nمدير النظام\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ndomain\nالمنصة\nexpand_more\nالمنصة"
+    }
+  ],
+  "theme": [],
+  "responsive": [],
+  "exports": [
+    {
+      "user": "admin",
+      "dataset": "employees",
+      "format": "csv",
+      "status": 403,
+      "expectedStatus": 403,
+      "bytes": 39,
+      "contentType": "application/json; charset=utf-8",
+      "magic": "7b22737563636573",
+      "file": null,
+      "passed": true
+    }
+  ],
+  "forbidden": [],
+  "consoleErrors": [],
+  "screenshots": []
+}

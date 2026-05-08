@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-05-08T17:28:48.085Z",
+  "verdict": "HOTFIX GO",
+  "validation": {
+    "typecheck": {
+      "command": "pnpm.cmd run typecheck",
+      "status": "passed"
+    },
+    "angularDevelopmentBuild": {
+      "command": "node .\\node_modules\\@angular\\cli\\bin\\ng.js build --configuration development",
+      "status": "passed"
+    },
+    "angularProductionBuild": {
+      "command": "node .\\node_modules\\@angular\\cli\\bin\\ng.js build --configuration production",
+      "status": "passed",
+      "warnings": [
+        "Existing non-blocking layout.component.scss style budget warning remains."
+      ]
+    },
+    "backend": {
+      "restarted": true,
+      "healthz": 200
+    },
+    "browserUat": {
+      "harness": "qa/final-enterprise-uat-browser.cjs",
+      "status": "passed",
+      "auth": 6,
+      "authFailed": 0,
+      "pages": 26,
+      "pageFailed": 0,
+      "search": 6,
+      "searchFailed": 0,
+      "theme": 2,
+      "themeFailed": 0,
+      "responsive": 2,
+      "responsiveFailed": 0,
+      "exports": 7,
+      "exportFailed": 0,
+      "consoleErrors": 0,
+      "fatal": null
+    }
+  },
+  "apiSmoke": [
+    { "path": "/api/leave/requests", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/overtime/requests", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/overtime/log", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/overtime/reports?type=employee", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/overtime/reports?type=department", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/overtime/rules", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/public-holidays?year=2026", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/public-holidays/reports?type=annual&year=2026", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/public-holidays/reports?type=by-type&year=2026", "role": "hradmin", "status": 200, "passed": true },
+    { "path": "/api/user-roles", "role": "hradmin", "status": 200, "passed": true }
+  ],
+  "rbacSmoke": {
+    "overtimeRulesPut": {
+      "hr": 200,
+      "admin": 200,
+      "payroll": 403,
+      "manager": 403,
+      "employee": 403,
+      "recruiter": 403
+    },
+    "userRolesGet": {
+      "hr": 200,
+      "admin": 200,
+      "payroll": 403,
+      "manager": 403,
+      "employee": 403,
+      "recruiter": 403
+    }
+  },
+  "issues": [
+    { "id": 1, "name": "Accordion section navigation", "status": "fixed" },
+    { "id": 2, "name": "Arabic/i18n cleanup", "status": "fixed" },
+    { "id": 3, "name": "Approvals Arabic labels", "status": "fixed" },
+    { "id": 4, "name": "Attendance map picker", "status": "fixed_with_safe_fallback" },
+    { "id": 5, "name": "Leave search and filters", "status": "fixed" },
+    { "id": 6, "name": "Overtime employee name/code", "status": "fixed" },
+    { "id": 7, "name": "Overtime reports", "status": "fixed" },
+    { "id": 8, "name": "Overtime rules affect calculation", "status": "fixed_no_migration_required" },
+    { "id": 9, "name": "Public holiday calendar", "status": "fixed" },
+    { "id": 10, "name": "Official holiday reports", "status": "fixed" },
+    { "id": 11, "name": "Compliance dashboard density", "status": "fixed" },
+    { "id": 12, "name": "Role assignment display/logic", "status": "fixed" }
+  ]
+}

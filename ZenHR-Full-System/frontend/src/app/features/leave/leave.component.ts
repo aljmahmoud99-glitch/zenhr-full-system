@@ -53,6 +53,7 @@ export class LeaveComponent implements OnInit {
   filter = {
     search: '',
     employeeSearch: '',
+    employeeId: '',
     statusList: [] as string[],
     leaveTypeCodes: [] as string[],
     orgUnit: '',
@@ -75,11 +76,11 @@ export class LeaveComponent implements OnInit {
     const requests = this.allRequests();
     const today = new Date().toISOString().slice(0, 10);
     return [
-      { labelAr: 'إجمالي الطلبات', labelEn: 'Total requests', value: requests.length },
-      { labelAr: 'معلقة', labelEn: 'Pending', value: requests.filter(r => r.status === 'pending' || r.status === 'manager_approved').length },
-      { labelAr: 'موافق عليها', labelEn: 'Approved', value: requests.filter(r => r.status === 'approved').length },
-      { labelAr: 'مرفوضة', labelEn: 'Rejected', value: requests.filter(r => r.status === 'rejected').length },
-      { labelAr: 'في إجازة حالياً', labelEn: 'Currently on leave', value: requests.filter(r => r.status === 'approved' && r.startDate <= today && r.endDate >= today).length }
+      { labelAr: this.t('', 'Total requests'), labelEn: 'Total requests', value: requests.length },
+      { labelAr: this.t('', 'Pending'), labelEn: 'Pending', value: requests.filter(r => r.status === 'pending' || r.status === 'manager_approved').length },
+      { labelAr: this.t('', 'Approved'), labelEn: 'Approved', value: requests.filter(r => r.status === 'approved').length },
+      { labelAr: this.t('', 'Rejected'), labelEn: 'Rejected', value: requests.filter(r => r.status === 'rejected').length },
+      { labelAr: this.t('', 'Currently on leave'), labelEn: 'Currently on leave', value: requests.filter(r => r.status === 'approved' && r.startDate <= today && r.endDate >= today).length }
     ];
   });
 
@@ -110,7 +111,86 @@ export class LeaveComponent implements OnInit {
   }
 
   t(ar: string, en: string) {
-    return this.lang === 'ar' ? ar : en;
+    if (this.lang !== 'ar') return en;
+    const cleanArabic: Record<string, string> = {
+      'Self-service leave': 'الخدمة الذاتية للإجازات',
+      'Leave management': 'إدارة طلبات الإجازة',
+      'Leave': 'الإجازات',
+      'Manage leave policies, requests, and balances in one printable approval workflow.': 'إدارة سياسات الإجازات والطلبات والأرصدة ضمن مسار اعتماد واضح وقابل للطباعة.',
+      'Leave settings': 'سياسات الإجازات',
+      'Request leave': 'طلب إجازة جديد',
+      'Total requests': 'إجمالي الطلبات',
+      'Pending': 'قيد الانتظار',
+      'Approved': 'موافق عليه',
+      'Rejected': 'مرفوض',
+      'Currently on leave': 'في إجازة حالياً',
+      'Remaining balance': 'الرصيد المتبقي',
+      'Used': 'المستخدم',
+      'Total': 'الإجمالي',
+      'Manager approval': 'اعتماد المدير',
+      'HR approval': 'اعتماد الموارد البشرية',
+      'Required': 'مطلوب',
+      'Not required': 'غير مطلوب',
+      'Attachment': 'المرفق',
+      'Max request': 'حد الطلب',
+      'Notice days': 'الإشعار المسبق',
+      'Policy summary': 'ملخص السياسات',
+      'Active company policy rules controlling requests and balances.': 'سياسات الشركة الفعلية التي تتحكم في الطلبات والأرصدة.',
+      'Yearly balance': 'الرصيد السنوي',
+      'Max days per request': 'أقصى أيام للطلب',
+      'Attachment required': 'مرفق مطلوب',
+      'Yes': 'نعم',
+      'No': 'لا',
+      'Search & Filters': 'بحث وفلاتر',
+      'Filter requests by status, type, and date range': 'فلترة الطلبات حسب الحالة والنوع والتاريخ',
+      'Reset filters': 'مسح الفلاتر',
+      'Search': 'بحث',
+      'Code, org unit, or reason': 'الكود أو الوحدة أو السبب',
+      'Employee': 'الموظف',
+      'All employees': 'كل الموظفين',
+      'Leave type': 'نوع الإجازة',
+      'All leave types': 'كل أنواع الإجازات',
+      'Status': 'الحالة',
+      'All statuses': 'كل الحالات',
+      'Manager approved': 'موافقة المدير',
+      'Cancelled': 'ملغي',
+      'Org Unit': 'الوحدة التنظيمية',
+      'All org units': 'كل الوحدات',
+      'From': 'من تاريخ',
+      'To': 'إلى تاريخ',
+      'Search:': 'بحث:',
+      'Employee:': 'موظف:',
+      'Org:': 'وحدة:',
+      'From:': 'من:',
+      'To:': 'إلى:',
+      'requests shown': 'طلب معروض',
+      'No matching requests yet': 'لا توجد طلبات مطابقة حتى الآن',
+      'Leave requests will appear here with status and approval trail.': 'ستظهر طلبات الإجازة هنا مع الحالة ومسار التقدم.',
+      'Period': 'الفترة',
+      'Days': 'عدد الأيام',
+      'Reason': 'السبب',
+      'View': 'عرض',
+      'Print': 'طباعة',
+      'Cancel request': 'إلغاء الطلب',
+      'Approve': 'موافقة',
+      'Reject': 'رفض',
+      'New leave request': 'طلب إجازة جديد',
+      'The request will be validated against company policy before submission.': 'سيتم التحقق من الطلب وفق سياسة الشركة قبل الإرسال.',
+      'Start date': 'تاريخ البداية',
+      'End date': 'تاريخ النهاية',
+      'Attachment reference': 'مرجع المرفق',
+      'Leave policies saved.': 'تم حفظ سياسات الإجازات.',
+      'Failed to save leave policies.': 'تعذر حفظ سياسات الإجازات.',
+      'Leave request submitted.': 'تم إرسال طلب الإجازة.',
+      'Failed to submit request.': 'تعذر إرسال الطلب.',
+      'Request approved.': 'تمت الموافقة على الطلب.',
+      'Failed to approve request.': 'تعذر اعتماد الطلب.',
+      'Request cancelled.': 'تم إلغاء الطلب.',
+      'Failed to cancel request.': 'تعذر إلغاء الطلب.',
+      'Request rejected.': 'تم رفض الطلب.',
+      'Failed to reject request.': 'تعذر رفض الطلب.'
+    };
+    return cleanArabic[en] || ar;
   }
 
   loadTypes() {
@@ -193,28 +273,36 @@ export class LeaveComponent implements OnInit {
           ]).join(' ').toLowerCase();
 
       const matchesSearch = !term || haystack.includes(term);
+      const matchesEmployeeId = this.isEmployeeSelfService || !this.filter.employeeId || String(request.employeeId) === this.filter.employeeId;
       const matchesEmpSearch = this.isEmployeeSelfService || !empTerm
         || [request.fullNameAr, request.fullNameEn, request.employeeCode].join(' ').toLowerCase().includes(empTerm);
       const matchesStatus = this.filter.statusList.length === 0 || this.filter.statusList.includes(request.status);
-      const matchesType = this.filter.leaveTypeCodes.length === 0 || this.filter.leaveTypeCodes.includes((request as any).leaveTypeCode);
-      const matchesOrgUnit = this.isEmployeeSelfService || !this.filter.orgUnit || request.orgNodeNameAr === this.filter.orgUnit || request.orgNodeNameEn === this.filter.orgUnit;
+      const requestTypeKeys = [
+        (request as any).leaveTypeCode,
+        (request as any).leaveType,
+        String(request.leaveTypeId ?? '')
+      ].filter(Boolean);
+      const matchesType = this.filter.leaveTypeCodes.length === 0
+        || requestTypeKeys.some(key => this.filter.leaveTypeCodes.includes(String(key)));
+      const requestOrgKeys = [request.orgNodeNameAr, request.orgNodeNameEn, request.departmentAr, request.departmentEn].filter(Boolean);
+      const matchesOrgUnit = this.isEmployeeSelfService || !this.filter.orgUnit || requestOrgKeys.includes(this.filter.orgUnit);
       const matchesFrom = !this.filter.from || request.startDate >= this.filter.from;
       const matchesTo = !this.filter.to || request.endDate <= this.filter.to;
 
-      return matchesSearch && matchesEmpSearch && matchesStatus && matchesType && matchesOrgUnit && matchesFrom && matchesTo;
+      return matchesSearch && matchesEmployeeId && matchesEmpSearch && matchesStatus && matchesType && matchesOrgUnit && matchesFrom && matchesTo;
     });
 
     this.filteredLeaveRequests.set(filtered);
   }
 
   get hasActiveLeaveFilters() {
-    return !!(this.filter.search || this.filter.employeeSearch
+    return !!(this.filter.search || this.filter.employeeSearch || this.filter.employeeId
       || this.filter.statusList.length || this.filter.leaveTypeCodes.length
       || this.filter.orgUnit || this.filter.from || this.filter.to);
   }
 
   resetFilters() {
-    this.filter = { search: '', employeeSearch: '', statusList: [], leaveTypeCodes: [], orgUnit: '', from: '', to: '' };
+    this.filter = { search: '', employeeSearch: '', employeeId: '', statusList: [], leaveTypeCodes: [], orgUnit: '', from: '', to: '' };
     this.applyFilters();
   }
 
@@ -570,6 +658,26 @@ export class LeaveComponent implements OnInit {
     return [...new Set(this.allRequests().map(item => item.orgNodeNameAr || item.orgNodeNameEn || item.departmentAr || item.departmentEn).filter((item): item is string => !!item))];
   }
 
+  employeeOptions() {
+    const seen = new Map<number, LeaveRequest>();
+    for (const request of this.allRequests()) {
+      if (request.employeeId && !seen.has(request.employeeId)) {
+        seen.set(request.employeeId, request);
+      }
+    }
+    return [...seen.values()].sort((a, b) => this.employeeName(a).localeCompare(this.employeeName(b)));
+  }
+
+  setSingleStatus(status: string) {
+    this.filter.statusList = status ? [status] : [];
+    this.applyFilters();
+  }
+
+  setSingleLeaveType(code: string) {
+    this.filter.leaveTypeCodes = code ? [code] : [];
+    this.applyFilters();
+  }
+
   isProcessing(id: number) {
     return this.processingIds().includes(id);
   }
@@ -626,3 +734,4 @@ export class LeaveComponent implements OnInit {
     return this.isEmployeeSelfService ? '/api/leave/me/balances' : '/api/leave/balances';
   }
 }
+

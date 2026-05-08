@@ -1,0 +1,457 @@
+{
+  "meta": {
+    "startedAt": "2026-05-06T12:20:12.796Z",
+    "apiBase": "http://localhost:3001",
+    "dbUrl": "postgresql://postgres:[redacted]@localhost:5432/zenhr",
+    "finishedAt": "2026-05-06T12:20:13.805Z"
+  },
+  "phases": [
+    {
+      "name": "Phase 1 - Company setup",
+      "status": "PASS",
+      "details": {
+        "companyId": 4,
+        "departments": 6,
+        "jobTitles": 14
+      },
+      "at": "2026-05-06T12:20:13.049Z"
+    },
+    {
+      "name": "Phase 2 - Employee lifecycle",
+      "status": "PASS",
+      "details": {
+        "employees": 21,
+        "users": 21
+      },
+      "at": "2026-05-06T12:20:13.134Z"
+    },
+    {
+      "name": "Phase 3 - Attendance simulation",
+      "status": "PASS",
+      "details": {
+        "workdays": 21,
+        "records": 441,
+        "statuses": {
+          "present": 311,
+          "late": 52,
+          "absent": 26,
+          "remote": 26,
+          "partial": 26
+        }
+      },
+      "at": "2026-05-06T12:20:13.322Z"
+    },
+    {
+      "name": "Phase 4 - Leave management",
+      "status": "PASS",
+      "details": {
+        "total": 11,
+        "approved": 7,
+        "pending": 3,
+        "rejected": 1
+      },
+      "at": "2026-05-06T12:20:13.330Z"
+    },
+    {
+      "name": "Phase 5 - Overtime",
+      "status": "PASS",
+      "details": {
+        "total": 14,
+        "approved": 10,
+        "pending": 2,
+        "rejected": 2
+      },
+      "at": "2026-05-06T12:20:13.340Z"
+    },
+    {
+      "name": "Phase 6 - Payroll",
+      "status": "PASS",
+      "details": {
+        "payrollRunId": 2,
+        "employeeCount": 21,
+        "totalGross": "35738.000",
+        "totalNet": "32958.525"
+      },
+      "at": "2026-05-06T12:20:13.368Z"
+    },
+    {
+      "name": "Phase 7 - Workflow engine",
+      "status": "PASS",
+      "details": {
+        "workflows": 5
+      },
+      "at": "2026-05-06T12:20:13.373Z"
+    },
+    {
+      "name": "Phase 8 - Notifications",
+      "status": "PASS",
+      "details": {
+        "notifications": 21
+      },
+      "at": "2026-05-06T12:20:13.384Z"
+    },
+    {
+      "name": "Phase 9 - File storage",
+      "status": "PASS",
+      "details": {
+        "filesCreated": 12,
+        "documents": 12
+      },
+      "at": "2026-05-06T12:20:13.416Z"
+    },
+    {
+      "name": "Phase 10 - Background jobs / emails",
+      "status": "PASS",
+      "details": {
+        "jobs": 8,
+        "emails": 8
+      },
+      "at": "2026-05-06T12:20:13.421Z"
+    },
+    {
+      "name": "Phase 11/12 - Manager and employee activity",
+      "status": "PASS",
+      "details": {
+        "assets": 26,
+        "managers": 4,
+        "selfServiceEmployees": 15
+      },
+      "at": "2026-05-06T12:20:13.437Z"
+    }
+  ],
+  "validations": [
+    {
+      "phase": "final-login",
+      "key": "hr",
+      "username": "nexora.hr",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "phase": "final-login",
+      "key": "payroll",
+      "username": "nexora.payroll",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "phase": "final-login",
+      "key": "manager1",
+      "username": "nexora.manager1",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "phase": "final-login",
+      "key": "employee01",
+      "username": "nexora.employee01",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "label": "dashboard",
+      "method": "GET",
+      "url": "/api/dashboard/summary",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 26,
+      "snippet": "{\"success\":true,\"data\":{\"totalEmployees\":21,\"presentToday\":0,\"onLeaveToday\":0,\"absentToday\":21,\"pendingLeaves\":3,\"pendingOvertimes\":2,\"pendingAdvances\":0,\"pendingPreEmployment\":0,\"pendingDisciplinary\":0,\"activeResignations\":0,\"pendingCleara"
+    },
+    {
+      "label": "employees",
+      "method": "GET",
+      "url": "/api/employees",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 74,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":10,\"companyId\":4,\"employeeCode\":\"NX-0001\",\"firstNameAr\":\"سارة\",\"middleNameAr\":null,\"lastNameAr\":\"الحداد\",\"firstNameEn\":\"Sara\",\"middleNameEn\":null,\"lastNameEn\":\"Haddad\",\"gender\":\"female\",\"dateOfBirth\":\"1985-02-1"
+    },
+    {
+      "label": "attendance",
+      "method": "GET",
+      "url": "/api/attendance",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 11,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":107,\"employeeId\":14,\"date\":\"2026-05-05\",\"clockIn\":null,\"clockOut\":null,\"workedMinutes\":0,\"status\":\"absent\",\"lateMinutes\":0,\"overtimeMinutes\":0,\"attendanceType\":\"office\",\"notes\":\"Unexcused absence pending HR rev"
+    },
+    {
+      "label": "leave",
+      "method": "GET",
+      "url": "/api/leave/requests",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 4,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":11,\"employeeId\":26,\"leaveType\":\"annual\",\"startDate\":\"2026-04-26\",\"endDate\":\"2026-04-26\",\"totalDays\":\"1.00\",\"reason\":\"Planned personal leave\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionRe"
+    },
+    {
+      "label": "overtime",
+      "method": "GET",
+      "url": "/api/overtime/requests",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 5,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":2,\"employeeId\":16,\"date\":\"2026-05-05\",\"hours\":\"1.50\",\"reason\":\"Customer escalation coverage\",\"status\":\"rejected\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"re"
+    },
+    {
+      "label": "workflows",
+      "method": "GET",
+      "url": "/api/workflows",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 9,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":7,\"companyId\":4,\"employeeId\":27,\"actionType\":\"contract_renewal\",\"effectiveDate\":\"2026-05-15\",\"createdByUserId\":9,\"previousValueJson\":\"{\\\"departmentId\\\":17,\\\"jobTitleId\\\":29,\\\"basicSalary\\\":\\\"760.000\\\",\\\"employm"
+    },
+    {
+      "label": "notifications",
+      "method": "GET",
+      "url": "/api/notifications",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 5,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":7,\"companyId\":4,\"recipientUserId\":9,\"actorUserId\":9,\"entityType\":\"leave_approval\",\"entityId\":null,\"notificationType\":\"leave_approval\",\"titleAr\":\"تحديث من نظام الموارد البشرية\",\"titleEn\":\"Nexora leave approval\","
+    },
+    {
+      "label": "payrollRuns",
+      "method": "GET",
+      "url": "/api/payroll/runs",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 5,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":2,\"companyId\":4,\"runMonth\":5,\"runYear\":2026,\"status\":\"published\",\"totalGross\":\"35738.000\",\"totalNet\":\"32958.525\",\"totalDeductions\":\"2779.475\",\"totalOvertimeEarnings\":\"777.000\",\"totalSscEmployee\":\"2394.825\",\"tot"
+    },
+    {
+      "label": "payrollSlips",
+      "method": "GET",
+      "url": "/api/payroll/slips",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 8,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":27,\"payrollRunId\":2,\"employeeId\":30,\"runMonth\":5,\"runYear\":2026,\"basicSalary\":\"980.000\",\"housingAllowance\":\"176.000\",\"transportAllowance\":\"75.000\",\"mobileAllowance\":\"20.000\",\"mealAllowance\":\"25.000\",\"otherAllow"
+    },
+    {
+      "label": "payrollSummary",
+      "method": "GET",
+      "url": "/api/reports/payroll-summary",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 7,
+      "snippet": "{\"success\":true,\"data\":{\"runs\":[{\"id\":2,\"runMonth\":5,\"runYear\":2026,\"status\":\"published\"}],\"payslips\":[{\"employeeId\":24,\"employeeCode\":\"NX-0015\",\"nameEn\":\"Anas Rifai\",\"nameAr\":\"أنس الرفاعي\",\"orgNodeNameEn\":\"Sales\",\"runMonth\":5,\"runYear\":202"
+    },
+    {
+      "label": "managerEmployees",
+      "method": "GET",
+      "url": "/api/employees",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 8,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":12,\"companyId\":4,\"employeeCode\":\"NX-0003\",\"firstNameAr\":\"ليث\",\"middleNameAr\":null,\"lastNameAr\":\"الخطيب\",\"firstNameEn\":\"Laith\",\"middleNameEn\":null,\"lastNameEn\":\"Khatib\",\"gender\":\"male\",\"dateOfBirth\":\"1987-04-15\""
+    },
+    {
+      "label": "managerPayrollBlocked",
+      "method": "GET",
+      "url": "/api/reports/payroll-summary",
+      "status": 403,
+      "ok": false,
+      "wrapped": true,
+      "durationMs": 2,
+      "snippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "label": "employeeMe",
+      "method": "GET",
+      "url": "/api/auth/me",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 2,
+      "snippet": "{\"success\":true,\"data\":{\"id\":15,\"username\":\"nexora.employee01\",\"email\":\"employee01@nexora.jo\",\"role\":\"employee\",\"companyId\":4,\"employeeId\":16}}"
+    },
+    {
+      "label": "employeePayslips",
+      "method": "GET",
+      "url": "/api/payroll/slips/my",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 5,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":13,\"payrollRunId\":2,\"employeeId\":16,\"runMonth\":5,\"runYear\":2026,\"basicSalary\":\"1850.000\",\"housingAllowance\":\"333.000\",\"transportAllowance\":\"75.000\",\"mobileAllowance\":\"20.000\",\"mealAllowance\":\"25.000\",\"otherAllo"
+    },
+    {
+      "label": "employeePayrollBlocked",
+      "method": "GET",
+      "url": "/api/reports/payroll-summary",
+      "status": 403,
+      "ok": false,
+      "wrapped": true,
+      "durationMs": 2,
+      "snippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "label": "employeeDocuments",
+      "method": "GET",
+      "url": "/api/documents",
+      "status": 200,
+      "ok": true,
+      "wrapped": true,
+      "durationMs": 6,
+      "snippet": "{\"success\":true,\"data\":[{\"id\":7,\"companyId\":4,\"employeeId\":16,\"documentTypeId\":31,\"documentNumber\":\"NX-CON-NX-0007\",\"issuedAt\":\"2026-03-07\",\"expiresAt\":null,\"issuedBy\":\"Nexora HR\",\"fileUrl\":\"/api/files/9/download\",\"fileName\":\"Nexora-employe"
+    }
+  ],
+  "fixes": [],
+  "created": {
+    "company": {
+      "id": 4,
+      "name_ar": "شركة نيكسورا للحلول الرقمية",
+      "name_en": "Nexora Digital Solutions",
+      "commercial_reg_no": "CR-421082",
+      "tax_number": "TN-9829278",
+      "ssc_number": "SSC-217189",
+      "labor_ministry_no": "LM-166111",
+      "address_ar": "عمّان - شارع مكة - مجمع الأعمال الرقمي، الطابق الرابع",
+      "city": "Amman",
+      "phone": "+962 6 586 4420",
+      "email": "info@nexora.jo",
+      "website": "https://www.nexora.jo",
+      "logo": null,
+      "industry_type": "technology",
+      "currency": "JOD",
+      "is_active": true,
+      "created_at": "2026-04-06T12:20:12.866Z",
+      "updated_at": "2026-05-05T12:20:12.866Z",
+      "is_deleted": false,
+      "code": "NXD012866",
+      "country": "Jordan",
+      "plan_name": "pro",
+      "subscription_start": "2026-04-05T21:00:00.000Z",
+      "subscription_end": "2027-04-05T21:00:00.000Z",
+      "max_users": 80,
+      "max_employees": 250,
+      "is_trial": false,
+      "timezone": "Asia/Amman",
+      "locale": "ar-JO",
+      "primary_color": "#0f766e",
+      "secondary_color": "#1d4ed8",
+      "accent_color": "#f59e0b",
+      "subscription_status": "active"
+    },
+    "usernames": {
+      "hr": "nexora.hr",
+      "payroll": "nexora.payroll",
+      "manager1": "nexora.manager1",
+      "manager2": "nexora.manager2",
+      "manager3": "nexora.manager3",
+      "manager4": "nexora.manager4",
+      "employee01": "nexora.employee01",
+      "employee02": "nexora.employee02",
+      "employee03": "nexora.employee03",
+      "employee04": "nexora.employee04",
+      "employee05": "nexora.employee05",
+      "employee06": "nexora.employee06",
+      "employee07": "nexora.employee07",
+      "employee08": "nexora.employee08",
+      "employee09": "nexora.employee09",
+      "employee10": "nexora.employee10",
+      "employee11": "nexora.employee11",
+      "employee12": "nexora.employee12",
+      "employee13": "nexora.employee13",
+      "employee14": "nexora.employee14",
+      "employee15": "nexora.employee15"
+    },
+    "password": "Nexora@1234",
+    "departments": {
+      "ENG": {
+        "id": 13,
+        "nameEn": "Engineering",
+        "managerEmployeeId": 12
+      },
+      "HR": {
+        "id": 14,
+        "nameEn": "Human Resources",
+        "managerEmployeeId": 10
+      },
+      "FIN": {
+        "id": 15,
+        "nameEn": "Finance",
+        "managerEmployeeId": 11
+      },
+      "OPS": {
+        "id": 16,
+        "nameEn": "Operations",
+        "managerEmployeeId": 13
+      },
+      "SUP": {
+        "id": 17,
+        "nameEn": "Customer Support",
+        "managerEmployeeId": 15
+      },
+      "SAL": {
+        "id": 18,
+        "nameEn": "Sales",
+        "managerEmployeeId": 14
+      }
+    },
+    "payroll": {
+      "runMonth": 5,
+      "runYear": 2026,
+      "totalGross": "35738.000",
+      "totalNet": "32958.525",
+      "totalDeductions": "2779.475",
+      "payrollRunId": 2
+    },
+    "attendance": {
+      "workdays": 21,
+      "records": 441,
+      "statuses": {
+        "present": 311,
+        "late": 52,
+        "absent": 26,
+        "remote": 26,
+        "partial": 26
+      }
+    },
+    "leave": {
+      "total": 11,
+      "approved": 7,
+      "pending": 3,
+      "rejected": 1
+    },
+    "overtime": {
+      "total": 14,
+      "approved": 10,
+      "pending": 2,
+      "rejected": 2
+    }
+  },
+  "counts": {
+    "users": 21,
+    "employees": 21,
+    "departments": 6,
+    "org_nodes": 7,
+    "job_titles": 14,
+    "job_descriptions": 14,
+    "leave_policies": 3,
+    "salary_components": 5,
+    "payroll_runs": 1,
+    "documents": 12,
+    "assets": 26,
+    "compliance_records": 10,
+    "notifications": 21,
+    "background_jobs": 8,
+    "email_logs": 8,
+    "file_objects": 12,
+    "activity_logs": 10
+  },
+  "finalStatus": "GO"
+}

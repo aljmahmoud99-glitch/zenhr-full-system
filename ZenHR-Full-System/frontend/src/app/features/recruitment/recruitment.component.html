@@ -1,0 +1,266 @@
+<section class="recruitment-shell" [attr.dir]="lang.dir">
+  <header class="ats-hero">
+    <div>
+      <span class="eyebrow">{{ t('الموارد البشرية / التوظيف', 'HR / Recruitment') }}</span>
+      <h1>{{ t('مركز التوظيف والتعيين', 'Recruitment & Hiring Center') }}</h1>
+      <p>{{ t('إدارة طلبات التوظيف والمرشحين والمقابلات والعروض ضمن مسار ATS متكامل مرتبط بالملفات الوظيفية.', 'Manage hiring requests, candidates, interviews, and offers in an ATS flow connected to job profiles.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost-action" (click)="loadAll()">
+        <span class="material-icons">refresh</span>
+        {{ t('تحديث', 'Refresh') }}
+      </button>
+      <button type="button" class="primary-action" (click)="requestDrawer = true" *ngIf="canManage || access.isManager()">
+        <span class="material-icons">assignment_add</span>
+        {{ t('طلب توظيف', 'Hiring request') }}
+      </button>
+      <button type="button" class="primary-action" (click)="openCandidate()" *ngIf="canManage">
+        <span class="material-icons">person_add</span>
+        {{ t('مرشح جديد', 'New candidate') }}
+      </button>
+    </div>
+  </header>
+
+  <nav class="ats-tabs" aria-label="Recruitment sections">
+    <button *ngFor="let tab of visibleTabs" type="button" [class.active]="activeTab === tab.key" (click)="setTab(tab.key)">
+      <span class="material-icons">{{ tab.icon }}</span>
+      {{ tabLabel(tab) }}
+    </button>
+  </nav>
+
+  <section class="search-row" *ngIf="activeTab === 'requests' || activeTab === 'candidates'">
+    <label>
+      <span class="material-icons">search</span>
+      <input [(ngModel)]="query" (keyup.enter)="search()" [placeholder]="t('ابحث بالاسم أو البريد أو رقم الطلب...', 'Search name, email, or request number...')" />
+    </label>
+    <button type="button" class="ghost-action" (click)="search()">{{ t('بحث', 'Search') }}</button>
+  </section>
+
+  <div class="error-banner" *ngIf="error">{{ error }}</div>
+  <div class="skeleton-grid" *ngIf="loading">
+    <div *ngFor="let n of [1,2,3,4]"></div>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <section class="dashboard-grid" *ngIf="activeTab === 'dashboard' && dashboard">
+      <article class="kpi-card">
+        <span>{{ t('الوظائف المفتوحة', 'Open positions') }}</span>
+        <strong>{{ dashboard.openPositions }}</strong>
+      </article>
+      <article class="kpi-card">
+        <span>{{ t('المرشحون', 'Candidates') }}</span>
+        <strong>{{ dashboard.totalCandidates }}</strong>
+      </article>
+      <article class="kpi-card">
+        <span>{{ t('المقابلات القادمة', 'Upcoming interviews') }}</span>
+        <strong>{{ dashboard.upcomingInterviews }}</strong>
+      </article>
+      <article class="kpi-card">
+        <span>{{ t('قبول العروض', 'Offer acceptance') }}</span>
+        <strong>{{ dashboard.offerAcceptanceRate }}%</strong>
+      </article>
+
+      <article class="panel wide">
+        <header>
+          <h2>{{ t('المرشحون حسب المرحلة', 'Candidates by stage') }}</h2>
+        </header>
+        <div class="stage-bars">
+          <div *ngFor="let stage of dashboard.candidatesByStage">
+            <span>{{ label(stage) }}</span>
+            <div><i [style.width.%]="dashboard.totalCandidates ? (stage.count / dashboard.totalCandidates) * 100 : 0"></i></div>
+            <strong>{{ stage.count }}</strong>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'requests'">
+      <header><h2>{{ t('طلبات التوظيف', 'Hiring requests') }}</h2></header>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ t('الطلب', 'Request') }}</th>
+              <th>{{ t('الوظيفة', 'Job') }}</th>
+              <th>{{ t('القسم', 'Department') }}</th>
+              <th>{{ t('الأولوية', 'Urgency') }}</th>
+              <th>{{ t('العدد', 'Headcount') }}</th>
+              <th>{{ t('الحالة', 'Status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of requests">
+              <td><strong>{{ lang.isAr ? row.titleAr : row.titleEn }}</strong><small>{{ row.requestNumber }}</small></td>
+              <td>{{ lang.isAr ? row.jobProfileTitleAr : row.jobProfileTitleEn }}</td>
+              <td>{{ lang.isAr ? row.departmentNameAr : row.departmentNameEn }}</td>
+              <td><span class="badge warning">{{ row.urgency }}</span></td>
+              <td>{{ row.filledHeadcount }}/{{ row.requiredHeadcount }}</td>
+              <td><span class="badge">{{ row.status }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'candidates'">
+      <header><h2>{{ t('المرشحون', 'Candidates') }}</h2></header>
+      <div class="candidate-grid">
+        <article class="candidate-card" *ngFor="let candidate of candidates" (click)="openCandidate(candidate)">
+          <div class="avatar">{{ label(candidate).slice(0, 2) }}</div>
+          <div>
+            <h3>{{ label(candidate) }}</h3>
+            <p>{{ candidate.email || candidate.phone || '—' }}</p>
+            <span class="badge">{{ lang.isAr ? candidate.stageNameAr : candidate.stageNameEn || candidate.status }}</span>
+          </div>
+          <strong>{{ candidate.rating || 0 }}/5</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="kanban" *ngIf="activeTab === 'pipeline'">
+      <article class="stage-column" *ngFor="let stage of stages">
+        <header>
+          <h3>{{ label(stage) }}</h3>
+          <span>{{ candidatesForStage(stage).length }}</span>
+        </header>
+        <button class="kanban-card" type="button" *ngFor="let candidate of candidatesForStage(stage)" (click)="openCandidate(candidate)">
+          <strong>{{ label(candidate) }}</strong>
+          <small>{{ candidate.email || candidate.phone || '—' }}</small>
+        </button>
+      </article>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'interviews'">
+      <header>
+        <h2>{{ t('المقابلات', 'Interviews') }}</h2>
+        <button class="primary-action compact" type="button" (click)="interviewDrawer = true" *ngIf="canManage || access.isManager()">{{ t('جدولة مقابلة', 'Schedule interview') }}</button>
+      </header>
+      <div class="timeline">
+        <article *ngFor="let item of interviews">
+          <span class="material-icons">event</span>
+          <div><strong>{{ lang.isAr ? item.candidateNameAr : item.candidateNameEn }}</strong><p>{{ item.interviewType }} · {{ item.scheduledAt | date:'medium' }}</p></div>
+          <span class="badge">{{ item.status }}</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'offers'">
+      <header>
+        <h2>{{ t('العروض الوظيفية', 'Job offers') }}</h2>
+        <button class="primary-action compact" type="button" (click)="offerDrawer = true" *ngIf="canOffer">{{ t('إنشاء عرض', 'Create offer') }}</button>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{{ t('المرشح', 'Candidate') }}</th><th>{{ t('الراتب', 'Salary') }}</th><th>{{ t('المباشرة', 'Joining') }}</th><th>{{ t('الحالة', 'Status') }}</th></tr></thead>
+          <tbody><tr *ngFor="let offer of offers"><td>{{ lang.isAr ? offer.candidateNameAr : offer.candidateNameEn }}</td><td>{{ offer.salary }}</td><td>{{ offer.joiningDate }}</td><td><span class="badge success">{{ offer.status }}</span></td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" *ngIf="activeTab === 'approvals'">
+      <header><h2>{{ t('اعتمادات التوظيف', 'Hiring approvals') }}</h2></header>
+      <div class="approval-list">
+        <article *ngFor="let row of approvals">
+          <div><strong>{{ lang.isAr ? row.titleAr : row.titleEn }}</strong><p>{{ row.requestNumber }} · {{ row.approverRole }}</p></div>
+          <button class="primary-action compact" type="button" (click)="approveRequest(row)">{{ t('اعتماد', 'Approve') }}</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="dashboard-grid" *ngIf="activeTab === 'reports' && reports">
+      <article class="panel">
+        <h2>{{ t('فعالية مصادر المرشحين', 'Source effectiveness') }}</h2>
+        <div class="stage-bars">
+          <div *ngFor="let item of reports.sourceEffectiveness">
+            <span>{{ item.source }}</span>
+            <div><i [style.width.%]="item.count * 10"></i></div>
+            <strong>{{ item.count }}</strong>
+          </div>
+        </div>
+      </article>
+      <article class="kpi-card">
+        <span>{{ t('متوسط مدة التعيين', 'Average time to hire') }}</span>
+        <strong>{{ reports.avgTimeToHireDays || 0 }}</strong>
+      </article>
+    </section>
+  </ng-container>
+
+  <footer class="pager" *ngIf="activeTab === 'requests' || activeTab === 'candidates' || activeTab === 'interviews'">
+    <button type="button" (click)="changePage(-1)" [disabled]="page <= 1">{{ t('السابق', 'Previous') }}</button>
+    <span>{{ t('صفحة', 'Page') }} {{ page }} / {{ totalPages }}</span>
+    <button type="button" (click)="changePage(1)" [disabled]="page >= totalPages">{{ t('التالي', 'Next') }}</button>
+  </footer>
+
+  <div class="drawer-backdrop" *ngIf="candidateDrawer || requestDrawer || interviewDrawer || offerDrawer" (click)="closeDrawers()"></div>
+
+  <aside class="ats-drawer" *ngIf="candidateDrawer">
+    <header>
+      <h2>{{ selectedCandidate ? label(selectedCandidate) : t('مرشح جديد', 'New candidate') }}</h2>
+      <button type="button" (click)="closeDrawers()"><span class="material-icons">close</span></button>
+    </header>
+    <ng-container *ngIf="!selectedCandidate">
+      <div class="form-grid">
+        <label><span>{{ t('الاسم العربي', 'Arabic name') }}</span><input [(ngModel)]="candidateForm.fullNameAr" dir="rtl" /></label>
+        <label><span>{{ t('الاسم الإنجليزي', 'English name') }}</span><input [(ngModel)]="candidateForm.fullNameEn" dir="ltr" /></label>
+        <label><span>{{ t('البريد الإلكتروني', 'Email') }}</span><input [(ngModel)]="candidateForm.email" type="email" /></label>
+        <label><span>{{ t('الهاتف', 'Phone') }}</span><input [(ngModel)]="candidateForm.phone" /></label>
+        <label><span>{{ t('المصدر', 'Source') }}</span><select [(ngModel)]="candidateForm.source"><option value="referral">{{ t('ترشيح', 'Referral') }}</option><option value="linkedin">LinkedIn</option><option value="career_site">{{ t('موقع الوظائف', 'Career site') }}</option></select></label>
+        <label><span>{{ t('طلب التوظيف', 'Hiring request') }}</span><select [(ngModel)]="candidateForm.recruitmentRequestId"><option [ngValue]="null">—</option><option *ngFor="let r of requests" [ngValue]="r.id">{{ lang.isAr ? r.titleAr : r.titleEn }}</option></select></label>
+      </div>
+      <footer><button class="primary-action" type="button" [disabled]="saving" (click)="createCandidate()">{{ saving ? t('حفظ...', 'Saving...') : t('حفظ', 'Save') }}</button></footer>
+    </ng-container>
+    <ng-container *ngIf="selectedCandidate">
+      <div class="profile-summary">
+        <span class="badge">{{ selectedCandidate.stageCode || selectedCandidate.status }}</span>
+        <p>{{ selectedCandidate.email }} · {{ selectedCandidate.phone }}</p>
+        <button class="primary-action compact" type="button" (click)="convert(selectedCandidate)" *ngIf="canManage">{{ t('تحويل إلى موظف', 'Convert to employee') }}</button>
+      </div>
+      <section class="drawer-section">
+        <h3>{{ t('تغيير المرحلة', 'Move stage') }}</h3>
+        <div class="chip-row">
+          <button type="button" *ngFor="let stage of stages" (click)="moveCandidate(selectedCandidate, stage)">{{ label(stage) }}</button>
+        </div>
+      </section>
+      <section class="drawer-section">
+        <h3>{{ t('الخط الزمني', 'Timeline') }}</h3>
+        <article class="timeline-item" *ngFor="let item of selectedCandidate.history">{{ item.movedAt | date:'short' }} · {{ lang.isAr ? item.toStageAr : item.toStageEn }}</article>
+      </section>
+    </ng-container>
+  </aside>
+
+  <aside class="ats-drawer" *ngIf="requestDrawer">
+    <header><h2>{{ t('طلب توظيف جديد', 'New hiring request') }}</h2><button type="button" (click)="closeDrawers()"><span class="material-icons">close</span></button></header>
+    <div class="form-grid">
+      <label><span>{{ t('العنوان العربي', 'Arabic title') }}</span><input [(ngModel)]="requestForm.titleAr" dir="rtl" /></label>
+      <label><span>{{ t('العنوان الإنجليزي', 'English title') }}</span><input [(ngModel)]="requestForm.titleEn" dir="ltr" /></label>
+      <label><span>{{ t('الملف الوظيفي', 'Job profile') }}</span><select [(ngModel)]="requestForm.jobProfileId"><option [ngValue]="null">—</option><option *ngFor="let p of jobProfiles" [ngValue]="p.id">{{ label(p) }}</option></select></label>
+      <label><span>{{ t('القسم', 'Department') }}</span><select [(ngModel)]="requestForm.departmentId"><option [ngValue]="null">—</option><option *ngFor="let d of departments" [ngValue]="d.id">{{ label(d) }}</option></select></label>
+      <label><span>{{ t('المدير', 'Manager') }}</span><select [(ngModel)]="requestForm.managerEmployeeId"><option [ngValue]="null">—</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e) }}</option></select></label>
+      <label><span>{{ t('العدد المطلوب', 'Headcount') }}</span><input type="number" [(ngModel)]="requestForm.requiredHeadcount" /></label>
+      <label><span>{{ t('أدنى راتب', 'Min salary') }}</span><input type="number" [(ngModel)]="requestForm.minSalary" /></label>
+      <label><span>{{ t('أعلى راتب', 'Max salary') }}</span><input type="number" [(ngModel)]="requestForm.maxSalary" /></label>
+    </div>
+    <footer><button class="primary-action" type="button" [disabled]="saving" (click)="createRequest()">{{ saving ? t('حفظ...', 'Saving...') : t('حفظ', 'Save') }}</button></footer>
+  </aside>
+
+  <aside class="ats-drawer" *ngIf="interviewDrawer">
+    <header><h2>{{ t('جدولة مقابلة', 'Schedule interview') }}</h2><button type="button" (click)="closeDrawers()"><span class="material-icons">close</span></button></header>
+    <div class="form-grid">
+      <label><span>{{ t('المرشح', 'Candidate') }}</span><select [(ngModel)]="interviewForm.candidateId"><option [ngValue]="null">—</option><option *ngFor="let c of candidates" [ngValue]="c.id">{{ label(c) }}</option></select></label>
+      <label><span>{{ t('نوع المقابلة', 'Interview type') }}</span><select [(ngModel)]="interviewForm.interviewType"><option value="hr">{{ t('موارد بشرية', 'HR') }}</option><option value="technical">{{ t('فنية', 'Technical') }}</option><option value="manager">{{ t('مدير', 'Manager') }}</option></select></label>
+      <label><span>{{ t('الموعد', 'Scheduled at') }}</span><input type="datetime-local" [(ngModel)]="interviewForm.scheduledAt" /></label>
+      <label><span>{{ t('المكان', 'Location') }}</span><input [(ngModel)]="interviewForm.location" /></label>
+    </div>
+    <footer><button class="primary-action" type="button" [disabled]="saving" (click)="scheduleInterview()">{{ t('حفظ', 'Save') }}</button></footer>
+  </aside>
+
+  <aside class="ats-drawer" *ngIf="offerDrawer">
+    <header><h2>{{ t('عرض وظيفي جديد', 'New job offer') }}</h2><button type="button" (click)="closeDrawers()"><span class="material-icons">close</span></button></header>
+    <div class="form-grid">
+      <label><span>{{ t('المرشح', 'Candidate') }}</span><select [(ngModel)]="offerForm.candidateId"><option [ngValue]="null">—</option><option *ngFor="let c of candidates" [ngValue]="c.id">{{ label(c) }}</option></select></label>
+      <label><span>{{ t('الراتب', 'Salary') }}</span><input type="number" [(ngModel)]="offerForm.salary" /></label>
+      <label><span>{{ t('تاريخ المباشرة', 'Joining date') }}</span><input type="date" [(ngModel)]="offerForm.joiningDate" /></label>
+    </div>
+    <footer><button class="primary-action" type="button" [disabled]="saving" (click)="createOffer()">{{ t('حفظ', 'Save') }}</button></footer>
+  </aside>
+</section>

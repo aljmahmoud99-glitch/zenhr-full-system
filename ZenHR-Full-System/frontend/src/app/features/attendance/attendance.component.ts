@@ -105,6 +105,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   logError = signal('');
   requestsError = signal('');
   mapError = signal('');
+  locationStatus = signal('');
 
   showRequestModal = signal(false);
   showLocationModal = signal(false);
@@ -234,7 +235,40 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   }
 
   t(ar: string, en: string) {
-    return this.lang === 'ar' ? ar : en;
+    if (this.lang !== 'ar') return en;
+    const cleanArabic: Record<string, string> = {
+      'Status': 'الحالة',
+      'Clock in': 'الحضور',
+      'Clock out': 'الانصراف',
+      'Worked hours': 'ساعات العمل',
+      'Late': 'التأخير',
+      'Location / type': 'نوع / موقع الحضور',
+      'Total records': 'إجمالي السجلات',
+      'Present': 'حاضر',
+      'Absent': 'غائب',
+      'No': 'لا',
+      'Failed to load attendance dashboard.': 'تعذر تحميل لوحة الحضور.',
+      'Failed to load attendance summary.': 'تعذر تحميل ملخص الحضور.',
+      'Failed to load today status.': 'تعذر تحميل حالة اليوم.',
+      'Failed to load attendance records.': 'تعذر تحميل سجل الحضور.',
+      'Failed to load correction requests.': 'تعذر تحميل طلبات التصحيح.',
+      'Failed to load attendance map.': 'تعذر تحميل بيانات الخريطة.',
+      'Failed to load work locations.': 'تعذر تحميل مواقع العمل.',
+      'Clock-in recorded successfully.': 'تم تسجيل الحضور بنجاح.',
+      'Clock-in failed.': 'تعذر تسجيل الحضور.',
+      'Clock-out recorded successfully.': 'تم تسجيل الانصراف بنجاح.',
+      'Clock-out failed.': 'تعذر تسجيل الانصراف.',
+      'Unable to determine location': 'تعذر تحديد الموقع',
+      'Please allow location access': 'يجب السماح باستخدام الموقع',
+      'Inside allowed work location': 'داخل نطاق الموقع',
+      'Outside allowed work location': 'خارج نطاق الموقع',
+      'No work locations configured yet.': 'لم يتم ضبط مواقع عمل بعد.',
+      'Current location selected.': 'تم تحديد موقعك الحالي.',
+      'Work location saved.': 'تم حفظ موقع العمل.',
+      'Failed to save work location.': 'تعذر حفظ موقع العمل.',
+      'Location deleted.': 'تم حذف الموقع.'
+    };
+    return cleanArabic[en] || ar;
   }
 
   setView(view: AttendanceView) {
@@ -441,7 +475,10 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     this.clockLoading.set(true);
     this.feedback.set('');
     this.error.set('');
-    this.api.post<any>('/api/attendance/clock-in', { attendanceType: 'office' }).subscribe({
+    this.getBrowserLocation().then(coords => {
+      const status = this.evaluateLocalGeofence(coords.latitude, coords.longitude);
+      this.locationStatus.set(status.message);
+      this.api.post<any>('/api/attendance/clock-in', { attendanceType: 'office', ...coords }).subscribe({
       next: () => {
         const message = this.t('تم تسجيل الحضور بنجاح.', 'Clock-in recorded successfully.');
         this.clockLoading.set(false);
@@ -456,6 +493,12 @@ export class AttendanceComponent implements OnInit, OnDestroy {
         this.toast.error(message);
       }
     });
+    }).catch(message => {
+      this.clockLoading.set(false);
+      this.error.set(message);
+      this.locationStatus.set(message);
+      this.toast.error(message);
+    });
   }
 
   clockOut() {
@@ -463,7 +506,10 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     this.clockLoading.set(true);
     this.feedback.set('');
     this.error.set('');
-    this.api.post<any>('/api/attendance/clock-out', {}).subscribe({
+    this.getBrowserLocation().then(coords => {
+      const status = this.evaluateLocalGeofence(coords.latitude, coords.longitude);
+      this.locationStatus.set(status.message);
+      this.api.post<any>('/api/attendance/clock-out', coords).subscribe({
       next: () => {
         const message = this.t('تم تسجيل الانصراف بنجاح.', 'Clock-out recorded successfully.');
         this.clockLoading.set(false);
@@ -477,6 +523,12 @@ export class AttendanceComponent implements OnInit, OnDestroy {
         this.error.set(message);
         this.toast.error(message);
       }
+    });
+    }).catch(message => {
+      this.clockLoading.set(false);
+      this.error.set(message);
+      this.locationStatus.set(message);
+      this.toast.error(message);
     });
   }
 
@@ -575,6 +627,71 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   openLocationModal() {
     this.showLocationModal.set(true);
     this.error.set('');
+  }
+
+  pickLocationFromMap(event: MouseEvent) {
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    this.locationForm.latitude = Number((31.95 + (0.5 - y) * 0.18).toFixed(6));
+    this.locationForm.longitude = Number((35.93 + (x - 0.5) * 0.24).toFixed(6));
+  }
+
+  useDefaultLocation() {
+    this.locationForm.latitude = 31.95;
+    this.locationForm.longitude = 35.93;
+  }
+
+  markerX() {
+    return Math.min(95, Math.max(5, 50 + ((Number(this.locationForm.longitude) - 35.93) / 0.24) * 100));
+  }
+
+  markerY() {
+    return Math.min(95, Math.max(5, 50 - ((Number(this.locationForm.latitude) - 31.95) / 0.18) * 100));
+  }
+
+  useBrowserLocationForPicker() {
+    this.getBrowserLocation().then(coords => {
+      this.locationForm.latitude = coords.latitude;
+      this.locationForm.longitude = coords.longitude;
+      this.locationStatus.set(this.t('تم تحديد موقعك الحالي.', 'Current location selected.'));
+    }).catch(message => this.locationStatus.set(message));
+  }
+
+  private getBrowserLocation(): Promise<{ latitude: number; longitude: number }> {
+    if (!navigator.geolocation) {
+      return Promise.reject(this.t('تعذر تحديد الموقع', 'Unable to determine location'));
+    }
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        position => resolve({
+          latitude: Number(position.coords.latitude.toFixed(6)),
+          longitude: Number(position.coords.longitude.toFixed(6))
+        }),
+        () => reject(this.t('يجب السماح باستخدام الموقع', 'Please allow location access')),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  private evaluateLocalGeofence(latitude: number, longitude: number) {
+    const locations = this.workLocations();
+    if (!locations.length) return { inside: true, message: this.t('لم يتم ضبط مواقع عمل بعد.', 'No work locations configured yet.') };
+    const nearest = locations
+      .map(location => ({ location, distance: this.distanceMeters(latitude, longitude, Number(location.latitude), Number(location.longitude)) }))
+      .sort((a, b) => a.distance - b.distance)[0];
+    const inside = !!nearest && nearest.distance <= Number(nearest.location.radiusMeters || 0);
+    return { inside, message: inside ? this.t('داخل نطاق الموقع', 'Inside allowed work location') : this.t('خارج نطاق الموقع', 'Outside allowed work location') };
+  }
+
+  private distanceMeters(aLat: number, aLng: number, bLat: number, bLng: number) {
+    const toRad = (value: number) => value * Math.PI / 180;
+    const r = 6371000;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * r * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   }
 
   saveLocation() {

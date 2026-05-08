@@ -1,0 +1,246 @@
+<section class="bundle-c-shell" [class.rtl]="isAr">
+  <header class="page-hero">
+    <div>
+      <p class="eyebrow">{{ t('حزمة C', 'Bundle C') }}</p>
+      <h1>{{ t('الوثائق والنماذج والتقارير', 'Documents, Forms & Reporting') }}</h1>
+      <p class="subtitle">
+        {{ t('مركز مؤسسي موحد للوثائق، النماذج الديناميكية، القوالب، التقارير، وسجل الطباعة.', 'An enterprise center for documents, dynamic forms, templates, reports, exports, and print history.') }}
+      </p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="secondary" (click)="loadAll()" [disabled]="loading">
+        {{ loading ? t('جار التحميل', 'Loading') : t('تحديث', 'Refresh') }}
+      </button>
+      <button type="button" class="primary" (click)="openDrawer('document')">
+        {{ t('وثيقة جديدة', 'New Document') }}
+      </button>
+    </div>
+  </header>
+
+  <details class="section-accordion" open>
+    <summary>
+      <span class="material-icons">view_agenda</span>
+      <span>{{ activeTabLabel() }}</span>
+    </summary>
+    <nav class="section-nav-grid" role="tablist">
+      <button
+        *ngFor="let tab of tabs"
+        type="button"
+        [class.active]="activeTab === tab.key"
+        (click)="setTab(tab.key)">
+        {{ t(tab.ar, tab.en) }}
+      </button>
+    </nav>
+  </details>
+
+  <div *ngIf="error" class="alert">{{ error }}</div>
+
+  <ng-container *ngIf="loading; else content">
+    <div class="skeleton-grid">
+      <div class="skeleton" *ngFor="let item of [1,2,3,4]"></div>
+    </div>
+  </ng-container>
+
+  <ng-template #content>
+    <section *ngIf="activeTab === 'dashboard'" class="dashboard-grid">
+      <article class="metric-card">
+        <span>{{ t('الوثائق', 'Documents') }}</span>
+        <strong>{{ dashboard?.documents?.total ?? 0 }}</strong>
+        <small>{{ t('بانتظار الاعتماد', 'Pending approval') }}: {{ dashboard?.documents?.pending ?? 0 }}</small>
+      </article>
+      <article class="metric-card">
+        <span>{{ t('النماذج', 'Forms') }}</span>
+        <strong>{{ dashboard?.forms?.templates ?? 0 }}</strong>
+        <small>{{ t('قوالب قابلة لإعادة الاستخدام', 'Reusable templates') }}</small>
+      </article>
+      <article class="metric-card">
+        <span>{{ t('التقارير', 'Reports') }}</span>
+        <strong>{{ dashboard?.reports?.reports ?? 0 }}</strong>
+        <small>{{ t('تعريفات تقارير محفوظة', 'Saved report definitions') }}</small>
+      </article>
+      <article class="metric-card warn">
+        <span>{{ t('تنتهي قريباً', 'Expiring soon') }}</span>
+        <strong>{{ dashboard?.expiring?.count ?? 0 }}</strong>
+        <small>{{ t('خلال 45 يوماً', 'Within 45 days') }}</small>
+      </article>
+    </section>
+
+    <section *ngIf="activeTab === 'documents'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('مركز الوثائق', 'Document Center') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('document')">{{ t('إضافة', 'Add') }}</button>
+      </div>
+      <div class="table">
+        <div class="row header">
+          <span>{{ t('العنوان', 'Title') }}</span><span>{{ t('المصدر', 'Source') }}</span><span>{{ t('الحالة', 'Status') }}</span><span>{{ t('تاريخ الانتهاء', 'Expiry') }}</span>
+        </div>
+        <div class="row" *ngFor="let item of documents">
+          <span>{{ label(item, 'titleAr', 'titleEn') }}</span><span>{{ item.sourceModule }}</span><span class="badge">{{ item.status }}</span><span>{{ item.expiresAt || '-' }}</span>
+        </div>
+        <p *ngIf="!documents.length" class="empty">{{ t('لا توجد وثائق', 'No documents yet') }}</p>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'forms'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('منشئ النماذج', 'Form Builder') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('form')">{{ t('قالب جديد', 'New Template') }}</button>
+      </div>
+      <div class="cards">
+        <article class="data-card" *ngFor="let item of formTemplates">
+          <strong>{{ label(item) }}</strong>
+          <span>{{ item.code }}</span>
+          <small>{{ item.moduleScope }} · {{ item.status }}</small>
+        </article>
+        <p *ngIf="!formTemplates.length" class="empty">{{ t('لا توجد قوالب نماذج', 'No form templates') }}</p>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'submissions'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('إرسالات النماذج', 'Form Submissions') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('submission')">{{ t('إرسال جديد', 'New Submission') }}</button>
+      </div>
+      <div class="table">
+        <div class="row header"><span>{{ t('النموذج', 'Form') }}</span><span>{{ t('الحالة', 'Status') }}</span><span>{{ t('تاريخ الإرسال', 'Submitted') }}</span></div>
+        <div class="row" *ngFor="let item of submissions"><span>{{ label(item, 'templateNameAr', 'templateNameEn') }}</span><span class="badge">{{ item.status }}</span><span>{{ item.submittedAt | date:'short' }}</span></div>
+        <p *ngIf="!submissions.length" class="empty">{{ t('لا توجد إرسالات', 'No submissions') }}</p>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'templates'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('قوالب PDF', 'PDF Templates') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('pdf')">{{ t('قالب PDF جديد', 'New PDF Template') }}</button>
+      </div>
+      <div class="cards">
+        <article class="data-card" *ngFor="let item of pdfTemplates">
+          <strong>{{ label(item) }}</strong>
+          <span>{{ item.templateType }}</span>
+          <small>{{ item.languageMode }} · {{ item.status }}</small>
+        </article>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'reports'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('مركز التقارير', 'Reports Center') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('report')">{{ t('تقرير جديد', 'New Report') }}</button>
+      </div>
+      <div class="cards">
+        <article class="data-card" *ngFor="let item of reports">
+          <strong>{{ label(item) }}</strong>
+          <span>{{ item.reportType }}</span>
+          <small>{{ item.moduleScope }}</small>
+        </article>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'scheduled'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('التقارير المجدولة', 'Scheduled Reports') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('schedule')">{{ t('جدولة تقرير', 'Schedule Report') }}</button>
+      </div>
+      <div class="table">
+        <div class="row header"><span>{{ t('الاسم', 'Name') }}</span><span>{{ t('الصيغة', 'Format') }}</span><span>{{ t('التشغيل القادم', 'Next run') }}</span></div>
+        <div class="row" *ngFor="let item of scheduledReports"><span>{{ label(item, 'scheduleNameAr', 'scheduleNameEn') }}</span><span>{{ item.exportFormat }}</span><span>{{ item.nextRunAt || '-' }}</span></div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'exports'" class="panel">
+      <div class="panel-head">
+        <h2>{{ t('مركز التصدير', 'Export Center') }}</h2>
+        <button type="button" class="primary small" (click)="openDrawer('export')">{{ t('تصدير جديد', 'New Export') }}</button>
+      </div>
+      <div class="table">
+        <div class="row header"><span>{{ t('النوع', 'Type') }}</span><span>{{ t('الصيغة', 'Format') }}</span><span>{{ t('الحالة', 'Status') }}</span></div>
+        <div class="row" *ngFor="let item of exports"><span>{{ item.exportType }}</span><span>{{ item.exportFormat }}</span><span class="badge">{{ item.status }}</span></div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'history'" class="panel">
+      <h2>{{ t('سجل الطباعة والتصدير', 'Print & Export History') }}</h2>
+      <div class="table">
+        <div class="row header"><span>{{ t('الإجراء', 'Action') }}</span><span>{{ t('المستخدم', 'Actor') }}</span><span>{{ t('التاريخ', 'Date') }}</span></div>
+        <div class="row" *ngFor="let item of printHistory"><span>{{ item.actionType }}</span><span>{{ item.actorUsername || '-' }}</span><span>{{ item.createdAt | date:'short' }}</span></div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'analytics'" class="dashboard-grid">
+      <article class="metric-card" *ngFor="let item of analytics?.documentsByStatus">
+        <span>{{ item.status }}</span>
+        <strong>{{ item.count }}</strong>
+        <small>{{ t('وثائق حسب الحالة', 'Documents by status') }}</small>
+      </article>
+      <article class="metric-card" *ngFor="let item of analytics?.exports">
+        <span>{{ item.exportType }}</span>
+        <strong>{{ item.count }}</strong>
+        <small>{{ item.status }}</small>
+      </article>
+    </section>
+  </ng-template>
+
+  <aside class="drawer" *ngIf="drawer">
+    <div class="drawer-panel">
+      <div class="panel-head">
+        <h2>{{ t('إضافة / تعديل', 'Create / Edit') }}</h2>
+        <button type="button" class="icon" (click)="closeDrawer()">×</button>
+      </div>
+
+      <form *ngIf="drawer === 'document'" (ngSubmit)="saveDocument()" class="form-grid">
+        <label>{{ t('العنوان العربي', 'Arabic Title') }}<input [(ngModel)]="documentForm.titleAr" name="docTitleAr" required></label>
+        <label>{{ t('العنوان الإنجليزي', 'English Title') }}<input [(ngModel)]="documentForm.titleEn" name="docTitleEn" required></label>
+        <label>{{ t('المصدر', 'Source') }}<select [(ngModel)]="documentForm.sourceModule" name="docSource"><option value="hr">HR</option><option value="payroll">Payroll</option><option value="recruitment">Recruitment</option><option value="performance">Performance</option></select></label>
+        <label>{{ t('الحالة', 'Status') }}<select [(ngModel)]="documentForm.status" name="docStatus"><option value="draft">draft</option><option value="pending_approval">pending_approval</option><option value="approved">approved</option></select></label>
+        <label>{{ t('الوسوم', 'Tags') }}<input [(ngModel)]="documentForm.tagsText" name="tags"></label>
+        <label>{{ t('تاريخ الانتهاء', 'Expiry Date') }}<input type="date" [(ngModel)]="documentForm.expiresAt" name="expiresAt"></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'form'" (ngSubmit)="saveFormTemplate()" class="form-grid">
+        <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="formTemplateForm.code" name="formCode" required></label>
+        <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="formTemplateForm.nameAr" name="formNameAr" required></label>
+        <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="formTemplateForm.nameEn" name="formNameEn" required></label>
+        <label>{{ t('النطاق', 'Scope') }}<select [(ngModel)]="formTemplateForm.moduleScope" name="formScope"><option value="hr">HR</option><option value="payroll">Payroll</option><option value="recruitment">Recruitment</option><option value="employee">Employee</option></select></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'submission'" (ngSubmit)="saveSubmission()" class="form-grid">
+        <label>{{ t('قالب النموذج', 'Form Template') }}<select [(ngModel)]="submissionForm.templateId" name="subTemplate" required><option [ngValue]="null">-</option><option *ngFor="let item of formTemplates" [ngValue]="item.id">{{ label(item) }}</option></select></label>
+        <label class="wide">{{ t('بيانات JSON', 'JSON Payload') }}<textarea [(ngModel)]="submissionForm.payloadText" name="payload"></textarea></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'pdf'" (ngSubmit)="savePdfTemplate()" class="form-grid">
+        <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="pdfTemplateForm.code" name="pdfCode" required></label>
+        <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="pdfTemplateForm.nameAr" name="pdfNameAr" required></label>
+        <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="pdfTemplateForm.nameEn" name="pdfNameEn" required></label>
+        <label class="wide">{{ t('قالب HTML', 'HTML Template') }}<textarea [(ngModel)]="pdfTemplateForm.htmlTemplate" name="htmlTemplate" required></textarea></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'report'" (ngSubmit)="saveReport()" class="form-grid">
+        <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="reportForm.code" name="reportCode" required></label>
+        <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="reportForm.nameAr" name="reportNameAr" required></label>
+        <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="reportForm.nameEn" name="reportNameEn" required></label>
+        <label>{{ t('نوع التقرير', 'Report Type') }}<input [(ngModel)]="reportForm.reportType" name="reportType" required></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'schedule'" (ngSubmit)="saveSchedule()" class="form-grid">
+        <label>{{ t('التقرير', 'Report') }}<select [(ngModel)]="scheduleForm.reportDefinitionId" name="schedReport" required><option [ngValue]="null">-</option><option *ngFor="let item of reports" [ngValue]="item.id">{{ label(item) }}</option></select></label>
+        <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="scheduleForm.scheduleNameAr" name="schedAr" required></label>
+        <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="scheduleForm.scheduleNameEn" name="schedEn" required></label>
+        <label>{{ t('تعبير Cron', 'Cron Expression') }}<input [(ngModel)]="scheduleForm.cronExpression" name="cron" required></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+
+      <form *ngIf="drawer === 'export'" (ngSubmit)="saveExport()" class="form-grid">
+        <label>{{ t('التقرير', 'Report') }}<select [(ngModel)]="exportForm.reportDefinitionId" name="exportReport"><option [ngValue]="null">-</option><option *ngFor="let item of reports" [ngValue]="item.id">{{ label(item) }}</option></select></label>
+        <label>{{ t('النوع', 'Type') }}<input [(ngModel)]="exportForm.exportType" name="exportType"></label>
+        <label>{{ t('الصيغة', 'Format') }}<select [(ngModel)]="exportForm.exportFormat" name="exportFormat"><option value="pdf">PDF</option><option value="xlsx">Excel</option><option value="csv">CSV</option></select></label>
+        <button class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+      </form>
+    </div>
+  </aside>
+</section>

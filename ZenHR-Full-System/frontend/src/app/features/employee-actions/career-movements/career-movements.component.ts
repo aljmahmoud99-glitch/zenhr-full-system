@@ -174,10 +174,10 @@ export class CareerMovementsComponent implements OnInit {
   loadAll(): Promise<void> {
     this.loading.set(true);
     return Promise.all([
-      this.api.get<any>('/workflow/career-movements').toPromise(),
-      this.api.get<any>('/workflow/employee-list').toPromise(),
-      this.api.get<any>('/org-nodes').toPromise(),
-      this.api.get<any>('/job-titles').toPromise(),
+      this.api.get<any>('/api/workflow/career-movements').toPromise(),
+      this.api.get<any>('/api/workflow/employee-list').toPromise(),
+      this.api.get<any>('/api/org-nodes').toPromise(),
+      this.api.get<any>('/api/job-titles').toPromise(),
     ]).then(([actRes, empRes, nodeRes, jtRes]) => {
       if (actRes?.success) this.actions.set(actRes.data);
       if (empRes?.success) this.employees.set(empRes.data);
@@ -248,7 +248,7 @@ export class CareerMovementsComponent implements OnInit {
         payload.otherAllowances = this.form.otherAllowances ?? 0;
       }
     }
-    this.api.post<any>('/workflow/requests', payload).subscribe({
+    this.api.post<any>('/api/workflow/requests', payload).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم إرسال الطلب بنجاح', 'Request submitted successfully'));
@@ -267,7 +267,7 @@ export class CareerMovementsComponent implements OnInit {
   }
 
   approve(actionId: number) {
-    this.api.post<any>(`/workflow/requests/${actionId}/approve`, {}).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/approve`, {}).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تمت الموافقة', 'Approved successfully'));
@@ -282,7 +282,7 @@ export class CareerMovementsComponent implements OnInit {
   }
 
   reject(actionId: number, notes: string = '') {
-    this.api.post<any>(`/workflow/requests/${actionId}/reject`, { notes }).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/reject`, { notes }).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم الرفض', 'Rejected'));
@@ -297,7 +297,7 @@ export class CareerMovementsComponent implements OnInit {
   }
 
   cancel(actionId: number) {
-    this.api.post<any>(`/workflow/requests/${actionId}/cancel`, {}).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/cancel`, {}).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم الإلغاء', 'Cancelled'));

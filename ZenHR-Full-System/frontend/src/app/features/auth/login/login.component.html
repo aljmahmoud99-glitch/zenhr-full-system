@@ -1,71 +1,126 @@
-<div class="login-page">
-  <div class="login-bg"></div>
-  <div class="login-card">
-    <!-- Header -->
-    <div class="login-header">
-      <div class="login-logo">🏢</div>
-      <h1 class="login-title">ZenJO</h1>
-      <p class="login-subtitle">
-        <span *ngIf="lang()==='ar'">نظام إدارة الموارد البشرية الأردنية</span>
-        <span *ngIf="lang()!=='ar'">Jordanian HR Management System</span>
-      </p>
-      <button class="lang-btn" (click)="toggleLang()">
-        {{lang() === 'ar' ? 'English' : 'عربي'}}
+<section class="login-page" [attr.dir]="lang() === 'ar' ? 'rtl' : 'ltr'" [attr.lang]="lang()">
+  <header class="login-topbar">
+    <div class="brand-lockup">
+      <span class="brand-mark">Z</span>
+      <span>
+        <strong>ZenJO</strong>
+        <small>{{ tx('brandSubtitle') }}</small>
+      </span>
+    </div>
+    <div class="login-tools">
+      <button type="button" class="tool-btn" (click)="toggleTheme()">
+        <span class="material-icons">{{ theme.currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+        {{ theme.currentTheme === 'dark' ? tx('light') : tx('dark') }}
+      </button>
+      <button type="button" class="tool-btn" (click)="toggleLang()">
+        {{ lang() === 'ar' ? 'English' : tx('arabic') }}
       </button>
     </div>
+  </header>
 
-    <!-- Error -->
-    <div class="alert alert-error" *ngIf="error()">{{error()}}</div>
+  <main class="login-grid">
+    <section class="hero-panel">
+      <div class="hero-kicker">
+        <span class="material-icons">verified_user</span>
+        {{ tx('kicker') }}
+      </div>
+      <h1>{{ tx('headline') }}</h1>
+      <p>{{ tx('intro') }}</p>
 
-    <!-- Form -->
-    <form (ngSubmit)="login()" #loginForm="ngForm">
-      <div class="form-group">
-        <label class="form-label">
-          <span *ngIf="lang()==='ar'">اسم المستخدم</span>
-          <span *ngIf="lang()!=='ar'">Username</span>
-        </label>
-        <input type="text" class="form-control" [(ngModel)]="username" name="username"
-               [placeholder]="lang()==='ar' ? 'أدخل اسم المستخدم' : 'Enter username'"
-               autocomplete="username" autofocus>
+      <div class="value-grid">
+        <article>
+          <span class="material-icons">groups</span>
+          <strong>{{ tx('peopleOps') }}</strong>
+          <small>{{ tx('peopleOpsDesc') }}</small>
+        </article>
+        <article>
+          <span class="material-icons">payments</span>
+          <strong>{{ tx('payroll') }}</strong>
+          <small>{{ tx('payrollDesc') }}</small>
+        </article>
+        <article>
+          <span class="material-icons">schema</span>
+          <strong>{{ tx('workflows') }}</strong>
+          <small>{{ tx('workflowsDesc') }}</small>
+        </article>
+        <article>
+          <span class="material-icons">domain</span>
+          <strong>{{ tx('multiCompany') }}</strong>
+          <small>{{ tx('multiCompanyDesc') }}</small>
+        </article>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">
-          <span *ngIf="lang()==='ar'">كلمة المرور</span>
-          <span *ngIf="lang()!=='ar'">Password</span>
-        </label>
-        <div class="password-wrap">
-          <input [type]="showPassword() ? 'text' : 'password'" class="form-control"
-                 [(ngModel)]="password" name="password"
-                 [placeholder]="lang()==='ar' ? 'أدخل كلمة المرور' : 'Enter password'"
-                 autocomplete="current-password">
-          <button type="button" class="eye-btn" (click)="toggleShowPassword()">
-            <span class="material-icons">{{showPassword() ? 'visibility_off' : 'visibility'}}</span>
-          </button>
+      <div class="trust-row">
+        <span><i></i>{{ tx('secureAccess') }}</span>
+        <span><i></i>{{ tx('tenantIsolation') }}</span>
+        <span><i></i>{{ tx('rolePermissions') }}</span>
+      </div>
+    </section>
+
+    <section class="login-card">
+      <div class="card-head">
+        <span class="login-icon material-icons">lock_person</span>
+        <div>
+          <h2>{{ tx('signIn') }}</h2>
+          <p>{{ tx('accessWorkspace') }}</p>
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary w-full login-submit" [disabled]="loading()">
-        <span class="material-icons spin-icon" *ngIf="loading()">refresh</span>
-        <span *ngIf="!loading() && lang()==='ar'">تسجيل الدخول</span>
-        <span *ngIf="!loading() && lang()!=='ar'">Sign In</span>
-        <span *ngIf="loading() && lang()==='ar'">جاري التحقق...</span>
-        <span *ngIf="loading() && lang()!=='ar'">Signing in...</span>
-      </button>
-    </form>
+      <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
 
-    <!-- Demo Accounts -->
-    <div class="demo-section">
-      <p class="demo-title">
-        <span *ngIf="lang()==='ar'">حسابات تجريبية</span>
-        <span *ngIf="lang()!=='ar'">Demo Accounts</span>
-      </p>
-      <div class="demo-grid">
-        <button *ngFor="let acc of demoAccounts" class="demo-btn" (click)="fill(acc)">
-          <span class="demo-user">{{acc.user}}</span>
-          <span class="demo-role">{{lang()==='ar' ? acc.roleAr : acc.roleEn}}</span>
+      <form (ngSubmit)="login()" #loginForm="ngForm" class="login-form">
+        <label>
+          <span>{{ tx('username') }}</span>
+          <input
+            type="text"
+            [(ngModel)]="username"
+            name="username"
+            [placeholder]="tx('usernamePlaceholder')"
+            autocomplete="username"
+            autofocus>
+        </label>
+
+        <label>
+          <span>{{ tx('password') }}</span>
+          <div class="password-wrap">
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              [(ngModel)]="password"
+              name="password"
+              [placeholder]="tx('passwordPlaceholder')"
+              autocomplete="current-password">
+            <button type="button" class="eye-btn" (click)="toggleShowPassword()" [attr.aria-label]="tx('showPassword')">
+              <span class="material-icons">{{ showPassword() ? 'visibility_off' : 'visibility' }}</span>
+            </button>
+          </div>
+        </label>
+
+        <div class="form-options">
+          <label class="check-row">
+            <input type="checkbox" [ngModel]="rememberMe()" (ngModelChange)="rememberMe.set($event)" name="rememberMe">
+            <span>{{ tx('rememberMe') }}</span>
+          </label>
+          <span>{{ tx('protectedLogin') }}</span>
+        </div>
+
+        <button type="submit" class="login-submit" [disabled]="loading()">
+          <span class="material-icons spin-icon" *ngIf="loading()">progress_activity</span>
+          {{ loading() ? tx('signingIn') : tx('secureSignIn') }}
         </button>
+      </form>
+
+      <div class="demo-section">
+        <div class="demo-title">
+          <span>{{ tx('demoTitle') }}</span>
+          <small>{{ tx('demoSubtitle') }}</small>
+        </div>
+        <div class="demo-grid">
+          <button *ngFor="let acc of demoAccounts" type="button" class="demo-btn" (click)="fill(acc)">
+            <strong>{{ acc.user }}</strong>
+            <span>{{ lang() === 'ar' ? acc.roleAr : acc.roleEn }}</span>
+          </button>
+        </div>
       </div>
-    </div>
-  </div>
-</div>
+    </section>
+  </main>
+</section>

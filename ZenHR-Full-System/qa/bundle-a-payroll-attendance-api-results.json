@@ -1,0 +1,423 @@
+﻿{
+    "results":  [
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":1,\"companyId\":1,\"employeeCode\":\"EMP-0001\",\"firstNameAr\":\"أحمد\",\"middleNameAr\":null,\"lastNameAr\":\"العلي\",\"firstNameEn\":\"Ahmed\",\"middleNameEn\":null,\"lastNameEn\":\"Al-Ali\",\"gender\":\"male\",\"dateO",
+                        "name":  "employees-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/employees",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"23\",\"companyId\":1,\"code\":\"OVERTIME_CORRECTION\",\"nameAr\":\"تصحيح عمل إضافي\",\"nameEn\":\"Overtime Correction\",\"category\":\"correction\",\"defaultCalculationMode\":\"after_tax\",\"affectsTax\":false,\"aff",
+                        "name":  "types-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/types",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"31\",\"companyId\":1,\"code\":\"QA_TYPE_583246440\",\"nameAr\":\"نوع اختبار\",\"nameEn\":\"QA Type\",\"category\":\"earning\",\"defaultCalculationMode\":\"after_net\",\"affectsTax\":false,\"affectsSsc\":false,\"isSyste",
+                        "name":  "type-create",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/types",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":{\"summary\":{\"total\":8,\"additions\":\"150.000\",\"deductions\":\"270.000\",\"pending\":7},\"violations\":[{\"violationType\":\"late\",\"count\":2,\"amount\":\"54.700\"}],\"liabilities\":{\"recurringCount\":4,\"remaining\":\"24",
+                        "name":  "dashboard",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-attendance/dashboard",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"8\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVRYODH\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"deduct\",\"calculat",
+                        "name":  "adjustments-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments?page=1\u0026pageSize=10",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"employeeId\":1,\"currentGross\":\"1900.000\",\"currentDeductions\":\"142.500\",\"currentNet\":\"1757.500\",\"adjustmentImpact\":\"50.000\",\"calculationMode\":\"after_net\",\"finalGross\":\"1900.000\",\"finalDeductions\":\"",
+                        "name":  "preview-after-net-add",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/preview",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"employeeId\":1,\"currentGross\":\"1900.000\",\"currentDeductions\":\"142.500\",\"currentNet\":\"1757.500\",\"adjustmentImpact\":\"-15.000\",\"calculationMode\":\"after_net\",\"finalGross\":\"1900.000\",\"finalDeductions\":",
+                        "name":  "preview-after-net-deduct",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/preview",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "create-after-net-add",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "detail",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/9",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "PATCH",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "approve-chain-1",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/9/approve",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "PATCH",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "approve-chain-2",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/9/approve",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "PATCH",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "approve-chain-3",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/9/approve",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "PATCH",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"9\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1WUT\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculationM",
+                        "name":  "apply",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/9/apply",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "PATCH",
+                        "snippet":  "",
+                        "name":  "duplicate-apply-blocked",
+                        "status":  409,
+                        "success":  null,
+                        "path":  "/api/payroll-adjustments/9/apply",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"10\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1X4X\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"deduct\",\"calculat",
+                        "name":  "create-after-net-deduction",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"11\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1X6F\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"add\",\"calculation",
+                        "name":  "create-recurring-allowance",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"12\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVS1X7U\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"deduct\",\"calculat",
+                        "name":  "create-installment-deduction",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"4\",\"companyId\":1,\"adjustmentNumber\":\"ADJ-MOVRTLM4\",\"batchId\":null,\"employeeId\":1,\"departmentId\":1,\"payrollRunId\":null,\"payslipId\":null,\"adjustmentTypeId\":\"23\",\"direction\":\"deduct\",\"calculat",
+                        "name":  "recurring-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/recurring",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"36\",\"companyId\":1,\"payrollAdjustmentId\":\"12\",\"stepOrder\":3,\"approverRole\":\"payrolladmin\",\"approverUserId\":null,\"decision\":\"pending\",\"decidedAt\":null,\"notes\":null,\"createdAt\":\"2026-05-07T17:",
+                        "name":  "approvals-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/approvals",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"21\",\"companyId\":1,\"payrollAdjustmentId\":\"12\",\"actionType\":\"created\",\"beforeJson\":null,\"afterJson\":{\"id\":\"12\",\"amount\":\"120.000\",\"status\":\"pending\",\"batch_id\":null,\"end_date\":null,\"title_ar\"",
+                        "name":  "history-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-adjustments/history",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":{\"summary\":{\"records\":1,\"late\":1,\"absent\":0,\"lateMinutes\":547,\"overtimeMinutes\":0},\"trend\":[{\"date\":\"2026-05-04T21:00:00.000Z\",\"records\":1,\"late\":1,\"absent\":0}]}}",
+                        "name":  "attendance-analytics",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/attendance-intelligence/analytics",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"from\":\"2026-05-01\",\"to\":\"2026-05-07\",\"processed\":1,\"createdViolations\":1}}",
+                        "name":  "attendance-process",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/attendance-intelligence/process",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"employeeId\":8,\"attendanceRecordId\":2,\"violationType\":\"late\",\"violationDate\":\"2026-05-04T21:00:00.000Z\",\"minutes\":547,\"severity\":\"high\",\"payrollImpactAmount\":\"27.350\",\"auto",
+                        "name":  "violations-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/attendance-intelligence/violations",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"6\",\"companyId\":1,\"code\":\"QA-2104483369\",\"nameAr\":\"وردية اختبار\",\"nameEn\":\"QA Shift\",\"shiftType\":\"fixed\",\"startTime\":\"09:00:00\",\"endTime\":\"17:00:00\",\"breakMinutes\":60,\"graceInMinutes\":10,\"gra",
+                        "name":  "create-shift-pattern",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/shift-scheduler/patterns",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"4\",\"companyId\":1,\"code\":\"QA-1834693854\",\"nameAr\":\"????? ??????\",\"nameEn\":\"QA Shift\",\"shiftType\":\"fixed\",\"startTime\":\"09:00:00\",\"endTime\":\"17:00:00\",\"breakMinutes\":60,\"graceInMinutes\":10,\"gr",
+                        "name":  "shift-patterns",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/shift-scheduler/patterns",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "POST",
+                        "snippet":  "{\"success\":true,\"data\":{\"id\":\"3\",\"companyId\":1,\"employeeId\":1,\"departmentId\":null,\"shiftPatternId\":\"6\",\"scheduleDate\":\"2026-05-06T21:00:00.000Z\",\"effectiveFrom\":\"2026-05-06T21:00:00.000Z\",\"effectiveTo\":null,\"source\":\"emp",
+                        "name":  "create-schedule",
+                        "status":  201,
+                        "success":  true,
+                        "path":  "/api/shift-scheduler/schedules",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"employeeId\":1,\"departmentId\":null,\"shiftPatternId\":\"4\",\"scheduleDate\":\"2026-05-06T21:00:00.000Z\",\"effectiveFrom\":\"2026-05-06T21:00:00.000Z\",\"effectiveTo\":null,\"source\":\"em",
+                        "name":  "schedules-list",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/shift-scheduler/schedules",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":2,\"employeeId\":16,\"date\":\"2026-05-05\",\"hours\":\"1.50\",\"reason\":\"Customer escalation coverage\",\"status\":\"rejected\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hr",
+                        "name":  "overtime-processing-existing",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/overtime/requests",
+                        "message":  null
+                    },
+                    {
+                        "ok":  true,
+                        "method":  "GET",
+                        "snippet":  "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"payrollRunId\":null,\"payslipId\":null,\"employeeId\":1,\"entityType\":\"payroll_adjustment\",\"entityId\":\"9\",\"eventType\":\"applied\",\"beforeJson\":{\"id\":\"9\",\"amount\":\"50.000\",\"status\"",
+                        "name":  "payroll-audit",
+                        "status":  200,
+                        "success":  true,
+                        "path":  "/api/payroll-audit/history",
+                        "message":  null
+                    }
+                ],
+    "summary":  {
+                    "total":  29,
+                    "status":  "PASS",
+                    "limitations":  [
+                                        "No automatic payslip section rendering endpoint was found in Bundle A API surface; payroll preview/apply/audit were validated."
+                                    ],
+                    "failed":  0
+                },
+    "logins":  {
+                   "hr":  {
+                              "ok":  true,
+                              "status":  200,
+                              "employeeId":  2,
+                              "companyId":  1,
+                              "role":  "hradmin"
+                          },
+                   "payroll":  {
+                                   "ok":  true,
+                                   "status":  200,
+                                   "employeeId":  3,
+                                   "companyId":  1,
+                                   "role":  "payrolladmin"
+                               },
+                   "manager":  {
+                                   "ok":  true,
+                                   "status":  200,
+                                   "employeeId":  7,
+                                   "companyId":  1,
+                                   "role":  "manager"
+                               },
+                   "recruiter":  {
+                                     "ok":  true,
+                                     "status":  200,
+                                     "employeeId":  9,
+                                     "companyId":  1,
+                                     "role":  "recruiter"
+                                 },
+                   "admin":  {
+                                 "ok":  true,
+                                 "status":  200,
+                                 "employeeId":  1,
+                                 "companyId":  1,
+                                 "role":  "superadmin"
+                             },
+                   "employee":  {
+                                    "ok":  true,
+                                    "status":  200,
+                                    "employeeId":  8,
+                                    "companyId":  1,
+                                    "role":  "employee"
+                                }
+               },
+    "typeId":  "23",
+    "migrationApplied":  true,
+    "generatedAt":  "2026-05-07T17:45:57.3274051Z",
+    "health":  {
+                   "ok":  true,
+                   "status":  200,
+                   "content":  "{\"status\":\"healthy\",\"timestamp\":\"2026-05-07T17:45:57.329Z\",\"version\":\"1.0.0\"}"
+               },
+    "previewChecks":  {
+                          "afterNetDeduct":  {
+                                                 "employeeId":  1,
+                                                 "currentGross":  "1900.000",
+                                                 "currentDeductions":  "142.500",
+                                                 "currentNet":  "1757.500",
+                                                 "adjustmentImpact":  "-15.000",
+                                                 "calculationMode":  "after_net",
+                                                 "finalGross":  "1900.000",
+                                                 "finalDeductions":  "142.500",
+                                                 "finalNet":  "1742.500",
+                                                 "sections":  {
+                                                                  "earnings":  0,
+                                                                  "deductions":  15,
+                                                                  "postNet":  -15
+                                                              }
+                                             },
+                          "afterNetAdd":  {
+                                              "employeeId":  1,
+                                              "currentGross":  "1900.000",
+                                              "currentDeductions":  "142.500",
+                                              "currentNet":  "1757.500",
+                                              "adjustmentImpact":  "50.000",
+                                              "calculationMode":  "after_net",
+                                              "finalGross":  "1900.000",
+                                              "finalDeductions":  "142.500",
+                                              "finalNet":  "1807.500",
+                                              "sections":  {
+                                                               "earnings":  50,
+                                                               "deductions":  0,
+                                                               "postNet":  50
+                                                           }
+                                          }
+                      },
+    "rbac":  [
+                 {
+                     "message":  null,
+                     "expectedForbidden":  true,
+                     "success":  null,
+                     "user":  "manager",
+                     "role":  "manager",
+                     "status":  403
+                 },
+                 {
+                     "message":  null,
+                     "expectedForbidden":  true,
+                     "success":  null,
+                     "user":  "employee",
+                     "role":  "employee",
+                     "status":  403
+                 },
+                 {
+                     "message":  null,
+                     "expectedForbidden":  true,
+                     "success":  null,
+                     "user":  "recruiter",
+                     "role":  "recruiter",
+                     "status":  403
+                 },
+                 {
+                     "message":  null,
+                     "expectedForbidden":  true,
+                     "success":  null,
+                     "user":  "admin",
+                     "role":  "superadmin",
+                     "status":  403
+                 }
+             ],
+    "employeeId":  1
+}

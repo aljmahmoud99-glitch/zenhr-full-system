@@ -1,0 +1,256 @@
+{
+  "generatedAt": "2026-05-08T22:44:44.970Z",
+  "auth": [
+    {
+      "username": "hr",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/dashboard",
+      "role": "hradmin",
+      "textLength": 1996
+    },
+    {
+      "username": "employee",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/dashboard",
+      "role": "employee",
+      "textLength": 1375
+    }
+  ],
+  "pages": [
+    {
+      "route": "/app/workflows",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/workflows",
+      "textLength": 673,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nحركات الموظفين\nchevron_right\nالاعتمادات\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_mo",
+      "hasArabic": true,
+      "badCharCount": 0,
+      "rawEnums": false,
+      "errors": [],
+      "direction": "rtl",
+      "buttons": 16,
+      "inputs": 1
+    },
+    {
+      "route": "/app/forms",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/forms",
+      "textLength": 757,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالإدارة\nchevron_right\nالنماذج الرسمية\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more",
+      "hasArabic": true,
+      "badCharCount": 0,
+      "rawEnums": false,
+      "errors": [],
+      "direction": "rtl",
+      "buttons": 16,
+      "inputs": 2
+    },
+    {
+      "route": "/app/attendance",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/attendance",
+      "textLength": 905,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nالحضور والانصراف\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpa",
+      "hasArabic": true,
+      "badCharCount": 0,
+      "rawEnums": false,
+      "errors": [],
+      "direction": "rtl",
+      "buttons": 19,
+      "inputs": 1
+    },
+    {
+      "route": "/app/leave",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/leave",
+      "textLength": 6075,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nالإجازات\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\n",
+      "hasArabic": true,
+      "badCharCount": 0,
+      "rawEnums": false,
+      "errors": [],
+      "direction": "rtl",
+      "buttons": 17,
+      "inputs": 8
+    }
+  ],
+  "interactions": [
+    {
+      "name": "leave filters",
+      "passed": true,
+      "state": {
+        "selectCount": 3,
+        "before": 6075,
+        "hasReset": false,
+        "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nالإجازات\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالوقت والحضور\nالإجازات\nمدير الموارد البشرية\n/\ncorp"
+      },
+      "after": {
+        "textLength": 6092,
+        "hasChips": true,
+        "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nالإجازات\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالوقت والحضور\nالإجازات\nمدير الموارد البشرية\n/\ncorp"
+      }
+    },
+    {
+      "name": "attendance map picker save",
+      "passed": true,
+      "opened": true,
+      "saved": {
+        "opened": true,
+        "saved": true,
+        "hasMapPicker": true,
+        "modalText": "",
+        "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nالحضور والانصراف\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالوقت والحضور\nالحضور والانصراف\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nالحضور والانصراف\n\nمتابعة الحضور وطلبات التصحيح ومواقع العمل من شاشة واحدة.\n\ndashboard\nالملخص\nfact_check\nالسجلات\npending_actions\nالطلبات\n1\nlocation_on\nالخريطة\nالخريطة ومواقع العمل\nإضافة موقع\nالمواقع المعتمدة\nلا توجد مواقع عمل حالياً.\nسجلات الحضور الميدانية\nLayla Haddad\n09:23 م\nموقع تسجيل الحضور\ncheck_circle\nتم حفظ موقع العمل.\nclose"
+      },
+      "cleanup": {
+        "found": true,
+        "count": 1,
+        "tokenPresent": true
+      }
+    },
+    {
+      "name": "employee geofence check-in UX",
+      "passed": true,
+      "state": {
+        "buttonFound": true,
+        "disabled": true,
+        "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nحضوري\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n2\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nحضوري\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nالحضور والانصراف\n\nمتابعة الحضور وطلبات التصحيح ومواقع العمل من شاشة واحدة.\n\ndashboard\nالملخص\nfact_check\nسجلاتي\npending_actions\nطلباتي التصحيحية\nملخص اليوم\n\nنظرة مباشرة على حالة اليوم وسجلات الحضور الحالية.\n\nتسجيل الحضور\nتسجيل الانصراف\nطلب تصحيح\nالحالة\nمتأخر\nمتأخر\nالحضور\n09:23 م\nالانصراف\n—\nساعات العمل\n—\nالتأخير\n728 دقيقة\nنوع / موقع الحضور\nمكتبي\nإجمالي السج"
+      },
+      "after": {
+        "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nحضوري\nsearch\nCtrl K\nالسبت، 9\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n2\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nحضوري\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nالحضور والانصراف\n\nمتابعة الحضور وطلبات التصحيح ومواقع العمل من شاشة واحدة.\n\ndashboard\nالملخص\nfact_check\nسجلاتي\npending_actions\nطلباتي التصحيحية\nملخص اليوم\n\nنظرة مباشرة على حالة اليوم وسجلات الحضور الحالية.\n\nتسجيل الحضور\nتسجيل الانصراف\nطلب تصحيح\nالحالة\nمتأخر\nمتأخر\nالحضور\n09:23 م\nالانصراف\n—\nساعات العمل\n—\nالتأخير\n728 دقيقة\nنوع / موقع الحضور\nمكتبي\nإجمالي السجلات\n2\nحاضر\n0\nمتأخر\n2\nغائب\n0",
+        "hasGeoMessage": false
+      }
+    }
+  ],
+  "darkMode": [
+    {
+      "route": "/app/workflows",
+      "passed": true,
+      "checked": 19,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    },
+    {
+      "route": "/app/forms",
+      "passed": true,
+      "checked": 20,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    },
+    {
+      "route": "/app/attendance",
+      "passed": true,
+      "checked": 31,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    },
+    {
+      "route": "/app/leave",
+      "passed": true,
+      "checked": 96,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    }
+  ],
+  "responsive": [
+    {
+      "route": "/app/leave",
+      "viewport": "tablet",
+      "passed": true,
+      "width": 820,
+      "textLength": 5716,
+      "overflowX": false
+    },
+    {
+      "route": "/app/leave",
+      "viewport": "mobile",
+      "passed": true,
+      "width": 390,
+      "textLength": 5658,
+      "overflowX": false
+    },
+    {
+      "route": "/app/attendance",
+      "viewport": "tablet",
+      "passed": true,
+      "width": 820,
+      "textLength": 538,
+      "overflowX": false
+    },
+    {
+      "route": "/app/attendance",
+      "viewport": "mobile",
+      "passed": true,
+      "width": 390,
+      "textLength": 480,
+      "overflowX": false
+    }
+  ],
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/summary"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/headcount-by-department"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/recent-activity"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/compliance-alerts"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/upcoming-probations"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/attendance-trend"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/leave-type-breakdown"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/payroll-status-breakdown"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/charts/employee-status"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/charts/payroll-monthly-trend"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/charts/superadmin-users-by-role"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:5000/api/dashboard/charts/activity-by-module"
+    }
+  ],
+  "verdict": "PASS",
+  "criticalConsoleErrors": []
+}

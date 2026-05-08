@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-05-08T12:50:05+03:00",
+  "frontendBuild": {
+    "command": "node .\\node_modules\\@angular\\cli\\bin\\ng.js build --configuration production",
+    "status": "passed",
+    "outputLocation": "frontend/dist/zenjo-ng",
+    "warnings": [
+      "src/app/layout/layout.component.scss exceeded maximum warning budget by 3.89 kB; below configured error budget."
+    ]
+  },
+  "typecheck": {
+    "command": "pnpm.cmd run typecheck",
+    "status": "passed"
+  },
+  "browserUat": {
+    "status": "not_run",
+    "reason": "No callable browser automation tool was exposed in this session. Browser UAT is not claimed.",
+    "manualRemaining": [
+      "Login/logout click flows",
+      "Dark-mode visual verification",
+      "Arabic RTL visual verification",
+      "Export button click flows",
+      "Responsive layout sweep",
+      "PDF visual rendering inspection"
+    ]
+  },
+  "staticRouteEvidence": {
+    "routesCompile": true,
+    "checkedRoutes": [
+      "/app/hr-master-data",
+      "/app/job-descriptions",
+      "/app/recruitment",
+      "/app/payroll-attendance",
+      "/app/performance-workflows",
+      "/app/documents-reporting"
+    ]
+  }
+}

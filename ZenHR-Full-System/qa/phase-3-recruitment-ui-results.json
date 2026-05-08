@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-05-07T13:44:21.727Z",
+  "browser": "Chrome headless via CDP",
+  "route": "/app/recruitment",
+  "checks": [
+    {
+      "name": "hr login API for UI session",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "recruitment route loaded",
+      "ok": true,
+      "url": "http://localhost:5000/#/app/recruitment"
+    },
+    {
+      "name": "initial dashboard rendered without stuck skeleton",
+      "ok": true,
+      "kpis": [
+        "8",
+        "8",
+        "4",
+        "100%"
+      ]
+    },
+    {
+      "name": "no UI error banner",
+      "ok": true
+    },
+    {
+      "name": "Arabic RTL active",
+      "ok": true
+    },
+    {
+      "name": "Arabic labels clean",
+      "ok": true,
+      "sample": "الموارد البشرية / التوظيف\nمركز التوظيف والتعيين\n\nإدارة طلبات التوظيف والمرشحين والمقابلات والعروض ضمن مسار توظيف متكامل مرتبط بالملفات الوظيفية.\n\nrefresh\nتحديث\nassignment_add\nطلب توظيف\nperson_add\nمرشح جديد\ndashboard\nلوحة التوظيف\nassignment\nطلبات التوظيف\nperson_search\nالمرشحون\nview_kanban\nمسار التوظيف\nevent\nالمقابلات\nlocal_offer\nالعروض\napproval\nالاعتمادات\nmonitoring\nالتقارير\nالوظائف المفتوحة\n8\nالمرشحون\n8\nالمقابلات القادمة\n4\nقبول العروض\n100%\nالمرشحون حسب المرحلة\nتم التقديم\n4\nالفرز الأولي\n0\nمقابلة الموارد البشرية\n0\nالمقابلة الفنية\n3\nمقابلة المدير\n0\nالعرض الوظيفي\n1\nتم التعيين\n0\nمرفوض\n0\nمنسحب\n0"
+    },
+    {
+      "name": "tabs rendered",
+      "ok": true,
+      "tabs": [
+        "dashboard لوحة التوظيف",
+        "assignment طلبات التوظيف",
+        "person_search المرشحون",
+        "view_kanban مسار التوظيف",
+        "event المقابلات",
+        "local_offer العروض",
+        "approval الاعتمادات",
+        "monitoring التقارير"
+      ]
+    },
+    {
+      "name": "candidates tab click works",
+      "ok": true,
+      "activeTab": "person_search المرشحون",
+      "hasRows": true,
+      "hasDrawerButton": true
+    },
+    {
+      "name": "create candidate drawer action present",
+      "ok": true,
+      "activeTab": "person_search المرشحون",
+      "hasRows": true,
+      "hasDrawerButton": true
+    },
+    {
+      "name": "dark mode surface readable",
+      "ok": true,
+      "foreground": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    {
+      "name": "no console errors",
+      "ok": true,
+      "consoleErrors": []
+    },
+    {
+      "name": "no network failures",
+      "ok": true,
+      "networkFailures": []
+    }
+  ],
+  "consoleErrors": [],
+  "networkFailures": [
+    {
+      "requestId": "8D1A4A75FC5E9E0691158703155E06FA",
+      "timestamp": 326258.18278,
+      "type": "Document",
+      "errorText": "net::ERR_ABORTED",
+      "canceled": true
+    }
+  ],
+  "summary": {
+    "ok": true,
+    "status": "GO_UI_BROWSER",
+    "blockers": []
+  }
+}

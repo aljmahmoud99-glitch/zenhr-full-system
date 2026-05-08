@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "checkedAt": "2026-05-06T23:16:58.885Z",
+    "url": "http://localhost:5000/#/app/hr-master-data"
+  },
+  "initial": {
+    "url": "http://localhost:5000/#/app/hr-master-data",
+    "modules": 10,
+    "rows": 0,
+    "skeletons": 0,
+    "bodyText": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالبيانات الرئيسية للموارد البشرية\nsearch\nCtrl K\nالخميس، 7\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n3\nمنصة ZenJO\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالموارد البشرية\nالبيانات الرئيسية للموارد البشرية\nمدير الموارد البشرية\nالإعدادات / بيانات الموارد البشرية\nبيانات الموارد البشرية الرئيسية\n\nمركز موحد لإدارة البيانات المرجعية المستخدمة في التوظيف والملفات والمسارات والتقييم والرواتب مستقبلا.\n\nadd\nإضافة سجل\ncategory\nمجموعات المسؤوليات\nتصنيف المسؤوليات القابلة لإعادة الاستخدام في الوصف الوظيفي والمسارات.\ntask_alt\nالمسؤوليات\nمسؤوليات قابلة لإعادة الاستخدام مع ترتيب وأولوية.\nmilitary_tech\nالدرجات الوظيفية\nدرجات وظيفية مع نطاقات رواتب وترتيب مستويات.\nschool\nالمؤهلات العلمية\nدرجات ومؤهلات تعليمية قابلة للربط بالملفات والتوظيف.\nhub\nالتخصصات\nتخصصات أكاديمية ومهنية للترشيح والتقييم.\naccount_balance\nالجامعات\nجامعات ومعاهد مع الدولة والمدينة.\nworkspace_premium\nالدورات التدريبية\nدورا",
+    "bg": "rgba(255, 255, 255, 0.96)",
+    "color": "rgb(20, 33, 28)"
+  },
+  "drawerAfterOpen": {
+    "open": true,
+    "fields": 6
+  },
+  "afterCreate": {
+    "drawerOpen": false,
+    "hasCreated": true,
+    "rows": 1,
+    "error": ""
+  },
+  "afterSearch": {
+    "hasCreated": true,
+    "rows": 1,
+    "searchValue": "UIRG-1778109407968"
+  },
+  "editDrawer": {
+    "open": true
+  },
+  "inlineAdd": {
+    "drawerOpen": true,
+    "inlineStillOpen": false,
+    "selectText": "اختر...\n?????? ????? INLINE-1778109416378\n?????? ????? UIRG-1778109407968",
+    "hasInline": true
+  },
+  "consoleErrors": [],
+  "assertions": {
+    "routeLoaded": true,
+    "modulesLoaded": true,
+    "dataLoadedNoSkeleton": true,
+    "createDrawerOpened": true,
+    "createdVisible": true,
+    "searchWorks": true,
+    "editDrawerOpened": true,
+    "inlineAddFly": true,
+    "darkReadableSurface": true,
+    "noConsoleErrors": true
+  }
+}

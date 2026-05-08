@@ -1,0 +1,194 @@
+<section class="bundle-b" [class.rtl]="isAr">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">{{ t('حزمة ب', 'Bundle B') }}</p>
+      <h1>{{ t('الأداء وأتمتة سير العمل', 'Performance & Workflow Automation') }}</h1>
+      <p>{{ t('دورات تقييم، مؤشرات، مسؤوليات، ترقيات، واعتمادات ديناميكية في مركز واحد.', 'Evaluation cycles, KPIs, duties, promotions, and dynamic approvals in one center.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost" (click)="loadAll()" [disabled]="loading">{{ t('تحديث', 'Refresh') }}</button>
+      <button type="button" class="primary" (click)="open('evaluation')">{{ t('تقييم جديد', 'New Evaluation') }}</button>
+    </div>
+  </header>
+
+  <div class="alert" *ngIf="error">
+    <span class="material-icons">warning</span>
+    <span>{{ error }}</span>
+  </div>
+
+  <details class="section-accordion" open>
+    <summary>
+      <span class="material-icons">view_agenda</span>
+      <span>{{ activeTabLabel() }}</span>
+    </summary>
+    <nav class="section-nav-grid" aria-label="Performance navigation">
+      <button type="button" *ngFor="let tab of tabs" [class.active]="activeTab === tab.key" (click)="setTab(tab.key)">
+        <span class="material-icons">{{ tab.icon }}</span>
+        <span>{{ t(tab.ar, tab.en) }}</span>
+      </button>
+    </nav>
+  </details>
+
+  <div class="skeleton-grid" *ngIf="loading">
+    <article *ngFor="let i of [1,2,3,4]" class="skeleton-card"></article>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <section *ngIf="activeTab === 'dashboard'" class="grid kpis">
+      <article class="card metric">
+        <span>{{ t('التقييمات المفتوحة', 'Open Evaluations') }}</span>
+        <strong>{{ dashboard?.evaluations?.open || 0 }}</strong>
+        <small>{{ t('إجمالي التقييمات', 'Total evaluations') }}: {{ dashboard?.evaluations?.total || 0 }}</small>
+      </article>
+      <article class="card metric">
+        <span>{{ t('متوسط الأداء', 'Average Score') }}</span>
+        <strong>{{ dashboard?.evaluations?.averageScore || '0' }}</strong>
+        <small>{{ t('من 100', 'out of 100') }}</small>
+      </article>
+      <article class="card metric">
+        <span>{{ t('إنجاز الأهداف', 'Goal Achievement') }}</span>
+        <strong>{{ dashboard?.goals?.averageAchievement || '0' }}%</strong>
+        <small>{{ t('الأهداف المكتملة', 'Completed goals') }}: {{ dashboard?.goals?.completed || 0 }}</small>
+      </article>
+      <article class="card metric">
+        <span>{{ t('توصيات الترقية', 'Promotion Recommendations') }}</span>
+        <strong>{{ promotions.length }}</strong>
+        <small>{{ t('مرتبطة بالأداء', 'Performance-linked') }}</small>
+      </article>
+    </section>
+
+    <section *ngIf="activeTab === 'cycles'" class="panel">
+      <div class="panel-head"><h2>{{ t('دورات التقييم', 'Evaluation Cycles') }}</h2><button class="primary" (click)="open('cycle')">{{ t('إضافة دورة', 'Add Cycle') }}</button></div>
+      <div class="table">
+        <div class="row head"><span>{{ t('الكود', 'Code') }}</span><span>{{ t('الاسم', 'Name') }}</span><span>{{ t('النوع', 'Type') }}</span><span>{{ t('الحالة', 'Status') }}</span></div>
+        <div class="row" *ngFor="let item of cycles"><span>{{ item.code }}</span><span>{{ label(item) }}</span><span>{{ item.cycleType }}</span><span class="pill">{{ item.status }}</span></div>
+        <div class="empty" *ngIf="cycles.length === 0">{{ t('لا توجد دورات تقييم.', 'No evaluation cycles.') }}</div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'goals'" class="panel">
+      <div class="panel-head"><h2>{{ t('الأهداف والمؤشرات', 'KPIs & Goals') }}</h2><button class="primary" (click)="open('goal')">{{ t('إضافة هدف', 'Add Goal') }}</button></div>
+      <div class="card-list">
+        <article class="card item" *ngFor="let item of goals">
+          <div><strong>{{ label(item, 'titleAr', 'titleEn') }}</strong><small>{{ item.scopeType }} / {{ item.status }}</small></div>
+          <div class="progress"><span [style.width.%]="item.achievementPercent || 0"></span></div>
+          <b>{{ item.achievementPercent || 0 }}%</b>
+        </article>
+        <div class="empty" *ngIf="goals.length === 0">{{ t('لا توجد أهداف.', 'No goals.') }}</div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'evaluations'" class="panel">
+      <div class="panel-head"><h2>{{ t('تقييمات الموظفين', 'Employee Evaluations') }}</h2><button class="primary" (click)="open('evaluation')">{{ t('إضافة تقييم', 'Add Evaluation') }}</button></div>
+      <div class="table">
+        <div class="row head"><span>{{ t('الموظف', 'Employee') }}</span><span>{{ t('الدورة', 'Cycle') }}</span><span>{{ t('النتيجة', 'Score') }}</span><span>{{ t('الحالة', 'Status') }}</span><span>{{ t('إجراء', 'Action') }}</span></div>
+        <div class="row" *ngFor="let item of evaluations">
+          <span>{{ label(item, 'employeeNameAr', 'employeeNameEn') }}</span><span>{{ label(item, 'cycleNameAr', 'cycleNameEn') }}</span><span>{{ item.finalScore || '-' }}</span><span class="pill">{{ item.status }}</span>
+          <span><button class="ghost small" (click)="submitEvaluation(item)">{{ t('إرسال', 'Submit') }}</button></span>
+        </div>
+        <div class="empty" *ngIf="evaluations.length === 0">{{ t('لا توجد تقييمات.', 'No evaluations.') }}</div>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'policies'" class="panel">
+      <div class="panel-head"><h2>{{ t('سياسات التقييم', 'Rating Policies') }}</h2><button class="primary" (click)="open('policy')">{{ t('إضافة سياسة', 'Add Policy') }}</button></div>
+      <div class="cards">
+        <article class="card" *ngFor="let item of policies">
+          <span class="pill">{{ item.policyType }}</span>
+          <h3>{{ label(item) }}</h3>
+          <p>{{ item.minScore || 0 }} - {{ item.maxScore || 100 }} / {{ t('النجاح', 'Pass') }} {{ item.passingScore || 60 }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'designer'" class="panel">
+      <div class="panel-head"><h2>{{ t('مصمم سير العمل', 'Workflow Designer') }}</h2><button class="primary" (click)="open('template')">{{ t('إضافة قالب', 'Add Template') }}</button></div>
+      <div class="cards">
+        <article class="card" *ngFor="let item of templates">
+          <span class="pill">{{ item.entityType }}</span>
+          <h3>{{ label(item) }}</h3>
+          <p>{{ t('عدد الخطوات', 'Steps') }}: {{ item.steps?.length || 0 }} / SLA {{ item.slaHours || '-' }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab === 'inbox'" class="panel">
+      <div class="panel-head"><h2>{{ t('مركز الاعتمادات', 'Approvals Center') }}</h2></div>
+      <article class="card item" *ngFor="let item of inbox">
+        <div><strong>{{ label(item, 'templateNameAr', 'templateNameEn') }}</strong><small>{{ label(item, 'employeeNameAr', 'employeeNameEn') }} / {{ item.currentApproverRole }}</small></div>
+        <div class="actions"><button class="primary small" (click)="decide(item, 'approve')">{{ t('اعتماد', 'Approve') }}</button><button class="danger small" (click)="decide(item, 'reject')">{{ t('رفض', 'Reject') }}</button></div>
+      </article>
+      <div class="empty" *ngIf="inbox.length === 0">{{ t('لا توجد اعتمادات معلقة.', 'No pending approvals.') }}</div>
+    </section>
+
+    <section *ngIf="activeTab === 'escalations'" class="panel">
+      <div class="panel-head"><h2>{{ t('مراقبة التصعيد', 'Escalation Monitor') }}</h2><button class="ghost" (click)="processEscalations()">{{ t('معالجة التصعيدات', 'Process Escalations') }}</button></div>
+      <article class="card item" *ngFor="let item of escalations"><strong>{{ item.escalationReason }}</strong><small>{{ item.entityType }} #{{ item.entityId }} / {{ item.status }}</small></article>
+      <div class="empty" *ngIf="escalations.length === 0">{{ t('لا توجد تصعيدات.', 'No escalations.') }}</div>
+    </section>
+
+    <section *ngIf="activeTab === 'promotions'" class="panel">
+      <div class="panel-head"><h2>{{ t('توصيات الترقية والزيادة', 'Promotion & Increment Recommendations') }}</h2><button class="primary" (click)="open('promotion')">{{ t('إضافة توصية', 'Add Recommendation') }}</button></div>
+      <article class="card item" *ngFor="let item of promotions"><div><strong>{{ label(item, 'employeeNameAr', 'employeeNameEn') }}</strong><small>{{ item.status }}</small></div><b>{{ item.incrementAmount || item.incrementPercent || '-' }}</b></article>
+      <div class="empty" *ngIf="promotions.length === 0">{{ t('لا توجد توصيات.', 'No recommendations.') }}</div>
+    </section>
+
+    <section *ngIf="activeTab === 'analytics'" class="grid">
+      <article class="card"><h3>{{ t('توزيع التقييمات', 'Rating Distribution') }}</h3><p *ngFor="let r of analytics?.ratings">{{ r.finalRatingCode || t('غير مصنف', 'Unrated') }}: {{ r.count }}</p></article>
+      <article class="card"><h3>{{ t('اختناقات سير العمل', 'Workflow Bottlenecks') }}</h3><p *ngFor="let r of analytics?.bottlenecks">{{ r.currentApproverRole || '-' }}: {{ r.count }}</p></article>
+      <article class="card"><h3>{{ t('أداء الأقسام', 'Department Performance') }}</h3><p *ngFor="let r of analytics?.departments">{{ label(r) }}: {{ r.avgScore || 0 }}</p></article>
+    </section>
+  </ng-container>
+
+  <aside class="drawer" *ngIf="drawer">
+    <div class="drawer-card">
+      <header><h2>{{ t('إضافة سجل', 'Create Record') }}</h2><button class="icon" (click)="close()">×</button></header>
+
+      <form (ngSubmit)="save()" class="form">
+        <ng-container [ngSwitch]="drawer">
+          <ng-container *ngSwitchCase="'cycle'">
+            <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="cycleForm.code" name="cycleCode" required></label>
+            <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="cycleForm.nameAr" name="cycleNameAr" required></label>
+            <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="cycleForm.nameEn" name="cycleNameEn" required></label>
+            <label>{{ t('تاريخ البداية', 'Start Date') }}<input type="date" [(ngModel)]="cycleForm.periodStart" name="periodStart"></label>
+            <label>{{ t('تاريخ النهاية', 'End Date') }}<input type="date" [(ngModel)]="cycleForm.periodEnd" name="periodEnd"></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'goal'">
+            <label>{{ t('الموظف', 'Employee') }}<select [(ngModel)]="goalForm.employeeId" name="goalEmployee"><option [ngValue]="null">-</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e, 'fullNameAr', 'fullNameEn') || e.employeeCode }}</option></select></label>
+            <label>{{ t('العنوان العربي', 'Arabic Title') }}<input [(ngModel)]="goalForm.titleAr" name="goalTitleAr"></label>
+            <label>{{ t('العنوان الإنجليزي', 'English Title') }}<input [(ngModel)]="goalForm.titleEn" name="goalTitleEn"></label>
+            <label>{{ t('المستهدف', 'Target') }}<input type="number" [(ngModel)]="goalForm.targetValue" name="target"></label>
+            <label>{{ t('المحقق', 'Actual') }}<input type="number" [(ngModel)]="goalForm.actualValue" name="actual"></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'evaluation'">
+            <label>{{ t('الموظف', 'Employee') }}<select [(ngModel)]="evaluationForm.employeeId" name="evalEmployee"><option [ngValue]="null">-</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e, 'fullNameAr', 'fullNameEn') || e.employeeCode }}</option></select></label>
+            <label>{{ t('تقييم المدير', 'Manager Score') }}<input type="number" [(ngModel)]="evaluationForm.managerScore" name="managerScore"></label>
+            <label>{{ t('النتيجة النهائية', 'Final Score') }}<input type="number" [(ngModel)]="evaluationForm.finalScore" name="finalScore"></label>
+            <label>{{ t('التوصية', 'Recommendation') }}<select [(ngModel)]="evaluationForm.recommendation" name="recommendation"><option value="none">{{ t('لا شيء', 'None') }}</option><option value="promotion">{{ t('ترقية', 'Promotion') }}</option><option value="salary_increment">{{ t('زيادة راتب', 'Salary Increment') }}</option></select></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'policy'">
+            <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="policyForm.code" name="policyCode"></label>
+            <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="policyForm.nameAr" name="policyNameAr"></label>
+            <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="policyForm.nameEn" name="policyNameEn"></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'template'">
+            <label>{{ t('الكود', 'Code') }}<input [(ngModel)]="templateForm.code" name="templateCode"></label>
+            <label>{{ t('الاسم العربي', 'Arabic Name') }}<input [(ngModel)]="templateForm.nameAr" name="templateNameAr"></label>
+            <label>{{ t('الاسم الإنجليزي', 'English Name') }}<input [(ngModel)]="templateForm.nameEn" name="templateNameEn"></label>
+          </ng-container>
+          <ng-container *ngSwitchCase="'promotion'">
+            <label>{{ t('الموظف', 'Employee') }}<select [(ngModel)]="promotionForm.employeeId" name="promoEmployee"><option [ngValue]="null">-</option><option *ngFor="let e of employees" [ngValue]="e.id">{{ label(e, 'fullNameAr', 'fullNameEn') || e.employeeCode }}</option></select></label>
+            <label>{{ t('مبلغ الزيادة', 'Increment Amount') }}<input type="number" [(ngModel)]="promotionForm.incrementAmount" name="incrementAmount"></label>
+            <label>{{ t('نسبة الزيادة', 'Increment Percent') }}<input type="number" [(ngModel)]="promotionForm.incrementPercent" name="incrementPercent"></label>
+            <label>{{ t('تاريخ السريان', 'Effective Date') }}<input type="date" [(ngModel)]="promotionForm.effectiveDate" name="effectiveDate"></label>
+          </ng-container>
+        </ng-container>
+
+        <footer>
+          <button type="button" class="ghost" (click)="close()">{{ t('إلغاء', 'Cancel') }}</button>
+          <button type="submit" class="primary" [disabled]="saving">{{ saving ? t('جاري الحفظ', 'Saving') : t('حفظ', 'Save') }}</button>
+        </footer>
+      </form>
+    </div>
+  </aside>
+</section>

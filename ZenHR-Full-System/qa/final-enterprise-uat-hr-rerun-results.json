@@ -1,0 +1,233 @@
+{
+  "timestamp": "2026-05-08T12:22:43.826Z",
+  "mode": "Chrome DevTools Protocol fallback; Browser Use Node REPL tool was unavailable.",
+  "browser": {
+    "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "frontend": "http://localhost:5000",
+    "backend": "http://localhost:3001"
+  },
+  "auth": [
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/dashboard",
+      "textLength": 1991,
+      "storedUser": "hr",
+      "storedRole": "hradmin"
+    }
+  ],
+  "pages": [
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/dashboard",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/dashboard",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 1991,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nلوحة التحكم\nchevron_right\nلوحة التحكم\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات ا",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 15,
+      "tables": 0,
+      "cards": 0,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/hr-master-data",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/hr-master-data",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 2701,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالبيانات الرئيسية للموارد البشرية\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpa",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 56,
+      "tables": 1,
+      "cards": 0,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/job-descriptions",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/job-descriptions",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 2051,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالمسميات الوظيفية\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_hor",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 49,
+      "tables": 1,
+      "cards": 0,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/recruitment",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/recruitment",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 1146,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالتوظيف والتعيين\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_hori",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 26,
+      "tables": 0,
+      "cards": 1,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/payroll-attendance",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/payroll-attendance",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 1092,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالرواتب\nchevron_right\nمحرك الرواتب والحضور\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحر",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 26,
+      "tables": 0,
+      "cards": 2,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/performance-workflows",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/performance-workflows",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 1108,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالأداء وسير العمل\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_hor",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 27,
+      "tables": 0,
+      "cards": 4,
+      "dir": "rtl"
+    },
+    {
+      "user": "hr",
+      "role": "hradmin",
+      "route": "/app/documents-reporting",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/documents-reporting",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 949,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالموارد البشرية\nchevron_right\nالوثائق والتقارير\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_hor",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 27,
+      "tables": 0,
+      "cards": 4,
+      "dir": "rtl"
+    }
+  ],
+  "search": [
+    {
+      "user": "hr",
+      "route": "/app/dashboard",
+      "openedByClick": true,
+      "inputFound": true,
+      "placeholder": "ابحث عن موظفين، شركات، تقارير، خطط...",
+      "passed": true,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nلوحة التحكم\nchevron_right\nلوحة التحكم\nsearch\nCtrl K\nmanage_search\nالبحث العام\nالأقسام\naccount_tree\nالموارد البشرية\nHR\nkeyboard_return\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\n42\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت وال"
+    }
+  ],
+  "theme": [
+    {
+      "route": "/app/documents-reporting",
+      "passed": true,
+      "checked": 29,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    },
+    {
+      "route": "/app/payroll-attendance",
+      "passed": true,
+      "checked": 30,
+      "bad": [],
+      "bodyBg": "rgba(0, 0, 0, 0)",
+      "bodyColor": "rgb(238, 248, 243)"
+    }
+  ],
+  "responsive": [
+    {
+      "route": "/app/documents-reporting",
+      "viewport": "tablet",
+      "passed": true,
+      "width": 820,
+      "overflowX": false,
+      "textLength": 660,
+      "url": "http://localhost:5000/#/app/documents-reporting"
+    },
+    {
+      "route": "/app/documents-reporting",
+      "viewport": "mobile",
+      "passed": true,
+      "width": 390,
+      "overflowX": false,
+      "textLength": 602,
+      "url": "http://localhost:5000/#/app/documents-reporting"
+    }
+  ],
+  "exports": [
+    {
+      "user": "hr",
+      "dataset": "employees",
+      "format": "csv",
+      "status": 200,
+      "expectedStatus": 200,
+      "bytes": 964,
+      "contentType": "text/csv; charset=utf-8",
+      "magic": "efbbbf436f646520",
+      "file": "C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-uat-downloads\\hr-employees.csv",
+      "passed": true
+    },
+    {
+      "user": "hr",
+      "dataset": "employees",
+      "format": "xlsx",
+      "status": 200,
+      "expectedStatus": 200,
+      "bytes": 8108,
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "magic": "504b03040a000000",
+      "file": "C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-uat-downloads\\hr-employees.xlsx",
+      "passed": true
+    },
+    {
+      "user": "hr",
+      "dataset": "employees",
+      "format": "pdf",
+      "status": 200,
+      "expectedStatus": 200,
+      "bytes": 1604,
+      "contentType": "application/pdf",
+      "magic": "255044462d312e34",
+      "file": "C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-uat-downloads\\hr-employees.pdf",
+      "passed": true
+    }
+  ],
+  "forbidden": [],
+  "consoleErrors": [],
+  "screenshots": [
+    "C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-uat-hr-documents-reporting.png"
+  ]
+}

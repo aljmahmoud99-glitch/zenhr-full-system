@@ -19,7 +19,9 @@ interface OvertimeLogRow {
   id: number;
   employeeId: number;
   date: string;
+  employeeCode?: string;
   fullNameAr?: string;
+  fullNameEn?: string;
   departmentAr?: string;
   departmentEn?: string;
   orgNodeNameAr?: string;
@@ -37,9 +39,11 @@ interface OvertimeRequestRow {
   id: number;
   employeeId: number;
   date: string;
+  employeeCode?: string;
   startTime?: string;
   endTime?: string;
   fullNameAr?: string;
+  fullNameEn?: string;
   departmentAr?: string;
   departmentEn?: string;
   orgNodeNameAr?: string;
@@ -544,8 +548,11 @@ export class OvertimeComponent implements OnInit {
     this.rules.set({ ...current, [key]: value });
   }
 
-  employeeName(row: { fullNameAr?: string }) {
-    return row.fullNameAr || '--';
+  employeeName(row: { fullNameAr?: string; fullNameEn?: string; employeeCode?: string }) {
+    const name = this.lang === 'ar'
+      ? (row.fullNameAr || row.fullNameEn)
+      : (row.fullNameEn || row.fullNameAr);
+    return name ? `${name}${row.employeeCode ? ` (${row.employeeCode})` : ''}` : '--';
   }
 
   requestApprovalPath(request: OvertimeRequestRow) {

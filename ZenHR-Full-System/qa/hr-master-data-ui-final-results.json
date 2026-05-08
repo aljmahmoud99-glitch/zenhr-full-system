@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-05-06T23:43:08.426Z",
+  "route": "http://localhost:5000/#/app/hr-master-data",
+  "loginRole": "hradmin",
+  "sourceValidation": {
+    "componentSourceUtf8Clean": true,
+    "moduleNamesInSource": [
+      "مجموعات المسؤوليات",
+      "المسؤوليات",
+      "الدرجات الوظيفية",
+      "المؤهلات العلمية",
+      "التخصصات",
+      "الجامعات",
+      "الدورات التدريبية",
+      "المهارات",
+      "اللغات",
+      "مستويات الخبرة"
+    ],
+    "fieldLabelsInSourceSample": [
+      "نشط",
+      "الكود",
+      "الاسم العربي",
+      "الاسم الإنجليزي",
+      "الوصف العربي",
+      "الوصف الإنجليزي",
+      "مجموعة المسؤوليات",
+      "الترتيب",
+      "رمز الدرجة",
+      "الحد الأدنى للراتب",
+      "الحد الأعلى للراتب",
+      "ترتيب المستوى",
+      "الدولة",
+      "المدينة",
+      "الجهة بالعربية",
+      "الجهة بالإنجليزية"
+    ],
+    "templateArabicStringsClean": true
+  },
+  "buildValidation": {
+    "typecheck": "passed",
+    "angularBuild": "passed"
+  },
+  "browserValidation": {
+    "routeLoaded": true,
+    "modulesLoaded": true,
+    "drawerOpened": true,
+    "searchPresent": true,
+    "pagerPresent": true,
+    "rowCountDuringTableCheck": 3,
+    "skeletonCleared": true,
+    "noMojibakeOrReplacementGlyphs": true,
+    "renderedArabicStringsChecked": 37,
+    "missingRenderedArabicStrings": [],
+    "arabicLabelsClean": true
+  },
+  "staticCoverageForNonVisibleLabels": {
+    "placeholdersTooltipsEmptyStatesSavingAndConditionalLabelsCleanInSource": true,
+    "labelsNotExpectedInInnerText": [
+      "ابحث بالرمز أو الاسم أو الوصف...",
+      "لا توجد بيانات",
+      "أضف أول سجل أو غيّر معايير البحث.",
+      "تعديل",
+      "نسخ",
+      "تعطيل",
+      "تفعيل",
+      "حذف",
+      "تعديل سجل",
+      "غير مفعّل",
+      "اكتب كل مستوى في سطر منفصل أو استخدم JSON",
+      "جار الحفظ...",
+      "إضافة مجموعة مسؤوليات فورية"
+    ]
+  },
+  "priorFunctionalityStillCovered": {
+    "lazyLoadPageRendered": true,
+    "createEditDrawerRendered": true,
+    "searchControlRendered": true,
+    "paginationControlRendered": true,
+    "temporaryRowCleanedUp": true
+  },
+  "notes": "Created one temporary responsibility group to render table headers, scanned first module and responsibility drawer in Arabic, then soft-deleted the temporary row. Non-visible placeholders/tooltips and conditional edit/disabled labels were verified statically in UTF-8 source. Inline add-on-the-fly section label is hidden until the nested add button is toggled, so it was UTF-8 source-verified."
+}

@@ -158,8 +158,8 @@ export class StatusChangesComponent implements OnInit {
   loadAll(): Promise<void> {
     this.loading.set(true);
     return Promise.all([
-      this.api.get<any>('/workflow/status-changes').toPromise(),
-      this.api.get<any>('/workflow/employee-list').toPromise(),
+      this.api.get<any>('/api/workflow/status-changes').toPromise(),
+      this.api.get<any>('/api/workflow/employee-list').toPromise(),
     ]).then(([actRes, empRes]) => {
       if (actRes?.success) this.actions.set(actRes.data);
       if (empRes?.success) this.employees.set(empRes.data);
@@ -211,7 +211,7 @@ export class StatusChangesComponent implements OnInit {
     if (this.form.actionType === 'termination' && this.form.terminationReason) {
       payload.terminationReason = this.form.terminationReason;
     }
-    this.api.post<any>('/workflow/requests', payload).subscribe({
+    this.api.post<any>('/api/workflow/requests', payload).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم إرسال الطلب بنجاح', 'Request submitted successfully'));
@@ -230,7 +230,7 @@ export class StatusChangesComponent implements OnInit {
   }
 
   approve(actionId: number) {
-    this.api.post<any>(`/workflow/requests/${actionId}/approve`, {}).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/approve`, {}).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تمت الموافقة', 'Approved successfully'));
@@ -245,7 +245,7 @@ export class StatusChangesComponent implements OnInit {
   }
 
   reject(actionId: number, notes: string = '') {
-    this.api.post<any>(`/workflow/requests/${actionId}/reject`, { notes }).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/reject`, { notes }).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم الرفض', 'Rejected'));
@@ -260,7 +260,7 @@ export class StatusChangesComponent implements OnInit {
   }
 
   cancel(actionId: number) {
-    this.api.post<any>(`/workflow/requests/${actionId}/cancel`, {}).subscribe({
+    this.api.post<any>(`/api/workflow/requests/${actionId}/cancel`, {}).subscribe({
       next: (res) => {
         if (res.success) {
           this.toast.success(this.t('تم الإلغاء', 'Cancelled'));

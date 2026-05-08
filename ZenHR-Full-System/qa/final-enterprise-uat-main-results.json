@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-05-08T10:38:16.024Z",
+  "mode": "Chrome DevTools Protocol fallback; Browser Use Node REPL tool was unavailable.",
+  "browser": {
+    "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "frontend": "http://localhost:5000",
+    "backend": "http://localhost:3001"
+  },
+  "auth": [
+    {
+      "user": "admin",
+      "role": "superadmin",
+      "passed": false,
+      "url": "http://localhost:5000/#/login",
+      "textLength": 798,
+      "storedUser": "admin",
+      "storedRole": "superadmin"
+    }
+  ],
+  "pages": [],
+  "search": [],
+  "theme": [],
+  "responsive": [],
+  "exports": [],
+  "forbidden": [],
+  "consoleErrors": [],
+  "screenshots": [],
+  "fatal": "Error: CDP timeout: Runtime.evaluate\n    at Timeout._onTimeout (C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-enterprise-uat-browser.cjs:85:16)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)"
+}

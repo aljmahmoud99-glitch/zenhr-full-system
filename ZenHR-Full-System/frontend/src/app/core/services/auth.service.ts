@@ -182,7 +182,9 @@ export class AuthService {
   }
 
   defaultHomeUrl(role = this._user()?.role ?? ''): string {
-    return role === 'superadmin' ? '/admin/companies' : '/app/dashboard';
+    if (role === 'superadmin') return '/admin/companies';
+    if (role === 'recruiter') return '/app/recruitment';
+    return '/app/dashboard';
   }
 
   get isSuperAdmin(): boolean { return this._user()?.role === 'superadmin'; }

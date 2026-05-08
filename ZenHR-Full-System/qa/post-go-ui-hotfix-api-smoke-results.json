@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-05-08T22:44:40.529Z",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-08T22:44:40.593Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-08T22:44:40.593Z\",\"version\":\"1.0.0\"}",
+    "contentType": "application/json; charset=utf-8"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "ok": true,
+      "role": "hradmin"
+    },
+    "admin": {
+      "status": 200,
+      "ok": true,
+      "role": "superadmin"
+    },
+    "manager": {
+      "status": 200,
+      "ok": true,
+      "role": "manager"
+    },
+    "employee": {
+      "status": 200,
+      "ok": true,
+      "role": "employee"
+    },
+    "payroll": {
+      "status": 200,
+      "ok": true,
+      "role": "payrolladmin"
+    },
+    "recruiter": {
+      "status": 200,
+      "ok": true,
+      "role": "recruiter"
+    }
+  },
+  "checks": [
+    {
+      "name": "forms catalog clean Arabic",
+      "role": "hr",
+      "path": "/api/forms-catalog",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":{\"categories\":[{\"id\":\"employee\",\"name_ar\":\"نماذج الموظفين\",\"name_en\":\"Employee Forms\",\"icon\":\"person\"},{\"id\":\"recruitment\",\"name_ar\":\"التوظيف والتعيين\",\"name_en\":\"Recruitment & Onboarding\",\"icon\":\"work\"},{\"id\":\"contracts\",\"name_ar\":\"العقود والتصاريح\",\"name_en\":\"Contracts & Permits\",\"icon\":\"description\"},{\"id\":\"legal\",\"name_ar\":\"قانونية وإدارية\",\"name_en\":\"Legal & Administrative\",\"icon\":\"gavel\"},{\"id\":\"certificates\",\"name_ar\":\"خطابات وشهادات\",\"name_en\":\"Letters & Certificates\",\"icon\":\"workspace_premium\"},{\"id\":\"payroll\",\"name_ar\":\"الرواتب والمالية\",\"name_en\":\"Payroll & Finance\",\"icon\":\"payments\"},{\"id\":\"attendance\",\"name"
+    },
+    {
+      "name": "forms list",
+      "role": "hr",
+      "path": "/api/forms",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "workflows pending hr",
+      "role": "hr",
+      "path": "/api/workflows/pending",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "workflows pending manager",
+      "role": "manager",
+      "path": "/api/workflows/pending",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "leave requests filtered by status/search",
+      "role": "hr",
+      "path": "/api/leave/requests?status=pending&search=test",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "leave own requests",
+      "role": "employee",
+      "path": "/api/leave/me/requests",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "attendance locations get",
+      "role": "hr",
+      "path": "/api/attendance/locations",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":[]}"
+    },
+    {
+      "name": "attendance location create",
+      "role": "hr",
+      "path": "/api/attendance/locations",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true,\"data\":{\"id\":1778280280726,\"nameAr\":\"Release test location AR\",\"nameEn\":\"Release test location\",\"latitude\":31.95,\"longitude\":35.93,\"radiusMeters\":150,\"address\":\"Amman\"}}"
+    },
+    {
+      "name": "attendance employee clock-in geofence tenant behavior",
+      "role": "employee",
+      "path": "/api/attendance/clock-in",
+      "status": 400,
+      "ok": false,
+      "success": false,
+      "mojibake": false,
+      "sample": "{\"success\":false,\"message\":\"Unable to determine location. Please allow location access.\",\"messageAr\":\"تعذر تحديد الموقع. يجب السماح باستخدام الموقع.\",\"data\":{\"allowed\":false,\"status\":\"location_unavailable\",\"messageAr\":\"تعذر تحديد الموقع. يجب السماح باستخدام الموقع.\",\"messageEn\":\"Unable to determine location. Please allow location access.\"}}"
+    },
+    {
+      "name": "attendance location cleanup",
+      "role": "hr",
+      "path": "/api/attendance/locations/1778280280726",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "mojibake": false,
+      "sample": "{\"success\":true}"
+    }
+  ],
+  "verdict": "api-smoke-pass"
+}

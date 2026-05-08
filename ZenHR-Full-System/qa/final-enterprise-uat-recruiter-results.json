@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-05-08T12:18:04.648Z",
+  "mode": "Chrome DevTools Protocol fallback; Browser Use Node REPL tool was unavailable.",
+  "browser": {
+    "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "frontend": "http://localhost:5000",
+    "backend": "http://localhost:3001"
+  },
+  "auth": [
+    {
+      "user": "recruiter",
+      "role": "recruiter",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/recruitment",
+      "textLength": 905,
+      "storedUser": "recruiter",
+      "storedRole": "recruiter"
+    }
+  ],
+  "pages": [
+    {
+      "user": "recruiter",
+      "role": "recruiter",
+      "route": "/app/recruitment",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/recruitment",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 905,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالتوظيف\nchevron_right\nمركز التوظيف\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nشركة زنجو للتقنية\nR\nrecruiter\nroles.recruiter\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson_search\nالتوظيف\nexpand_more\nالتوظيف\nمركز التوظيف\nro",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 20,
+      "tables": 0,
+      "cards": 1,
+      "dir": "rtl"
+    },
+    {
+      "user": "recruiter",
+      "role": "recruiter",
+      "route": "/app/documents-reporting",
+      "viewport": "desktop",
+      "passed": true,
+      "url": "http://localhost:5000/#/app/documents-reporting",
+      "title": "ZenJO — نظام الموارد البشرية",
+      "textLength": 728,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالتوظيف\nchevron_right\nوثائق التوظيف\nsearch\nCtrl K\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nشركة زنجو للتقنية\nR\nrecruiter\nroles.recruiter\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson_search\nالتوظيف\nexpand_more\nالتوظيف\nوثائق التوظيف\n",
+      "errors": [],
+      "loaders": 0,
+      "buttons": 22,
+      "tables": 0,
+      "cards": 4,
+      "dir": "rtl"
+    }
+  ],
+  "search": [
+    {
+      "user": "recruiter",
+      "route": "/app/recruitment",
+      "openedByClick": true,
+      "inputFound": true,
+      "placeholder": "ابحث عن موظفين، شركات، تقارير، خطط...",
+      "passed": true,
+      "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالتوظيف\nchevron_right\nمركز التوظيف\nsearch\nCtrl K\nmanage_search\nالبحث العام\nالأقسام\naccount_tree\nالموارد البشرية\nHR\nkeyboard_return\nالجمعة، 8\nأيار 2026\nعربي\nEN\ndark_mode\nnotifications\nشركة زنجو للتقنية\nR\nrecruiter\nroles.recruiter\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson_search\nالتوظيف\nexpand_more\nالتوظيف\nمركز التوظيف\nroles.recruiter\n/\ncorporate_fare\nشركة زن"
+    }
+  ],
+  "theme": [],
+  "responsive": [],
+  "exports": [
+    {
+      "user": "recruiter",
+      "dataset": "recruitment",
+      "format": "csv",
+      "status": 200,
+      "expectedStatus": 200,
+      "bytes": 1397,
+      "contentType": "text/csv; charset=utf-8",
+      "magic": "efbbbf436f646520",
+      "file": "C:\\Users\\w10\\zenhr-full-system\\ZenHR-Full-System\\qa\\final-uat-downloads\\recruiter-recruitment.csv",
+      "passed": true
+    }
+  ],
+  "forbidden": [],
+  "consoleErrors": [],
+  "screenshots": []
+}

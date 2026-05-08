@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-05-08T03:28:30+03:00",
+  "status": "BUILD_ROUTE_API_PASS_BROWSER_UAT_NOT_RUN",
+  "migrationApplied": true,
+  "frontendRuntime": {
+    "url": "http://localhost:5000/app/documents-reporting",
+    "httpStatus": 200,
+    "status": "PASS_HTTP_SHELL"
+  },
+  "buildChecks": {
+    "typecheck": {
+      "command": "pnpm.cmd run typecheck",
+      "status": "PASS"
+    },
+    "angularDevelopmentBuild": {
+      "command": "node .\\node_modules\\@angular\\cli\\bin\\ng.js build --configuration development",
+      "status": "PASS"
+    }
+  },
+  "staticUiChecks": {
+    "routeRegistered": {
+      "route": "/app/documents-reporting",
+      "status": "PASS"
+    },
+    "navigationRegistered": {
+      "roles": ["hradmin", "payrolladmin", "manager", "employee", "recruiter"],
+      "status": "PASS"
+    },
+    "tabsImplemented": {
+      "status": "PASS_STATIC",
+      "tabs": [
+        "dashboard",
+        "document center",
+        "form builder",
+        "form submissions",
+        "pdf templates",
+        "reports center",
+        "scheduled reports",
+        "export center",
+        "print history",
+        "analytics"
+      ]
+    },
+    "drawerFormsImplemented": {
+      "status": "PASS_STATIC",
+      "forms": ["document", "form template", "submission", "pdf template", "report", "schedule", "export"]
+    },
+    "arabicUtf8Labels": {
+      "status": "PASS_STATIC",
+      "notes": "Bundle C component labels are authored as readable UTF-8 Arabic strings."
+    },
+    "darkModeTokenUsage": {
+      "status": "PASS_STATIC",
+      "notes": "Bundle C component styles use existing theme variables for surfaces, text, borders, inputs, and cards."
+    }
+  },
+  "browserUat": {
+    "status": "NOT_RUN",
+    "reason": "Browser automation could not be executed because the Browser Use skill requires a Node REPL browser execution tool that is not exposed in this session.",
+    "notClaimed": [
+      "actual tab clicks",
+      "drawer save from visible browser UI",
+      "Arabic visual mojibake check",
+      "dark mode visual readability",
+      "responsive layout screenshots"
+    ]
+  },
+  "finalUiRecommendation": "NO_GO_FOR_UI_UNTIL_BROWSER_UAT_COMPLETES"
+}

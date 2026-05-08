@@ -1,0 +1,68 @@
+{
+  "companyId": 4,
+  "preEmploymentIds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "advanceResults": [
+    {
+      "employee": "employee01",
+      "target": "approved",
+      "id": 1
+    },
+    {
+      "employee": "employee06",
+      "target": "manager_approved",
+      "id": 2
+    },
+    {
+      "employee": "employee09",
+      "target": "rejected",
+      "id": 3
+    },
+    {
+      "employee": "employee12",
+      "target": "pending",
+      "id": 4
+    }
+  ],
+  "disciplinaryIds": [
+    1,
+    2,
+    3
+  ],
+  "workflowCreated": [
+    {
+      "label": "career:transfer",
+      "id": 8
+    },
+    {
+      "label": "career:promotion",
+      "id": 9
+    },
+    {
+      "label": "salary:increase",
+      "id": 10
+    },
+    {
+      "label": "salary:reject",
+      "id": 11
+    },
+    {
+      "label": "status:suspension",
+      "id": 12
+    },
+    {
+      "label": "status:return",
+      "id": 13
+    }
+  ],
+  "resignations": {
+    "approved": 1,
+    "pending": 2
+  },
+  "filesUploaded": 6
+}

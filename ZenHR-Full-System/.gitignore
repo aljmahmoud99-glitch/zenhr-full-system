@@ -43,3 +43,39 @@ appsettings.Production.json
 *.mp4
 *.mov
 *.psd
+
+# Local QA browser profiles
+qa/.chrome-*
+.tmp-chrome-*
+
+# Local runtime uploads / generated files
+artifacts/api-server/uploads/
+artifacts/api-server/tmp/
+artifacts/api-server/logs/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Local env
+.env
+.env.*
+
+# QA browser runtime profiles
+qa/chrome-test-profile/
+qa/.chrome-final-uat-*/
+.tmp-chrome-hr-master-data/
+
+# Generated QA downloads
+qa/final-uat-downloads/
+
+# Runtime uploads
+artifacts/api-server/uploads/
+
+# TS build cache
+*.tsbuildinfo
+
+# QA Chrome profiles
+qa/chrome-*-profile/
+qa/.chrome-*/
+qa/final-uat-downloads/
+qa/*.pid

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0&display=swap');
 
 :root {
   --z-sidebar-width: 292px;
@@ -47,6 +47,21 @@
   --z-surface: #ffffff;
   --z-surface-muted: #f7faf8;
   --z-surface-strong: #eef4f0;
+  --surface: var(--z-surface);
+  --surface-elevated: #ffffff;
+  --surface-muted: var(--z-surface-muted);
+  --foreground: var(--z-text-primary);
+  --foreground-muted: var(--z-text-secondary);
+  --border: var(--z-border);
+  --primary: var(--app-primary);
+  --primary-soft: rgba(var(--app-primary-rgb), 0.1);
+  --dropdown-bg: #ffffff;
+  --dropdown-text: var(--z-text-primary);
+  --dropdown-hover: rgba(var(--app-primary-rgb), 0.08);
+  --header-bg: rgba(255, 255, 255, 0.92);
+  --header-text: var(--z-text-primary);
+  --card-bg: rgba(255, 255, 255, 0.96);
+  --input-bg: #ffffff;
 
   --z-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
   --z-shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.05);
@@ -67,6 +82,45 @@
   --z-space-6: 24px;
   --z-space-7: 32px;
   --z-space-8: 40px;
+}
+
+html[data-theme='dark'],
+body.theme-dark {
+  --z-forest: #d9f3e7;
+  --z-pine: #68d7a4;
+  --z-deep-forest: #07110d;
+  --z-sidebar-strong: #0b1612;
+  --z-cream: #0f1714;
+  --z-white: #121c18;
+  --z-text-primary: #eef8f3;
+  --z-text-secondary: #b7c9c0;
+  --z-text-muted: #83978e;
+  --z-text-inverse: #07110d;
+  --z-border: rgba(191, 219, 207, 0.14);
+  --z-border-strong: rgba(191, 219, 207, 0.24);
+  --z-surface: #111c18;
+  --z-surface-muted: #0d1713;
+  --z-surface-strong: #17241f;
+  --surface: var(--z-surface);
+  --surface-elevated: #17241f;
+  --surface-muted: var(--z-surface-muted);
+  --foreground: var(--z-text-primary);
+  --foreground-muted: var(--z-text-secondary);
+  --border: var(--z-border);
+  --primary: var(--app-primary);
+  --primary-soft: rgba(var(--app-primary-rgb), 0.14);
+  --dropdown-bg: #111c18;
+  --dropdown-text: #eef8f3;
+  --dropdown-hover: rgba(var(--app-primary-rgb), 0.16);
+  --header-bg: rgba(17, 28, 24, 0.92);
+  --header-text: #eef8f3;
+  --card-bg: rgba(17, 28, 24, 0.94);
+  --input-bg: #0d1713;
+  --z-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --z-shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.26);
+  --z-shadow-md: 0 20px 45px rgba(0, 0, 0, 0.32);
+  --z-shadow-lg: 0 26px 60px rgba(0, 0, 0, 0.42);
+  --z-shadow-card: 0 0 0 1px rgba(191, 219, 207, 0.08), 0 18px 38px rgba(0, 0, 0, 0.32);
 }
 
 *,
@@ -112,18 +166,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body.theme-dark {
+  background:
+    radial-gradient(circle at top right, rgba(var(--app-primary-rgb), 0.13), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(82, 217, 160, 0.08), transparent 28%),
+    linear-gradient(180deg, #07110d 0%, #0d1713 100%);
+  color: var(--z-text-primary);
+}
+
 body {
   overflow-x: clip;
 }
 
 [lang='ar'],
 [lang='ar'] * {
-  font-family: 'Noto Kufi Arabic', system-ui, sans-serif;
+  font-family: 'Cairo', system-ui, sans-serif;
 }
 
 [lang='en'],
 [lang='en'] * {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .material-icons,
@@ -282,6 +344,228 @@ img {
 
 .z-card {
   padding: 20px;
+}
+
+body.theme-dark .z-card,
+body.theme-dark .card,
+body.theme-dark .modal-card,
+body.theme-dark .page-card,
+body.theme-dark .panel,
+body.theme-dark .table-card,
+body.theme-dark .chart-card,
+body.theme-dark .metric-card,
+body.theme-dark .plan-card,
+body.theme-dark .builder-panel,
+body.theme-dark .timeline-card,
+body.theme-dark .permission-board,
+body.theme-dark .run-card,
+body.theme-dark .payslip-card,
+body.theme-dark .run-metric,
+body.theme-dark .payslip-breakdown > div,
+body.theme-dark .detail-card,
+body.theme-dark .detail-row,
+body.theme-dark .detail-total,
+body.theme-dark .run-preview-note,
+body.theme-dark .context-action-bar,
+body.theme-dark .provider-card,
+body.theme-dark .usage-box,
+body.theme-dark .delivery-grid div,
+body.theme-dark .queue-health div,
+body.theme-dark .health-card,
+body.theme-dark .module-card,
+body.theme-dark .permission-tile,
+body.theme-dark .wizard-steps span,
+body.theme-dark .smtp-steps span,
+body.theme-dark .drawer,
+body.theme-dark .modal,
+body.theme-dark .modal-content,
+body.theme-dark .modal-dialog,
+body.theme-dark .modal-panel,
+body.theme-dark .modal-overlay .modal-card,
+body.theme-dark .dropdown-menu,
+body.theme-dark .dropdown,
+body.theme-dark .dropdown-panel,
+body.theme-dark .popover,
+body.theme-dark .popover-panel,
+body.theme-dark .menu,
+body.theme-dark .menu-panel,
+body.theme-dark .mega-menu,
+body.theme-dark .mega-panel,
+body.theme-dark .context-menu,
+body.theme-dark .floating-panel,
+body.theme-dark .nav-dropdown-portal,
+body.theme-dark .notification-panel,
+body.theme-dark .command-panel,
+body.theme-dark .cdk-overlay-pane,
+body.theme-dark .cdk-overlay-pane .mat-mdc-menu-panel,
+body.theme-dark .mat-mdc-menu-panel,
+body.theme-dark .mat-mdc-select-panel,
+body.theme-dark .mat-mdc-autocomplete-panel,
+body.theme-dark [role='menu'],
+body.theme-dark [role='listbox'],
+body.theme-dark [role='dialog'],
+body.theme-dark [class*='dropdown'],
+body.theme-dark [class*='popover'],
+body.theme-dark [class*='menu-panel'],
+body.theme-dark [class*='popover-panel'],
+body.theme-dark [class*='overlay-panel'] {
+  border-color: var(--z-border) !important;
+  background: var(--dropdown-bg) !important;
+  color: var(--z-text-primary) !important;
+  box-shadow: var(--z-shadow-card) !important;
+}
+
+body.theme-dark .line-chart,
+body.theme-dark .area-chart,
+body.theme-dark .bar-chart,
+body.theme-dark .trend-chart,
+body.theme-dark .donut:after {
+  background: var(--z-surface-muted) !important;
+  color: var(--z-text-primary) !important;
+}
+
+body.theme-dark .modal *,
+body.theme-dark .modal-content *,
+body.theme-dark .modal-dialog *,
+body.theme-dark .modal-panel *,
+body.theme-dark .dropdown *,
+body.theme-dark .dropdown-menu *,
+body.theme-dark .dropdown-panel *,
+body.theme-dark .popover *,
+body.theme-dark .popover-panel *,
+body.theme-dark .menu *,
+body.theme-dark .menu-panel *,
+body.theme-dark .mega-menu *,
+body.theme-dark .mega-panel *,
+body.theme-dark .context-menu *,
+body.theme-dark .floating-panel *,
+body.theme-dark .nav-dropdown-portal *,
+body.theme-dark .notification-panel *,
+body.theme-dark .command-panel *,
+body.theme-dark .cdk-overlay-pane *,
+body.theme-dark .mat-mdc-menu-panel *,
+body.theme-dark .mat-mdc-select-panel *,
+body.theme-dark .mat-mdc-autocomplete-panel *,
+body.theme-dark [role='menu'] *,
+body.theme-dark [role='listbox'] *,
+body.theme-dark [role='dialog'] *,
+body.theme-dark [class*='dropdown'] *,
+body.theme-dark [class*='popover'] *,
+body.theme-dark [class*='menu-panel'] *,
+body.theme-dark [class*='popover-panel'] *,
+body.theme-dark [class*='overlay-panel'] * {
+  color: inherit;
+}
+
+body.theme-dark .dropdown span,
+body.theme-dark .dropdown strong,
+body.theme-dark .dropdown small,
+body.theme-dark .dropdown-menu span,
+body.theme-dark .dropdown-menu strong,
+body.theme-dark .dropdown-menu small,
+body.theme-dark .menu span,
+body.theme-dark .menu strong,
+body.theme-dark .menu small,
+body.theme-dark .menu-panel span,
+body.theme-dark .menu-panel strong,
+body.theme-dark .menu-panel small,
+body.theme-dark .nav-dropdown-portal span,
+body.theme-dark .nav-dropdown-portal strong,
+body.theme-dark .nav-dropdown-portal small,
+body.theme-dark .command-panel span,
+body.theme-dark .command-panel strong,
+body.theme-dark .command-panel small,
+body.theme-dark .notification-panel span,
+body.theme-dark .notification-panel strong,
+body.theme-dark .notification-panel small,
+body.theme-dark [role='menu'] span,
+body.theme-dark [role='menu'] strong,
+body.theme-dark [role='menu'] small {
+  border-color: transparent !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+body.theme-dark .dropdown a,
+body.theme-dark .dropdown button,
+body.theme-dark .dropdown-item,
+body.theme-dark .menu-item,
+body.theme-dark .nav-dropdown-portal a,
+body.theme-dark .mat-mdc-menu-item,
+body.theme-dark [role='menuitem'],
+body.theme-dark [role='option'],
+body.theme-dark .command-result,
+body.theme-dark .notification-item {
+  color: var(--dropdown-text) !important;
+  border-color: transparent !important;
+  outline: 0 !important;
+}
+
+body.theme-dark .dropdown a:hover,
+body.theme-dark .dropdown button:hover,
+body.theme-dark .dropdown-item:hover,
+body.theme-dark .menu-item:hover,
+body.theme-dark .nav-dropdown-portal a:hover,
+body.theme-dark .mat-mdc-menu-item:hover,
+body.theme-dark [role='menuitem']:hover,
+body.theme-dark [role='option']:hover,
+body.theme-dark .command-result:hover,
+body.theme-dark .command-result.active {
+  background: var(--dropdown-hover) !important;
+  color: var(--dropdown-text) !important;
+  border-color: rgba(var(--app-primary-rgb), 0.32) !important;
+}
+
+body.theme-dark input,
+body.theme-dark select,
+body.theme-dark textarea,
+body.theme-dark .field,
+body.theme-dark .action,
+body.theme-dark .surface-icon,
+body.theme-dark .top-user-chip,
+body.theme-dark .lang-chip,
+body.theme-dark .segmented-tabs,
+body.theme-dark .segmented-control {
+  border-color: var(--z-border) !important;
+  background-color: rgba(13, 23, 19, 0.92) !important;
+  color: var(--z-text-primary) !important;
+}
+
+body.theme-dark input::placeholder,
+body.theme-dark textarea::placeholder {
+  color: rgba(183, 201, 192, 0.62) !important;
+}
+
+body.theme-dark button:disabled,
+body.theme-dark .disabled,
+body.theme-dark [aria-disabled='true'] {
+  color: rgba(183, 201, 192, 0.55) !important;
+  opacity: 0.68;
+}
+
+body.theme-dark .enterprise-table th,
+body.theme-dark table th {
+  background: rgba(23, 36, 31, 0.96) !important;
+  color: var(--z-text-secondary) !important;
+}
+
+body.theme-dark .enterprise-table td,
+body.theme-dark table td {
+  border-color: var(--z-border) !important;
+  color: var(--z-text-primary) !important;
+}
+
+body.theme-dark .enterprise-table tbody tr:hover,
+body.theme-dark table tbody tr:hover {
+  background: rgba(var(--app-primary-rgb), 0.08) !important;
+}
+
+body.theme-dark .line-chart,
+body.theme-dark .area-chart,
+body.theme-dark .bar-chart,
+body.theme-dark .trend-chart,
+body.theme-dark .usage-box {
+  background: linear-gradient(180deg, rgba(23, 36, 31, 0.98), rgba(13, 23, 19, 0.96)) !important;
 }
 
 .z-card-header,

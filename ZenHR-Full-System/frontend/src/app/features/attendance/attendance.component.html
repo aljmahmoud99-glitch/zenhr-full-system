@@ -46,6 +46,10 @@
         <button class="z-btn-secondary" type="button" (click)="openRequestModal()">{{ t('طلب تصحيح', 'Request correction') }}</button>
       </div>
     </div>
+    <div class="location-status-banner" *ngIf="locationStatus()">
+      <span class="material-icons">my_location</span>
+      <span>{{ locationStatus() }}</span>
+    </div>
 
     <app-skeleton-kpi-cards *ngIf="loading()" [count]="6" />
 
@@ -426,14 +430,25 @@
           <span class="z-label">{{ t('العنوان', 'Address') }}</span>
           <input class="z-input" [(ngModel)]="locationForm.address">
         </label>
-        <label class="field">
-          <span class="z-label">{{ t('خط العرض', 'Latitude') }}</span>
-          <input class="z-input" type="number" [(ngModel)]="locationForm.latitude">
-        </label>
-        <label class="field">
-          <span class="z-label">{{ t('خط الطول', 'Longitude') }}</span>
-          <input class="z-input" type="number" [(ngModel)]="locationForm.longitude">
-        </label>
+        <div class="field field-full map-picker-field">
+          <span class="z-label">{{ t('اختيار الموقع من الخريطة', 'Pick location from map') }}</span>
+          <div class="map-picker" role="button" tabindex="0" (click)="pickLocationFromMap($event)">
+            <div class="map-grid-lines"></div>
+            <div class="map-pin" [style.left.%]="markerX()" [style.top.%]="markerY()">
+              <span class="material-icons">location_on</span>
+            </div>
+            <div class="map-hint">{{ t('انقر داخل الخريطة التقريبية لتحريك المؤشر، أو افتح خرائط Google للبحث الدقيق.', 'Click the map preview to move the marker, or open Google Maps for precise search.') }}</div>
+          </div>
+          <div class="map-actions-row">
+            <button class="z-btn-secondary" type="button" (click)="useBrowserLocationForPicker()">{{ t('استخدام موقعي الحالي', 'Use my current location') }}</button>
+            <button class="z-btn-secondary" type="button" (click)="useDefaultLocation()">{{ t('مركز عمّان', 'Amman center') }}</button>
+            <a class="z-btn-secondary" [href]="mapsUrl(locationForm.latitude, locationForm.longitude)" target="_blank" rel="noopener">{{ t('فتح خرائط Google', 'Open Google Maps') }}</a>
+          </div>
+          <small class="muted-coordinates">
+            {{ t('يتم حفظ الإحداثيات داخلياً:', 'Coordinates saved internally:') }}
+            {{ locationForm.latitude | number:'1.5-5' }}, {{ locationForm.longitude | number:'1.5-5' }}
+          </small>
+        </div>
         <label class="field field-full">
           <span class="z-label">{{ t('نطاق الموقع بالمتر', 'Radius (m)') }}</span>
           <input class="z-input" type="number" [(ngModel)]="locationForm.radiusMeters">

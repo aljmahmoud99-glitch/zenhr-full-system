@@ -1,0 +1,81 @@
+{
+  "logins": {
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "employeeId": 1
+    },
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "employeeId": 9
+    }
+  },
+  "admin": {
+    "/api/admin/automation/summary": 200,
+    "/api/admin/background-jobs": 200,
+    "/api/admin/email/settings?companyId=1": 200,
+    "/api/admin/storage/settings?companyId=1": 200
+  },
+  "rbac": {
+    "hr": 403,
+    "payroll": 403,
+    "manager": 403,
+    "employee": 403,
+    "recruiter": 403
+  },
+  "feature": {
+    "notifyTest": 201,
+    "notifications": 200,
+    "unreadCount": 200,
+    "prefsGet": 200,
+    "prefsPatch": 200,
+    "workflows": 200,
+    "workflowsPending": 200,
+    "workflowHistory": 200,
+    "queueJob": 201,
+    "runDueJobs": 200,
+    "emailSettingsPatch": 200,
+    "emailTest": 201,
+    "storageSettingsPatch": 200,
+    "invalidUploadRejected": 400,
+    "fileUpload": 200,
+    "fileDownloadOwn": 200,
+    "fileDownloadAdminBlocked": 403,
+    "workflowCreate": 201,
+    "workflowReject": 200,
+    "workflowHistoryAfterReject": 200,
+    "workflowHistoryActions": 1
+  },
+  "security": {
+    "managerPayrollSummary": 403
+  },
+  "ui": {
+    "/admin/automation": 200,
+    "/app/workflows": 200
+  },
+  "summary": {
+    "serverErrors": 0,
+    "statuses": 0
+  }
+}

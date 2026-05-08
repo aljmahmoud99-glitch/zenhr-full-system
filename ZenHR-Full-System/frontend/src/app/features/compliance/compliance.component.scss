@@ -17,7 +17,7 @@
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
 }
 
@@ -57,30 +57,34 @@
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
   gap: 16px;
+  align-items: start;
 }
 
 .alerts-panel,
 .settings-panel {
-  padding: 20px;
+  padding: 16px;
 }
 
 .alert-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-inline-end: 4px;
 }
 
 .alert-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid rgba(219, 229, 223, 0.92);
-  border-radius: 16px;
-  background: #fff;
+  padding: 10px 12px;
+  border: 1px solid var(--z-border, var(--border));
+  border-radius: 12px;
+  background: var(--z-surface, var(--surface));
   text-align: start;
 }
 
@@ -137,7 +141,7 @@
   padding: 0 14px;
   border-radius: 999px;
   border: 1px solid rgba(203, 213, 225, 0.96);
-  background: #fff;
+  background: var(--z-surface, var(--surface));
   color: var(--z-text-secondary);
   font-weight: 700;
 }
@@ -178,9 +182,9 @@
   gap: 14px;
   min-height: 52px;
   padding: 0 14px;
-  border: 1px solid rgba(219, 229, 223, 0.92);
+  border: 1px solid var(--z-border, var(--border));
   border-radius: 14px;
-  background: rgba(251, 254, 252, 0.96);
+  background: var(--z-surface, var(--surface));
   font-weight: 600;
   color: var(--z-text-primary);
 }
@@ -211,7 +215,7 @@
 
 .employee-detail-panel {
   width: min(100%, 620px);
-  background: #fff;
+  background: var(--z-surface, var(--surface));
   border-radius: 24px;
   border: 1px solid rgba(219, 229, 223, 0.94);
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.2);

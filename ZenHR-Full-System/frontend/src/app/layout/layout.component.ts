@@ -1,11 +1,11 @@
-import {
+﻿import {
   ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef,
   HostListener, OnDestroy, OnInit, computed, inject, signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, filter, finalize, forkJoin, map, of, Subject, switchMap } from 'rxjs';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../core/services/auth.service';
 import { I18nService } from '../core/services/i18n.service';
@@ -13,6 +13,7 @@ import { NavGroup, NavItem, RoleAccessService } from '../core/services/role-acce
 import { ApiResponse, User } from '../core/models';
 import { AppSettingsService } from '../core/services/app-settings.service';
 import { TenantContextService } from '../core/services/tenant-context.service';
+import { ThemeService } from '../core/services/theme.service';
 import { ToastContainerComponent } from '../shared/components/toast-container/toast-container.component';
 
 export interface DbNotification {
@@ -27,6 +28,20 @@ export interface DbNotification {
   actionUrl?: string | null;
   createdAt: string;
   readAt?: string | null;
+}
+
+interface GlobalSearchResult {
+  id?: number | string;
+  type: string;
+  title?: string;
+  subtitle?: string;
+  titleAr?: string;
+  titleEn?: string;
+  subtitleAr?: string;
+  subtitleEn?: string;
+  icon: string;
+  url?: string;
+  route?: string;
 }
 
 @Component({
@@ -56,11 +71,18 @@ export class LayoutComponent implements OnInit, OnDestroy {
   unreadCount = signal(0);
   markingAllRead = signal(false);
   avatarLoadFailed = signal(false);
+  searchQuery = signal('');
+  searchOpen = signal(false);
+  searchLoading = signal(false);
+  searchResults = signal<GlobalSearchResult[]>([]);
+  selectedSearchIndex = signal(0);
+  recentSearches = signal<string[]>([]);
 
   navGroups: NavGroup[] = [];
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private _dropdownCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly searchTerms = new Subject<string>();
 
   readonly notificationCount = computed(() => this.unreadCount());
 
@@ -69,6 +91,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
     public access: RoleAccessService,
     public i18n: I18nService,
     public tenant: TenantContextService,
+    public theme: ThemeService,
     private router: Router,
     private http: HttpClient,
     private settings: AppSettingsService
@@ -79,6 +102,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.navGroups = this.access.getNavGroups();
     this.syncPageMeta();
     this.loadUnreadCount();
+    this.restoreRecentSearches();
+    this.bindSearch();
 
     // Guarantee drawer is closed on initial load regardless of screen size
     this.mobileNavOpen.set(false);
@@ -118,6 +143,42 @@ export class LayoutComponent implements OnInit, OnDestroy {
     const inNavBar = host.querySelector('.top-nav')?.contains(target);
     if (!inNavBar) {
       this.activeGroupKey.set(null);
+    }
+    const inSearch = host.querySelector('.topbar-center')?.contains(target);
+    if (!inSearch) {
+      this.searchOpen.set(false);
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent) {
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === 'k') {
+      event.preventDefault();
+      this.openSearch();
+      return;
+    }
+    if (!this.searchOpen()) return;
+    if (event.key === 'Escape') {
+      this.searchOpen.set(false);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.selectedSearchIndex.update(i => Math.min(i + 1, Math.max(0, this.searchResults().length - 1)));
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.selectedSearchIndex.update(i => Math.max(0, i - 1));
+      return;
+    }
+    if (event.key === 'Enter') {
+      const item = this.searchResults()[this.selectedSearchIndex()];
+      if (item) {
+        event.preventDefault();
+        this.openSearchResult(item);
+      }
     }
   }
 
@@ -313,7 +374,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
       if ((role === 'manager' || role === 'employee') && ctx.branchNameEn) parts.push(ctx.branchNameEn);
       if ((role === 'manager' || role === 'employee') && ctx.deptNameEn) parts.push(ctx.deptNameEn);
     }
-    return parts.join(' › ');
+    return parts.join(' / ');
   }
 
   get todayDayLabel() {
@@ -338,14 +399,161 @@ export class LayoutComponent implements OnInit, OnDestroy {
     return this.i18n.currentLang === 'ar' ? ar : en;
   }
 
+  toggleTheme() {
+    this.theme.toggle();
+  }
+
+  openSearch() {
+    this.searchOpen.set(true);
+    setTimeout(() => {
+      const input = (this.elRef.nativeElement as HTMLElement).querySelector('.top-search-input') as HTMLInputElement | null;
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  onSearchInput(value: string) {
+    this.searchQuery.set(value);
+    this.searchOpen.set(true);
+    this.searchTerms.next(value);
+  }
+
+  openSearchResult(result: GlobalSearchResult) {
+    const target = result.url || result.route;
+    if (!target) {
+      if (result.type === 'action' && result.icon === 'notifications') this.toggleNotifications();
+      return;
+    }
+    const query = this.searchQuery().trim();
+    if (query) this.rememberSearch(query);
+    this.searchOpen.set(false);
+    this.router.navigateByUrl(target);
+  }
+
+  openSelectedSearchResult(event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const item = this.searchResults()[this.selectedSearchIndex()] || this.searchResults()[0];
+    if (item) this.openSearchResult(item);
+  }
+
+  runRecentSearch(term: string) {
+    this.searchQuery.set(term);
+    this.searchTerms.next(term);
+    this.openSearch();
+  }
+
+  ui(ar: string, en: string) {
+    return this.label(ar, en);
+  }
+
   languageLabel(lang: 'ar' | 'en') {
     return lang === 'ar' ? this.i18n.instant('shell.languageArabic') : this.i18n.instant('shell.languageEnglish');
+  }
+
+  groupedSearchResults() {
+    const groups = new Map<string, GlobalSearchResult[]>();
+    for (const item of this.searchResults()) {
+      const label = this.searchGroupLabel(item.type);
+      groups.set(label, [...(groups.get(label) ?? []), item]);
+    }
+    return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+  }
+
+  searchGroupLabel(type: GlobalSearchResult['type']) {
+    const labels: Record<GlobalSearchResult['type'], string> = {
+      employee: this.ui('الموظفون', 'Employees'),
+      company: this.ui('الشركات', 'Companies'),
+      user: this.ui('المستخدمون', 'Users'),
+      department: this.ui('الأقسام', 'Departments'),
+      job_description: this.ui('الأوصاف الوظيفية', 'Job descriptions'),
+      document: this.ui('الوثائق', 'Documents'),
+      workflow: this.ui('سير العمل', 'Workflows'),
+      payroll_run: this.ui('مسيرات الرواتب', 'Payroll runs'),
+      plan: this.ui('الخطط', 'Plans'),
+      subscription: this.ui('الاشتراكات', 'Subscriptions'),
+      audit: this.ui('سجلات التدقيق', 'Audit logs'),
+      background_job: this.ui('المهام الخلفية', 'Background jobs'),
+      report: this.ui('التقارير', 'Reports'),
+      action: this.ui('إجراءات سريعة', 'Quick actions'),
+    } as Record<string, string>;
+    return labels[type] || type;
   }
 
   private syncPageMeta() {
     const url = this.router.url;
     const page = this.navGroups.flatMap(g => g.items).find(item => url.startsWith(item.path));
     this.currentPage.set(page ?? null);
+  }
+
+  private bindSearch() {
+    this.searchTerms.pipe(
+      debounceTime(220),
+      map(term => term.trim()),
+      distinctUntilChanged(),
+      switchMap(term => {
+        if (!term) {
+          this.searchResults.set(this.quickActions(''));
+          this.searchLoading.set(false);
+          return of(null);
+        }
+        this.searchLoading.set(true);
+        return this.performGlobalSearch(term).pipe(finalize(() => this.searchLoading.set(false)));
+      })
+    ).subscribe(results => {
+      if (results) {
+        this.searchResults.set(results);
+        this.selectedSearchIndex.set(0);
+      }
+    });
+    this.searchResults.set(this.quickActions(''));
+  }
+
+  private performGlobalSearch(term: string) {
+    return forkJoin([
+      this.http.get<ApiResponse<GlobalSearchResult[]>>(`/api/search?q=${encodeURIComponent(term)}`).pipe(
+        map(res => res.data ?? []),
+        catchError(() => of([] as GlobalSearchResult[]))
+      ),
+      of(this.quickActions(term))
+    ]).pipe(map(groups => groups.flat().slice(0, 30)));
+  }
+
+  private quickActions(term: string): GlobalSearchResult[] {
+    const actions: GlobalSearchResult[] = [
+      { type: 'report', title: this.ui('تقرير عدد الموظفين', 'Headcount report'), subtitle: this.ui('انتقل إلى التقارير', 'Open reports'), icon: 'monitoring', url: '/app/reports' },
+      { type: 'action', title: this.ui('لوحة التحكم', 'Dashboard'), subtitle: this.ui('العودة إلى الصفحة الرئيسية', 'Return to home'), icon: 'dashboard', url: this.dashboardRoute },
+      { type: 'action', title: this.ui('الإشعارات', 'Notifications'), subtitle: this.ui('افتح مركز الإشعارات', 'Open notification center'), icon: 'notifications' },
+    ];
+    if (this.user()?.role === 'superadmin') {
+      actions.push(
+        { type: 'action', title: this.ui('تحليلات المنصة', 'Platform analytics'), subtitle: this.ui('لوحة مؤشرات النظام', 'System KPI dashboard'), icon: 'analytics', url: '/admin/analytics' },
+        { type: 'action', title: this.ui('الخطط والاشتراكات', 'Plans and subscriptions'), subtitle: this.ui('إدارة الباقات', 'Manage billing plans'), icon: 'credit_card', url: '/admin/plans-subscriptions' }
+      );
+    }
+    return term ? actions.filter(a => this.matchesTerm(term, a.title, a.subtitle)) : actions;
+  }
+
+  private matchesTerm(term: string, ...values: unknown[]) {
+    const q = term.toLowerCase();
+    return values.some(value => String(value ?? '').toLowerCase().includes(q));
+  }
+
+  private restoreRecentSearches() {
+    try {
+      const raw = localStorage.getItem('zenjo_recent_searches');
+      this.recentSearches.set(raw ? JSON.parse(raw).slice(0, 5) : []);
+    } catch {
+      this.recentSearches.set([]);
+    }
+  }
+
+  private rememberSearch(term: string) {
+    const next = [term, ...this.recentSearches().filter(item => item !== term)].slice(0, 5);
+    this.recentSearches.set(next);
+    try {
+      localStorage.setItem('zenjo_recent_searches', JSON.stringify(next));
+    } catch {}
   }
 
   private loadUnreadCount() {

@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-05-07T12:41:16.277Z",
+  "route": "/#/app/job-descriptions",
+  "browser": "chrome-headless-cdp-final",
+  "checks": {
+    "initialLoad": {
+      "url": "http://localhost:5000/#/app/job-descriptions?bust=1778157677883",
+      "h1": "منشئ الملفات الوظيفية",
+      "h1Codes": [
+        1605,
+        1606,
+        1588,
+        1574,
+        32,
+        1575,
+        1604,
+        1605
+      ],
+      "cleanArabicH1": true,
+      "rows": 9,
+      "error": "",
+      "dir": "rtl",
+      "theme": "dark"
+    },
+    "drawerOpen": {
+      "clicked": true,
+      "drawerOpen": true,
+      "selects": 6,
+      "gradeOptions": 10,
+      "inputs": 30,
+      "sectionCount": 12
+    },
+    "addOnTheFly": {
+      "opened": true,
+      "save": {
+        "ok": true,
+        "code": "UI-SK-MOVH6C3S"
+      },
+      "panelStillOpen": false,
+      "selectedSkills": 1,
+      "skillText": "المهارات\nadd\nإضافة\n????? ???????\n????? ??????? MOVGC5QF\n????? ????????\n????? ???????? MOVGC5QF\n????? ????? MOVH6C3S",
+      "validationNote": "PASS: new skill was added through UI and selected in the skills chip list; the visible chip shows the generated name suffix rather than the raw code."
+    },
+    "savePersists": {
+      "code": "UI-JP-MOVH6GCS",
+      "saveClicked": true,
+      "drawerOpen": false,
+      "rowVisible": true,
+      "rows": 10,
+      "error": ""
+    },
+    "editReloadRelations": {
+      "clicked": true,
+      "viewDrawer": true,
+      "codeVisible": true,
+      "requirementRows": 8
+    },
+    "darkModeReadability": {
+      "drawerBg": "rgb(17, 28, 24)",
+      "drawerText": "rgb(238, 248, 243)",
+      "cardBg": "rgb(17, 28, 24)",
+      "cardText": "rgb(238, 248, 243)",
+      "drawerContrast": 660,
+      "cardContrast": 660
+    }
+  },
+  "errors": [],
+  "summary": {
+    "ok": true,
+    "blockers": []
+  }
+}

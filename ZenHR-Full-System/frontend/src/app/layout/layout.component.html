@@ -1,190 +1,220 @@
-<div class="app-shell z-app-shell" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
-
-  <!-- ══════════════════════════════════════════════════════════════
-       STICKY TOP BAR  (header row + nav row)
-  ══════════════════════════════════════════════════════════════ -->
+﻿<div class="app-shell z-app-shell" [attr.dir]="i18n.isRTL() ? 'rtl' : 'ltr'" [attr.lang]="i18n.currentLang">
   <div class="app-topbar z-topbar">
-
-    <!-- ── Row 1: Brand + Search + Tools ── -->
     <div class="topbar-header">
-
-      <!-- Brand -->
-      <div class="header-brand">
-        <div class="logo-mark">Z</div>
-        <div class="brand-copy">
-          <strong class="logo-text">{{ 'app.name' | translate }}</strong>
-          <span class="logo-subtitle">{{ 'app.tagline' | translate }}</span>
-        </div>
-      </div>
-
-      <!-- Search -->
-      <label class="search-shell search-box">
-        <span class="material-icons search-icon">search</span>
-        <input class="top-search-input" [placeholder]="'shell.search' | translate" />
-      </label>
-
-      <!-- Tools -->
-      <div class="topbar-tools">
-        <!-- Date pill -->
-        <div class="date-pill">
-          <span class="date-line">{{ todayDayLabel }}</span>
-          <span class="date-line">{{ todayMonthLabel }}</span>
+      <section class="topbar-left" [attr.aria-label]="ui('الهوية ومساحة العمل', 'Brand and workspace')">
+        <div class="header-brand">
+          <div class="logo-mark">Z</div>
+          <div class="brand-copy">
+            <strong class="logo-text">{{ 'app.name' | translate }}</strong>
+            <span class="logo-subtitle">{{ 'app.tagline' | translate }}</span>
+          </div>
         </div>
 
-        <!-- Language switch -->
-        <div class="topbar-lang-switch" role="group" [attr.aria-label]="currentLanguageLabel">
-          <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'ar'" (click)="setLang('ar')">
-            {{ languageLabel('ar') }}
-          </button>
-          <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'en'" (click)="setLang('en')">
-            {{ languageLabel('en') }}
-          </button>
+        <div class="top-breadcrumb" aria-label="Breadcrumb">
+          <span>{{ pageGroupTitle }}</span>
+          <span class="material-icons">chevron_right</span>
+          <strong>{{ pageTitle }}</strong>
         </div>
+      </section>
 
-        <!-- Notifications -->
-        <div class="notification-shell">
-          <button
-            class="surface-icon notif-btn"
-            type="button"
-            [class.active]="notificationsOpen()"
-            [attr.aria-expanded]="notificationsOpen()"
-            [attr.aria-label]="'shell.notifications' | translate"
-            (click)="toggleNotifications()">
-            <span class="material-icons">notifications</span>
-            <span class="notif-count" *ngIf="notificationCount() > 0">
-              {{ notificationCount() > 99 ? '99+' : notificationCount() }}
-            </span>
+      <section class="topbar-center">
+        <label class="command-search" (click)="openSearch()">
+          <button class="search-trigger-btn" type="button" (click)="openSearch(); $event.stopPropagation()" [attr.aria-label]="ui('فتح البحث العام', 'Open global search')">
+            <span class="material-icons search-icon">search</span>
           </button>
+          <input
+            class="top-search-input"
+            [value]="searchQuery()"
+            [placeholder]="ui('ابحث عن موظفين، شركات، تقارير، خطط...', 'Search employees, companies, reports, plans...')"
+            (focus)="openSearch()"
+            (input)="onSearchInput($any($event.target).value)"
+            (keydown.enter)="openSelectedSearchResult($event)" />
+          <button class="search-shortcut" type="button" (click)="openSearch(); $event.stopPropagation()" [attr.aria-label]="ui('فتح لوحة البحث', 'Open search palette')">Ctrl K</button>
+        </label>
 
-          <div class="notification-panel z-card" *ngIf="notificationsOpen()">
-            <div class="notification-panel-head">
-              <div class="notification-panel-title">
-                {{ i18n.currentLang === 'ar' ? 'الإشعارات' : 'Notifications' }}
-                <span class="notif-unread-badge" *ngIf="unreadCount() > 0">{{ unreadCount() }}</span>
-              </div>
+        <div class="command-panel" *ngIf="searchOpen()">
+          <div class="command-panel-head">
+            <span class="material-icons">manage_search</span>
+            <strong>{{ ui('البحث العام', 'Global search') }}</strong>
+            <small *ngIf="searchLoading()">{{ ui('جار البحث...', 'Searching...') }}</small>
+          </div>
+
+          <div class="recent-searches" *ngIf="!searchQuery() && recentSearches().length">
+            <span>{{ ui('عمليات بحث حديثة', 'Recent searches') }}</span>
+            <button type="button" *ngFor="let term of recentSearches()" (click)="runRecentSearch(term)">{{ term }}</button>
+          </div>
+
+          <div class="command-empty" *ngIf="!searchLoading() && searchResults().length === 0">
+            <span class="material-icons">search_off</span>
+            <strong>{{ ui('لا توجد نتائج', 'No results found') }}</strong>
+            <small>{{ ui('جرّب البحث باسم موظف أو شركة أو تقرير.', 'Try an employee, company, report, or plan name.') }}</small>
+          </div>
+
+          <ng-container *ngFor="let group of groupedSearchResults()">
+            <div class="command-group" *ngIf="group.items.length">
+              <div class="command-group-label">{{ group.label }}</div>
               <button
-                class="notif-mark-all-btn"
                 type="button"
-                *ngIf="unreadCount() > 0"
-                [disabled]="markingAllRead()"
-                (click)="markAllRead()">
-                <span class="material-icons">done_all</span>
-                {{ i18n.currentLang === 'ar' ? 'تعيين الكل مقروءاً' : 'Mark all read' }}
+                class="command-result"
+                *ngFor="let item of group.items; let i = index"
+                [class.active]="searchResults().indexOf(item) === selectedSearchIndex()"
+                (mouseenter)="selectedSearchIndex.set(searchResults().indexOf(item))"
+                (click)="openSearchResult(item)">
+                <span class="material-icons">{{ item.icon }}</span>
+                <span>
+                  <strong>{{ i18n.currentLang === 'ar' ? (item.titleAr || item.title) : (item.titleEn || item.title) }}</strong>
+                  <small>{{ i18n.currentLang === 'ar' ? (item.subtitleAr || item.subtitle) : (item.subtitleEn || item.subtitle) }}</small>
+                </span>
+                <span class="material-icons command-enter">keyboard_return</span>
               </button>
             </div>
+          </ng-container>
+        </div>
+      </section>
 
-            <div class="notification-panel-body" *ngIf="notificationsLoading()">
-              <div class="notif-skeleton" *ngFor="let s of [1,2,3]">
-                <div class="notif-skel-icon"></div>
-                <div class="notif-skel-lines">
-                  <div class="notif-skel-line notif-skel-line--title"></div>
-                  <div class="notif-skel-line notif-skel-line--meta"></div>
+      <section class="topbar-right" [attr.aria-label]="ui('أدوات الحساب', 'Account tools')">
+        <div class="topbar-action-group workspace-controls">
+          <div class="date-pill">
+            <span class="date-line">{{ todayDayLabel }}</span>
+            <span class="date-line">{{ todayMonthLabel }}</span>
+          </div>
+
+          <div class="topbar-lang-switch" role="group" [attr.aria-label]="currentLanguageLabel">
+            <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'ar'" (click)="setLang('ar')">عربي</button>
+            <button type="button" class="lang-chip" [class.active]="i18n.currentLang === 'en'" (click)="setLang('en')">EN</button>
+          </div>
+
+          <button class="surface-icon theme-toggle" type="button" (click)="toggleTheme()" [attr.title]="ui('المظهر', 'Theme')">
+            <span class="material-icons">{{ theme.currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+          </button>
+        </div>
+
+        <div class="topbar-action-group notification-group">
+          <div class="notification-shell">
+            <button
+              class="surface-icon notif-btn"
+              type="button"
+              [class.active]="notificationsOpen()"
+              [attr.aria-expanded]="notificationsOpen()"
+              [attr.aria-label]="'shell.notifications' | translate"
+              (click)="toggleNotifications()">
+              <span class="material-icons">notifications</span>
+              <span class="notif-count" *ngIf="notificationCount() > 0">
+                {{ notificationCount() > 99 ? '99+' : notificationCount() }}
+              </span>
+            </button>
+
+            <div class="notification-panel z-card" *ngIf="notificationsOpen()">
+              <div class="notification-panel-head">
+                <div class="notification-panel-title">
+                  {{ ui('مركز الإشعارات', 'Notification center') }}
+                  <span class="notif-unread-badge" *ngIf="unreadCount() > 0">{{ unreadCount() }}</span>
+                </div>
+                <button
+                  class="notif-mark-all-btn"
+                  type="button"
+                  *ngIf="unreadCount() > 0"
+                  [disabled]="markingAllRead()"
+                  (click)="markAllRead()">
+                  <span class="material-icons">done_all</span>
+                  {{ ui('تعيين الكل كمقروء', 'Mark all read') }}
+                </button>
+              </div>
+
+              <div class="notification-panel-body" *ngIf="notificationsLoading()">
+                <div class="notif-skeleton" *ngFor="let s of [1,2,3]">
+                  <div class="notif-skel-icon"></div>
+                  <div class="notif-skel-lines">
+                    <div class="notif-skel-line notif-skel-line--title"></div>
+                    <div class="notif-skel-line notif-skel-line--meta"></div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="notification-panel-body notif-empty-wrap" *ngIf="!notificationsLoading() && notifications().length === 0">
-              <span class="material-icons notif-empty-icon">notifications_off</span>
-              <div class="notification-empty-state">
-                {{ i18n.currentLang === 'ar' ? 'لا توجد إشعارات حالياً' : 'No notifications right now' }}
+              <div class="notification-panel-body notif-empty-wrap" *ngIf="!notificationsLoading() && notifications().length === 0">
+                <span class="material-icons notif-empty-icon">notifications_off</span>
+                <div class="notification-empty-state">
+                  {{ ui('لا توجد إشعارات حاليا', 'No notifications right now') }}
+                </div>
               </div>
-            </div>
 
-            <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
-              <div
-                class="notification-item"
-                [class.notification-item--unread]="item.status === 'unread'"
-                [class.notification-item--high]="item.priority === 'high' || item.priority === 'urgent'"
-                *ngFor="let item of notifications()">
-                <span class="notif-unread-dot" *ngIf="item.status === 'unread'" aria-label="unread"></span>
-                <div class="notification-item-icon" [class]="'notif-icon--' + notifIconColor(item.notificationType)">
-                  <span class="material-icons">{{ notifIcon(item.notificationType) }}</span>
-                </div>
-                <div class="notification-item-copy">
-                  <div class="notification-item-title">
-                    {{ i18n.currentLang === 'ar' ? item.titleAr : item.titleEn }}
+              <div class="notification-list" *ngIf="!notificationsLoading() && notifications().length > 0">
+                <div
+                  class="notification-item"
+                  [class.notification-item--unread]="item.status === 'unread'"
+                  [class.notification-item--high]="item.priority === 'high' || item.priority === 'urgent'"
+                  *ngFor="let item of notifications()">
+                  <span class="notif-unread-dot" *ngIf="item.status === 'unread'" aria-label="unread"></span>
+                  <div class="notification-item-icon" [class]="'notif-icon--' + notifIconColor(item.notificationType)">
+                    <span class="material-icons">{{ notifIcon(item.notificationType) }}</span>
                   </div>
-                  <div class="notification-item-meta">
-                    {{ i18n.currentLang === 'ar' ? item.messageAr : item.messageEn }}
+                  <div class="notification-item-copy">
+                    <div class="notification-item-title">{{ i18n.currentLang === 'ar' ? item.titleAr : item.titleEn }}</div>
+                    <div class="notification-item-meta">{{ i18n.currentLang === 'ar' ? item.messageAr : item.messageEn }}</div>
+                    <div class="notif-item-footer">
+                      <span class="notif-time">{{ timeAgo(item.createdAt) }}</span>
+                      <span class="notif-priority-badge notif-priority-badge--urgent" *ngIf="item.priority === 'urgent'">
+                        {{ ui('عاجل', 'Urgent') }}
+                      </span>
+                    </div>
                   </div>
-                  <div class="notif-item-footer">
-                    <span class="notif-time">{{ timeAgo(item.createdAt) }}</span>
-                    <span
-                      class="notif-priority-badge"
-                      *ngIf="item.priority === 'urgent'"
-                      [class.notif-priority-badge--urgent]="true">
-                      {{ i18n.currentLang === 'ar' ? 'عاجل' : 'Urgent' }}
-                    </span>
+                  <div class="notif-item-actions">
+                    <button class="notif-action-btn" type="button" *ngIf="item.actionUrl" (click)="openNotifAction(item)" [attr.title]="ui('فتح', 'Open')">
+                      <span class="material-icons">open_in_new</span>
+                    </button>
+                    <button class="notif-action-btn notif-read-btn" type="button" *ngIf="item.status === 'unread'" (click)="markRead(item)" [attr.title]="ui('تعيين كمقروء', 'Mark as read')">
+                      <span class="material-icons">check_circle_outline</span>
+                    </button>
                   </div>
-                </div>
-                <div class="notif-item-actions">
-                  <button
-                    class="notif-action-btn"
-                    type="button"
-                    *ngIf="item.actionUrl"
-                    (click)="openNotifAction(item)"
-                    [attr.title]="i18n.currentLang === 'ar' ? 'فتح' : 'Open'">
-                    <span class="material-icons">open_in_new</span>
-                  </button>
-                  <button
-                    class="notif-action-btn notif-read-btn"
-                    type="button"
-                    *ngIf="item.status === 'unread'"
-                    (click)="markRead(item)"
-                    [attr.title]="i18n.currentLang === 'ar' ? 'تعيين مقروء' : 'Mark as read'">
-                    <span class="material-icons">check_circle_outline</span>
-                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- User chip -->
-        <button class="top-user-chip" type="button">
-          <div class="avatar avatar-sm user-avatar-shell">
-            <img
-              *ngIf="avatarUrl && !avatarLoadFailed()"
-              class="avatar-image"
-              [src]="avatarUrl"
-              [alt]="userDisplayName"
-              (error)="onAvatarError()" />
-            <span class="avatar-fallback" *ngIf="!avatarUrl || avatarLoadFailed()">{{ getInitials() }}</span>
-          </div>
-          <div class="top-user-meta">
-            <div class="top-user-name">{{ userDisplayName }}</div>
-            <div class="top-user-role">{{ roleName }}</div>
-          </div>
-          <span class="material-icons top-user-arrow">expand_more</span>
-        </button>
+        <div class="topbar-action-group profile-group">
+          <button class="top-user-chip" type="button">
+            <span class="workspace-mini">
+              <strong>{{ tenantScopeLabel || ui('منصة ZenJO', 'ZenJO Platform') }}</strong>
+            </span>
+            <div class="avatar avatar-sm user-avatar-shell">
+              <img
+                *ngIf="avatarUrl && !avatarLoadFailed()"
+                class="avatar-image"
+                [src]="avatarUrl"
+                [alt]="userDisplayName"
+                (error)="onAvatarError()" />
+              <span class="avatar-fallback" *ngIf="!avatarUrl || avatarLoadFailed()">{{ getInitials() }}</span>
+            </div>
+            <div class="top-user-meta">
+              <div class="top-user-name">{{ userDisplayName }}</div>
+              <div class="top-user-role">{{ roleName }}</div>
+            </div>
+            <span class="material-icons top-user-arrow">expand_more</span>
+          </button>
 
-        <!-- Logout (visible on desktop) -->
-        <button class="logout-btn surface-icon" type="button" (click)="logout()" [attr.title]="'nav.logout' | translate">
-          <span class="material-icons">logout</span>
-        </button>
+          <button class="logout-btn surface-icon" type="button" (click)="logout()" [attr.title]="'nav.logout' | translate">
+            <span class="material-icons">logout</span>
+          </button>
 
-        <!-- Mobile hamburger -->
-        <button class="surface-icon mobile-menu-btn" type="button" (click)="toggleMobileNav()" [attr.aria-label]="'nav.menu' | translate">
-          <span class="material-icons">{{ mobileNavOpen() ? 'close' : 'menu' }}</span>
-        </button>
-      </div>
+          <button class="surface-icon mobile-menu-btn" type="button" (click)="toggleMobileNav()" [attr.aria-label]="'nav.menu' | translate">
+            <span class="material-icons">{{ mobileNavOpen() ? 'close' : 'menu' }}</span>
+          </button>
+        </div>
+      </section>
     </div>
 
-    <!-- ── Row 2: Navigation groups (desktop) ── -->
     <nav class="top-nav" aria-label="Main navigation" *ngIf="!isMobileView()">
       <div class="nav-groups">
-
-        <!-- Dashboard direct link -->
         <a
           [routerLink]="dashboardRoute"
           routerLinkActive="nav-direct-active"
           class="nav-direct-link"
           (click)="activeGroupKey.set(null)">
           <span class="material-icons">dashboard</span>
-          <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
+          <span>{{ ui('لوحة التحكم', 'Dashboard') }}</span>
         </a>
 
-        <!-- Grouped tabs — dropdown rendered as a fixed portal outside overflow containers -->
         <ng-container *ngFor="let group of navGroups">
           <div
             class="nav-group-wrap"
@@ -193,7 +223,6 @@
             (mouseenter)="openGroup(group.groupKey, $event)"
             (mouseleave)="scheduleCloseGroup()"
             (click)="toggleGroup(group.groupKey, $event)">
-
             <button type="button" class="group-tab-btn" (click)="$event.stopPropagation()">
               <span class="material-icons group-tab-icon">{{ group.icon }}</span>
               <span class="group-tab-label">{{ label(group.labelAr, group.labelEn) }}</span>
@@ -205,68 +234,59 @@
     </nav>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       MOBILE NAV DRAWER — only rendered when open (never on desktop)
-  ══════════════════════════════════════════════════════════════ -->
   <ng-container *ngIf="mobileNavOpen()">
     <div class="mobile-overlay" (click)="toggleMobileNav()"></div>
 
     <nav class="mobile-drawer" aria-label="Mobile navigation">
-    <div class="drawer-header">
-      <div class="drawer-brand">
-        <div class="logo-mark logo-mark-sm">Z</div>
-        <strong class="logo-text">{{ 'app.name' | translate }}</strong>
-      </div>
-      <button type="button" class="drawer-close-btn" (click)="toggleMobileNav()">
-        <span class="material-icons">close</span>
-      </button>
-    </div>
-
-    <div class="drawer-body">
-      <!-- Dashboard -->
-      <a
-        [routerLink]="dashboardRoute"
-        routerLinkActive="drawer-item-active"
-        class="drawer-direct-link"
-        (click)="toggleMobileNav()">
-        <span class="material-icons">dashboard</span>
-        <span>{{ i18n.currentLang === 'ar' ? 'لوحة التحكم' : 'Dashboard' }}</span>
-      </a>
-
-      <!-- Nav groups -->
-      <ng-container *ngFor="let group of navGroups">
-        <div class="drawer-group">
-          <div class="drawer-group-label">
-            <span class="material-icons drawer-group-icon">{{ group.icon }}</span>
-            {{ label(group.labelAr, group.labelEn) }}
-          </div>
-          <a
-            *ngFor="let item of group.items"
-            [routerLink]="item.path"
-            routerLinkActive="drawer-item-active"
-            class="drawer-item"
-            (click)="toggleMobileNav()">
-            <span class="material-icons drawer-item-icon">{{ item.icon }}</span>
-            {{ label(item.labelAr, item.labelEn) }}
-          </a>
+      <div class="drawer-header">
+        <div class="drawer-brand">
+          <div class="logo-mark logo-mark-sm">Z</div>
+          <strong class="logo-text">{{ 'app.name' | translate }}</strong>
         </div>
-      </ng-container>
-    </div>
+        <button type="button" class="drawer-close-btn" (click)="toggleMobileNav()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
 
-    <div class="drawer-footer">
-      <button class="drawer-logout-btn" type="button" (click)="logout()">
-        <span class="material-icons">logout</span>
-        {{ 'nav.logout' | translate }}
-      </button>
-    </div>
+      <div class="drawer-body">
+        <a
+          [routerLink]="dashboardRoute"
+          routerLinkActive="drawer-item-active"
+          class="drawer-direct-link"
+          (click)="toggleMobileNav()">
+          <span class="material-icons">dashboard</span>
+          <span>{{ ui('لوحة التحكم', 'Dashboard') }}</span>
+        </a>
+
+        <ng-container *ngFor="let group of navGroups">
+          <div class="drawer-group">
+            <div class="drawer-group-label">
+              <span class="material-icons drawer-group-icon">{{ group.icon }}</span>
+              {{ label(group.labelAr, group.labelEn) }}
+            </div>
+            <a
+              *ngFor="let item of group.items"
+              [routerLink]="item.path"
+              routerLinkActive="drawer-item-active"
+              class="drawer-item"
+              (click)="toggleMobileNav()">
+              <span class="material-icons drawer-item-icon">{{ item.icon }}</span>
+              {{ label(item.labelAr, item.labelEn) }}
+            </a>
+          </div>
+        </ng-container>
+      </div>
+
+      <div class="drawer-footer">
+        <button class="drawer-logout-btn" type="button" (click)="logout()">
+          <span class="material-icons">logout</span>
+          {{ 'nav.logout' | translate }}
+        </button>
+      </div>
     </nav>
   </ng-container>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       MAIN AREA
-  ══════════════════════════════════════════════════════════════ -->
   <div class="main-area z-main">
-
     <div class="impersonation-banner" *ngIf="auth.isImpersonating()">
       <span class="material-icons">shield_person</span>
       <span>
@@ -279,7 +299,6 @@
       </button>
     </div>
 
-    <!-- Page meta bar -->
     <div class="page-meta-bar">
       <div class="page-title-block">
         <div class="page-eyebrow">{{ pageEyebrow }}</div>
@@ -287,7 +306,7 @@
         <div class="breadcrumb-row">
           <span>{{ pageSubtitle }}</span>
           <ng-container *ngIf="tenantScopeLabel">
-            <span class="tenant-divider" aria-hidden="true">·</span>
+            <span class="tenant-divider" aria-hidden="true">/</span>
             <span class="tenant-scope-label">
               <span class="material-icons tenant-scope-icon">corporate_fare</span>
               {{ tenantScopeLabel }}
@@ -302,10 +321,6 @@
     </main>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       NAV DROPDOWN PORTAL — fixed position, escapes all overflow containers
-       Renders outside app-topbar so no clipping can occur.
-  ══════════════════════════════════════════════════════════════ -->
   <div
     class="nav-dropdown-portal"
     *ngIf="activeGroupKey() && !isMobileView()"

@@ -1,149 +1,229 @@
-import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ApiService } from '../../core/services/api.service';
-import { AuthService } from '../../core/services/auth.service';
-import { RoleAccessService } from '../../core/services/role-access.service';
-import { LangService } from '../../core/services/lang.service';
-import { ToastService } from '../../core/services/toast.service';
-import { TranslatePipe } from '../../core/pipes/translate.pipe';
+import { debounceTime, finalize, Subject } from 'rxjs';
 import { ApiResponse } from '../../core/models';
-import { SkeletonTableComponent } from '../../shared/components/skeleton/skeleton-table.component';
+import { ApiService } from '../../core/services/api.service';
+import { LangService } from '../../core/services/lang.service';
+import { RoleAccessService } from '../../core/services/role-access.service';
+import { ToastService } from '../../core/services/toast.service';
 
-const GRADES = ['G1','G2','G3','G4','G5','G6','G7','G8','G9','G10'];
-
-interface JobDescription {
+interface JobProfile {
   id: number;
-  companyId: number;
-  orgNodeId: number | null;
+  code: string;
   titleAr: string;
   titleEn: string;
   grade: string | null;
+  gradeId: number | null;
+  gradeNameAr?: string | null;
+  gradeNameEn?: string | null;
+  orgNodeId: number | null;
+  orgNodeNameAr?: string | null;
+  orgNodeNameEn?: string | null;
+  responsibilityGroupId: number | null;
+  responsibilityGroupNameAr?: string | null;
+  responsibilityGroupNameEn?: string | null;
   minSalary: string | null;
   maxSalary: string | null;
-  responsibilities: string | null;
-  requirements: string | null;
-  skills: string | null;
-  qualifications: string | null;
+  minExperienceYears: number | null;
+  maxExperienceYears: number | null;
+  reportingToJobDescriptionId: number | null;
+  employmentType: string | null;
+  jobSummaryAr: string | null;
+  jobSummaryEn: string | null;
+  responsibilitiesTextAr: string | null;
+  responsibilitiesTextEn: string | null;
+  requirementsAr: string | null;
+  requirementsEn: string | null;
+  status: string;
+  version: number;
+  isTemplate: boolean;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  responsibilitiesCount: number;
+  skillsCount: number;
+  languagesCount: number;
+  qualificationsCount: number;
+  responsibilities?: MasterOption[];
+  qualifications?: MasterOption[];
+  specializations?: MasterOption[];
+  universities?: MasterOption[];
+  courses?: MasterOption[];
+  skillsList?: MasterOption[];
+  languagesList?: MasterOption[];
+  experienceLevels?: MasterOption[];
 }
 
-interface CareerPath {
+interface MasterOption {
   id: number;
-  companyId: number;
-  fromJobDescriptionId: number;
-  toJobDescriptionId: number;
-  minMonthsRequired: number;
-  notes: string | null;
-  fromJob: { titleAr: string; titleEn: string; grade: string | null } | null;
-  toJob: { titleAr: string; titleEn: string; grade: string | null } | null;
+  code: string;
+  nameAr?: string;
+  nameEn?: string;
+  titleAr?: string;
+  titleEn?: string;
+  raw?: any;
 }
 
-interface OrgNode { id: number; nameAr: string; nameEn: string; children?: OrgNode[]; }
+type PagedApiResponse<T> = ApiResponse<T> & {
+  meta?: {
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    totalPages?: number;
+  };
+};
+
+interface OrgNode {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  children?: OrgNode[];
+}
+
+interface MasterPicker {
+  key: string;
+  route: string;
+  labelAr: string;
+  labelEn: string;
+  idsKey: keyof JobProfileForm;
+  allowAdd: boolean;
+}
+
+interface JobProfileForm {
+  code: string;
+  titleAr: string;
+  titleEn: string;
+  orgNodeId: number | null;
+  gradeId: number | null;
+  grade: string;
+  responsibilityGroupId: number | null;
+  minSalary: number | null;
+  maxSalary: number | null;
+  minExperienceYears: number | null;
+  maxExperienceYears: number | null;
+  reportingToJobDescriptionId: number | null;
+  employmentType: string;
+  status: string;
+  isActive: boolean;
+  isTemplate: boolean;
+  jobSummaryAr: string;
+  jobSummaryEn: string;
+  responsibilitiesTextAr: string;
+  responsibilitiesTextEn: string;
+  requirementsAr: string;
+  requirementsEn: string;
+  responsibilityIds: number[];
+  qualificationIds: number[];
+  specializationIds: number[];
+  universityIds: number[];
+  courseIds: number[];
+  skillIds: number[];
+  languageIds: number[];
+  experienceLevelIds: number[];
+}
 
 @Component({
   selector: 'app-job-descriptions',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe, SkeletonTableComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './job-descriptions.component.html',
   styleUrl: './job-descriptions.component.scss'
 })
 export class JobDescriptionsComponent implements OnInit {
-  readonly allGrades = GRADES;
-
-  activeTab: 'jobs' | 'paths' = 'jobs';
-
-  jobs: JobDescription[] = [];
-  filteredJobs: JobDescription[] = [];
-  jobsLoading = false;
-  jobsError = false;
-
-  paths: CareerPath[] = [];
-  pathsLoading = false;
-  pathsError = false;
-
-  showModal = false;
-  showPathModal = false;
-  showDrawer = false;
-
-  saving = false;
-  pathSaving = false;
-
-  editingJob: JobDescription | null = null;
-  viewingJob: JobDescription | null = null;
-
-  drawerEmployees: any[] = [];
-  drawerEmployeesLoading = false;
-  drawerPathsFrom: CareerPath[] = [];
-  drawerPathsTo: CareerPath[] = [];
-
+  jobs: JobProfile[] = [];
   orgNodes: OrgNode[] = [];
+  profileOptions: MasterOption[] = [];
+  options: Record<string, MasterOption[]> = {};
 
-  searchTerm = '';
-  filterGrade = '';
-  filterOrgNode = '';
-  filterStatus = '';
+  loading = false;
+  saving = false;
+  detailLoading = false;
+  error = '';
 
-  form: any = this.emptyForm();
+  page = 1;
+  pageSize = 20;
+  total = 0;
+  totalPages = 1;
+  search = '';
+  statusFilter = '';
+  gradeFilter = '';
+  groupFilter = '';
+
+  drawerOpen = false;
+  viewing: JobProfile | null = null;
+  editing: JobProfile | null = null;
+  form: JobProfileForm = this.emptyForm();
   formErrors: Record<string, string> = {};
 
-  responsibilitiesText = '';
-  requirementsText = '';
-  skillsText = '';
-  qualificationsText = '';
+  addFlyOpenFor: string | null = null;
+  addFlySaving = false;
+  addFlyForm = { code: '', nameAr: '', nameEn: '' };
 
-  pathForm: { fromJobId: number | null; toJobId: number | null; minMonthsRequired: number; notes: string } = {
-    fromJobId: null, toJobId: null, minMonthsRequired: 12, notes: ''
-  };
-  pathFormErrors: Record<string, string> = {};
+  private searchTerms = new Subject<string>();
 
-  readonly drawerSections: { label: { ar: string; en: string }; field: keyof JobDescription }[] = [
-    { label: { ar: 'المسؤوليات', en: 'Responsibilities' }, field: 'responsibilities' },
-    { label: { ar: 'المتطلبات', en: 'Requirements' }, field: 'requirements' },
-    { label: { ar: 'المهارات', en: 'Skills' }, field: 'skills' },
-    { label: { ar: 'المؤهلات', en: 'Qualifications' }, field: 'qualifications' },
+  readonly pickers: MasterPicker[] = [
+    { key: 'responsibilities', route: 'responsibilities', labelAr: 'المسؤوليات', labelEn: 'Responsibilities', idsKey: 'responsibilityIds', allowAdd: true },
+    { key: 'qualifications', route: 'educational-qualifications', labelAr: 'المؤهلات العلمية', labelEn: 'Educational Qualifications', idsKey: 'qualificationIds', allowAdd: true },
+    { key: 'specializations', route: 'specializations', labelAr: 'التخصصات', labelEn: 'Specializations', idsKey: 'specializationIds', allowAdd: true },
+    { key: 'universities', route: 'universities', labelAr: 'الجامعات', labelEn: 'Universities', idsKey: 'universityIds', allowAdd: true },
+    { key: 'courses', route: 'training-courses', labelAr: 'الدورات والشهادات', labelEn: 'Courses & Certifications', idsKey: 'courseIds', allowAdd: true },
+    { key: 'skillsList', route: 'skills', labelAr: 'المهارات', labelEn: 'Skills', idsKey: 'skillIds', allowAdd: true },
+    { key: 'languagesList', route: 'languages', labelAr: 'اللغات', labelEn: 'Languages', idsKey: 'languageIds', allowAdd: true },
+    { key: 'experienceLevels', route: 'experience-levels', labelAr: 'مستويات الخبرة', labelEn: 'Experience Levels', idsKey: 'experienceLevelIds', allowAdd: true },
   ];
 
   constructor(
     public lang: LangService,
     private api: ApiService,
-    private auth: AuthService,
     private toast: ToastService,
-    private access: RoleAccessService
+    private access: RoleAccessService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
-  get canCreate(): boolean { return this.access.isHrAdmin(); }
-
-  get usedGrades(): string[] {
-    return Array.from(new Set(this.jobs.map(j => j.grade).filter(Boolean) as string[])).sort();
-  }
-
-  get usedOrgNodes(): OrgNode[] {
-    const used = new Set(this.jobs.map(j => j.orgNodeId).filter(Boolean));
-    return this.orgNodes.filter(n => used.has(n.id));
+  get canMutate(): boolean {
+    return this.access.isHrAdmin();
   }
 
   ngOnInit(): void {
-    this.loadJobs();
-    this.loadOrgNodes();
-    this.loadPaths();
+    this.searchTerms.pipe(debounceTime(300)).subscribe(() => {
+      this.page = 1;
+      this.loadProfiles();
+    });
+    this.loadBootstrapData();
+    this.loadProfiles();
   }
 
-  loadJobs(): void {
-    this.jobsLoading = true;
-    this.jobsError = false;
-    this.api.get<ApiResponse<JobDescription[]>>('/api/job-descriptions').subscribe({
+  loadBootstrapData(): void {
+    this.loadOrgNodes();
+    this.loadProfileOptions();
+    this.loadMasterOptions();
+  }
+
+  loadProfiles(): void {
+    this.loading = true;
+    this.error = '';
+    this.api.get<PagedApiResponse<JobProfile[]>>('/api/job-profiles', {
+      page: this.page,
+      pageSize: this.pageSize,
+      q: this.search,
+      status: this.statusFilter,
+      gradeId: this.gradeFilter,
+      responsibilityGroupId: this.groupFilter,
+      sortBy: 'titleEn',
+      sortDir: 'asc',
+    }).pipe(finalize(() => {
+      this.loading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
       next: res => {
         this.jobs = res.data ?? [];
-        this.applyFilter();
-        this.jobsLoading = false;
+        this.total = res.meta?.total ?? this.jobs.length;
+        this.totalPages = (res.meta as any)?.totalPages ?? Math.max(1, Math.ceil(this.total / this.pageSize));
       },
-      error: () => {
-        this.jobsError = true;
-        this.jobsLoading = false;
-        this.toast.error(this.lang.t('تعذر تحميل المسميات الوظيفية', 'Failed to load job descriptions'));
+      error: err => {
+        this.jobs = [];
+        this.total = 0;
+        this.totalPages = 1;
+        this.error = err?.error?.message || this.lang.t('تعذر تحميل الملفات الوظيفية', 'Failed to load job profiles');
       }
     });
   }
@@ -151,244 +231,292 @@ export class JobDescriptionsComponent implements OnInit {
   loadOrgNodes(): void {
     this.api.get<ApiResponse<OrgNode[]>>('/api/org-nodes').subscribe({
       next: res => { this.orgNodes = this.flattenNodes(res.data ?? []); },
-      error: () => {}
+      error: () => { this.orgNodes = []; }
     });
   }
 
-  loadPaths(): void {
-    this.pathsLoading = true;
-    this.pathsError = false;
-    this.api.get<ApiResponse<CareerPath[]>>('/api/career-paths').subscribe({
-      next: res => {
-        this.paths = res.data ?? [];
-        this.pathsLoading = false;
-      },
-      error: () => {
-        this.pathsError = true;
-        this.pathsLoading = false;
-        this.toast.error(this.lang.t('تعذر تحميل مسارات المسيرة', 'Failed to load career paths'));
-      }
+  loadProfileOptions(): void {
+    this.api.get<ApiResponse<MasterOption[]>>('/api/job-profiles/dropdown', { limit: 100 }).subscribe({
+      next: res => { this.profileOptions = res.data ?? []; },
+      error: () => { this.profileOptions = []; }
     });
   }
 
-  openAdd(): void {
+  loadMasterOptions(route?: string): void {
+    const routes = route ? [route] : ['job-grades', 'responsibility-groups', ...this.pickers.map(p => p.route)];
+    for (const r of routes) {
+      this.api.get<ApiResponse<MasterOption[]>>(`/api/${r}/dropdown`, { active: true, limit: 100 }).subscribe({
+        next: res => { this.options[r] = res.data ?? []; this.cdr.markForCheck(); },
+        error: () => { this.options[r] = []; this.cdr.markForCheck(); }
+      });
+    }
+  }
+
+  onSearch(value: string): void {
+    this.search = value;
+    this.searchTerms.next(value);
+  }
+
+  changePage(delta: number): void {
+    const next = Math.min(this.totalPages, Math.max(1, this.page + delta));
+    if (next === this.page) return;
+    this.page = next;
+    this.loadProfiles();
+  }
+
+  openCreate(): void {
+    this.editing = null;
+    this.viewing = null;
     this.form = this.emptyForm();
-    this.responsibilitiesText = '';
-    this.requirementsText = '';
-    this.skillsText = '';
-    this.qualificationsText = '';
     this.formErrors = {};
-    this.editingJob = null;
-    this.showModal = true;
+    this.drawerOpen = true;
   }
 
-  openEdit(job: JobDescription): void {
-    this.form = {
-      titleAr: job.titleAr,
-      titleEn: job.titleEn,
-      grade: job.grade ?? '',
-      minSalary: job.minSalary ? parseFloat(job.minSalary) : null,
-      maxSalary: job.maxSalary ? parseFloat(job.maxSalary) : null,
-      orgNodeId: job.orgNodeId ?? null,
-      isActive: job.isActive
-    };
-    this.responsibilitiesText = this.jsonToText(job.responsibilities);
-    this.requirementsText = this.jsonToText(job.requirements);
-    this.skillsText = this.jsonToText(job.skills);
-    this.qualificationsText = this.jsonToText(job.qualifications);
+  openEdit(job: JobProfile): void {
+    this.detailLoading = true;
+    this.drawerOpen = true;
+    this.editing = job;
+    this.viewing = null;
+    this.api.get<ApiResponse<JobProfile>>(`/api/job-profiles/${job.id}`)
+      .pipe(finalize(() => { this.detailLoading = false; this.cdr.markForCheck(); }))
+      .subscribe({
+        next: res => {
+          const detail = res.data;
+          this.editing = detail;
+          this.form = this.profileToForm(detail);
+          this.formErrors = {};
+        },
+        error: err => {
+          this.toast.error(err?.error?.message || this.lang.t('تعذر تحميل الملف الوظيفي', 'Failed to load job profile'));
+          this.closeDrawer();
+        }
+      });
+  }
+
+  openView(job: JobProfile): void {
+    this.detailLoading = true;
+    this.drawerOpen = true;
+    this.viewing = null;
+    this.editing = null;
+    this.api.get<ApiResponse<JobProfile>>(`/api/job-profiles/${job.id}`)
+      .pipe(finalize(() => { this.detailLoading = false; this.cdr.markForCheck(); }))
+      .subscribe({
+        next: res => { this.viewing = res.data; },
+        error: err => {
+          this.toast.error(err?.error?.message || this.lang.t('تعذر تحميل الملف الوظيفي', 'Failed to load job profile'));
+          this.closeDrawer();
+        }
+      });
+  }
+
+  closeDrawer(): void {
+    this.drawerOpen = false;
+    this.viewing = null;
+    this.editing = null;
     this.formErrors = {};
-    this.editingJob = job;
-    this.showModal = true;
+    this.addFlyOpenFor = null;
+    this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
   }
-
-  openView(job: JobDescription): void {
-    this.viewingJob = job;
-    this.drawerEmployees = [];
-    this.drawerEmployeesLoading = true;
-    this.drawerPathsFrom = this.paths.filter(p => p.fromJobDescriptionId === job.id);
-    this.drawerPathsTo = this.paths.filter(p => p.toJobDescriptionId === job.id);
-    this.showDrawer = true;
-    this.api.get<ApiResponse<any[]>>('/api/employees', { jobDescriptionId: job.id, pageSize: 100 }).subscribe({
-      next: res => { this.drawerEmployees = res.data ?? []; this.drawerEmployeesLoading = false; },
-      error: () => { this.drawerEmployeesLoading = false; }
-    });
-  }
-
-  closeDrawer(): void { this.showDrawer = false; this.viewingJob = null; }
 
   save(): void {
-    this.formErrors = {};
-    if (!this.form.titleAr?.trim()) this.formErrors['titleAr'] = this.lang.t('الاسم بالعربية مطلوب', 'Arabic name is required');
-    if (!this.form.titleEn?.trim()) this.formErrors['titleEn'] = this.lang.t('الاسم بالإنجليزية مطلوب', 'English name is required');
-    if (Object.keys(this.formErrors).length > 0) return;
-
+    if (this.saving || !this.validate()) return;
     this.saving = true;
-    const payload = {
-      ...this.form,
-      orgNodeId: this.form.orgNodeId ? Number(this.form.orgNodeId) : null,
-      responsibilities: this.textToJson(this.responsibilitiesText),
-      requirements: this.textToJson(this.requirementsText),
-      skills: this.textToJson(this.skillsText),
-      qualifications: this.textToJson(this.qualificationsText),
-    };
-
-    const req$ = this.editingJob
-      ? this.api.put<ApiResponse<JobDescription>>(`/api/job-descriptions/${this.editingJob.id}`, payload)
-      : this.api.post<ApiResponse<JobDescription>>('/api/job-descriptions', payload);
-
-    req$.subscribe({
+    const payload = { ...this.form };
+    const request = this.editing
+      ? this.api.patch<ApiResponse<JobProfile>>(`/api/job-profiles/${this.editing.id}`, payload)
+      : this.api.post<ApiResponse<JobProfile>>('/api/job-profiles', payload);
+    request.pipe(finalize(() => {
+      this.saving = false;
+      this.cdr.markForCheck();
+    })).subscribe({
       next: () => {
-        this.saving = false;
-        const msg = this.editingJob
-          ? this.lang.t('تم تعديل المسمى بنجاح', 'Job description updated')
-          : this.lang.t('تم إضافة المسمى بنجاح', 'Job description created');
-        this.closeModal();
-        this.loadJobs();
-        this.toast.success(msg);
+        this.toast.success(this.editing ? this.lang.t('تم تحديث الملف الوظيفي', 'Job profile updated') : this.lang.t('تم إنشاء الملف الوظيفي', 'Job profile created'));
+        this.closeDrawer();
+        this.loadProfiles();
+        this.loadProfileOptions();
       },
       error: err => {
-        this.saving = false;
-        this.toast.error(err.error?.message || this.lang.t('فشل الحفظ', 'Save failed'));
+        this.toast.error(err?.error?.message || this.lang.t('تعذر الحفظ', 'Save failed'));
       }
     });
   }
 
-  delete(job: JobDescription): void {
-    if (!confirm(this.lang.t('هل أنت متأكد من حذف هذا المسمى؟', 'Delete this job description?'))) return;
-    this.api.delete<any>(`/api/job-descriptions/${job.id}`).subscribe({
+  remove(job: JobProfile): void {
+    if (!confirm(this.lang.t('هل تريد حذف هذا الملف الوظيفي؟', 'Delete this job profile?'))) return;
+    this.api.delete<ApiResponse<JobProfile>>(`/api/job-profiles/${job.id}`).subscribe({
       next: () => {
-        this.loadJobs();
-        this.loadPaths();
-        this.toast.success(this.lang.t('تم حذف المسمى الوظيفي', 'Job description deleted'));
+        this.toast.success(this.lang.t('تم حذف الملف الوظيفي', 'Job profile deleted'));
+        this.loadProfiles();
       },
-      error: err => {
-        if (err.status === 409) {
-          this.toast.warning(err.error?.message || this.lang.t('لا يمكن الحذف — المسمى مرتبط ببيانات أخرى', 'Cannot delete — job is in use'));
-        } else {
-          this.toast.error(err.error?.message || this.lang.t('تعذر حذف المسمى الوظيفي', 'Failed to delete'));
-        }
-      }
+      error: err => this.toast.error(err?.error?.message || this.lang.t('تعذر الحذف', 'Delete failed'))
     });
   }
 
-  openAddPath(): void {
-    this.pathForm = { fromJobId: null, toJobId: null, minMonthsRequired: 12, notes: '' };
-    this.pathFormErrors = {};
-    this.showPathModal = true;
-  }
-
-  savePath(): void {
-    this.pathFormErrors = {};
-    if (!this.pathForm.fromJobId) this.pathFormErrors['fromJobId'] = this.lang.t('مطلوب', 'Required');
-    if (!this.pathForm.toJobId) this.pathFormErrors['toJobId'] = this.lang.t('مطلوب', 'Required');
-    if (this.pathForm.fromJobId && this.pathForm.toJobId && Number(this.pathForm.fromJobId) === Number(this.pathForm.toJobId)) {
-      this.pathFormErrors['toJobId'] = this.lang.t('لا يمكن اختيار نفس المسمى', 'Cannot be the same job');
+  validate(): boolean {
+    this.formErrors = {};
+    if (!this.form.titleAr.trim()) this.formErrors['titleAr'] = this.lang.t('العنوان العربي مطلوب', 'Arabic title is required');
+    if (!this.form.titleEn.trim()) this.formErrors['titleEn'] = this.lang.t('العنوان الإنجليزي مطلوب', 'English title is required');
+    if (this.form.minSalary != null && this.form.maxSalary != null && Number(this.form.minSalary) > Number(this.form.maxSalary)) {
+      this.formErrors['salary'] = this.lang.t('الحد الأدنى للراتب لا يمكن أن يتجاوز الحد الأعلى', 'Minimum salary cannot exceed maximum salary');
     }
-    if (Object.keys(this.pathFormErrors).length > 0) return;
+    if (this.form.minExperienceYears != null && this.form.maxExperienceYears != null && Number(this.form.minExperienceYears) > Number(this.form.maxExperienceYears)) {
+      this.formErrors['experience'] = this.lang.t('أدنى سنوات الخبرة لا يمكن أن يتجاوز الأعلى', 'Minimum experience cannot exceed maximum experience');
+    }
+    return Object.keys(this.formErrors).length === 0;
+  }
 
-    this.pathSaving = true;
-    const body = {
-      fromJobDescriptionId: Number(this.pathForm.fromJobId),
-      toJobDescriptionId: Number(this.pathForm.toJobId),
-      minMonthsRequired: this.pathForm.minMonthsRequired || 12,
-      notes: this.pathForm.notes || null
+  toggleSelection(idsKey: keyof JobProfileForm, id: number, checked: boolean): void {
+    const current = Array.isArray(this.form[idsKey]) ? [...this.form[idsKey] as number[]] : [];
+    this.form[idsKey] = (checked ? Array.from(new Set([...current, id])) : current.filter(v => v !== id)) as never;
+  }
+
+  isSelected(idsKey: keyof JobProfileForm, id: number): boolean {
+    const current = this.form[idsKey];
+    return Array.isArray(current) && current.includes(id);
+  }
+
+  openAddFly(route: string): void {
+    this.addFlyOpenFor = this.addFlyOpenFor === route ? null : route;
+    this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
+  }
+
+  addOnTheFly(route: string): void {
+    if (this.addFlySaving) return;
+    if (!this.addFlyForm.code.trim() || !this.addFlyForm.nameAr.trim() || !this.addFlyForm.nameEn.trim()) {
+      this.toast.warning(this.lang.t('أدخل الكود والاسمين العربي والإنجليزي', 'Enter code, Arabic name, and English name'));
+      return;
+    }
+    this.addFlySaving = true;
+    const body: any = {
+      code: this.addFlyForm.code.trim(),
+      nameAr: this.addFlyForm.nameAr.trim(),
+      nameEn: this.addFlyForm.nameEn.trim(),
+      isActive: true,
     };
-    this.api.post<ApiResponse<CareerPath>>('/api/career-paths', body).subscribe({
-      next: () => {
-        this.pathSaving = false;
-        this.showPathModal = false;
-        this.loadPaths();
-        this.toast.success(this.lang.t('تم إضافة المسار بنجاح', 'Career path added'));
-      },
-      error: err => {
-        this.pathSaving = false;
-        const msg = err.error?.message || this.lang.t('فشل الحفظ', 'Save failed');
-        if (err.status === 409) { this.toast.warning(msg); } else { this.toast.error(msg); }
-      }
-    });
+    if (route === 'job-grades') {
+      body.gradeCode = body.code;
+      body.levelOrder = 0;
+    }
+    this.api.post<ApiResponse<any>>(`/api/${route}`, body)
+      .pipe(finalize(() => {
+        this.addFlySaving = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: res => {
+          this.toast.success(this.lang.t('تمت الإضافة', 'Added successfully'));
+          this.addFlyOpenFor = null;
+          this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
+          this.loadMasterOptions(route);
+          const id = res.data?.id;
+          if (id) this.selectNewOption(route, id);
+        },
+        error: err => this.toast.error(err?.error?.message || this.lang.t('تعذرت الإضافة', 'Add failed'))
+      });
   }
 
-  deletePath(id: number): void {
-    if (!confirm(this.lang.t('هل أنت متأكد من حذف هذا المسار؟', 'Delete this career path?'))) return;
-    this.api.delete<any>(`/api/career-paths/${id}`).subscribe({
-      next: () => { this.loadPaths(); this.toast.success(this.lang.t('تم حذف المسار', 'Career path deleted')); },
-      error: () => { this.toast.error(this.lang.t('تعذر حذف المسار', 'Failed to delete career path')); }
-    });
+  selectNewOption(route: string, id: number): void {
+    if (route === 'job-grades') this.form.gradeId = id;
+    if (route === 'responsibility-groups') this.form.responsibilityGroupId = id;
+    const picker = this.pickers.find(p => p.route === route);
+    if (picker) this.toggleSelection(picker.idsKey, id, true);
   }
 
-  closeModal(): void { this.showModal = false; this.saving = false; this.formErrors = {}; }
-
-  applyFilter(): void {
-    const term = this.searchTerm.trim().toLowerCase();
-    this.filteredJobs = this.jobs.filter(job => {
-      const matchTerm = !term ||
-        (job.titleAr ?? '').toLowerCase().includes(term) ||
-        (job.titleEn ?? '').toLowerCase().includes(term) ||
-        (job.grade ?? '').toLowerCase().includes(term);
-      const matchGrade = !this.filterGrade || job.grade === this.filterGrade;
-      const matchOrg = !this.filterOrgNode || String(job.orgNodeId) === this.filterOrgNode;
-      const matchStatus = !this.filterStatus ||
-        (this.filterStatus === 'active' ? job.isActive : !job.isActive);
-      return matchTerm && matchGrade && matchOrg && matchStatus;
-    });
+  profileToForm(profile: JobProfile): JobProfileForm {
+    const ids = (items?: MasterOption[]) => (items ?? []).map(i => i.id);
+    return {
+      code: profile.code || '',
+      titleAr: profile.titleAr || '',
+      titleEn: profile.titleEn || '',
+      orgNodeId: profile.orgNodeId,
+      gradeId: profile.gradeId,
+      grade: profile.grade || '',
+      responsibilityGroupId: profile.responsibilityGroupId,
+      minSalary: profile.minSalary != null ? Number(profile.minSalary) : null,
+      maxSalary: profile.maxSalary != null ? Number(profile.maxSalary) : null,
+      minExperienceYears: profile.minExperienceYears,
+      maxExperienceYears: profile.maxExperienceYears,
+      reportingToJobDescriptionId: profile.reportingToJobDescriptionId,
+      employmentType: profile.employmentType || '',
+      status: profile.status || 'active',
+      isActive: profile.isActive !== false,
+      isTemplate: profile.isTemplate === true,
+      jobSummaryAr: profile.jobSummaryAr || '',
+      jobSummaryEn: profile.jobSummaryEn || '',
+      responsibilitiesTextAr: profile.responsibilitiesTextAr || '',
+      responsibilitiesTextEn: profile.responsibilitiesTextEn || '',
+      requirementsAr: profile.requirementsAr || '',
+      requirementsEn: profile.requirementsEn || '',
+      responsibilityIds: ids(profile.responsibilities),
+      qualificationIds: ids(profile.qualifications),
+      specializationIds: ids(profile.specializations),
+      universityIds: ids(profile.universities),
+      courseIds: ids(profile.courses),
+      skillIds: ids(profile.skillsList),
+      languageIds: ids(profile.languagesList),
+      experienceLevelIds: ids(profile.experienceLevels),
+    };
   }
 
-  clearFilters(): void {
-    this.searchTerm = '';
-    this.filterGrade = '';
-    this.filterOrgNode = '';
-    this.filterStatus = '';
-    this.applyFilter();
+  emptyForm(): JobProfileForm {
+    return {
+      code: '',
+      titleAr: '',
+      titleEn: '',
+      orgNodeId: null,
+      gradeId: null,
+      grade: '',
+      responsibilityGroupId: null,
+      minSalary: null,
+      maxSalary: null,
+      minExperienceYears: null,
+      maxExperienceYears: null,
+      reportingToJobDescriptionId: null,
+      employmentType: 'full_time',
+      status: 'active',
+      isActive: true,
+      isTemplate: false,
+      jobSummaryAr: '',
+      jobSummaryEn: '',
+      responsibilitiesTextAr: '',
+      responsibilitiesTextEn: '',
+      requirementsAr: '',
+      requirementsEn: '',
+      responsibilityIds: [],
+      qualificationIds: [],
+      specializationIds: [],
+      universityIds: [],
+      courseIds: [],
+      skillIds: [],
+      languageIds: [],
+      experienceLevelIds: [],
+    };
   }
 
-  get hasFilters(): boolean {
-    return !!(this.searchTerm || this.filterGrade || this.filterOrgNode || this.filterStatus);
+  optionLabel(option: MasterOption | undefined | null): string {
+    if (!option) return '';
+    return this.lang.isAr
+      ? (option.nameAr || option.titleAr || option.nameEn || option.titleEn || option.code)
+      : (option.nameEn || option.titleEn || option.nameAr || option.titleAr || option.code);
   }
 
-  getNodeName(id: number | null): string {
+  jobTitle(job: JobProfile | MasterOption | undefined | null): string {
+    if (!job) return '';
+    const anyJob = job as any;
+    return this.lang.isAr ? (anyJob.titleAr || anyJob.nameAr || anyJob.titleEn || anyJob.nameEn) : (anyJob.titleEn || anyJob.nameEn || anyJob.titleAr || anyJob.nameAr);
+  }
+
+  orgName(id: number | null): string {
     if (!id) return '—';
     const node = this.orgNodes.find(n => n.id === Number(id));
-    if (!node) return '—';
-    return this.lang.isAr ? (node.nameAr ?? node.nameEn) : (node.nameEn ?? node.nameAr);
+    return node ? (this.lang.isAr ? node.nameAr : node.nameEn) : '—';
   }
 
-  getJobLabel(id: number): string {
-    const job = this.jobs.find(j => j.id === id);
-    if (!job) return `#${id}`;
-    return this.lang.isAr ? job.titleAr : job.titleEn;
-  }
-
-  getJobGrade(id: number): string | null {
-    return this.jobs.find(j => j.id === id)?.grade ?? null;
-  }
-
-  parseJson(val: string | null | undefined): string[] {
-    try { const p = JSON.parse(val || '[]'); return Array.isArray(p) ? p : []; }
-    catch { return []; }
-  }
-
-  getSectionItems(job: JobDescription | null, field: keyof JobDescription): string[] {
-    if (!job) return [];
-    return this.parseJson(job[field] as string | null);
-  }
-
-  getEmployeeFullName(emp: any): string {
-    return this.lang.isAr
-      ? [emp.firstNameAr, emp.lastNameAr].filter(Boolean).join(' ')
-      : [emp.firstNameEn, emp.lastNameEn].filter(Boolean).join(' ');
-  }
-
-  private emptyForm(): any {
-    return { titleAr: '', titleEn: '', grade: '', minSalary: null, maxSalary: null, orgNodeId: null, isActive: true };
-  }
-
-  private textToJson(text: string): string {
-    return JSON.stringify(text.split(/\r?\n/).map(s => s.trim()).filter(Boolean));
-  }
-
-  private jsonToText(val: string | null): string {
-    try { const p = JSON.parse(val || '[]'); return Array.isArray(p) ? p.join('\n') : ''; }
-    catch { return ''; }
+  selectedNames(picker: MasterPicker, profile: JobProfile | null): string {
+    if (!profile) return '—';
+    const items = ((profile as any)[picker.key] ?? []) as MasterOption[];
+    if (!items.length) return '—';
+    return items.map(item => this.optionLabel(item)).join(', ');
   }
 
   private flattenNodes(nodes: OrgNode[]): OrgNode[] {

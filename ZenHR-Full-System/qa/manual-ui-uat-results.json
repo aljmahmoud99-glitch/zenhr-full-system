@@ -1,0 +1,60 @@
+﻿{
+  "meta": {
+    "startedAt": "2026-05-06T12:05:00+03:00",
+    "finishedAt": "2026-05-06T12:15:00+03:00",
+    "frontendUrl": "http://localhost:5000",
+    "backendUrl": "http://localhost:3001",
+    "mode": "fallback-runtime-static-validation",
+    "browserAutomationAvailable": false,
+    "browserBlocker": "Browser Use plugin files exist, but the required node_repl/js browser-control tool is not exposed in this Codex session. No click/navigation/form browser automation can be run."
+  },
+  "serviceReachability": {
+    "backend": { "url": "http://localhost:3001/api/auth/me", "observedStatus": 401, "meaning": "reachable; auth required" },
+    "frontend": { "url": "http://localhost:5000", "observedStatus": 200, "meaning": "Angular shell served" }
+  },
+  "compileValidation": {
+    "typecheck": "PASS",
+    "angularBuildDevelopment": "PASS"
+  },
+  "routeShellReachability": [
+    { "route": "/login", "status": 200, "angularShell": true },
+    { "route": "/admin/companies", "status": 200, "angularShell": true },
+    { "route": "/admin/roles-permissions", "status": 200, "angularShell": true },
+    { "route": "/admin/company-settings", "status": 200, "angularShell": true },
+    { "route": "/admin/plans-subscriptions", "status": 200, "angularShell": true },
+    { "route": "/admin/analytics", "status": 200, "angularShell": true },
+    { "route": "/admin/audit-logs", "status": 200, "angularShell": true },
+    { "route": "/admin/automation", "status": 200, "angularShell": true },
+    { "route": "/app/dashboard", "status": 200, "angularShell": true },
+    { "route": "/app/employees", "status": 200, "angularShell": true },
+    { "route": "/app/job-descriptions", "status": 200, "angularShell": true },
+    { "route": "/app/attendance", "status": 200, "angularShell": true },
+    { "route": "/app/leave", "status": 200, "angularShell": true },
+    { "route": "/app/overtime", "status": 200, "angularShell": true },
+    { "route": "/app/payroll", "status": 200, "angularShell": true },
+    { "route": "/app/workflows", "status": 200, "angularShell": true },
+    { "route": "/app/documents", "status": 200, "angularShell": true },
+    { "route": "/app/assets", "status": 200, "angularShell": true },
+    { "route": "/app/compliance", "status": 200, "angularShell": true },
+    { "route": "/app/forms", "status": 200, "angularShell": true }
+  ],
+  "uatFlows": {
+    "authentication": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["login route shell reachable", "auth routes/components compile"] },
+    "superadmin": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["admin route shells reachable", "Admin V1/V2 components compile", "previous API RBAC pass exists in full-admin-v1-v2-api-results.json"] },
+    "hrAdmin": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["HR app route shells reachable", "workflow/job-description components compile"] },
+    "payrollAdmin": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["payroll route shell reachable", "payroll component compiles"] },
+    "manager": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["manager-accessible route shells reachable statically"] },
+    "employee": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["employee app route shells reachable statically"] },
+    "recruiter": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["forms/pre-employment route wiring present"] },
+    "notifications": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["layout notification dropdown source wiring present", "previous API pass verified notification endpoints"] },
+    "workflowEngine": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["/app/workflows shell reachable", "workflow component compiles", "previous API pass verified create/reject/history"] },
+    "fileStorage": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["documents route shell reachable", "previous API pass verified upload/download/RBAC"] },
+    "emailSystem": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["/admin/automation shell reachable", "automation component compiles", "previous API pass verified dry-run email"] },
+    "backgroundJobs": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["/admin/automation shell reachable", "previous API pass verified enqueue/run-due"] },
+    "uiUxGlobal": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["Angular build passed", "route shell HTTP reachability passed"] },
+    "regression": { "manualUiStatus": "NOT_TESTED_BROWSER_BLOCKED", "fallbackEvidence": ["previous API pass verified payroll-summary RBAC and job-descriptions endpoint; UI click regression not executed"] }
+  },
+  "bugsFound": [],
+  "fixesApplied": [],
+  "recommendation": "NO-GO for manual UI/UAT signoff because real browser interaction was unavailable. GO only for fallback runtime/static validation."
+}

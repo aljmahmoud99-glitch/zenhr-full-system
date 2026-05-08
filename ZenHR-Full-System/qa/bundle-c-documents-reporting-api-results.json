@@ -1,0 +1,608 @@
+{
+  "generatedAt": "2026-05-08T00:29:21.827Z",
+  "migrationApplied": true,
+  "health": {
+    "status": 200,
+    "ok": true
+  },
+  "logins": {
+    "hr": {
+      "ok": true,
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "ok": true,
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "ok": true,
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "ok": true,
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "ok": true,
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "ok": true,
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "created": {
+    "categoryId": "14",
+    "uploadFileObjectId": "21",
+    "documentId": "4",
+    "formTemplateId": "2",
+    "submissionId": "2",
+    "pdfTemplateId": "11",
+    "reportId": "14",
+    "exportId": "2",
+    "scheduledReportId": "2",
+    "printHistoryId": "2",
+    "pdfPreviewFormat": "html-preview",
+    "pdfPreviewMode": "not_configured"
+  },
+  "rbac": [
+    {
+      "user": "manager",
+      "mutation": "createHrDocument",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "employee",
+      "mutation": "createHrDocument",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "admin",
+      "mutation": "createHrDocument",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    },
+    {
+      "user": "payroll",
+      "mutation": "createPayrollDocument",
+      "status": 201,
+      "allowed": true,
+      "message": null
+    },
+    {
+      "user": "recruiter",
+      "mutation": "createRecruitmentDocument",
+      "status": 201,
+      "allowed": true,
+      "message": null
+    },
+    {
+      "user": "payroll",
+      "mutation": "createHrDocument",
+      "status": 403,
+      "forbidden": true,
+      "message": "Forbidden"
+    }
+  ],
+  "tenantIsolation": {
+    "employeeOwnScopeChecked": true,
+    "employeeSeesOtherLinkedDoc": false,
+    "status": "PASS_LIMITED"
+  },
+  "integrations": {
+    "fileUploadStatus": 200,
+    "notificationsEndpointStatus": 200,
+    "activityEndpointStatus": 200
+  },
+  "results": [
+    {
+      "name": "health",
+      "status": 200,
+      "ok": true,
+      "success": null,
+      "message": null,
+      "durationMs": 57,
+      "bodySnippet": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-08T00:29:21.305Z\",\"version\":\"1.0.0\"}"
+    },
+    {
+      "name": "login:hr",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 58,
+      "role": "hradmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoiaHIiLCJyb2xlIjoiaHJhZG1pbiIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6MiwiaWF0IjoxNzc4MjAwMTYxLCJleHAiOjE3NzgyMDM3NjF9.gYJMLHMBLvNiQ9C7QFPtlXPHk3UH-BKVzi2Q2p0FqnY\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.w8dnmS5k0v7WM_CQR-7KqTHQHPfid2IWQmrzVuCcLhA\",\"user\":{\"id\":2,\"username\":\"hr\",\"email\":\"hr@zenjo.jo\",\"role\":\"hradmin\",\"co"
+    },
+    {
+      "name": "login:payroll",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "role": "payrolladmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjUsInVzZXJuYW1lIjoicGF5cm9sbCIsInJvbGUiOiJwYXlyb2xsYWRtaW4iLCJjb21wYW55SWQiOjEsImVtcGxveWVlSWQiOjMsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4MjAzNzYxfQ.iaAE7fwbEfHqgD-pmXSfpPLkxWofyd9t3Ct4rD5Bfz8\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjUsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.c4vwKXJxRr20W40kjFUs3yzjkucrAB_DTsxtDY-3_YY\",\"user\":{\"id\":5,\"username\":\"payroll\",\"email\":\"payroll@zenjo."
+    },
+    {
+      "name": "login:manager",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 9,
+      "role": "manager",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjYsInVzZXJuYW1lIjoibWFuYWdlciIsInJvbGUiOiJtYW5hZ2VyIiwiY29tcGFueUlkIjoxLCJlbXBsb3llZUlkIjo3LCJpYXQiOjE3NzgyMDAxNjEsImV4cCI6MTc3ODIwMzc2MX0._1wiRISLU91A-GxTNvk0ytGO0hYZBwUdT7JTOfBlF_U\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjYsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.rZRfzOEZE2t4ioKdZN525GKHEQm9ncjekJaqzibZMqs\",\"user\":{\"id\":6,\"username\":\"manager\",\"email\":\"manager@zenjo.jo\",\"ro"
+    },
+    {
+      "name": "login:employee",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "role": "employee",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsInVzZXJuYW1lIjoiZW1wbG95ZWUiLCJyb2xlIjoiZW1wbG95ZWUiLCJjb21wYW55SWQiOjEsImVtcGxveWVlSWQiOjgsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4MjAzNzYxfQ.MjzRxuZ6Xxprei-UUVtNV6mEm670-g7nRKKO-a1UEA8\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.3zq1OE8tHZ64uaCT0znkKCeuUswaUFRuPfdFQZHKcW8\",\"user\":{\"id\":7,\"username\":\"employee\",\"email\":\"employee@zenjo.jo"
+    },
+    {
+      "name": "login:recruiter",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "role": "recruiter",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsInVzZXJuYW1lIjoicmVjcnVpdGVyIiwicm9sZSI6InJlY3J1aXRlciIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6OSwiaWF0IjoxNzc4MjAwMTYxLCJleHAiOjE3NzgyMDM3NjF9.IXcdpq5CWaexuD1qQPDbDwSir0XJM3y2vb0Jrs_0Qc4\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjgsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.fGB5M4hl0hFgYCEDfIQtYC---WIqemyi4WfiHQtMD-U\",\"user\":{\"id\":8,\"username\":\"recruiter\",\"email\":\"recruiter@zenj"
+    },
+    {
+      "name": "login:admin",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "role": "superadmin",
+      "bodySnippet": "{\"success\":true,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJhZG1pbiIsImNvbXBhbnlJZCI6MSwiZW1wbG95ZWVJZCI6MSwiaWF0IjoxNzc4MjAwMTYxLCJleHAiOjE3NzgyMDM3NjF9.NxWwCT3z7K2c3jvmPeidoyRqMc7WdroOj8fw0CmPpMk\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc3ODIwMDE2MSwiZXhwIjoxNzc4ODA0OTYxfQ.DSuJQ07KnEI8jVkMlDSlfANXUs048NKz3txf2nxuIws\",\"user\":{\"id\":1,\"username\":\"admin\",\"email\":\"admin@zenjo.jo\",\"role\""
+    },
+    {
+      "name": "GET /api/document-reporting/dashboard",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 191,
+      "bodySnippet": "{\"success\":true,\"data\":{\"documents\":{\"total\":2,\"pending\":0,\"approved\":0},\"forms\":{\"templates\":1},\"reports\":{\"reports\":5},\"exports\":[{\"status\":\"completed\",\"count\":1}],\"expiring\":{\"count\":0}}}"
+    },
+    {
+      "name": "GET /api/document-reporting/document-categories",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"11\",\"companyId\":1,\"code\":\"COMPLIANCE_EXPIRY\",\"nameAr\":\"وثائق الامتثال\",\"nameEn\":\"Compliance Documents\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"retentionMonths\":null,\"requiresExpiry\":true,\"requiresApproval\":true,\"isActive\":true,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-08T00:21:12.656Z\",\"updatedAt\":\"2026-05-08T00:21:12.656Z\",\"isDeleted\":false},{\"id\":\"2\",\"companyId\":1,\"code\":\"EMPLOYEE_CONTRACTS\",\"nameAr\":\"عقود الموظفين\",\"nameEn\":\"Em"
+    },
+    {
+      "name": "GET /api/document-reporting/documents",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "bodySnippet": "{\"success\":true,\"data\":{\"items\":[{\"id\":\"3\",\"companyId\":1,\"categoryId\":null,\"employeeId\":null,\"candidateId\":null,\"workflowInstanceId\":null,\"sourceModule\":\"recruitment\",\"entityType\":null,\"entityId\":null,\"titleAr\":\"????? ?????\",\"titleEn\":\"Recruitment Scoped 1778200085899\",\"documentNumber\":null,\"status\":\"draft\",\"versionNo\":1,\"tags\":[],\"metadataJson\":{},\"fileObjectId\":null,\"fileName\":null,\"fileUrl\":null,\"issuedAt\":null,\"expiresAt\":null,\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":8,\"updatedBy\":8,\""
+    },
+    {
+      "name": "GET /api/document-reporting/form-templates",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"code\":\"QA_FORM_1778200085899\",\"nameAr\":\"????? ?????? ????????\",\"nameEn\":\"QA Dynamic Form Updated\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"formSchemaJson\":{\"sections\":[{\"fields\":[{\"key\":\"reason\",\"type\":\"text\",\"labelAr\":\"?????\",\"labelEn\":\"Reason\"}],\"titleAr\":\"????????\",\"titleEn\":\"Details\"}]},\"workflowTemplateId\":null,\"versionNo\":1,\"status\":\"active\",\"isPublicSelfService\":true,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdA"
+    },
+    {
+      "name": "GET /api/document-reporting/form-submissions",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"templateId\":\"1\",\"employeeId\":1,\"candidateId\":null,\"submittedBy\":2,\"status\":\"approved\",\"payloadJson\":{\"reason\":\"QA validation\"},\"workflowInstanceId\":null,\"submittedAt\":\"2026-05-08T00:28:06.396Z\",\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:28:06.396Z\",\"updatedAt\":\"2026-05-08T00:28:06.404Z\",\"isDeleted\":false,\"templateNameAr\":\"????? ?????? ????????\",\"templateNameEn\":\"QA Dynamic Form Updated\"}]}"
+    },
+    {
+      "name": "GET /api/document-reporting/pdf-templates",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"5\",\"companyId\":1,\"code\":\"EXPERIENCE_CERTIFICATE\",\"nameAr\":\"شهادة خبرة\",\"nameEn\":\"Experience Certificate\",\"templateType\":\"experience_certificate\",\"languageMode\":\"bilingual\",\"htmlTemplate\":\"<h1>{{companyName}}</h1><p>{{employeeName}}</p><p>{{hireDate}}</p>\",\"variablesJson\":[\"companyName\",\"employeeName\",\"hireDate\"],\"brandingJson\":{},\"status\":\"active\",\"versionNo\":1,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-08T00:21:12.656Z\",\"updatedAt\":\"2026-05-08T00:21:12"
+    },
+    {
+      "name": "GET /api/document-reporting/reports",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"code\":\"EMPLOYEE_ROSTER\",\"nameAr\":\"قائمة الموظفين\",\"nameEn\":\"Employee Roster\",\"reportType\":\"employees\",\"moduleScope\":\"hr\",\"queryConfigJson\":{},\"filtersJson\":[\"department\",\"status\"],\"columnsJson\":[\"employeeCode\",\"name\",\"department\",\"status\"],\"chartConfigJson\":{},\"visibilityRoles\":[\"hradmin\"],\"isActive\":true,\"createdBy\":null,\"updatedBy\":null,\"createdAt\":\"2026-05-08T00:21:12.656Z\",\"updatedAt\":\"2026-05-08T00:21:12.656Z\",\"isDeleted\":false},{\"id\":\"13\",\"c"
+    },
+    {
+      "name": "GET /api/document-reporting/scheduled-reports",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"reportDefinitionId\":\"13\",\"scheduleNameAr\":\"????? ??????\",\"scheduleNameEn\":\"QA Schedule\",\"cronExpression\":\"0 8 * * 1\",\"exportFormat\":\"pdf\",\"recipientsJson\":[\"hr@example.com\"],\"nextRunAt\":null,\"lastRunAt\":null,\"status\":\"paused\",\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:28:06.442Z\",\"updatedAt\":\"2026-05-08T00:28:06.450Z\",\"isDeleted\":false,\"reportNameAr\":\"????? ??????\",\"reportNameEn\":\"QA Report Definition Updated\"}]}"
+    },
+    {
+      "name": "GET /api/document-reporting/exports",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"reportDefinitionId\":\"13\",\"requestedBy\":2,\"exportType\":\"employees\",\"exportFormat\":\"csv\",\"status\":\"completed\",\"filtersJson\":{\"status\":\"active\"},\"fileObjectId\":null,\"fileName\":\"export-1778200086419.csv\",\"fileUrl\":null,\"startedAt\":\"2026-05-08T00:28:06.434Z\",\"finishedAt\":\"2026-05-08T00:28:06.434Z\",\"errorMessage\":null,\"createdAt\":\"2026-05-08T00:28:06.434Z\",\"updatedAt\":\"2026-05-08T00:28:06.434Z\",\"isDeleted\":false,\"reportNameAr\":\"????? ??????\",\"reportName"
+    },
+    {
+      "name": "GET /api/document-reporting/print-history",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"1\",\"companyId\":1,\"documentId\":\"1\",\"pdfTemplateId\":\"10\",\"reportDefinitionId\":\"13\",\"actorUserId\":2,\"actionType\":\"download\",\"outputFormat\":\"pdf\",\"ipAddress\":\"127.0.0.1\",\"userAgent\":\"node\",\"snapshotJson\":{\"source\":\"bundle-c-qa\"},\"createdAt\":\"2026-05-08T00:28:06.456Z\",\"isDeleted\":false,\"actorUsername\":\"hr\",\"actorEmail\":\"hr@zenjo.jo\"}]}"
+    },
+    {
+      "name": "GET /api/document-reporting/analytics",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":{\"documentsByStatus\":[{\"status\":\"draft\",\"count\":2}],\"documentsByModule\":[{\"sourceModule\":\"payroll\",\"count\":1},{\"sourceModule\":\"recruitment\",\"count\":1}],\"submissions\":[{\"status\":\"approved\",\"count\":1}],\"exports\":[{\"exportType\":\"employees\",\"status\":\"completed\",\"count\":1}],\"printActions\":[{\"actionType\":\"download\",\"count\":1}]}}"
+    },
+    {
+      "name": "GET /api/employees",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 23,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":1,\"companyId\":1,\"employeeCode\":\"EMP-0001\",\"firstNameAr\":\"أحمد\",\"middleNameAr\":null,\"lastNameAr\":\"العلي\",\"firstNameEn\":\"Ahmed\",\"middleNameEn\":null,\"lastNameEn\":\"Al-Ali\",\"gender\":\"male\",\"dateOfBirth\":\"1985-03-15\",\"nationalId\":\"9801234567\",\"nationality\":\"أردني\",\"religion\":null,\"maritalStatus\":null,\"numberOfDependents\":0,\"personalEmail\":null,\"workEmail\":\"ahmed.alali@zenjo.jo\",\"personalPhone\":null,\"workPhone\":null,\"emergencyContactName\":null,\"emergencyContactPhone\":null,"
+    },
+    {
+      "name": "POST document category",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"14\",\"companyId\":1,\"code\":\"QA_DOC_CAT_1778200161257\",\"nameAr\":\"????? ????? ??????\",\"nameEn\":\"QA Document Category\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"retentionMonths\":24,\"requiresExpiry\":true,\"requiresApproval\":true,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.682Z\",\"updatedAt\":\"2026-05-08T00:29:21.682Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "PATCH document category",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"14\",\"companyId\":1,\"code\":\"QA_DOC_CAT_1778200161257\",\"nameAr\":\"????? ????? ??????\",\"nameEn\":\"QA Document Category Updated\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"retentionMonths\":24,\"requiresExpiry\":true,\"requiresApproval\":true,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.682Z\",\"updatedAt\":\"2026-05-08T00:29:21.691Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST /api/documents/upload file storage",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 8,
+      "bodySnippet": "{\"success\":true,\"data\":{\"fileObjectId\":\"21\",\"fileName\":\"bundle-c-1778200161257.pdf\",\"fileUrl\":\"/api/files/21/download\",\"fileSize\":47,\"mimeType\":\"application/pdf\"}}"
+    },
+    {
+      "name": "POST enterprise document linked file",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 7,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"4\",\"companyId\":1,\"categoryId\":\"14\",\"employeeId\":1,\"candidateId\":null,\"workflowInstanceId\":null,\"sourceModule\":\"hr\",\"entityType\":null,\"entityId\":null,\"titleAr\":\"????? ?????? ??????\",\"titleEn\":\"Linked QA Document\",\"documentNumber\":\"DOC-1778200161257\",\"status\":\"draft\",\"versionNo\":1,\"tags\":[\"qa\",\"bundle-c\"],\"metadataJson\":{},\"fileObjectId\":\"21\",\"fileName\":\"bundle-c-1778200161257.pdf\",\"fileUrl\":\"/api/files/21/download\",\"issuedAt\":\"2026-05-07T21:00:00.000Z\",\"expiresAt\":\"2"
+    },
+    {
+      "name": "PATCH enterprise document approve",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"4\",\"companyId\":1,\"categoryId\":\"14\",\"employeeId\":1,\"candidateId\":null,\"workflowInstanceId\":null,\"sourceModule\":\"hr\",\"entityType\":null,\"entityId\":null,\"titleAr\":\"????? ?????? ??????\",\"titleEn\":\"Linked QA Document Approved\",\"documentNumber\":\"DOC-1778200161257\",\"status\":\"approved\",\"versionNo\":1,\"tags\":[\"qa\",\"bundle-c\"],\"metadataJson\":{},\"fileObjectId\":\"21\",\"fileName\":\"bundle-c-1778200161257.pdf\",\"fileUrl\":\"/api/files/21/download\",\"issuedAt\":\"2026-05-07T21:00:00.000Z\",\"e"
+    },
+    {
+      "name": "POST form template",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"code\":\"QA_FORM_1778200161257\",\"nameAr\":\"????? ?????? ????????\",\"nameEn\":\"QA Dynamic Form\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"formSchemaJson\":{\"sections\":[{\"fields\":[{\"key\":\"reason\",\"type\":\"text\",\"labelAr\":\"?????\",\"labelEn\":\"Reason\"}],\"titleAr\":\"????????\",\"titleEn\":\"Details\"}]},\"workflowTemplateId\":null,\"versionNo\":1,\"status\":\"active\",\"isPublicSelfService\":true,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-"
+    },
+    {
+      "name": "PATCH form template",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"code\":\"QA_FORM_1778200161257\",\"nameAr\":\"????? ?????? ????????\",\"nameEn\":\"QA Dynamic Form Updated\",\"descriptionAr\":null,\"descriptionEn\":null,\"moduleScope\":\"hr\",\"formSchemaJson\":{\"sections\":[{\"fields\":[{\"key\":\"reason\",\"type\":\"text\",\"labelAr\":\"?????\",\"labelEn\":\"Reason\"}],\"titleAr\":\"????????\",\"titleEn\":\"Details\"}]},\"workflowTemplateId\":null,\"versionNo\":1,\"status\":\"active\",\"isPublicSelfService\":true,\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt"
+    },
+    {
+      "name": "POST form submission",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"employeeId\":1,\"candidateId\":null,\"submittedBy\":2,\"status\":\"submitted\",\"payloadJson\":{\"reason\":\"QA validation\"},\"workflowInstanceId\":null,\"submittedAt\":\"2026-05-08T00:29:21.723Z\",\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.723Z\",\"updatedAt\":\"2026-05-08T00:29:21.723Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "PATCH form submission approve",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"templateId\":\"2\",\"employeeId\":1,\"candidateId\":null,\"submittedBy\":2,\"status\":\"approved\",\"payloadJson\":{\"reason\":\"QA validation\"},\"workflowInstanceId\":null,\"submittedAt\":\"2026-05-08T00:29:21.723Z\",\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.723Z\",\"updatedAt\":\"2026-05-08T00:29:21.729Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST PDF template",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"11\",\"companyId\":1,\"code\":\"QA_PDF_1778200161257\",\"nameAr\":\"???? PDF ??????\",\"nameEn\":\"QA PDF Template\",\"templateType\":\"salary_certificate\",\"languageMode\":\"bilingual\",\"htmlTemplate\":\"<h1>{{companyName}}</h1><p>{{employeeName}}</p>\",\"variablesJson\":[\"companyName\",\"employeeName\"],\"brandingJson\":{},\"status\":\"active\",\"versionNo\":1,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.732Z\",\"updatedAt\":\"2026-05-08T00:29:21.732Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "PATCH PDF template",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"11\",\"companyId\":1,\"code\":\"QA_PDF_1778200161257\",\"nameAr\":\"???? PDF ??????\",\"nameEn\":\"QA PDF Template Updated\",\"templateType\":\"salary_certificate\",\"languageMode\":\"bilingual\",\"htmlTemplate\":\"<h1>{{companyName}}</h1><p>{{employeeName}}</p>\",\"variablesJson\":[\"companyName\",\"employeeName\"],\"brandingJson\":{},\"status\":\"active\",\"versionNo\":1,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.732Z\",\"updatedAt\":\"2026-05-08T00:29:21.736Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST PDF preview",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 3,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":11,\"html\":\"<h1>{{companyName}}</h1><p>{{employeeName}}</p>\",\"format\":\"html-preview\",\"pdfGeneration\":\"not_configured\"}}"
+    },
+    {
+      "name": "POST report definition",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"14\",\"companyId\":1,\"code\":\"QA_REPORT_1778200161257\",\"nameAr\":\"????? ??????\",\"nameEn\":\"QA Report Definition\",\"reportType\":\"employees\",\"moduleScope\":\"hr\",\"queryConfigJson\":{},\"filtersJson\":[\"department\"],\"columnsJson\":[\"employeeCode\",\"name\"],\"chartConfigJson\":{},\"visibilityRoles\":[\"hradmin\"],\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.744Z\",\"updatedAt\":\"2026-05-08T00:29:21.744Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "PATCH report definition",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"14\",\"companyId\":1,\"code\":\"QA_REPORT_1778200161257\",\"nameAr\":\"????? ??????\",\"nameEn\":\"QA Report Definition Updated\",\"reportType\":\"employees\",\"moduleScope\":\"hr\",\"queryConfigJson\":{},\"filtersJson\":[\"department\"],\"columnsJson\":[\"employeeCode\",\"name\",\"status\"],\"chartConfigJson\":{},\"visibilityRoles\":[\"hradmin\"],\"isActive\":true,\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.744Z\",\"updatedAt\":\"2026-05-08T00:29:21.750Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST export job",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"reportDefinitionId\":\"14\",\"requestedBy\":2,\"exportType\":\"employees\",\"exportFormat\":\"csv\",\"status\":\"completed\",\"filtersJson\":{\"status\":\"active\"},\"fileObjectId\":null,\"fileName\":\"export-1778200161750.csv\",\"fileUrl\":null,\"startedAt\":\"2026-05-08T00:29:21.753Z\",\"finishedAt\":\"2026-05-08T00:29:21.753Z\",\"errorMessage\":null,\"createdAt\":\"2026-05-08T00:29:21.753Z\",\"updatedAt\":\"2026-05-08T00:29:21.753Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST scheduled report",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"reportDefinitionId\":\"14\",\"scheduleNameAr\":\"????? ??????\",\"scheduleNameEn\":\"QA Schedule\",\"cronExpression\":\"0 8 * * 1\",\"exportFormat\":\"pdf\",\"recipientsJson\":[\"hr@example.com\"],\"nextRunAt\":null,\"lastRunAt\":null,\"status\":\"active\",\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.758Z\",\"updatedAt\":\"2026-05-08T00:29:21.758Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "PATCH scheduled report pause",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"reportDefinitionId\":\"14\",\"scheduleNameAr\":\"????? ??????\",\"scheduleNameEn\":\"QA Schedule\",\"cronExpression\":\"0 8 * * 1\",\"exportFormat\":\"pdf\",\"recipientsJson\":[\"hr@example.com\"],\"nextRunAt\":null,\"lastRunAt\":null,\"status\":\"paused\",\"createdBy\":2,\"updatedBy\":2,\"createdAt\":\"2026-05-08T00:29:21.758Z\",\"updatedAt\":\"2026-05-08T00:29:21.764Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "POST print history",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"2\",\"companyId\":1,\"documentId\":\"4\",\"pdfTemplateId\":\"11\",\"reportDefinitionId\":\"14\",\"actorUserId\":2,\"actionType\":\"download\",\"outputFormat\":\"pdf\",\"ipAddress\":\"127.0.0.1\",\"userAgent\":\"node\",\"snapshotJson\":{\"source\":\"bundle-c-qa\"},\"createdAt\":\"2026-05-08T00:29:21.767Z\",\"isDeleted\":false}}"
+    },
+    {
+      "name": "GET dashboard after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"documents\":{\"total\":3,\"pending\":0,\"approved\":1},\"forms\":{\"templates\":2},\"reports\":{\"reports\":6},\"exports\":[{\"status\":\"completed\",\"count\":2}],\"expiring\":{\"count\":0}}}"
+    },
+    {
+      "name": "GET analytics after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"documentsByStatus\":[{\"status\":\"approved\",\"count\":1},{\"status\":\"draft\",\"count\":2}],\"documentsByModule\":[{\"sourceModule\":\"hr\",\"count\":1},{\"sourceModule\":\"payroll\",\"count\":1},{\"sourceModule\":\"recruitment\",\"count\":1}],\"submissions\":[{\"status\":\"approved\",\"count\":2}],\"exports\":[{\"exportType\":\"employees\",\"status\":\"completed\",\"count\":2}],\"printActions\":[{\"actionType\":\"download\",\"count\":2}]}}"
+    },
+    {
+      "name": "GET exports after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"reportDefinitionId\":\"14\",\"requestedBy\":2,\"exportType\":\"employees\",\"exportFormat\":\"csv\",\"status\":\"completed\",\"filtersJson\":{\"status\":\"active\"},\"fileObjectId\":null,\"fileName\":\"export-1778200161750.csv\",\"fileUrl\":null,\"startedAt\":\"2026-05-08T00:29:21.753Z\",\"finishedAt\":\"2026-05-08T00:29:21.753Z\",\"errorMessage\":null,\"createdAt\":\"2026-05-08T00:29:21.753Z\",\"updatedAt\":\"2026-05-08T00:29:21.753Z\",\"isDeleted\":false,\"reportNameAr\":\"????? ??????\",\"reportName"
+    },
+    {
+      "name": "GET print history after CRUD",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":\"2\",\"companyId\":1,\"documentId\":\"4\",\"pdfTemplateId\":\"11\",\"reportDefinitionId\":\"14\",\"actorUserId\":2,\"actionType\":\"download\",\"outputFormat\":\"pdf\",\"ipAddress\":\"127.0.0.1\",\"userAgent\":\"node\",\"snapshotJson\":{\"source\":\"bundle-c-qa\"},\"createdAt\":\"2026-05-08T00:29:21.767Z\",\"isDeleted\":false,\"actorUsername\":\"hr\",\"actorEmail\":\"hr@zenjo.jo\"},{\"id\":\"1\",\"companyId\":1,\"documentId\":\"1\",\"pdfTemplateId\":\"10\",\"reportDefinitionId\":\"13\",\"actorUserId\":2,\"actionType\":\"download\",\"outputFor"
+    },
+    {
+      "name": "GET notifications integration",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "optional": true,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":150,\"companyId\":1,\"recipientUserId\":2,\"actorUserId\":2,\"entityType\":\"performance_evaluation\",\"entityId\":2,\"notificationType\":\"performance_evaluation_submitted\",\"titleAr\":\"تقييم أداء بانتظار الاعتماد\",\"titleEn\":\"Performance evaluation awaiting approval\",\"messageAr\":\"تقييم رقم 2 بانتظار الاعتماد.\",\"messageEn\":\"Evaluation #2 is awaiting approval.\",\"priority\":\"normal\",\"status\":\"unread\",\"actionUrl\":\"/app/performance-workflows\",\"createdAt\":\"2026-05-08T00:01:45.085Z\",\"readA"
+    },
+    {
+      "name": "GET activity logs integration",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "optional": true,
+      "bodySnippet": "{\"success\":true,\"data\":[{\"id\":283,\"actionType\":\"enterprise_document_created\",\"entityType\":\"enterprise_document_created\",\"descriptionAr\":\"Enterprise document created: Linked QA Document\",\"descriptionEn\":\"Enterprise document created: Linked QA Document\",\"employeeName\":\"hr\",\"createdAt\":\"2026-05-08T00:29:21.706Z\"},{\"id\":282,\"actionType\":\"enterprise_document_created\",\"entityType\":\"enterprise_document_created\",\"descriptionAr\":\"Enterprise document created: Recruitment Scoped 1778200085899\",\"description"
+    },
+    {
+      "name": "RBAC manager create HR document",
+      "status": 403,
+      "ok": false,
+      "success": false,
+      "message": "Forbidden",
+      "durationMs": 2,
+      "expectedForbidden": true,
+      "bodySnippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "name": "RBAC employee create HR document",
+      "status": 403,
+      "ok": false,
+      "success": false,
+      "message": "Forbidden",
+      "durationMs": 2,
+      "expectedForbidden": true,
+      "bodySnippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "name": "RBAC admin create HR document",
+      "status": 403,
+      "ok": false,
+      "success": false,
+      "message": "Forbidden",
+      "durationMs": 2,
+      "expectedForbidden": true,
+      "bodySnippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "name": "RBAC payroll create payroll document",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 6,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"5\",\"companyId\":1,\"categoryId\":null,\"employeeId\":null,\"candidateId\":null,\"workflowInstanceId\":null,\"sourceModule\":\"payroll\",\"entityType\":null,\"entityId\":null,\"titleAr\":\"????? ????\",\"titleEn\":\"Payroll Scoped 1778200161257\",\"documentNumber\":null,\"status\":\"draft\",\"versionNo\":1,\"tags\":[],\"metadataJson\":{},\"fileObjectId\":null,\"fileName\":null,\"fileUrl\":null,\"issuedAt\":null,\"expiresAt\":null,\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":5,\"updatedBy\":5,\"createdAt\":\"2026-05"
+    },
+    {
+      "name": "RBAC recruiter create recruitment document",
+      "status": 201,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 4,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":\"6\",\"companyId\":1,\"categoryId\":null,\"employeeId\":null,\"candidateId\":null,\"workflowInstanceId\":null,\"sourceModule\":\"recruitment\",\"entityType\":null,\"entityId\":null,\"titleAr\":\"????? ?????\",\"titleEn\":\"Recruitment Scoped 1778200161257\",\"documentNumber\":null,\"status\":\"draft\",\"versionNo\":1,\"tags\":[],\"metadataJson\":{},\"fileObjectId\":null,\"fileName\":null,\"fileUrl\":null,\"issuedAt\":null,\"expiresAt\":null,\"approvedBy\":null,\"approvedAt\":null,\"createdBy\":8,\"updatedBy\":8,\"createdAt\""
+    },
+    {
+      "name": "RBAC payroll blocked from HR document",
+      "status": 403,
+      "ok": false,
+      "success": false,
+      "message": "Forbidden",
+      "durationMs": 3,
+      "expectedForbidden": true,
+      "bodySnippet": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    {
+      "name": "GET documents as employee own scope",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 5,
+      "bodySnippet": "{\"success\":true,\"data\":{\"items\":[],\"total\":0,\"page\":1,\"pageSize\":50}}"
+    },
+    {
+      "name": "DELETE enterprise document soft delete",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 3,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":4,\"isDeleted\":true}}"
+    },
+    {
+      "name": "DELETE document category soft delete",
+      "status": 200,
+      "ok": true,
+      "success": true,
+      "message": null,
+      "durationMs": 3,
+      "bodySnippet": "{\"success\":true,\"data\":{\"id\":14,\"isDeleted\":true}}"
+    }
+  ],
+  "summary": {
+    "status": "PASS_API_WITH_LIMITATIONS",
+    "resultCount": 52,
+    "failureCount": 0,
+    "failures": []
+  }
+}

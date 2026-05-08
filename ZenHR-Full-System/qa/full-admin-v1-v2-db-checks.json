@@ -1,0 +1,1146 @@
+{
+  "startedAt": "2026-05-06T11:46:53.518Z",
+  "dbUrl": "postgresql://postgres:[redacted]@localhost:5432/zenhr",
+  "tables": {
+    "platform_plans": true,
+    "company_subscriptions": true,
+    "company_modules": true,
+    "company_branding": true,
+    "admin_audit_logs": true,
+    "user_permission_overrides": true,
+    "notification_preferences": true,
+    "workflow_definitions": true,
+    "workflow_steps": true,
+    "workflow_actions": true,
+    "background_jobs": true,
+    "email_templates": true,
+    "email_logs": true,
+    "file_objects": true,
+    "file_access_logs": true,
+    "employee_actions": true,
+    "system_configurations": true,
+    "companies": true,
+    "users": true,
+    "employees": true,
+    "notifications": true
+  },
+  "columns": {
+    "platform_plans": [
+      "id",
+      "code",
+      "name_ar",
+      "name_en",
+      "price",
+      "billing_cycle",
+      "max_users",
+      "max_employees",
+      "enabled_modules",
+      "trial_days",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "company_subscriptions": [
+      "id",
+      "company_id",
+      "plan_id",
+      "status",
+      "starts_at",
+      "ends_at",
+      "trial_ends_at",
+      "max_users",
+      "max_employees",
+      "notes",
+      "created_at",
+      "updated_at"
+    ],
+    "company_modules": [
+      "id",
+      "company_id",
+      "module_key",
+      "is_enabled",
+      "updated_at",
+      "updated_by_user_id"
+    ],
+    "company_branding": [
+      "id",
+      "company_id",
+      "logo_url",
+      "primary_color",
+      "secondary_color",
+      "accent_color",
+      "sidebar_color",
+      "topbar_color",
+      "background_color",
+      "theme_json",
+      "updated_at",
+      "updated_by_user_id"
+    ],
+    "admin_audit_logs": [
+      "id",
+      "company_id",
+      "actor_user_id",
+      "action_type",
+      "entity_type",
+      "entity_id",
+      "before_snapshot",
+      "after_snapshot",
+      "ip_address",
+      "user_agent",
+      "created_at"
+    ],
+    "user_permission_overrides": [
+      "id",
+      "user_id",
+      "permission_id",
+      "effect",
+      "data_scope",
+      "created_at",
+      "updated_at",
+      "updated_by_user_id"
+    ],
+    "notification_preferences": [
+      "id",
+      "company_id",
+      "user_id",
+      "notification_type",
+      "in_app_enabled",
+      "email_enabled",
+      "created_at",
+      "updated_at"
+    ],
+    "workflow_definitions": [
+      "id",
+      "company_id",
+      "workflow_key",
+      "name_ar",
+      "name_en",
+      "applies_to_action_type",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "workflow_steps": [
+      "id",
+      "workflow_definition_id",
+      "step_order",
+      "status_key",
+      "approver_role",
+      "escalation_days",
+      "is_final",
+      "created_at"
+    ],
+    "workflow_actions": [
+      "id",
+      "company_id",
+      "workflow_request_id",
+      "actor_user_id",
+      "action",
+      "status_before",
+      "status_after",
+      "notes",
+      "created_at"
+    ],
+    "background_jobs": [
+      "id",
+      "company_id",
+      "job_type",
+      "queue_name",
+      "payload_json",
+      "status",
+      "attempts",
+      "max_attempts",
+      "run_at",
+      "started_at",
+      "finished_at",
+      "error_message",
+      "created_by_user_id",
+      "created_at",
+      "updated_at"
+    ],
+    "email_templates": [
+      "id",
+      "company_id",
+      "template_key",
+      "subject_ar",
+      "subject_en",
+      "body_ar",
+      "body_en",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "email_logs": [
+      "id",
+      "company_id",
+      "recipient_user_id",
+      "to_email",
+      "template_key",
+      "subject",
+      "status",
+      "provider_message_id",
+      "error_message",
+      "payload_json",
+      "created_by_user_id",
+      "created_at"
+    ],
+    "file_objects": [
+      "id",
+      "company_id",
+      "employee_id",
+      "owner_user_id",
+      "linked_entity_type",
+      "linked_entity_id",
+      "storage_provider",
+      "storage_key",
+      "original_file_name",
+      "mime_type",
+      "size_bytes",
+      "visibility",
+      "checksum",
+      "created_by_user_id",
+      "created_at",
+      "is_deleted"
+    ],
+    "file_access_logs": [
+      "id",
+      "file_object_id",
+      "company_id",
+      "actor_user_id",
+      "action",
+      "ip_address",
+      "user_agent",
+      "created_at"
+    ],
+    "employee_actions": [
+      "id",
+      "company_id",
+      "employee_id",
+      "action_type",
+      "effective_date",
+      "created_by_user_id",
+      "previous_value_json",
+      "new_value_json",
+      "notes",
+      "status",
+      "approval_steps_json",
+      "created_at"
+    ],
+    "system_configurations": [
+      "id",
+      "company_id",
+      "key",
+      "value",
+      "description",
+      "category",
+      "updated_at",
+      "updated_by_user_id"
+    ],
+    "companies": [
+      "id",
+      "name_ar",
+      "name_en",
+      "commercial_reg_no",
+      "tax_number",
+      "ssc_number",
+      "labor_ministry_no",
+      "address_ar",
+      "city",
+      "phone",
+      "email",
+      "website",
+      "logo",
+      "industry_type",
+      "currency",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "code",
+      "country",
+      "plan_name",
+      "subscription_start",
+      "subscription_end",
+      "max_users",
+      "max_employees",
+      "is_trial",
+      "timezone",
+      "locale",
+      "primary_color",
+      "secondary_color",
+      "accent_color",
+      "subscription_status"
+    ],
+    "users": [
+      "id",
+      "employee_id",
+      "company_id",
+      "username",
+      "password_hash",
+      "email",
+      "role",
+      "is_active",
+      "last_login_at",
+      "must_change_password",
+      "refresh_token",
+      "refresh_token_expiry",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "role_id"
+    ],
+    "employees": [
+      "id",
+      "company_id",
+      "employee_code",
+      "first_name_ar",
+      "middle_name_ar",
+      "last_name_ar",
+      "first_name_en",
+      "middle_name_en",
+      "last_name_en",
+      "gender",
+      "date_of_birth",
+      "national_id",
+      "nationality",
+      "religion",
+      "marital_status",
+      "number_of_dependents",
+      "personal_email",
+      "work_email",
+      "personal_phone",
+      "work_phone",
+      "emergency_contact_name",
+      "emergency_contact_phone",
+      "emergency_contact_relation",
+      "address_ar",
+      "city",
+      "department_id",
+      "job_title_id",
+      "direct_manager_id",
+      "employment_type",
+      "hire_date",
+      "probation_end_date",
+      "contract_type",
+      "contract_end_date",
+      "employment_status",
+      "termination_date",
+      "termination_reason",
+      "basic_salary",
+      "housing_allowance",
+      "transport_allowance",
+      "mobile_allowance",
+      "meal_allowance",
+      "other_allowances",
+      "ssc_number",
+      "ssc_enrollment_date",
+      "is_ssc_exempt",
+      "income_tax_number",
+      "tax_exemption_amount",
+      "bank_name",
+      "bank_account_number",
+      "iban",
+      "passport_number",
+      "passport_expiry",
+      "work_permit_number",
+      "work_permit_expiry",
+      "residency_number",
+      "residency_expiry",
+      "profile_photo",
+      "notes",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "org_node_id",
+      "job_description_id"
+    ],
+    "notifications": [
+      "id",
+      "company_id",
+      "recipient_user_id",
+      "actor_user_id",
+      "entity_type",
+      "entity_id",
+      "notification_type",
+      "title_ar",
+      "title_en",
+      "message_ar",
+      "message_en",
+      "priority",
+      "status",
+      "action_url",
+      "created_at",
+      "read_at",
+      "is_deleted",
+      "delivery_channels_json",
+      "email_status"
+    ]
+  },
+  "indexes": {
+    "background_jobs_status_run_idx": true,
+    "email_logs_company_idx": true,
+    "file_objects_company_idx": true,
+    "file_objects_employee_idx": true,
+    "file_access_logs_file_idx": true,
+    "notification_preferences_user_idx": true,
+    "workflow_actions_request_idx": true,
+    "admin_audit_logs_actor_idx": true,
+    "admin_audit_logs_company_idx": true,
+    "company_subscriptions_company_idx": true,
+    "company_modules_company_idx": true
+  },
+  "configKeys": {
+    "smtp_host": {
+      "exists": true,
+      "count": 2
+    },
+    "smtp_port": {
+      "exists": true,
+      "count": 2
+    },
+    "smtp_user": {
+      "exists": true,
+      "count": 2
+    },
+    "smtp_from_email": {
+      "exists": true,
+      "count": 2
+    },
+    "smtp_from_name": {
+      "exists": true,
+      "count": 2
+    },
+    "email_enabled": {
+      "exists": true,
+      "count": 2
+    },
+    "email_dry_run": {
+      "exists": true,
+      "count": 2
+    },
+    "storage_provider": {
+      "exists": true,
+      "count": 2
+    },
+    "storage_local_path": {
+      "exists": true,
+      "count": 2
+    },
+    "max_upload_mb": {
+      "exists": true,
+      "count": 2
+    },
+    "allowed_upload_types": {
+      "exists": true,
+      "count": 2
+    },
+    "notifications_email_enabled": {
+      "exists": true,
+      "count": 2
+    },
+    "notifications_in_app_enabled": {
+      "exists": true,
+      "count": 2
+    },
+    "approval_escalation_days": {
+      "exists": true,
+      "count": 2
+    }
+  },
+  "counts": {
+    "platform_plans": 8,
+    "company_subscriptions": 2,
+    "company_modules": 14,
+    "company_branding": 2,
+    "admin_audit_logs": 33,
+    "user_permission_overrides": 0,
+    "notification_preferences": 1,
+    "workflow_definitions": 6,
+    "workflow_steps": 0,
+    "workflow_actions": 1,
+    "background_jobs": 2,
+    "email_templates": 12,
+    "email_logs": 1,
+    "file_objects": 1,
+    "file_access_logs": 1,
+    "employee_actions": 1,
+    "system_configurations": 125,
+    "companies": 2,
+    "users": 6,
+    "employees": 6,
+    "notifications": 3
+  },
+  "duplicates": {
+    "system_configurations": [
+      {
+        "key": "allowed_upload_types",
+        "count": 2
+      },
+      {
+        "key": "annual_leave_days",
+        "count": 2
+      },
+      {
+        "key": "approval_escalation_days",
+        "count": 2
+      },
+      {
+        "key": "company_logo_url",
+        "count": 2
+      },
+      {
+        "key": "company_name_ar",
+        "count": 2
+      },
+      {
+        "key": "company_name_en",
+        "count": 2
+      },
+      {
+        "key": "compliance_enabled",
+        "count": 2
+      },
+      {
+        "key": "compliance_warning_days",
+        "count": 2
+      },
+      {
+        "key": "criminal_record_required",
+        "count": 2
+      },
+      {
+        "key": "currency_code",
+        "count": 2
+      },
+      {
+        "key": "email_dry_run",
+        "count": 2
+      },
+      {
+        "key": "email_enabled",
+        "count": 2
+      },
+      {
+        "key": "enable_face_recognition",
+        "count": 2
+      },
+      {
+        "key": "enable_geofencing",
+        "count": 2
+      },
+      {
+        "key": "health_certificate_required",
+        "count": 2
+      },
+      {
+        "key": "income_tax_brackets",
+        "count": 2
+      },
+      {
+        "key": "income_tax_exempt_annual",
+        "count": 2
+      },
+      {
+        "key": "income_tax_family_exemption",
+        "count": 2
+      },
+      {
+        "key": "income_tax_personal_exemption",
+        "count": 2
+      },
+      {
+        "key": "max_upload_mb",
+        "count": 2
+      },
+      {
+        "key": "ministry_of_health_portal_url",
+        "count": 2
+      },
+      {
+        "key": "notice_period_days",
+        "count": 2
+      },
+      {
+        "key": "notifications_email_enabled",
+        "count": 2
+      },
+      {
+        "key": "notifications_in_app_enabled",
+        "count": 2
+      },
+      {
+        "key": "notify_leave_approval",
+        "count": 2
+      }
+    ]
+  },
+  "tenantScope": {
+    "company_subscriptions": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "max_users",
+        "max_employees"
+      ]
+    },
+    "company_modules": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "updated_by_user_id"
+      ]
+    },
+    "company_branding": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "updated_by_user_id"
+      ]
+    },
+    "notification_preferences": {
+      "hasCompanyId": true,
+      "hasUserId": true,
+      "columns": [
+        "company_id",
+        "user_id"
+      ]
+    },
+    "background_jobs": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "created_by_user_id"
+      ]
+    },
+    "email_logs": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "recipient_user_id",
+        "created_by_user_id"
+      ]
+    },
+    "file_objects": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "employee_id",
+        "owner_user_id",
+        "created_by_user_id"
+      ]
+    },
+    "file_access_logs": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "actor_user_id",
+        "user_agent"
+      ]
+    },
+    "employee_actions": {
+      "hasCompanyId": true,
+      "hasUserId": false,
+      "columns": [
+        "company_id",
+        "employee_id",
+        "created_by_user_id"
+      ]
+    }
+  },
+  "summary": {
+    "existingDataPresent": true,
+    "companyCount": 2,
+    "userCount": 6,
+    "employeeCount": 6,
+    "missingTables": [],
+    "missingIndexes": [],
+    "missingConfigKeys": [],
+    "schemaErrors": 0
+  },
+  "indexCatalog": [
+    {
+      "indexname": "activity_logs_pkey",
+      "tablename": "activity_logs"
+    },
+    {
+      "indexname": "asset_categories_pkey",
+      "tablename": "asset_categories"
+    },
+    {
+      "indexname": "assets_pkey",
+      "tablename": "assets"
+    },
+    {
+      "indexname": "attendance_records_pkey",
+      "tablename": "attendance_records"
+    },
+    {
+      "indexname": "banks_pkey",
+      "tablename": "banks"
+    },
+    {
+      "indexname": "cities_pkey",
+      "tablename": "cities"
+    },
+    {
+      "indexname": "companies_pkey",
+      "tablename": "companies"
+    },
+    {
+      "indexname": "departments_pkey",
+      "tablename": "departments"
+    },
+    {
+      "indexname": "document_types_pkey",
+      "tablename": "document_types"
+    },
+    {
+      "indexname": "documents_pkey",
+      "tablename": "documents"
+    },
+    {
+      "indexname": "employees_employee_code_unique",
+      "tablename": "employees"
+    },
+    {
+      "indexname": "employees_national_id_unique",
+      "tablename": "employees"
+    },
+    {
+      "indexname": "employees_pkey",
+      "tablename": "employees"
+    },
+    {
+      "indexname": "employees_work_email_unique",
+      "tablename": "employees"
+    },
+    {
+      "indexname": "job_titles_pkey",
+      "tablename": "job_titles"
+    },
+    {
+      "indexname": "leave_balances_pkey",
+      "tablename": "leave_balances"
+    },
+    {
+      "indexname": "leave_policies_pkey",
+      "tablename": "leave_policies"
+    },
+    {
+      "indexname": "leave_requests_pkey",
+      "tablename": "leave_requests"
+    },
+    {
+      "indexname": "leave_types_pkey",
+      "tablename": "leave_types"
+    },
+    {
+      "indexname": "nationalities_pkey",
+      "tablename": "nationalities"
+    },
+    {
+      "indexname": "overtime_requests_pkey",
+      "tablename": "overtime_requests"
+    },
+    {
+      "indexname": "payroll_runs_pkey",
+      "tablename": "payroll_runs"
+    },
+    {
+      "indexname": "payslips_pkey",
+      "tablename": "payslips"
+    },
+    {
+      "indexname": "system_configurations_pkey",
+      "tablename": "system_configurations"
+    },
+    {
+      "indexname": "users_email_unique",
+      "tablename": "users"
+    },
+    {
+      "indexname": "users_pkey",
+      "tablename": "users"
+    },
+    {
+      "indexname": "users_username_unique",
+      "tablename": "users"
+    },
+    {
+      "indexname": "notifications_pkey",
+      "tablename": "notifications"
+    },
+    {
+      "indexname": "attendance_corrections_pkey",
+      "tablename": "attendance_corrections"
+    },
+    {
+      "indexname": "org_nodes_pkey",
+      "tablename": "org_nodes"
+    },
+    {
+      "indexname": "roles_pkey",
+      "tablename": "roles"
+    },
+    {
+      "indexname": "permissions_pkey",
+      "tablename": "permissions"
+    },
+    {
+      "indexname": "role_permissions_pkey",
+      "tablename": "role_permissions"
+    },
+    {
+      "indexname": "job_descriptions_pkey",
+      "tablename": "job_descriptions"
+    },
+    {
+      "indexname": "career_paths_pkey",
+      "tablename": "career_paths"
+    },
+    {
+      "indexname": "employee_qualifications_pkey",
+      "tablename": "employee_qualifications"
+    },
+    {
+      "indexname": "employee_actions_pkey",
+      "tablename": "employee_actions"
+    },
+    {
+      "indexname": "salary_components_pkey",
+      "tablename": "salary_components"
+    },
+    {
+      "indexname": "employee_salary_components_pkey",
+      "tablename": "employee_salary_components"
+    },
+    {
+      "indexname": "salary_component_definitions_pkey",
+      "tablename": "salary_component_definitions"
+    },
+    {
+      "indexname": "salary_advances_pkey",
+      "tablename": "salary_advances"
+    },
+    {
+      "indexname": "compliance_records_pkey",
+      "tablename": "compliance_records"
+    },
+    {
+      "indexname": "violation_types_pkey",
+      "tablename": "violation_types"
+    },
+    {
+      "indexname": "disciplinary_cases_pkey",
+      "tablename": "disciplinary_cases"
+    },
+    {
+      "indexname": "disciplinary_investigations_pkey",
+      "tablename": "disciplinary_investigations"
+    },
+    {
+      "indexname": "resignations_pkey",
+      "tablename": "resignations"
+    },
+    {
+      "indexname": "resignation_approvals_pkey",
+      "tablename": "resignation_approvals"
+    },
+    {
+      "indexname": "clearances_pkey",
+      "tablename": "clearances"
+    },
+    {
+      "indexname": "org_nodes_company_idx",
+      "tablename": "org_nodes"
+    },
+    {
+      "indexname": "org_nodes_parent_idx",
+      "tablename": "org_nodes"
+    },
+    {
+      "indexname": "org_nodes_company_type_idx",
+      "tablename": "org_nodes"
+    },
+    {
+      "indexname": "roles_company_idx",
+      "tablename": "roles"
+    },
+    {
+      "indexname": "role_permissions_role_idx",
+      "tablename": "role_permissions"
+    },
+    {
+      "indexname": "role_permissions_perm_idx",
+      "tablename": "role_permissions"
+    },
+    {
+      "indexname": "documents_company_idx",
+      "tablename": "documents"
+    },
+    {
+      "indexname": "documents_employee_idx",
+      "tablename": "documents"
+    },
+    {
+      "indexname": "assets_company_idx",
+      "tablename": "assets"
+    },
+    {
+      "indexname": "assets_assigned_employee_idx",
+      "tablename": "assets"
+    },
+    {
+      "indexname": "attendance_records_employee_date_idx",
+      "tablename": "attendance_records"
+    },
+    {
+      "indexname": "attendance_corrections_employee_idx",
+      "tablename": "attendance_corrections"
+    },
+    {
+      "indexname": "employee_actions_company_idx",
+      "tablename": "employee_actions"
+    },
+    {
+      "indexname": "employee_actions_employee_idx",
+      "tablename": "employee_actions"
+    },
+    {
+      "indexname": "notifications_recipient_status_idx",
+      "tablename": "notifications"
+    },
+    {
+      "indexname": "notifications_company_idx",
+      "tablename": "notifications"
+    },
+    {
+      "indexname": "compliance_records_company_idx",
+      "tablename": "compliance_records"
+    },
+    {
+      "indexname": "compliance_records_employee_idx",
+      "tablename": "compliance_records"
+    },
+    {
+      "indexname": "clearances_company_idx",
+      "tablename": "clearances"
+    },
+    {
+      "indexname": "clearances_employee_idx",
+      "tablename": "clearances"
+    },
+    {
+      "indexname": "salary_advances_company_idx",
+      "tablename": "salary_advances"
+    },
+    {
+      "indexname": "salary_advances_employee_idx",
+      "tablename": "salary_advances"
+    },
+    {
+      "indexname": "roles_company_name_uniq",
+      "tablename": "roles"
+    },
+    {
+      "indexname": "permissions_screen_action_uniq",
+      "tablename": "permissions"
+    },
+    {
+      "indexname": "role_permissions_uniq",
+      "tablename": "role_permissions"
+    },
+    {
+      "indexname": "career_paths_from_to_unique",
+      "tablename": "career_paths"
+    },
+    {
+      "indexname": "salary_components_code_company_uniq",
+      "tablename": "salary_components"
+    },
+    {
+      "indexname": "platform_plans_pkey",
+      "tablename": "platform_plans"
+    },
+    {
+      "indexname": "platform_plans_code_key",
+      "tablename": "platform_plans"
+    },
+    {
+      "indexname": "company_subscriptions_pkey",
+      "tablename": "company_subscriptions"
+    },
+    {
+      "indexname": "company_subscriptions_company_id_key",
+      "tablename": "company_subscriptions"
+    },
+    {
+      "indexname": "company_modules_pkey",
+      "tablename": "company_modules"
+    },
+    {
+      "indexname": "company_modules_company_id_module_key_key",
+      "tablename": "company_modules"
+    },
+    {
+      "indexname": "company_branding_pkey",
+      "tablename": "company_branding"
+    },
+    {
+      "indexname": "company_branding_company_id_key",
+      "tablename": "company_branding"
+    },
+    {
+      "indexname": "user_permission_overrides_pkey",
+      "tablename": "user_permission_overrides"
+    },
+    {
+      "indexname": "user_permission_overrides_user_id_permission_id_key",
+      "tablename": "user_permission_overrides"
+    },
+    {
+      "indexname": "admin_audit_logs_pkey",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "company_subscriptions_company_idx",
+      "tablename": "company_subscriptions"
+    },
+    {
+      "indexname": "company_subscriptions_plan_idx",
+      "tablename": "company_subscriptions"
+    },
+    {
+      "indexname": "company_subscriptions_status_idx",
+      "tablename": "company_subscriptions"
+    },
+    {
+      "indexname": "company_modules_company_idx",
+      "tablename": "company_modules"
+    },
+    {
+      "indexname": "company_branding_company_idx",
+      "tablename": "company_branding"
+    },
+    {
+      "indexname": "user_permission_overrides_user_idx",
+      "tablename": "user_permission_overrides"
+    },
+    {
+      "indexname": "admin_audit_logs_company_idx",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "admin_audit_logs_actor_idx",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "admin_audit_logs_action_idx",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "admin_audit_logs_entity_idx",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "admin_audit_logs_created_idx",
+      "tablename": "admin_audit_logs"
+    },
+    {
+      "indexname": "notification_preferences_pkey",
+      "tablename": "notification_preferences"
+    },
+    {
+      "indexname": "notification_preferences_user_id_notification_type_key",
+      "tablename": "notification_preferences"
+    },
+    {
+      "indexname": "workflow_definitions_pkey",
+      "tablename": "workflow_definitions"
+    },
+    {
+      "indexname": "workflow_definitions_company_id_workflow_key_key",
+      "tablename": "workflow_definitions"
+    },
+    {
+      "indexname": "workflow_steps_pkey",
+      "tablename": "workflow_steps"
+    },
+    {
+      "indexname": "workflow_steps_workflow_definition_id_step_order_key",
+      "tablename": "workflow_steps"
+    },
+    {
+      "indexname": "workflow_actions_pkey",
+      "tablename": "workflow_actions"
+    },
+    {
+      "indexname": "background_jobs_pkey",
+      "tablename": "background_jobs"
+    },
+    {
+      "indexname": "email_templates_pkey",
+      "tablename": "email_templates"
+    },
+    {
+      "indexname": "email_templates_company_id_template_key_key",
+      "tablename": "email_templates"
+    },
+    {
+      "indexname": "email_logs_pkey",
+      "tablename": "email_logs"
+    },
+    {
+      "indexname": "file_objects_pkey",
+      "tablename": "file_objects"
+    },
+    {
+      "indexname": "file_access_logs_pkey",
+      "tablename": "file_access_logs"
+    },
+    {
+      "indexname": "notification_preferences_user_idx",
+      "tablename": "notification_preferences"
+    },
+    {
+      "indexname": "workflow_actions_request_idx",
+      "tablename": "workflow_actions"
+    },
+    {
+      "indexname": "background_jobs_status_run_idx",
+      "tablename": "background_jobs"
+    },
+    {
+      "indexname": "background_jobs_company_idx",
+      "tablename": "background_jobs"
+    },
+    {
+      "indexname": "email_logs_company_idx",
+      "tablename": "email_logs"
+    },
+    {
+      "indexname": "file_objects_company_idx",
+      "tablename": "file_objects"
+    },
+    {
+      "indexname": "file_objects_employee_idx",
+      "tablename": "file_objects"
+    },
+    {
+      "indexname": "file_access_logs_file_idx",
+      "tablename": "file_access_logs"
+    },
+    {
+      "indexname": "employee_actions_type_status_idx",
+      "tablename": "employee_actions"
+    }
+  ],
+  "finishedAt": "2026-05-06T11:46:53.745Z"
+}

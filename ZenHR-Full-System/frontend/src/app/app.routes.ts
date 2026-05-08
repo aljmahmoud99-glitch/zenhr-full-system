@@ -42,6 +42,41 @@ export const routes: Routes = [
         path: 'users',
         ...pageAccess('/admin/users'),
         loadComponent: () => import('./features/users/users.component').then(m => m.UsersComponent)
+      },
+      {
+        path: 'roles-permissions',
+        ...pageAccess('/admin/roles-permissions'),
+        data: { pathKey: '/admin/roles-permissions', roles: SCREEN_ACCESS['/admin/roles-permissions'], mode: 'roles' },
+        loadComponent: () => import('./features/system-admin/system-admin-v1.component').then(m => m.SystemAdminV1Component)
+      },
+      {
+        path: 'company-settings',
+        ...pageAccess('/admin/company-settings'),
+        data: { pathKey: '/admin/company-settings', roles: SCREEN_ACCESS['/admin/company-settings'], mode: 'settings' },
+        loadComponent: () => import('./features/system-admin/system-admin-v1.component').then(m => m.SystemAdminV1Component)
+      },
+      {
+        path: 'plans-subscriptions',
+        ...pageAccess('/admin/plans-subscriptions'),
+        data: { pathKey: '/admin/plans-subscriptions', roles: SCREEN_ACCESS['/admin/plans-subscriptions'], mode: 'plans' },
+        loadComponent: () => import('./features/system-admin/system-admin-v1.component').then(m => m.SystemAdminV1Component)
+      },
+      {
+        path: 'analytics',
+        ...pageAccess('/admin/analytics'),
+        data: { pathKey: '/admin/analytics', roles: SCREEN_ACCESS['/admin/analytics'], mode: 'analytics' },
+        loadComponent: () => import('./features/system-admin/system-admin-v1.component').then(m => m.SystemAdminV1Component)
+      },
+      {
+        path: 'audit-logs',
+        ...pageAccess('/admin/audit-logs'),
+        data: { pathKey: '/admin/audit-logs', roles: SCREEN_ACCESS['/admin/audit-logs'], mode: 'audit' },
+        loadComponent: () => import('./features/system-admin/system-admin-v1.component').then(m => m.SystemAdminV1Component)
+      },
+      {
+        path: 'automation',
+        ...pageAccess('/admin/automation'),
+        loadComponent: () => import('./features/admin-automation/admin-automation.component').then(m => m.AdminAutomationComponent)
       }
     ]
   },
@@ -65,6 +100,16 @@ export const routes: Routes = [
         path: 'job-descriptions',
         ...pageAccess('/app/job-descriptions'),
         loadComponent: () => import('./features/job-descriptions/job-descriptions.component').then(m => m.JobDescriptionsComponent)
+      },
+      {
+        path: 'hr-master-data',
+        ...pageAccess('/app/hr-master-data'),
+        loadComponent: () => import('./features/hr-master-data/hr-master-data.component').then(m => m.HrMasterDataComponent)
+      },
+      {
+        path: 'recruitment',
+        ...pageAccess('/app/recruitment'),
+        loadComponent: () => import('./features/recruitment/recruitment.component').then(m => m.RecruitmentComponent)
       },
       {
         path: 'employees/:id',
@@ -143,6 +188,21 @@ export const routes: Routes = [
         loadComponent: () => import('./features/payroll/salary-component-definitions/salary-component-definitions.component').then(m => m.SalaryComponentDefinitionsComponent)
       },
       {
+        path: 'payroll-attendance',
+        ...pageAccess('/app/payroll-attendance'),
+        loadComponent: () => import('./features/payroll-attendance-core/payroll-attendance-core.component').then(m => m.PayrollAttendanceCoreComponent)
+      },
+      {
+        path: 'performance-workflows',
+        ...pageAccess('/app/performance-workflows'),
+        loadComponent: () => import('./features/performance-workflows/performance-workflows.component').then(m => m.PerformanceWorkflowsComponent)
+      },
+      {
+        path: 'documents-reporting',
+        ...pageAccess('/app/documents-reporting'),
+        loadComponent: () => import('./features/documents-reporting/documents-reporting.component').then(m => m.DocumentsReportingComponent)
+      },
+      {
         path: 'salary-components',
         ...pageAccess('/app/salary-components'),
         loadComponent: () => import('./features/salary-components/salary-components.component').then(m => m.SalaryComponentsComponent)
@@ -216,6 +276,11 @@ export const routes: Routes = [
         path: 'employee-actions/status-changes',
         ...pageAccess('/app/employee-actions/status-changes'),
         loadComponent: () => import('./features/employee-actions/status-changes/status-changes.component').then(m => m.StatusChangesComponent)
+      },
+      {
+        path: 'workflows',
+        ...pageAccess('/app/workflows'),
+        loadComponent: () => import('./features/workflows/workflows.component').then(m => m.WorkflowsComponent)
       }
     ]
   },

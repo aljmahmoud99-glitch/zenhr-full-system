@@ -1,0 +1,166 @@
+{
+  "company": {
+    "id": 4,
+    "name_ar": "شركة نيكسورا للحلول الرقمية",
+    "name_en": "Nexora Digital Solutions",
+    "commercial_reg_no": "CR-421082",
+    "tax_number": "TN-9829278",
+    "ssc_number": "SSC-217189",
+    "labor_ministry_no": "LM-166111",
+    "address_ar": "عمّان - شارع مكة - مجمع الأعمال الرقمي، الطابق الرابع",
+    "city": "Amman",
+    "phone": "+962 6 586 4420",
+    "email": "info@nexora.jo",
+    "website": "https://www.nexora.jo",
+    "logo": null,
+    "industry_type": "technology",
+    "currency": "JOD",
+    "is_active": true,
+    "created_at": "2026-04-06T12:20:12.866Z",
+    "updated_at": "2026-05-05T12:20:12.866Z",
+    "is_deleted": false,
+    "code": "NXD012866",
+    "country": "Jordan",
+    "plan_name": "pro",
+    "subscription_start": "2026-04-05T21:00:00.000Z",
+    "subscription_end": "2027-04-05T21:00:00.000Z",
+    "max_users": 80,
+    "max_employees": 250,
+    "is_trial": false,
+    "timezone": "Asia/Amman",
+    "locale": "ar-JO",
+    "primary_color": "#0f766e",
+    "secondary_color": "#1d4ed8",
+    "accent_color": "#f59e0b",
+    "subscription_status": "active"
+  },
+  "password": "Nexora@1234",
+  "users": [
+    {
+      "key": "hr",
+      "username": "nexora.hr",
+      "password": "Nexora@1234",
+      "email": "hr@nexora.jo"
+    },
+    {
+      "key": "payroll",
+      "username": "nexora.payroll",
+      "password": "Nexora@1234",
+      "email": "payroll@nexora.jo"
+    },
+    {
+      "key": "manager1",
+      "username": "nexora.manager1",
+      "password": "Nexora@1234",
+      "email": "manager1@nexora.jo"
+    },
+    {
+      "key": "manager2",
+      "username": "nexora.manager2",
+      "password": "Nexora@1234",
+      "email": "manager2@nexora.jo"
+    },
+    {
+      "key": "manager3",
+      "username": "nexora.manager3",
+      "password": "Nexora@1234",
+      "email": "manager3@nexora.jo"
+    },
+    {
+      "key": "manager4",
+      "username": "nexora.manager4",
+      "password": "Nexora@1234",
+      "email": "manager4@nexora.jo"
+    },
+    {
+      "key": "employee01",
+      "username": "nexora.employee01",
+      "password": "Nexora@1234",
+      "email": "employee01@nexora.jo"
+    },
+    {
+      "key": "employee02",
+      "username": "nexora.employee02",
+      "password": "Nexora@1234",
+      "email": "employee02@nexora.jo"
+    },
+    {
+      "key": "employee03",
+      "username": "nexora.employee03",
+      "password": "Nexora@1234",
+      "email": "employee03@nexora.jo"
+    },
+    {
+      "key": "employee04",
+      "username": "nexora.employee04",
+      "password": "Nexora@1234",
+      "email": "employee04@nexora.jo"
+    },
+    {
+      "key": "employee05",
+      "username": "nexora.employee05",
+      "password": "Nexora@1234",
+      "email": "employee05@nexora.jo"
+    },
+    {
+      "key": "employee06",
+      "username": "nexora.employee06",
+      "password": "Nexora@1234",
+      "email": "employee06@nexora.jo"
+    },
+    {
+      "key": "employee07",
+      "username": "nexora.employee07",
+      "password": "Nexora@1234",
+      "email": "employee07@nexora.jo"
+    },
+    {
+      "key": "employee08",
+      "username": "nexora.employee08",
+      "password": "Nexora@1234",
+      "email": "employee08@nexora.jo"
+    },
+    {
+      "key": "employee09",
+      "username": "nexora.employee09",
+      "password": "Nexora@1234",
+      "email": "employee09@nexora.jo"
+    },
+    {
+      "key": "employee10",
+      "username": "nexora.employee10",
+      "password": "Nexora@1234",
+      "email": "employee10@nexora.jo"
+    },
+    {
+      "key": "employee11",
+      "username": "nexora.employee11",
+      "password": "Nexora@1234",
+      "email": "employee11@nexora.jo"
+    },
+    {
+      "key": "employee12",
+      "username": "nexora.employee12",
+      "password": "Nexora@1234",
+      "email": "employee12@nexora.jo"
+    },
+    {
+      "key": "employee13",
+      "username": "nexora.employee13",
+      "password": "Nexora@1234",
+      "email": "employee13@nexora.jo"
+    },
+    {
+      "key": "employee14",
+      "username": "nexora.employee14",
+      "password": "Nexora@1234",
+      "email": "employee14@nexora.jo"
+    },
+    {
+      "key": "employee15",
+      "username": "nexora.employee15",
+      "password": "Nexora@1234",
+      "email": "employee15@nexora.jo"
+    }
+  ]
+}

@@ -28,3 +28,4 @@ export * from "./compliance";
 export * from "./disciplinary";
 export * from "./resignations";
 export * from "./clearances";
+export * from "./hr-master-data";

@@ -24,7 +24,7 @@
 
   <section class="summary-grid" *ngIf="!loading()">
     <article class="z-card summary-card" *ngFor="let card of summaryCards()">
-      <span class="summary-label">{{ lang === 'ar' ? card.labelAr : card.labelEn }}</span>
+      <span class="summary-label">{{ t(card.labelAr, card.labelEn) }}</span>
       <strong class="summary-value">{{ card.value }}</strong>
     </article>
   </section>
@@ -103,22 +103,26 @@
 
       <label class="filter-field" *ngIf="!isEmployeeSelfService">
         <span class="field-label">{{ t('اسم الموظف', 'Employee') }}</span>
-        <div class="search-shell">
-          <span class="material-icons">person_search</span>
-          <input class="z-input" [(ngModel)]="filter.employeeSearch" (ngModelChange)="applyFilters()" [placeholder]="t('ابحث بالاسم أو الكود', 'Search by name or code')">
-        </div>
+        <select class="z-input modern-select" [(ngModel)]="filter.employeeId" (ngModelChange)="applyFilters()">
+          <option value="">{{ t('�� ��������', 'All employees') }}</option>
+          <option *ngFor="let employee of employeeOptions()" [value]="employee.employeeId">
+            {{ employeeName(employee) }}{{ employee.employeeCode ? ' - ' + employee.employeeCode : '' }}
+          </option>
+        </select>
       </label>
 
       <label class="filter-field">
         <span class="field-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
-        <select class="z-input" multiple [(ngModel)]="filter.leaveTypeCodes" (ngModelChange)="applyFilters()" size="3">
+        <select class="z-input modern-select" [ngModel]="filter.leaveTypeCodes[0] || ''" (ngModelChange)="setSingleLeaveType($event)">
+          <option value="">{{ t('�� ����� ��������', 'All leave types') }}</option>
           <option *ngFor="let type of leaveTypes()" [value]="type.code">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</option>
         </select>
       </label>
 
       <label class="filter-field">
         <span class="field-label">{{ t('الحالة', 'Status') }}</span>
-        <select class="z-input" multiple [(ngModel)]="filter.statusList" (ngModelChange)="applyFilters()" size="5">
+        <select class="z-input modern-select" [ngModel]="filter.statusList[0] || ''" (ngModelChange)="setSingleStatus($event)">
+          <option value="">{{ t('�� �������', 'All statuses') }}</option>
           <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
           <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
           <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
@@ -129,7 +133,7 @@
 
       <label class="filter-field" *ngIf="!isEmployeeSelfService">
         <span class="field-label">{{ t('الوحدة التنظيمية', 'Org Unit') }}</span>
-        <select class="z-input" [(ngModel)]="filter.orgUnit" (ngModelChange)="applyFilters()">
+        <select class="z-input modern-select" [(ngModel)]="filter.orgUnit" (ngModelChange)="applyFilters()">
           <option value="">{{ t('كل الوحدات', 'All org units') }}</option>
           <option *ngFor="let unit of orgUnits()" [value]="unit">{{ unit }}</option>
         </select>
@@ -148,6 +152,7 @@
 
     <div class="filter-chips" *ngIf="hasActiveLeaveFilters">
       <span class="chip" *ngIf="filter.search">{{ t('بحث:', 'Search:') }} {{ filter.search }}</span>
+      <span class="chip" *ngIf="filter.employeeId">{{ t('����:', 'Employee:') }} {{ filter.employeeId }}</span>
       <span class="chip" *ngIf="filter.employeeSearch">{{ t('موظف:', 'Employee:') }} {{ filter.employeeSearch }}</span>
       <span class="chip" *ngFor="let s of filter.statusList">{{ statusLabel(s) }}</span>
       <span class="chip" *ngFor="let c of filter.leaveTypeCodes">{{ c }}</span>
@@ -195,7 +200,7 @@
         <div class="pipeline">
           <div class="pipeline-step" *ngFor="let step of pipelineSteps(request)" [class.done]="step.state === 'done'" [class.current]="step.state === 'current'" [class.rejected]="step.state === 'rejected'">
             <span class="dot"></span>
-            <span>{{ lang === 'ar' ? step.labelAr : step.labelEn }}</span>
+            <span>{{ t(step.labelAr, step.labelEn) }}</span>
           </div>
         </div>
 
@@ -396,3 +401,4 @@
     (confirm)="confirmActionSubmit()"
     (cancel)="closeConfirmAction()"></app-confirm-dialog>
 </section>
+
