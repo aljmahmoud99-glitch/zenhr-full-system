@@ -56,6 +56,7 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/payroll/runs': ['hradmin', 'payrolladmin'],
   '/app/payroll/slips': ['hradmin', 'payrolladmin', 'employee'],
   '/app/payroll/salary-components': ['hradmin', 'payrolladmin'],
+  '/app/payroll-policies': ['hradmin', 'payrolladmin'],
   '/app/salary-components': ['hradmin', 'payrolladmin'],
 
   '/app/forms': ['hradmin', 'payrolladmin', 'manager', 'employee'],
@@ -172,6 +173,7 @@ const HRADMIN_NAV: NavGroup[] = [
       { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'محرك الرواتب والحضور', labelEn: 'Payroll & Attendance Core', icon: 'rule', path: '/app/payroll-attendance' },
+      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' }
     ]
   },
@@ -201,6 +203,7 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'محرك الرواتب والحضور', labelEn: 'Payroll & Attendance Core', icon: 'rule', path: '/app/payroll-attendance' },
+      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
       { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مراجعة عروض التوظيف', labelEn: 'Offer Review', icon: 'local_offer', path: '/app/recruitment' },

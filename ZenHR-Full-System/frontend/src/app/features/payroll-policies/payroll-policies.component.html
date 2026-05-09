@@ -1,0 +1,226 @@
+<section class="policy-shell" [attr.dir]="lang.dir">
+  <header class="policy-hero">
+    <div>
+      <span class="eyebrow">{{ t('إعدادات الرواتب', 'Payroll settings') }}</span>
+      <h1>{{ t('محرك سياسات احتساب الرواتب', 'Payroll Policy Engine') }}</h1>
+      <p>{{ t('اضبط طريقة احتساب الرواتب حسب الشركة ونوع التوظيف، ثم عاين الأثر قبل الحفظ أو التشغيل.', 'Configure company salary calculation rules by employment type, then preview the impact before saving or running payroll.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost-action" (click)="load()">
+        <span class="material-icons">refresh</span>
+        {{ t('تحديث', 'Refresh') }}
+      </button>
+      <button type="button" class="primary-action" (click)="savePolicy()" [disabled]="saving">
+        <span class="material-icons">save</span>
+        {{ saving ? t('جار الحفظ...', 'Saving...') : t('حفظ السياسة', 'Save policy') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="error-banner" *ngIf="error">{{ error }}</div>
+  <div class="skeleton-grid" *ngIf="loading">
+    <div *ngFor="let n of [1,2,3,4]"></div>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <section class="panel">
+      <div class="panel-title">
+        <div>
+          <span class="material-icons">calculate</span>
+          <h2>{{ t('سياسة احتساب الراتب', 'Salary Calculation Policy') }}</h2>
+        </div>
+        <small>{{ modeHelp() }}</small>
+      </div>
+
+      <div class="mode-grid">
+        <button *ngFor="let mode of modes" type="button" [class.active]="policy.salaryCalculationMode === mode.value" (click)="policy.salaryCalculationMode = mode.value">
+          <strong>{{ t(mode.ar, mode.en) }}</strong>
+          <span>{{ t(mode.helpAr, mode.helpEn) }}</span>
+        </button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span>{{ t('سياسة أيام العمل', 'Working days policy') }}</span>
+          <select [(ngModel)]="policy.defaultWorkingDaysPolicy">
+            <option value="company_calendar">{{ t('تقويم الشركة', 'Company calendar') }}</option>
+            <option value="fixed_30">{{ t('ثابت 30 يوماً', 'Fixed 30 days') }}</option>
+            <option value="manual">{{ t('يدوي', 'Manual') }}</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ t('ساعات العمل اليومية', 'Working hours per day') }}</span>
+          <input type="number" min="1" step="0.5" [(ngModel)]="policy.workingHoursPerDay" />
+        </label>
+        <label>
+          <span>{{ t('أيام العمل اليدوية', 'Manual working days') }}</span>
+          <input type="number" min="1" step="0.5" [(ngModel)]="policy.manualWorkingDaysPerMonth" />
+        </label>
+        <label>
+          <span>{{ t('سياسة التقريب', 'Rounding policy') }}</span>
+          <select [(ngModel)]="policy.roundingPolicy">
+            <option value="nearest_0_001">{{ t('أقرب 0.001', 'Nearest 0.001') }}</option>
+            <option value="nearest_0_01">{{ t('أقرب 0.01', 'Nearest 0.01') }}</option>
+            <option value="nearest_0_05">{{ t('أقرب 0.05', 'Nearest 0.05') }}</option>
+            <option value="truncate_0_001">{{ t('قطع عند 0.001', 'Truncate 0.001') }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="weekend-row">
+        <span>{{ t('عطلة نهاية الأسبوع', 'Weekend days') }}</span>
+        <button *ngFor="let d of ['sun','mon','tue','wed','thu','fri','sat']" type="button" [class.active]="policy.weekendDays?.includes(d)" (click)="toggleWeekend(d)">
+          {{ dayLabel(d) }}
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <div>
+          <span class="material-icons">badge</span>
+          <h2>{{ t('قواعد أنواع التوظيف', 'Employment Type Rules') }}</h2>
+        </div>
+      </div>
+      <div class="rule-layout">
+        <nav class="rule-list">
+          <button *ngFor="let rule of rules" type="button" [class.active]="selectedRule?.employmentType === rule.employmentType" (click)="selectedRule = rule">
+            <strong>{{ label(rule) }}</strong>
+            <span>{{ rule.salaryBasis }} / {{ rule.calculationModeOverride || policy.salaryCalculationMode }}</span>
+          </button>
+        </nav>
+        <div class="rule-editor" *ngIf="selectedRule">
+          <div class="form-grid">
+            <label>
+              <span>{{ t('أساس الراتب', 'Salary basis') }}</span>
+              <select [(ngModel)]="selectedRule.salaryBasis">
+                <option *ngFor="let item of salaryBasisOptions" [value]="item.value">{{ t(item.ar, item.en) }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ t('تجاوز نمط الاحتساب', 'Calculation override') }}</span>
+              <select [(ngModel)]="selectedRule.calculationModeOverride">
+                <option [ngValue]="null">{{ t('بدون تجاوز', 'No override') }}</option>
+                <option *ngFor="let mode of modes" [value]="mode.value">{{ t(mode.ar, mode.en) }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ t('الساعات الافتراضية في اليوم', 'Default hours per day') }}</span>
+              <input type="number" min="1" step="0.5" [(ngModel)]="selectedRule.defaultHoursPerDay" />
+            </label>
+          </div>
+          <div class="toggle-grid">
+            <label><input type="checkbox" [(ngModel)]="selectedRule.attendanceRequired" /> {{ t('الحضور مطلوب', 'Attendance required') }}</label>
+            <label><input type="checkbox" [(ngModel)]="selectedRule.overtimeEligible" /> {{ t('مؤهل للإضافي', 'Overtime eligible') }}</label>
+            <label><input type="checkbox" [(ngModel)]="selectedRule.leaveEligible" /> {{ t('مؤهل للإجازات', 'Leave eligible') }}</label>
+            <label><input type="checkbox" [(ngModel)]="selectedRule.deductionEligible" /> {{ t('تطبق عليه الخصومات', 'Deduction eligible') }}</label>
+            <label><input type="checkbox" [(ngModel)]="selectedRule.payrollIncluded" /> {{ t('مشمول بالرواتب', 'Included in payroll') }}</label>
+          </div>
+          <button type="button" class="primary-action" (click)="saveRule()" [disabled]="saving">
+            <span class="material-icons">save</span>
+            {{ t('حفظ قاعدة التوظيف', 'Save employment rule') }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <div>
+          <span class="material-icons">rule</span>
+          <h2>{{ t('الحضور والخصومات والإضافي', 'Attendance, Deductions & Overtime') }}</h2>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>{{ t('سياسة الإجازة غير المدفوعة', 'Unpaid leave policy') }}</span>
+          <select [(ngModel)]="policy.unpaidLeavePolicy">
+            <option value="none">{{ t('بدون خصم', 'No deduction') }}</option>
+            <option value="deduct_daily_rate">{{ t('خصم المعدل اليومي', 'Deduct daily rate') }}</option>
+            <option value="deduct_working_day_rate">{{ t('خصم معدل يوم العمل', 'Deduct working-day rate') }}</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ t('خصم التأخير', 'Lateness deduction') }}</span>
+          <select [(ngModel)]="policy.latenessDeductionPolicy">
+            <option value="none">{{ t('بدون خصم', 'None') }}</option>
+            <option value="hourly_rate">{{ t('معدل الساعة', 'Hourly rate') }}</option>
+            <option value="minute_rate">{{ t('معدل الدقيقة', 'Minute rate') }}</option>
+            <option value="fixed_penalty">{{ t('غرامة ثابتة', 'Fixed penalty') }}</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ t('خصم الخروج المبكر', 'Early leave deduction') }}</span>
+          <select [(ngModel)]="policy.earlyLeaveDeductionPolicy">
+            <option value="none">{{ t('بدون خصم', 'None') }}</option>
+            <option value="hourly_rate">{{ t('معدل الساعة', 'Hourly rate') }}</option>
+            <option value="minute_rate">{{ t('معدل الدقيقة', 'Minute rate') }}</option>
+            <option value="fixed_penalty">{{ t('غرامة ثابتة', 'Fixed penalty') }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="toggle-grid">
+        <label><input type="checkbox" [(ngModel)]="policy.applyAttendanceToPayroll" /> {{ t('تطبيق الحضور على الرواتب', 'Apply attendance to payroll') }}</label>
+        <label><input type="checkbox" [(ngModel)]="policy.applyOvertimeToPayroll" /> {{ t('تطبيق الإضافي على الرواتب', 'Apply overtime to payroll') }}</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <div>
+          <span class="material-icons">preview</span>
+          <h2>{{ t('معاينة السياسة', 'Policy Preview') }}</h2>
+        </div>
+        <button type="button" class="ghost-action" (click)="runPreview()" [disabled]="previewLoading || !previewForm.employeeId">
+          <span class="material-icons">play_arrow</span>
+          {{ previewLoading ? t('جاري الاحتساب...', 'Calculating...') : t('تشغيل المعاينة', 'Run preview') }}
+        </button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>{{ t('الموظف', 'Employee') }}</span>
+          <select [(ngModel)]="previewForm.employeeId">
+            <option *ngFor="let emp of employees" [ngValue]="emp.id">{{ employeeLabel(emp) }}</option>
+          </select>
+        </label>
+        <label><span>{{ t('الشهر', 'Month') }}</span><input type="number" min="1" max="12" [(ngModel)]="previewForm.month" /></label>
+        <label><span>{{ t('السنة', 'Year') }}</span><input type="number" min="2020" [(ngModel)]="previewForm.year" /></label>
+        <label>
+          <span>{{ t('اختبار نمط محدد', 'Test a specific mode') }}</span>
+          <select [(ngModel)]="previewForm.mode">
+            <option value="">{{ t('حسب السياسة', 'Use policy') }}</option>
+            <option *ngFor="let mode of modes" [value]="mode.value">{{ t(mode.ar, mode.en) }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="preview-grid" *ngIf="preview">
+        <article><span>{{ t('نوع التوظيف', 'Employment type') }}</span><strong>{{ preview.employmentType }}</strong></article>
+        <article><span>{{ t('أساس الراتب', 'Salary basis') }}</span><strong>{{ preview.salaryBasis }}</strong></article>
+        <article><span>{{ t('نمط الاحتساب', 'Calculation mode') }}</span><strong>{{ preview.selectedCalculationMode }}</strong></article>
+        <article><span>{{ t('الراتب الإجمالي', 'Gross salary') }}</span><strong>{{ preview.grossSalary }} JOD</strong></article>
+        <article><span>{{ t('المعدل اليومي', 'Daily rate') }}</span><strong>{{ preview.dailyRate }} JOD</strong></article>
+        <article><span>{{ t('معدل الساعة', 'Hourly rate') }}</span><strong>{{ preview.hourlyRate }} JOD</strong></article>
+        <article><span>{{ t('أيام العمل', 'Working days') }}</span><strong>{{ preview.workingDays }}</strong></article>
+        <article><span>{{ t('أيام الشهر الفعلية', 'Actual month days') }}</span><strong>{{ preview.actualMonthDays }}</strong></article>
+        <article><span>{{ t('المبلغ المتوقع', 'Expected payable') }}</span><strong>{{ preview.expectedPayable }} JOD</strong></article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <div>
+          <span class="material-icons">history</span>
+          <h2>{{ t('سجل التدقيق', 'Audit History') }}</h2>
+        </div>
+      </div>
+      <div class="history-list">
+        <article *ngFor="let row of history">
+          <strong>{{ row.action }} / {{ row.entityType }}</strong>
+          <span>{{ row.username || '-' }}</span>
+          <small>{{ row.changedAt | date:'medium' }}</small>
+        </article>
+        <p class="empty" *ngIf="!history.length">{{ t('لا توجد تغييرات مسجلة بعد.', 'No policy changes recorded yet.') }}</p>
+      </div>
+    </section>
+  </ng-container>
+</section>

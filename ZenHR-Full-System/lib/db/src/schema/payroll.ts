@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, varchar, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, varchar, decimal, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
@@ -24,6 +24,8 @@ export const payrollRunsTable = pgTable("payroll_runs", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   publishedById: integer("published_by_id"),
   createdById: integer("created_by_id"),
+  payrollPolicyId: integer("payroll_policy_id"),
+  payrollPolicySnapshot: jsonb("payroll_policy_snapshot"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -55,6 +57,7 @@ export const payslipsTable = pgTable("payslips", {
   iban: varchar("iban", { length: 34 }),
   advanceDeduction: decimal("advance_deduction", { precision: 12, scale: 3 }).default("0").notNull(),
   componentsSnapshot: text("components_snapshot"),
+  payrollPolicySnapshot: jsonb("payroll_policy_snapshot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

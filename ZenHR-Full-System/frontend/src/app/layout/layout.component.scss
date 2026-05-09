@@ -1330,6 +1330,46 @@
   background: rgba(var(--app-primary-rgb, 45, 158, 107), 0.14);
 }
 
+:host-context(body.theme-dark) .workspace-switcher,
+:host-context(body.theme-dark) .workspace-mini,
+:host-context(body.theme-dark) .command-search,
+:host-context(body.theme-dark) .topbar-lang-switch,
+:host-context(body.theme-dark) .date-pill,
+:host-context(body.theme-dark) .surface-icon,
+:host-context(body.theme-dark) .search-shortcut,
+:host-context(body.theme-dark) .group-tab-btn,
+:host-context(body.theme-dark) .nav-direct-link {
+  border-color: var(--z-border);
+  background: rgba(17, 28, 24, 0.94);
+  color: var(--z-text-primary);
+  box-shadow: none;
+}
+
+:host-context(body.theme-dark) .top-search-input,
+:host-context(body.theme-dark) .logo-text,
+:host-context(body.theme-dark) .workspace-copy strong,
+:host-context(body.theme-dark) .workspace-mini strong,
+:host-context(body.theme-dark) .top-breadcrumb strong,
+:host-context(body.theme-dark) .group-tab-btn,
+:host-context(body.theme-dark) .nav-direct-link,
+:host-context(body.theme-dark) .surface-icon {
+  color: var(--z-text-primary);
+}
+
+:host-context(body.theme-dark) .workspace-copy small,
+:host-context(body.theme-dark) .workspace-mini small,
+:host-context(body.theme-dark) .date-line,
+:host-context(body.theme-dark) .top-breadcrumb,
+:host-context(body.theme-dark) .search-shortcut,
+:host-context(body.theme-dark) .group-tab-btn small,
+:host-context(body.theme-dark) .nav-direct-link small {
+  color: var(--z-text-secondary);
+}
+
+:host-context(body.theme-dark) .top-search-input::placeholder {
+  color: rgba(183, 201, 192, 0.64);
+}
+
 .header-brand {
   padding-inline-end: 6px;
 }
@@ -1854,4 +1894,48 @@
     min-height: 48px;
     padding: 7px 8px;
   }
+}
+
+/* Final dark-mode overrides must stay after the duplicated legacy topbar rules. */
+:host-context(body.theme-dark) .workspace-switcher,
+:host-context(body.theme-dark) .workspace-mini,
+:host-context(body.theme-dark) .command-search,
+:host-context(body.theme-dark) .topbar-lang-switch,
+:host-context(body.theme-dark) .date-pill,
+:host-context(body.theme-dark) .surface-icon,
+:host-context(body.theme-dark) .search-shortcut,
+:host-context(body.theme-dark) .group-tab-btn,
+:host-context(body.theme-dark) .nav-direct-link,
+:host-context(body.theme-dark) .top-user-chip {
+  border-color: var(--z-border) !important;
+  background: rgba(17, 28, 24, 0.94) !important;
+  color: var(--z-text-primary) !important;
+  box-shadow: none !important;
+}
+
+:host-context(body.theme-dark) .top-search-input,
+:host-context(body.theme-dark) .logo-text,
+:host-context(body.theme-dark) .workspace-copy strong,
+:host-context(body.theme-dark) .workspace-mini strong,
+:host-context(body.theme-dark) .top-breadcrumb strong,
+:host-context(body.theme-dark) .group-tab-btn,
+:host-context(body.theme-dark) .nav-direct-link,
+:host-context(body.theme-dark) .surface-icon,
+:host-context(body.theme-dark) .top-user-name,
+:host-context(body.theme-dark) .top-user-role {
+  color: var(--z-text-primary) !important;
+}
+
+:host-context(body.theme-dark) .workspace-copy small,
+:host-context(body.theme-dark) .workspace-mini small,
+:host-context(body.theme-dark) .date-line,
+:host-context(body.theme-dark) .top-breadcrumb,
+:host-context(body.theme-dark) .search-shortcut,
+:host-context(body.theme-dark) .group-tab-btn small,
+:host-context(body.theme-dark) .nav-direct-link small {
+  color: var(--z-text-secondary) !important;
+}
+
+:host-context(body.theme-dark) .top-search-input::placeholder {
+  color: rgba(183, 201, 192, 0.64) !important;
 }

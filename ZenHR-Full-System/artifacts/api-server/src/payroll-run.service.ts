@@ -23,6 +23,11 @@ import {
   PayrollConfig,
   SalaryComponentConfig,
 } from "./salary-calculation.service.js";
+import {
+  computePolicyRates,
+  resolvePayrollPeriodContext,
+  workedHoursForEmployee,
+} from "./payroll-policy.service.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -250,12 +255,51 @@ export async function calculatePayroll(
   let totalSscEmployeeM = 0, totalSscEmployerM = 0, totalIncomeTaxM = 0, totalOTM = 0;
   const payslipValues: any[] = [];
   const otLinkMap = new Map<number, number[]>();
+  let includedEmployeeCount = 0;
+  let runPolicyId: number | null = null;
+  let runPolicySnapshot: Record<string, any> | null = null;
 
   for (const emp of employees) {
-    const assignments = assignmentsByEmployee.get(emp.id) ?? [];
+    let assignments = assignmentsByEmployee.get(emp.id) ?? [];
+    const periodContext = await resolvePayrollPeriodContext(companyId, runMonth, runYear, emp.employmentType);
+    if (!periodContext.rule.payrollIncluded) continue;
+    includedEmployeeCount++;
+    if (!runPolicySnapshot) {
+      runPolicyId = periodContext.policy.id;
+      runPolicySnapshot = {
+        policyId: periodContext.policy.id,
+        salaryCalculationMode: periodContext.policy.salaryCalculationMode,
+        defaultWorkingDaysPolicy: periodContext.policy.defaultWorkingDaysPolicy,
+        weekendDays: periodContext.policy.weekendDays,
+        roundingPolicy: periodContext.policy.roundingPolicy,
+        applyAttendanceToPayroll: periodContext.policy.applyAttendanceToPayroll,
+        applyOvertimeToPayroll: periodContext.policy.applyOvertimeToPayroll,
+        workingHoursPerDay: periodContext.policy.workingHoursPerDay,
+        policyEffectiveFrom: periodContext.policy.policyEffectiveFrom,
+        capturedAt: new Date().toISOString(),
+      };
+    }
+    const baseSalaryJOD = parseFloat(String(emp.basicSalary ?? "0"));
+    const workedHours = periodContext.rule.salaryBasis === "hourly"
+      ? await workedHoursForEmployee(companyId, emp.id, runMonth, runYear)
+      : 0;
+    const rawPolicyRates = computePolicyRates(baseSalaryJOD, {
+      divisorDays: periodContext.divisorDays,
+      hoursPerDay: periodContext.hoursPerDay,
+      policy: periodContext.policy,
+    });
+    const policyRates = periodContext.rule.salaryBasis === "hourly"
+      ? { dailyRate: baseSalaryJOD * periodContext.hoursPerDay, hourlyRate: baseSalaryJOD }
+      : periodContext.rule.salaryBasis === "daily"
+        ? { dailyRate: baseSalaryJOD, hourlyRate: baseSalaryJOD / periodContext.hoursPerDay }
+        : rawPolicyRates;
+    const policyBasicJOD =
+      periodContext.rule.salaryBasis === "hourly" ? policyRates.hourlyRate * workedHours :
+      periodContext.rule.salaryBasis === "daily" ? baseSalaryJOD * periodContext.workingDays :
+      baseSalaryJOD;
 
     if (assignments.length === 0) {
-      const fallbackBasicM = toM(emp.basicSalary);
+      const fallbackBasicM = toM(policyBasicJOD);
       const fallbackComponents: EmployeeComponentAssignment[] = [
         { component: { id: 0, code: 'BASIC',     componentType: 'earning', calculationType: 'fixed', defaultValue: fromM(fallbackBasicM),                  formulaExpression: null, percentageBase: null, isTaxable: true,  isSscApplicable: true,  isRecurring: true, sortOrder: 1, nameEn: 'Basic Salary' } as any, overrideValue: null },
         { component: { id: 0, code: 'HOUSING',   componentType: 'earning', calculationType: 'fixed', defaultValue: String(emp.housingAllowance   ?? '0'), formulaExpression: null, percentageBase: null, isTaxable: false, isSscApplicable: false, isRecurring: true, sortOrder: 2, nameEn: 'Housing Allowance' } as any, overrideValue: null },
@@ -264,13 +308,22 @@ export async function calculatePayroll(
         { component: { id: 0, code: 'MEAL',      componentType: 'earning', calculationType: 'fixed', defaultValue: String(emp.mealAllowance      ?? '0'), formulaExpression: null, percentageBase: null, isTaxable: false, isSscApplicable: false, isRecurring: true, sortOrder: 5, nameEn: 'Meal Allowance' } as any, overrideValue: null },
       ].filter(a => parseFloat(a.component.defaultValue) > 0);
       assignments.push(...fallbackComponents);
+    } else {
+      assignments = assignments.map(a => {
+        if (a.component.code !== "BASIC") return a;
+        return {
+          ...a,
+          overrideValue: fromM(toM(policyBasicJOD)),
+          component: { ...a.component, defaultValue: fromM(toM(policyBasicJOD)) },
+        };
+      });
     }
 
     const basicAssignment = assignments.find(a => a.component.code === 'BASIC');
     const basicJOD = basicAssignment
       ? parseFloat(basicAssignment.overrideValue ?? basicAssignment.component.defaultValue)
       : parseFloat(String(emp.basicSalary ?? '0'));
-    const hourlyRateJOD = basicJOD / config.workingDaysPerMonth / config.workingHoursPerDay;
+    const hourlyRateJOD = policyRates.hourlyRate || (basicJOD / config.workingDaysPerMonth / config.workingHoursPerDay);
 
     const otData = otHoursByEmployee.get(emp.id);
     const overtimeM = otData
@@ -320,6 +373,20 @@ export async function calculatePayroll(
       overtimeJOD: fromM(overtimeM),
       overtimeHoursWeekday: otData?.weekday ?? 0,
       overtimeHoursWeekend: otData?.weekend ?? 0,
+      payrollPolicy: {
+        policyId: periodContext.policy.id,
+        salaryCalculationMode: periodContext.policy.salaryCalculationMode,
+        employmentType: periodContext.rule.employmentType,
+        salaryBasis: periodContext.rule.salaryBasis,
+        selectedCalculationMode: periodContext.selectedMode,
+        divisorDays: periodContext.divisorDays,
+        actualMonthDays: periodContext.actualDays,
+        workingDays: periodContext.workingDays,
+        workedHours,
+        dailyRateJOD: policyRates.dailyRate.toFixed(3),
+        hourlyRateJOD: policyRates.hourlyRate.toFixed(3),
+        effectiveFrom: periodContext.policy.policyEffectiveFrom,
+      },
       advanceDeductionJOD: fromM(advanceDeductionM),
       advanceIds: advData?.ids ?? [],
     };
@@ -357,6 +424,7 @@ export async function calculatePayroll(
       bankName:                emp.bankName ?? null,
       iban:                    emp.iban ?? null,
       componentsSnapshot:      JSON.stringify(snapshot),
+      payrollPolicySnapshot:   snapshot.payrollPolicy,
     });
 
     if (otData?.rowIds?.length) {
@@ -394,7 +462,9 @@ export async function calculatePayroll(
       totalSscEmployee:      fromM(totalSscEmployeeM),
       totalSscEmployer:      fromM(totalSscEmployerM),
       totalIncomeTax:        fromM(totalIncomeTaxM),
-      employeeCount:         employees.length,
+      employeeCount:         includedEmployeeCount,
+      payrollPolicyId:       runPolicyId,
+      payrollPolicySnapshot: runPolicySnapshot,
       processedAt:           new Date(),
     }).where(eq(payrollRunsTable.id, runId)).returning();
 

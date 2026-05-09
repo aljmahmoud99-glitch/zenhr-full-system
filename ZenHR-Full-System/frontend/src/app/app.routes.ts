@@ -193,6 +193,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/payroll-attendance-core/payroll-attendance-core.component').then(m => m.PayrollAttendanceCoreComponent)
       },
       {
+        path: 'payroll-policies',
+        ...pageAccess('/app/payroll-policies'),
+        loadComponent: () => import('./features/payroll-policies/payroll-policies.component').then(m => m.PayrollPoliciesComponent)
+      },
+      {
         path: 'performance-workflows',
         ...pageAccess('/app/performance-workflows'),
         loadComponent: () => import('./features/performance-workflows/performance-workflows.component').then(m => m.PerformanceWorkflowsComponent)

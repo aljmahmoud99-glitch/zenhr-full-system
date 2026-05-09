@@ -1,0 +1,666 @@
+{
+  "generatedAt": "2026-05-09T10:36:25.424Z",
+  "base": "http://localhost:3006",
+  "migrationApplied": true,
+  "health": {
+    "status": "healthy",
+    "timestamp": "2026-05-09T10:36:25.478Z",
+    "version": "1.0.0"
+  },
+  "logins": {
+    "hr": {
+      "ok": true,
+      "role": "hradmin",
+      "companyId": 1
+    },
+    "payroll": {
+      "ok": true,
+      "role": "payrolladmin",
+      "companyId": 1
+    },
+    "manager": {
+      "ok": true,
+      "role": "manager",
+      "companyId": 1
+    },
+    "employee": {
+      "ok": true,
+      "role": "employee",
+      "companyId": 1
+    },
+    "recruiter": {
+      "ok": true,
+      "role": "recruiter",
+      "companyId": 1
+    },
+    "admin": {
+      "ok": true,
+      "role": "superadmin",
+      "companyId": 1
+    }
+  },
+  "checks": [
+    {
+      "name": "GET /api/payroll-policies persisted",
+      "ok": true,
+      "details": {
+        "policyId": 2,
+        "mode": "fixed_30",
+        "rules": 5
+      }
+    },
+    {
+      "name": "Save/update company policy persists and Arabic label clean",
+      "ok": true,
+      "details": {
+        "savedMode": "actual_calendar_days",
+        "reloadedMode": "actual_calendar_days",
+        "labelAr": "سياسة الرواتب الأساسية"
+      }
+    },
+    {
+      "name": "Calculation modes fixed/actual 28-30-31/working-days",
+      "ok": true,
+      "details": {
+        "fixed": "50.000",
+        "actual28": "53.571",
+        "actual30": "50.000",
+        "actual31": "48.387",
+        "working": "65.217",
+        "workingDays": 23
+      }
+    },
+    {
+      "name": "Employment type rules full/part/freelance/contractor/intern",
+      "ok": true,
+      "details": {
+        "tested": [
+          {
+            "type": "full_time",
+            "salaryBasis": "monthly",
+            "payrollIncluded": true,
+            "calculationModeOverride": null,
+            "labelAr": "دوام كامل"
+          },
+          {
+            "type": "part_time",
+            "salaryBasis": "daily",
+            "payrollIncluded": true,
+            "calculationModeOverride": null,
+            "labelAr": "دوام جزئي"
+          },
+          {
+            "type": "part_time",
+            "salaryBasis": "hourly",
+            "payrollIncluded": true,
+            "calculationModeOverride": "hourly",
+            "labelAr": "دوام جزئي"
+          },
+          {
+            "type": "freelance",
+            "salaryBasis": "contract",
+            "payrollIncluded": true,
+            "calculationModeOverride": null,
+            "labelAr": "مستقل"
+          },
+          {
+            "type": "contractor",
+            "salaryBasis": "hourly",
+            "payrollIncluded": true,
+            "calculationModeOverride": "hourly",
+            "labelAr": "متعاقد"
+          },
+          {
+            "type": "contractor",
+            "salaryBasis": "contract",
+            "payrollIncluded": true,
+            "calculationModeOverride": null,
+            "labelAr": "متعاقد"
+          },
+          {
+            "type": "intern",
+            "salaryBasis": "monthly",
+            "payrollIncluded": true,
+            "calculationModeOverride": null,
+            "labelAr": "متدرب"
+          },
+          {
+            "type": "intern",
+            "salaryBasis": "monthly",
+            "payrollIncluded": false,
+            "calculationModeOverride": null,
+            "labelAr": "متدرب"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Payroll preview reads saved policy",
+      "ok": true,
+      "details": {
+        "policyId": 2,
+        "salaryCalculationMode": "fixed_30",
+        "selectedCalculationMode": "fixed_30",
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "dailyRate": "50.000",
+        "hourlyRate": "6.250",
+        "workingDays": 20,
+        "actualMonthDays": 28,
+        "workedHours": "0.000",
+        "effectiveFrom": "2026-05-09T10:36:26.540Z"
+      }
+    },
+    {
+      "name": "Future payroll run calculation uses saved policy and persists run snapshot",
+      "ok": true,
+      "details": {
+        "runId": 5,
+        "status": "calculated",
+        "snapshot": {
+          "policyId": 2,
+          "capturedAt": "2026-05-09T10:36:26.634Z",
+          "weekendDays": [
+            "fri",
+            "sat"
+          ],
+          "roundingPolicy": "nearest_0_001",
+          "workingHoursPerDay": 8,
+          "policyEffectiveFrom": "2026-05-09T10:36:26.540Z",
+          "salaryCalculationMode": "fixed_30",
+          "applyOvertimeToPayroll": true,
+          "applyAttendanceToPayroll": false,
+          "defaultWorkingDaysPolicy": "company_calendar"
+        }
+      }
+    },
+    {
+      "name": "Payslip policy snapshot persists",
+      "ok": true,
+      "details": {
+        "count": 10,
+        "firstSnapshot": {
+          "policyId": 2,
+          "divisorDays": 30,
+          "salaryBasis": "monthly",
+          "workedHours": 0,
+          "workingDays": 20,
+          "dailyRateJOD": "83.333",
+          "effectiveFrom": "2026-05-09T10:36:26.540Z",
+          "hourlyRateJOD": "10.417",
+          "employmentType": "full_time",
+          "actualMonthDays": 28,
+          "salaryCalculationMode": "fixed_30",
+          "selectedCalculationMode": "fixed_30"
+        }
+      }
+    },
+    {
+      "name": "Approved/locked payroll run is not recalculated",
+      "ok": true,
+      "details": {
+        "runId": 5,
+        "recalcStatus": 409,
+        "beforeNet": "0.000",
+        "afterNet": "0.000",
+        "status": "approved"
+      }
+    },
+    {
+      "name": "Policy audit/history visible",
+      "ok": true,
+      "details": {
+        "count": 48,
+        "latest": "updated"
+      }
+    },
+    {
+      "name": "RBAC hr/payroll allowed and unauthorized roles blocked",
+      "ok": true,
+      "details": {
+        "manager": {
+          "forbidden": true,
+          "status": 403
+        },
+        "employee": {
+          "forbidden": true,
+          "status": 403
+        },
+        "recruiter": {
+          "forbidden": true,
+          "status": 403
+        },
+        "admin": {
+          "mutationBlocked": true,
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "Tenant isolation auth company scoped",
+      "ok": true,
+      "details": {
+        "attemptedCompanyId": 999999,
+        "savedCompanyId": 1,
+        "readCompanyId": 1
+      }
+    }
+  ],
+  "calculations": {
+    "fixed30": {
+      "employee": {
+        "id": 1,
+        "employeeCode": "EMP-0001",
+        "nameAr": "أحمد العلي",
+        "nameEn": "Ahmed Al-Ali",
+        "departmentAr": "الموارد البشرية",
+        "departmentEn": "Human Resources"
+      },
+      "employmentType": "full_time",
+      "salaryBasis": "monthly",
+      "selectedCalculationMode": "fixed_30",
+      "grossSalary": "1500.000",
+      "dailyRate": "50.000",
+      "hourlyRate": "6.250",
+      "workingDays": 20,
+      "actualMonthDays": 28,
+      "workedHours": "0.000",
+      "expectedPayable": "1500.000",
+      "attendanceImpact": "disabled",
+      "overtimeImpact": "eligible",
+      "policy": {
+        "id": 2,
+        "companyId": 1,
+        "salaryCalculationMode": "actual_calendar_days",
+        "defaultWorkingDaysPolicy": "company_calendar",
+        "weekendDays": [
+          "fri",
+          "sat"
+        ],
+        "roundingPolicy": "nearest_0_001",
+        "dailyRatePrecision": 3,
+        "hourlyRatePrecision": 3,
+        "overtimePolicyMode": "policy_rules",
+        "deductionPolicyMode": "policy_rules",
+        "unpaidLeavePolicy": "deduct_daily_rate",
+        "latenessDeductionPolicy": "none",
+        "earlyLeaveDeductionPolicy": "none",
+        "applyAttendanceToPayroll": false,
+        "applyOvertimeToPayroll": true,
+        "workingHoursPerDay": 8,
+        "manualWorkingDaysPerMonth": null,
+        "policyEffectiveFrom": "2026-05-09T10:36:25.666Z",
+        "labelAr": "سياسة الرواتب الأساسية",
+        "labelEn": "Default payroll policy",
+        "notesAr": null,
+        "notesEn": null,
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:36:25.681Z",
+        "isDeleted": false
+      },
+      "rule": {
+        "id": 2,
+        "companyId": 1,
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "attendanceRequired": true,
+        "overtimeEligible": true,
+        "leaveEligible": true,
+        "deductionEligible": true,
+        "payrollIncluded": true,
+        "calculationModeOverride": null,
+        "defaultHoursPerDay": 8,
+        "labelAr": "???? ????",
+        "labelEn": "Full time",
+        "descriptionAr": "???? ???? ?? ???? ??????? ?????? ?????",
+        "descriptionEn": "Monthly payroll with attendance, leave, and deductions",
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:30:05.275Z",
+        "isDeleted": false
+      }
+    },
+    "actual28": {
+      "employee": {
+        "id": 1,
+        "employeeCode": "EMP-0001",
+        "nameAr": "أحمد العلي",
+        "nameEn": "Ahmed Al-Ali",
+        "departmentAr": "الموارد البشرية",
+        "departmentEn": "Human Resources"
+      },
+      "employmentType": "full_time",
+      "salaryBasis": "monthly",
+      "selectedCalculationMode": "actual_calendar_days",
+      "grossSalary": "1500.000",
+      "dailyRate": "53.571",
+      "hourlyRate": "6.696",
+      "workingDays": 20,
+      "actualMonthDays": 28,
+      "workedHours": "0.000",
+      "expectedPayable": "1500.000",
+      "attendanceImpact": "disabled",
+      "overtimeImpact": "eligible",
+      "policy": {
+        "id": 2,
+        "companyId": 1,
+        "salaryCalculationMode": "actual_calendar_days",
+        "defaultWorkingDaysPolicy": "company_calendar",
+        "weekendDays": [
+          "fri",
+          "sat"
+        ],
+        "roundingPolicy": "nearest_0_001",
+        "dailyRatePrecision": 3,
+        "hourlyRatePrecision": 3,
+        "overtimePolicyMode": "policy_rules",
+        "deductionPolicyMode": "policy_rules",
+        "unpaidLeavePolicy": "deduct_daily_rate",
+        "latenessDeductionPolicy": "none",
+        "earlyLeaveDeductionPolicy": "none",
+        "applyAttendanceToPayroll": false,
+        "applyOvertimeToPayroll": true,
+        "workingHoursPerDay": 8,
+        "manualWorkingDaysPerMonth": null,
+        "policyEffectiveFrom": "2026-05-09T10:36:25.666Z",
+        "labelAr": "سياسة الرواتب الأساسية",
+        "labelEn": "Default payroll policy",
+        "notesAr": null,
+        "notesEn": null,
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:36:25.681Z",
+        "isDeleted": false
+      },
+      "rule": {
+        "id": 2,
+        "companyId": 1,
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "attendanceRequired": true,
+        "overtimeEligible": true,
+        "leaveEligible": true,
+        "deductionEligible": true,
+        "payrollIncluded": true,
+        "calculationModeOverride": null,
+        "defaultHoursPerDay": 8,
+        "labelAr": "???? ????",
+        "labelEn": "Full time",
+        "descriptionAr": "???? ???? ?? ???? ??????? ?????? ?????",
+        "descriptionEn": "Monthly payroll with attendance, leave, and deductions",
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:30:05.275Z",
+        "isDeleted": false
+      }
+    },
+    "actual30": {
+      "employee": {
+        "id": 1,
+        "employeeCode": "EMP-0001",
+        "nameAr": "أحمد العلي",
+        "nameEn": "Ahmed Al-Ali",
+        "departmentAr": "الموارد البشرية",
+        "departmentEn": "Human Resources"
+      },
+      "employmentType": "full_time",
+      "salaryBasis": "monthly",
+      "selectedCalculationMode": "actual_calendar_days",
+      "grossSalary": "1500.000",
+      "dailyRate": "50.000",
+      "hourlyRate": "6.250",
+      "workingDays": 22,
+      "actualMonthDays": 30,
+      "workedHours": "0.000",
+      "expectedPayable": "1500.000",
+      "attendanceImpact": "disabled",
+      "overtimeImpact": "eligible",
+      "policy": {
+        "id": 2,
+        "companyId": 1,
+        "salaryCalculationMode": "actual_calendar_days",
+        "defaultWorkingDaysPolicy": "company_calendar",
+        "weekendDays": [
+          "fri",
+          "sat"
+        ],
+        "roundingPolicy": "nearest_0_001",
+        "dailyRatePrecision": 3,
+        "hourlyRatePrecision": 3,
+        "overtimePolicyMode": "policy_rules",
+        "deductionPolicyMode": "policy_rules",
+        "unpaidLeavePolicy": "deduct_daily_rate",
+        "latenessDeductionPolicy": "none",
+        "earlyLeaveDeductionPolicy": "none",
+        "applyAttendanceToPayroll": false,
+        "applyOvertimeToPayroll": true,
+        "workingHoursPerDay": 8,
+        "manualWorkingDaysPerMonth": null,
+        "policyEffectiveFrom": "2026-05-09T10:36:25.666Z",
+        "labelAr": "سياسة الرواتب الأساسية",
+        "labelEn": "Default payroll policy",
+        "notesAr": null,
+        "notesEn": null,
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:36:25.681Z",
+        "isDeleted": false
+      },
+      "rule": {
+        "id": 2,
+        "companyId": 1,
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "attendanceRequired": true,
+        "overtimeEligible": true,
+        "leaveEligible": true,
+        "deductionEligible": true,
+        "payrollIncluded": true,
+        "calculationModeOverride": null,
+        "defaultHoursPerDay": 8,
+        "labelAr": "???? ????",
+        "labelEn": "Full time",
+        "descriptionAr": "???? ???? ?? ???? ??????? ?????? ?????",
+        "descriptionEn": "Monthly payroll with attendance, leave, and deductions",
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:30:05.275Z",
+        "isDeleted": false
+      }
+    },
+    "actual31": {
+      "employee": {
+        "id": 1,
+        "employeeCode": "EMP-0001",
+        "nameAr": "أحمد العلي",
+        "nameEn": "Ahmed Al-Ali",
+        "departmentAr": "الموارد البشرية",
+        "departmentEn": "Human Resources"
+      },
+      "employmentType": "full_time",
+      "salaryBasis": "monthly",
+      "selectedCalculationMode": "actual_calendar_days",
+      "grossSalary": "1500.000",
+      "dailyRate": "48.387",
+      "hourlyRate": "6.048",
+      "workingDays": 23,
+      "actualMonthDays": 31,
+      "workedHours": "0.000",
+      "expectedPayable": "1500.000",
+      "attendanceImpact": "disabled",
+      "overtimeImpact": "eligible",
+      "policy": {
+        "id": 2,
+        "companyId": 1,
+        "salaryCalculationMode": "actual_calendar_days",
+        "defaultWorkingDaysPolicy": "company_calendar",
+        "weekendDays": [
+          "fri",
+          "sat"
+        ],
+        "roundingPolicy": "nearest_0_001",
+        "dailyRatePrecision": 3,
+        "hourlyRatePrecision": 3,
+        "overtimePolicyMode": "policy_rules",
+        "deductionPolicyMode": "policy_rules",
+        "unpaidLeavePolicy": "deduct_daily_rate",
+        "latenessDeductionPolicy": "none",
+        "earlyLeaveDeductionPolicy": "none",
+        "applyAttendanceToPayroll": false,
+        "applyOvertimeToPayroll": true,
+        "workingHoursPerDay": 8,
+        "manualWorkingDaysPerMonth": null,
+        "policyEffectiveFrom": "2026-05-09T10:36:25.666Z",
+        "labelAr": "سياسة الرواتب الأساسية",
+        "labelEn": "Default payroll policy",
+        "notesAr": null,
+        "notesEn": null,
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:36:25.681Z",
+        "isDeleted": false
+      },
+      "rule": {
+        "id": 2,
+        "companyId": 1,
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "attendanceRequired": true,
+        "overtimeEligible": true,
+        "leaveEligible": true,
+        "deductionEligible": true,
+        "payrollIncluded": true,
+        "calculationModeOverride": null,
+        "defaultHoursPerDay": 8,
+        "labelAr": "???? ????",
+        "labelEn": "Full time",
+        "descriptionAr": "???? ???? ?? ???? ??????? ?????? ?????",
+        "descriptionEn": "Monthly payroll with attendance, leave, and deductions",
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:30:05.275Z",
+        "isDeleted": false
+      }
+    },
+    "workingDays": {
+      "employee": {
+        "id": 1,
+        "employeeCode": "EMP-0001",
+        "nameAr": "أحمد العلي",
+        "nameEn": "Ahmed Al-Ali",
+        "departmentAr": "الموارد البشرية",
+        "departmentEn": "Human Resources"
+      },
+      "employmentType": "full_time",
+      "salaryBasis": "monthly",
+      "selectedCalculationMode": "working_days_only",
+      "grossSalary": "1500.000",
+      "dailyRate": "65.217",
+      "hourlyRate": "8.152",
+      "workingDays": 23,
+      "actualMonthDays": 31,
+      "workedHours": "0.000",
+      "expectedPayable": "1500.000",
+      "attendanceImpact": "disabled",
+      "overtimeImpact": "eligible",
+      "policy": {
+        "id": 2,
+        "companyId": 1,
+        "salaryCalculationMode": "actual_calendar_days",
+        "defaultWorkingDaysPolicy": "company_calendar",
+        "weekendDays": [
+          "fri",
+          "sat"
+        ],
+        "roundingPolicy": "nearest_0_001",
+        "dailyRatePrecision": 3,
+        "hourlyRatePrecision": 3,
+        "overtimePolicyMode": "policy_rules",
+        "deductionPolicyMode": "policy_rules",
+        "unpaidLeavePolicy": "deduct_daily_rate",
+        "latenessDeductionPolicy": "none",
+        "earlyLeaveDeductionPolicy": "none",
+        "applyAttendanceToPayroll": false,
+        "applyOvertimeToPayroll": true,
+        "workingHoursPerDay": 8,
+        "manualWorkingDaysPerMonth": null,
+        "policyEffectiveFrom": "2026-05-09T10:36:25.666Z",
+        "labelAr": "سياسة الرواتب الأساسية",
+        "labelEn": "Default payroll policy",
+        "notesAr": null,
+        "notesEn": null,
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:36:25.681Z",
+        "isDeleted": false
+      },
+      "rule": {
+        "id": 2,
+        "companyId": 1,
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "attendanceRequired": true,
+        "overtimeEligible": true,
+        "leaveEligible": true,
+        "deductionEligible": true,
+        "payrollIncluded": true,
+        "calculationModeOverride": null,
+        "defaultHoursPerDay": 8,
+        "labelAr": "???? ????",
+        "labelEn": "Full time",
+        "descriptionAr": "???? ???? ?? ???? ??????? ?????? ?????",
+        "descriptionEn": "Monthly payroll with attendance, leave, and deductions",
+        "isActive": true,
+        "createdBy": null,
+        "updatedBy": 2,
+        "createdAt": "2026-05-08T23:48:40.039Z",
+        "updatedAt": "2026-05-09T10:30:05.275Z",
+        "isDeleted": false
+      }
+    }
+  },
+  "integration": {},
+  "rbac": {
+    "manager": {
+      "forbidden": true,
+      "status": 403
+    },
+    "employee": {
+      "forbidden": true,
+      "status": 403
+    },
+    "recruiter": {
+      "forbidden": true,
+      "status": 403
+    },
+    "admin": {
+      "mutationBlocked": true,
+      "status": 403
+    }
+  },
+  "tenantIsolation": {
+    "attemptedCompanyId": 999999,
+    "savedCompanyId": 1,
+    "readCompanyId": 1
+  },
+  "verdict": "API_GO"
+}

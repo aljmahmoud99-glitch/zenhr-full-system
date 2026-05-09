@@ -1,0 +1,128 @@
+{
+  "generatedAt": "2026-05-09T11:55:28.111Z",
+  "frontend": "http://127.0.0.1:5018",
+  "auth": {
+    "passed": true,
+    "url": "http://127.0.0.1:5018/#/app/dashboard"
+  },
+  "page": {
+    "passed": true,
+    "url": "http://127.0.0.1:5018/#/app/payroll-policies",
+    "hasArabic": true,
+    "hasTitle": true,
+    "mojibake": false,
+    "direction": "rtl",
+    "textLength": 5690
+  },
+  "interactions": [
+    {
+      "name": "change calculation mode and save",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "activeIsActual": true,
+        "toastVisible": true
+      }
+    },
+    {
+      "name": "reload confirms policy persistence",
+      "passed": true,
+      "state": {
+        "persisted": true
+      }
+    },
+    {
+      "name": "employment type rule save",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "toastVisible": true
+      }
+    },
+    {
+      "name": "policy preview calculation",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "hasExpectedPayable": true
+      }
+    },
+    {
+      "name": "audit history visible",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "hasRows": true
+      }
+    }
+  ],
+  "darkMode": {
+    "checked": 63,
+    "bad": [],
+    "passed": true,
+    "htmlTheme": "dark",
+    "bodyClass": "rtl theme-dark",
+    "token": "#eef8f3"
+  },
+  "responsive": [
+    {
+      "name": "tablet",
+      "width": 820,
+      "height": 900,
+      "passed": true,
+      "overflowX": false,
+      "textLength": 6185
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 850,
+      "passed": true,
+      "overflowX": false,
+      "textLength": 6127
+    }
+  ],
+  "consoleErrors": [
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1778327731906.463,
+          "url": "https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap",
+          "networkRequestId": "27516.2"
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1778327731909.537,
+          "url": "https://fonts.googleapis.com/icon?family=Material+Icons",
+          "networkRequestId": "27516.3"
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+          "timestamp": 1778327731909.728,
+          "url": "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0&display=swap",
+          "networkRequestId": "27516.4"
+        }
+      }
+    }
+  ],
+  "verdict": "UI_GO",
+  "failed": []
+}

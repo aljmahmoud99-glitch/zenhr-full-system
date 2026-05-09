@@ -1112,3 +1112,41 @@ textarea.form-control,
 
 // ─── Print ────────────────────────────────────────────────────────────────────
 @import 'styles/print';
+
+html[data-theme='dark'] .surface-icon,
+html[data-theme='dark'] .top-user-chip,
+html[data-theme='dark'] .top-search-input,
+html[data-theme='dark'] .workspace-switcher,
+html[data-theme='dark'] .workspace-mini,
+html[data-theme='dark'] .command-search,
+html[data-theme='dark'] .topbar-lang-switch,
+html[data-theme='dark'] .date-pill,
+html[data-theme='dark'] .search-shortcut,
+html[data-theme='dark'] .group-tab-btn,
+html[data-theme='dark'] .nav-direct-link,
+body.theme-dark .surface-icon,
+body.theme-dark .top-user-chip,
+body.theme-dark .top-search-input,
+body.theme-dark .workspace-switcher,
+body.theme-dark .workspace-mini,
+body.theme-dark .command-search,
+body.theme-dark .topbar-lang-switch,
+body.theme-dark .date-pill,
+body.theme-dark .search-shortcut,
+body.theme-dark .group-tab-btn,
+body.theme-dark .nav-direct-link {
+  color: #eef8f3 !important;
+}
+
+html[data-theme='dark'] .top-search-input::placeholder,
+body.theme-dark .top-search-input::placeholder,
+html[data-theme='dark'] .date-line,
+body.theme-dark .date-line,
+html[data-theme='dark'] .workspace-copy small,
+body.theme-dark .workspace-copy small,
+html[data-theme='dark'] .workspace-mini small,
+body.theme-dark .workspace-mini small,
+html[data-theme='dark'] .group-tab-btn small,
+body.theme-dark .group-tab-btn small {
+  color: #b7c9c0 !important;
+}

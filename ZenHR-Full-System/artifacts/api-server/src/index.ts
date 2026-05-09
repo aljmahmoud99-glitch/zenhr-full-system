@@ -7,6 +7,15 @@ import fs from "fs";
 import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
+import {
+  computePolicyRates,
+  resolveEmploymentTypeRule,
+  resolveEmploymentTypeRules,
+  resolvePayrollPeriodContext,
+  resolvePayrollPolicy,
+  roundMoney,
+  workedHoursForEmployee,
+} from "./payroll-policy.service.js";
 import { applyBrackets, calculateComponentValueM } from "./salary-calculation.service.js";
 import { db, pool } from "@workspace/db";
 import {
@@ -2362,6 +2371,301 @@ function toM(s: string | null | undefined): number {
 function fromM(n: number): string {
   return (Math.round(n) / 1000).toFixed(3);
 }
+
+function canManagePayrollPolicy(role: string): boolean {
+  return role === "hradmin" || role === "payrolladmin";
+}
+
+function policyCamel(row: any): any {
+  if (!row) return row;
+  const out: any = {};
+  for (const [key, value] of Object.entries(row)) {
+    out[key.replace(/_([a-z])/g, (_, ch) => ch.toUpperCase())] = value;
+  }
+  return out;
+}
+
+function payrollPolicyTableMissing(res: any, error: any): boolean {
+  if (error?.code !== "42P01") return false;
+  res.status(503).json({
+    success: false,
+    message: "Payroll policy migration is not applied yet.",
+    migration: "migrations/phase-1-payroll-policy-engine.sql",
+  });
+  return true;
+}
+
+// ─── Payroll Policy Engine ─────────────────────────────────────────────────
+app.get("/api/payroll-policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const [policy, employmentTypeRules] = await Promise.all([
+      resolvePayrollPolicy(user.companyId),
+      resolveEmploymentTypeRules(user.companyId),
+    ]);
+    res.json({ success: true, data: { policy, employmentTypeRules } });
+  } catch (e: any) {
+    console.error("[GET /api/payroll-policies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+const savePayrollPolicyHandler = async (req: any, res: any) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const current = await resolvePayrollPolicy(user.companyId);
+    const body = req.body || {};
+    const allowedModes = new Set(["fixed_30", "actual_calendar_days", "working_days_only", "hourly"]);
+    const mode = String(body.salaryCalculationMode || current.salaryCalculationMode);
+    if (!allowedModes.has(mode)) { res.status(400).json({ success: false, message: "Invalid salary calculation mode" }); return; }
+
+    await client.query("BEGIN");
+    const params = [
+      user.companyId,
+      mode,
+      body.defaultWorkingDaysPolicy || current.defaultWorkingDaysPolicy,
+      JSON.stringify(body.weekendDays || current.weekendDays || ["fri", "sat"]),
+      body.roundingPolicy || current.roundingPolicy,
+      Number(body.dailyRatePrecision ?? current.dailyRatePrecision ?? 3),
+      Number(body.hourlyRatePrecision ?? current.hourlyRatePrecision ?? 3),
+      body.overtimePolicyMode || current.overtimePolicyMode,
+      body.deductionPolicyMode || current.deductionPolicyMode,
+      body.unpaidLeavePolicy || current.unpaidLeavePolicy,
+      body.latenessDeductionPolicy || current.latenessDeductionPolicy,
+      body.earlyLeaveDeductionPolicy || current.earlyLeaveDeductionPolicy,
+      body.applyAttendanceToPayroll ?? current.applyAttendanceToPayroll,
+      body.applyOvertimeToPayroll ?? current.applyOvertimeToPayroll,
+      Number(body.workingHoursPerDay || current.workingHoursPerDay || 8),
+      body.manualWorkingDaysPerMonth == null || body.manualWorkingDaysPerMonth === "" ? null : Number(body.manualWorkingDaysPerMonth),
+      body.policyEffectiveFrom || new Date().toISOString(),
+      body.labelAr || current.labelAr,
+      body.labelEn || current.labelEn,
+      body.notesAr || null,
+      body.notesEn || null,
+      user.userId,
+    ];
+    const upsert = await client.query(
+      `INSERT INTO payroll_policies (
+        company_id, salary_calculation_mode, default_working_days_policy, weekend_days, rounding_policy,
+        daily_rate_precision, hourly_rate_precision, overtime_policy_mode, deduction_policy_mode,
+        unpaid_leave_policy, lateness_deduction_policy, early_leave_deduction_policy,
+        apply_attendance_to_payroll, apply_overtime_to_payroll, working_hours_per_day,
+        manual_working_days_per_month, policy_effective_from, label_ar, label_en, notes_ar, notes_en,
+        created_by, updated_by
+      ) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)
+      ON CONFLICT (company_id) WHERE is_deleted=false DO UPDATE SET
+        salary_calculation_mode=EXCLUDED.salary_calculation_mode,
+        default_working_days_policy=EXCLUDED.default_working_days_policy,
+        weekend_days=EXCLUDED.weekend_days,
+        rounding_policy=EXCLUDED.rounding_policy,
+        daily_rate_precision=EXCLUDED.daily_rate_precision,
+        hourly_rate_precision=EXCLUDED.hourly_rate_precision,
+        overtime_policy_mode=EXCLUDED.overtime_policy_mode,
+        deduction_policy_mode=EXCLUDED.deduction_policy_mode,
+        unpaid_leave_policy=EXCLUDED.unpaid_leave_policy,
+        lateness_deduction_policy=EXCLUDED.lateness_deduction_policy,
+        early_leave_deduction_policy=EXCLUDED.early_leave_deduction_policy,
+        apply_attendance_to_payroll=EXCLUDED.apply_attendance_to_payroll,
+        apply_overtime_to_payroll=EXCLUDED.apply_overtime_to_payroll,
+        working_hours_per_day=EXCLUDED.working_hours_per_day,
+        manual_working_days_per_month=EXCLUDED.manual_working_days_per_month,
+        policy_effective_from=EXCLUDED.policy_effective_from,
+        label_ar=EXCLUDED.label_ar,
+        label_en=EXCLUDED.label_en,
+        notes_ar=EXCLUDED.notes_ar,
+        notes_en=EXCLUDED.notes_en,
+        updated_by=EXCLUDED.updated_by,
+        updated_at=NOW()
+      RETURNING *`,
+      params,
+    );
+    const saved = upsert.rows[0];
+    await client.query(
+      `INSERT INTO payroll_policy_history (company_id, policy_id, entity_type, action, previous_value, new_value, reason_ar, reason_en, changed_by)
+       VALUES ($1,$2,'policy',$3,$4::jsonb,$5::jsonb,$6,$7,$8)`,
+      [user.companyId, saved.id, current.id ? "updated" : "created", JSON.stringify(current), JSON.stringify(policyCamel(saved)), body.reasonAr || null, body.reasonEn || null, user.userId],
+    );
+    await client.query("COMMIT");
+    await logActivity(user.companyId, "payroll_policy_saved", `Payroll policy saved by ${user.username}`, user.username);
+    res.json({ success: true, data: policyCamel(saved) });
+  } catch (e: any) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (payrollPolicyTableMissing(res, e)) return;
+    console.error("[PUT /api/payroll-policies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  } finally {
+    client.release();
+  }
+};
+
+app.put("/api/payroll-policies", auth, savePayrollPolicyHandler);
+app.post("/api/payroll-policies", auth, savePayrollPolicyHandler);
+
+app.get("/api/payroll-policies/employment-types", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    res.json({ success: true, data: await resolveEmploymentTypeRules(user.companyId) });
+  } catch (e) {
+    console.error("[GET /api/payroll-policies/employment-types]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/payroll-policies/employment-types/:type", auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const type = String(req.params["type"] || "").replace("-", "_");
+    const current = await resolveEmploymentTypeRule(user.companyId, type);
+    const body = req.body || {};
+    await client.query("BEGIN");
+    const saved = await client.query(
+      `INSERT INTO payroll_employment_type_rules (
+        company_id, employment_type, salary_basis, attendance_required, overtime_eligible, leave_eligible,
+        deduction_eligible, payroll_included, calculation_mode_override, default_hours_per_day,
+        label_ar, label_en, description_ar, description_en, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
+      ON CONFLICT (company_id, employment_type) DO UPDATE SET
+        salary_basis=EXCLUDED.salary_basis,
+        attendance_required=EXCLUDED.attendance_required,
+        overtime_eligible=EXCLUDED.overtime_eligible,
+        leave_eligible=EXCLUDED.leave_eligible,
+        deduction_eligible=EXCLUDED.deduction_eligible,
+        payroll_included=EXCLUDED.payroll_included,
+        calculation_mode_override=EXCLUDED.calculation_mode_override,
+        default_hours_per_day=EXCLUDED.default_hours_per_day,
+        label_ar=EXCLUDED.label_ar,
+        label_en=EXCLUDED.label_en,
+        description_ar=EXCLUDED.description_ar,
+        description_en=EXCLUDED.description_en,
+        updated_by=EXCLUDED.updated_by,
+        updated_at=NOW()
+      RETURNING *`,
+      [
+        user.companyId, type, body.salaryBasis || current.salaryBasis,
+        body.attendanceRequired ?? current.attendanceRequired,
+        body.overtimeEligible ?? current.overtimeEligible,
+        body.leaveEligible ?? current.leaveEligible,
+        body.deductionEligible ?? current.deductionEligible,
+        body.payrollIncluded ?? current.payrollIncluded,
+        body.calculationModeOverride || null, Number(body.defaultHoursPerDay || current.defaultHoursPerDay || 8),
+        body.labelAr || current.labelAr, body.labelEn || current.labelEn,
+        body.descriptionAr || current.descriptionAr, body.descriptionEn || current.descriptionEn, user.userId,
+      ],
+    );
+    await client.query(
+      `INSERT INTO payroll_policy_history (company_id, employment_type_rule_id, entity_type, action, previous_value, new_value, reason_ar, reason_en, changed_by)
+       VALUES ($1,$2,'employment_type_rule',$3,$4::jsonb,$5::jsonb,$6,$7,$8)`,
+      [user.companyId, saved.rows[0].id, current.id ? "updated" : "created", JSON.stringify(current), JSON.stringify(policyCamel(saved.rows[0])), body.reasonAr || null, body.reasonEn || null, user.userId],
+    );
+    await client.query("COMMIT");
+    res.json({ success: true, data: policyCamel(saved.rows[0]) });
+  } catch (e: any) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (payrollPolicyTableMissing(res, e)) return;
+    console.error("[PUT /api/payroll-policies/employment-types/:type]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/payroll-policies/preview", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const employeeId = Number(req.query["employeeId"]);
+    const month = Number(req.query["month"] || new Date().getMonth() + 1);
+    const year = Number(req.query["year"] || new Date().getFullYear());
+    if (!employeeId || !month || !year) { res.status(400).json({ success: false, message: "employeeId, month, and year are required" }); return; }
+    const { rows } = await pool.query(
+      `SELECT e.*, d.name_ar AS department_ar, d.name_en AS department_en
+       FROM employees e
+       LEFT JOIN departments d ON d.id=e.department_id AND d.company_id=e.company_id
+       WHERE e.id=$1 AND e.company_id=$2 AND e.is_deleted=false`,
+      [employeeId, user.companyId],
+    );
+    const emp = rows[0];
+    if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+    const context = await resolvePayrollPeriodContext(user.companyId, month, year, emp.employment_type);
+    const requestedMode = typeof req.query["mode"] === "string" ? String(req.query["mode"]) : "";
+    if (requestedMode) {
+      const allowedModes = new Set(["fixed_30", "actual_calendar_days", "working_days_only", "hourly"]);
+      if (!allowedModes.has(requestedMode)) { res.status(400).json({ success: false, message: "Invalid calculation mode" }); return; }
+      context.selectedMode = requestedMode as any;
+      context.divisorDays =
+        requestedMode === "fixed_30" ? 30 :
+        requestedMode === "actual_calendar_days" ? context.actualDays :
+        requestedMode === "working_days_only" ? context.workingDays :
+        (context.policy.manualWorkingDaysPerMonth || context.workingDays || 30);
+    }
+    const grossSalary = Number(emp.basic_salary || 0);
+    const workedHours = await workedHoursForEmployee(user.companyId, employeeId, month, year);
+    const rates = context.rule.salaryBasis === "hourly"
+      ? { dailyRate: grossSalary * context.hoursPerDay, hourlyRate: grossSalary }
+      : context.rule.salaryBasis === "daily"
+        ? { dailyRate: grossSalary, hourlyRate: grossSalary / context.hoursPerDay }
+        : computePolicyRates(grossSalary, { divisorDays: context.divisorDays, hoursPerDay: context.hoursPerDay, policy: context.policy });
+    const expectedPayable =
+      context.rule.salaryBasis === "hourly" ? rates.hourlyRate * workedHours :
+      context.rule.salaryBasis === "daily" ? rates.dailyRate * context.workingDays :
+      grossSalary;
+    res.json({ success: true, data: {
+      employee: {
+        id: emp.id,
+        employeeCode: emp.employee_code,
+        nameAr: [emp.first_name_ar, emp.middle_name_ar, emp.last_name_ar].filter(Boolean).join(" "),
+        nameEn: [emp.first_name_en, emp.middle_name_en, emp.last_name_en].filter(Boolean).join(" "),
+        departmentAr: emp.department_ar,
+        departmentEn: emp.department_en,
+      },
+      employmentType: context.rule.employmentType,
+      salaryBasis: context.rule.salaryBasis,
+      selectedCalculationMode: context.selectedMode,
+      grossSalary: grossSalary.toFixed(3),
+      dailyRate: roundMoney(rates.dailyRate, context.policy).toFixed(3),
+      hourlyRate: roundMoney(rates.hourlyRate, context.policy).toFixed(3),
+      workingDays: context.workingDays,
+      actualMonthDays: context.actualDays,
+      workedHours: workedHours.toFixed(3),
+      expectedPayable: roundMoney(expectedPayable, context.policy).toFixed(3),
+      attendanceImpact: context.policy.applyAttendanceToPayroll ? "enabled" : "disabled",
+      overtimeImpact: context.policy.applyOvertimeToPayroll && context.rule.overtimeEligible ? "eligible" : "not_eligible",
+      policy: context.policy,
+      rule: context.rule,
+    }});
+  } catch (e: any) {
+    console.error("[GET /api/payroll-policies/preview]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/payroll-policies/history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canManagePayrollPolicy(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    const { rows } = await pool.query(
+      `SELECT h.*, u.username
+       FROM payroll_policy_history h
+       LEFT JOIN users u ON u.id=h.changed_by
+       WHERE h.company_id=$1
+       ORDER BY h.changed_at DESC
+       LIMIT 100`,
+      [user.companyId],
+    );
+    res.json({ success: true, data: rows.map(policyCamel) });
+  } catch (e: any) {
+    if (payrollPolicyTableMissing(res, e)) return;
+    console.error("[GET /api/payroll-policies/history]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 async function enrichPayslips(slips: any[], db: any): Promise<any[]> {
   if (!slips.length) return [];
   const empIds = [...new Set(slips.map(s => s.employeeId))];
@@ -2748,6 +3052,27 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
     const [emp] = await db.select().from(employeesTable)
       .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)));
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
+    const previewMonth = Number(req.query["month"] || new Date().getMonth() + 1);
+    const previewYear = Number(req.query["year"] || new Date().getFullYear());
+    const policyContext = await resolvePayrollPeriodContext(user.companyId, previewMonth, previewYear, emp.employmentType);
+    const previewWorkedHours = policyContext.rule.salaryBasis === "hourly"
+      ? await workedHoursForEmployee(user.companyId, emp.id, previewMonth, previewYear)
+      : 0;
+    const previewBaseSalary = parseFloat(String(emp.basicSalary ?? "0"));
+    const rawPreviewRates = computePolicyRates(previewBaseSalary, {
+      divisorDays: policyContext.divisorDays,
+      hoursPerDay: policyContext.hoursPerDay,
+      policy: policyContext.policy,
+    });
+    const previewRates = policyContext.rule.salaryBasis === "hourly"
+      ? { dailyRate: previewBaseSalary * policyContext.hoursPerDay, hourlyRate: previewBaseSalary }
+      : policyContext.rule.salaryBasis === "daily"
+        ? { dailyRate: previewBaseSalary, hourlyRate: previewBaseSalary / policyContext.hoursPerDay }
+        : rawPreviewRates;
+    const policyBasicSalaryJOD =
+      policyContext.rule.salaryBasis === "hourly" ? previewRates.hourlyRate * previewWorkedHours :
+      policyContext.rule.salaryBasis === "daily" ? previewRates.dailyRate * policyContext.workingDays :
+      previewBaseSalary;
 
     const configs = await db.select().from(systemConfigurationsTable)
       .where(eq(systemConfigurationsTable.companyId, user.companyId));
@@ -2784,6 +3109,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
     // Resolve each component value respecting fixed/percentage/override semantics
     const resolveM = (code: string, fallbackJod: string): number => {
       const row = escRowsPreview.find((r: any) => r.code === code);
+      if (code === "BASIC") return toM(policyBasicSalaryJOD);
       if (!row) return toM(fallbackJod);
       if (row.overrideValue !== null && row.overrideValue !== undefined) {
         // Override is always an absolute JOD amount regardless of calculation type
@@ -2849,6 +3175,19 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       netSalary:               fromM(netM),
       isSSCExempt:             emp.isSSCExempt,
       components:              escRowsPreview,
+      payrollPolicy: {
+        policyId: policyContext.policy.id,
+        salaryCalculationMode: policyContext.policy.salaryCalculationMode,
+        selectedCalculationMode: policyContext.selectedMode,
+        employmentType: policyContext.rule.employmentType,
+        salaryBasis: policyContext.rule.salaryBasis,
+        dailyRate: previewRates.dailyRate.toFixed(3),
+        hourlyRate: previewRates.hourlyRate.toFixed(3),
+        workingDays: policyContext.workingDays,
+        actualMonthDays: policyContext.actualDays,
+        workedHours: previewWorkedHours.toFixed(3),
+        effectiveFrom: policyContext.policy.policyEffectiveFrom,
+      },
     }});
   } catch (e) {
     console.error("[GET /api/payroll/preview/:employeeId]", e);
