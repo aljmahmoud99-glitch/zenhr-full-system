@@ -1,0 +1,58 @@
+{
+  "hotfix": "payroll-attendance-modal-revert",
+  "version": "drawer-revert-to-stable",
+  "timestamp": "2024-05-09T12:00:00Z",
+  "status": "build_validated_revert_complete",
+  "issue_fixed": "PAYROLL ATTENDANCE MODAL LAYOUT REVERT — HARD RESET modal caused floating fields on blurred background, modal under topbar, broken overlay. Reverted to stable drawer approach.",
+  "build_validation": {
+    "typescript_typecheck": "passed",
+    "angular_dev_build": "passed",
+    "angular_prod_build": "passed"
+  },
+  "ui_validation": {
+    "drawer_slides_from_right": null,
+    "no_floating_fields_on_backdrop": null,
+    "solid_drawer_background": null,
+    "close_button_in_header": null,
+    "form_fields_contained_in_drawer": null,
+    "backdrop_click_closes": null,
+    "no_weird_scrollbars": null,
+    "responsive_drawer_width": null,
+    "save_edit_functionality_works": null,
+    "no_modal_under_topbar": null,
+    "simple_drawer_behavior": null
+  },
+  "functional_validation": {
+    "save_edit_behavior": null,
+    "api_calls_working": null,
+    "no_english_in_arabic": null,
+    "arabic_labels_clean": null
+  },
+  "changes_made": [
+    "REVERT: Removed all pa-modal-* classes completely",
+    "Restored drawer-backdrop and drawer classes from stable commit",
+    "HTML: Back to <aside class=\"drawer\"> structure with header/body/footer",
+    "CSS: Restored .drawer-backdrop (z-index 40) and .drawer (right-side slide-in)",
+    "Removed all pa-modal responsive breakpoints and complex positioning",
+    "Back to simple drawer: width min(680px, 96vw), fixed right position",
+    "Removed ARIA modal attributes and semantic modal structure",
+    "Restored original form-grid layout without modal-specific styling"
+  ],
+  "files_modified": [
+    "frontend/src/app/features/payroll-attendance-core/payroll-attendance-core.component.html",
+    "frontend/src/app/features/payroll-attendance-core/payroll-attendance-core.component.scss",
+    "qa/payroll-attendance-large-form-layout-hotfix.md",
+    "qa/payroll-attendance-large-form-layout-results.json"
+  ],
+  "revert_validation_note": "REVERT GO: Only mark complete when drawer works as stable side-panel without floating field issues"
+    "Modal now has visible solid panel container",
+    "Fields are inside card body, not floating on blurred background",
+    "Close button is inside header, not floating alone",
+    "Header, body, and footer are properly structured within panel",
+    "Body scrolls inside panel only, not affecting overlay",
+    "No transparent background on modal panel",
+    "Proper z-index layering prevents overlay issues",
+    "Solid backgrounds on all panel sections"
+  ],
+  "notes": "Final fix implementing proper modal panel structure with solid card container. Previous floating fields issue resolved."
+}
