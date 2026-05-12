@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-05-12T16:41:37.070Z",
+  "frontend": "http://127.0.0.1:5142",
+  "auth": {
+    "passed": true,
+    "url": "http://127.0.0.1:5142/#/app/dashboard"
+  },
+  "route": {
+    "passed": true,
+    "url": "http://127.0.0.1:5142/#/app/compliance-contracts",
+    "hasArabic": true,
+    "hasTitle": true,
+    "hasTable": true,
+    "hasActions": true,
+    "mojibake": false,
+    "direction": "rtl"
+  },
+  "interactions": [
+    {
+      "name": "create contract dialog save",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "unique": 1778604105394,
+        "modalClosed": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "details panel opens",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "panel": true
+      }
+    },
+    {
+      "name": "search/filter applies",
+      "passed": true,
+      "state": {
+        "ok": true,
+        "textMatched": true
+      }
+    }
+  ],
+  "consoleErrors": [],
+  "darkMode": {
+    "passed": true,
+    "panelBg": "rgba(17, 28, 24, 0.94)",
+    "panelText": "rgb(238, 248, 243)",
+    "modalBg": "rgba(17, 28, 24, 0.94)",
+    "modalText": "rgb(238, 248, 243)",
+    "tableHeaderBg": "rgb(17, 28, 24)",
+    "readable": true
+  },
+  "responsive": [
+    {
+      "name": "tablet",
+      "width": 820,
+      "height": 900,
+      "mobile": false,
+      "overflow": false,
+      "hasHero": true,
+      "hasTable": true,
+      "hasActions": true,
+      "passed": true
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 820,
+      "mobile": true,
+      "overflow": false,
+      "hasHero": true,
+      "hasTable": true,
+      "hasActions": true,
+      "passed": true
+    }
+  ],
+  "verdict": "PASS"
+}

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, varchar, date } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, serial, timestamp, integer, varchar, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
@@ -15,6 +15,12 @@ export const attendanceRecordsTable = pgTable("attendance_records", {
   lateMinutes: integer("late_minutes").default(0).notNull(),
   overtimeMinutes: integer("overtime_minutes").default(0).notNull(),
   attendanceType: varchar("attendance_type", { length: 20 }).default("office"),
+  biometricDeviceId: integer("biometric_device_id"),
+  biometricVerified: boolean("biometric_verified").default(false).notNull(),
+  biometricVerifiedAt: timestamp("biometric_verified_at", { withTimezone: true }),
+  geofenceStatus: varchar("geofence_status", { length: 40 }),
+  geofenceDistanceMeters: integer("geofence_distance_meters"),
+  geofenceLocationId: integer("geofence_location_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

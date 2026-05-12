@@ -1,0 +1,327 @@
+<section class="contracts-shell" [attr.dir]="lang.dir">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">{{ t('الامتثال والعقود', 'Compliance & Contracts') }}</span>
+      <h1>{{ t('محرك العقود والامتثال', 'Compliance & Contracts Engine') }}</h1>
+      <p>{{ t('إدارة عقود الموظفين، تواريخ الانتهاء، فترات التجربة، التجديدات، المستندات المطلوبة، ومخاطر الامتثال من شاشة واحدة.', 'Manage employee contracts, expiry dates, probation, renewals, required documents, and compliance risk from one place.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost-action" (click)="loadAll()">
+        <span class="material-icons">refresh</span>
+        {{ t('تحديث', 'Refresh') }}
+      </button>
+      <button type="button" class="ghost-action" (click)="openTypeCreate()">
+        <span class="material-icons">category</span>
+        {{ t('نوع عقد', 'Contract type') }}
+      </button>
+      <button type="button" class="primary-action" (click)="openCreate()">
+        <span class="material-icons">add</span>
+        {{ t('عقد جديد', 'New contract') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="error-banner" *ngIf="error">{{ error }}</div>
+
+  <section class="metrics-grid">
+    <article>
+      <span>{{ t('إجمالي العقود', 'Total contracts') }}</span>
+      <strong>{{ dashboard.total || 0 }}</strong>
+    </article>
+    <article>
+      <span>{{ t('نشطة', 'Active') }}</span>
+      <strong>{{ dashboard.active || 0 }}</strong>
+    </article>
+    <article class="warning">
+      <span>{{ t('تنتهي خلال 30 يوماً', 'Expiring in 30 days') }}</span>
+      <strong>{{ dashboard.expiringSoon || 0 }}</strong>
+    </article>
+    <article class="danger">
+      <span>{{ t('مخاطر امتثال', 'Compliance risks') }}</span>
+      <strong>{{ dashboard.complianceRisks || 0 }}</strong>
+    </article>
+    <article>
+      <span>{{ t('تجربة قريبة', 'Probation due') }}</span>
+      <strong>{{ dashboard.probationDue || 0 }}</strong>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">
+      <div>
+        <span class="material-icons">manage_search</span>
+        <h2>{{ t('سجل العقود', 'Contracts register') }}</h2>
+      </div>
+      <small>{{ total }} {{ t('سجل', 'records') }}</small>
+    </div>
+
+    <div class="filter-grid">
+      <label>
+        <span>{{ t('بحث', 'Search') }}</span>
+        <input type="search" [(ngModel)]="filters.q" (keyup.enter)="loadContracts(1)" [placeholder]="t('اسم الموظف أو رقم العقد', 'Employee name or contract number')" />
+      </label>
+      <label>
+        <span>{{ t('حالة العقد', 'Contract status') }}</span>
+        <select [(ngModel)]="filters.status">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option *ngFor="let s of contractStatuses" [value]="s.value">{{ t(s.ar, s.en) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('حالة الامتثال', 'Compliance status') }}</span>
+        <select [(ngModel)]="filters.complianceStatus">
+          <option value="">{{ t('كل الحالات', 'All statuses') }}</option>
+          <option *ngFor="let s of complianceStatuses" [value]="s.value">{{ t(s.ar, s.en) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('نوع العقد', 'Contract type') }}</span>
+        <select [(ngModel)]="filters.contractTypeId">
+          <option value="">{{ t('كل الأنواع', 'All types') }}</option>
+          <option *ngFor="let type of contractTypes" [value]="type.id">{{ label(type) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('قرب الانتهاء', 'Expiry window') }}</span>
+        <select [(ngModel)]="filters.expiringDays">
+          <option value="">{{ t('بدون فلتر', 'No filter') }}</option>
+          <option value="15">{{ t('15 يوماً', '15 days') }}</option>
+          <option value="30">{{ t('30 يوماً', '30 days') }}</option>
+          <option value="60">{{ t('60 يوماً', '60 days') }}</option>
+        </select>
+      </label>
+      <div class="filter-actions">
+        <button type="button" class="primary-action" (click)="loadContracts(1)">
+          <span class="material-icons">search</span>
+          {{ t('تطبيق', 'Apply') }}
+        </button>
+        <button type="button" class="ghost-action" (click)="resetFilters()">
+          <span class="material-icons">restart_alt</span>
+          {{ t('إعادة ضبط', 'Reset') }}
+        </button>
+      </div>
+    </div>
+
+    <div class="skeleton-list" *ngIf="loading">
+      <div *ngFor="let n of [1,2,3,4]"></div>
+    </div>
+
+    <div class="table-wrap" *ngIf="!loading">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('العقد', 'Contract') }}</th>
+            <th>{{ t('الفترة', 'Period') }}</th>
+            <th>{{ t('الانتهاء', 'Expiry') }}</th>
+            <th>{{ t('الامتثال', 'Compliance') }}</th>
+            <th>{{ t('المرفقات', 'Attachments') }}</th>
+            <th>{{ t('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of contracts">
+            <td>
+              <strong>{{ lang.isAr ? (row.employeeNameAr || row.employeeNameEn) : (row.employeeNameEn || row.employeeNameAr) }}</strong>
+              <small>{{ row.employeeCode }} · {{ lang.isAr ? (row.departmentNameAr || row.departmentNameEn || '-') : (row.departmentNameEn || row.departmentNameAr || '-') }}</small>
+            </td>
+            <td>
+              <strong>{{ label(row) }}</strong>
+              <small>{{ row.contractNumber || row.contractTypeCode || '-' }} · {{ lang.isAr ? row.contractTypeNameAr : row.contractTypeNameEn }}</small>
+            </td>
+            <td>
+              <span>{{ row.startDate | date:'yyyy-MM-dd' }}</span>
+              <small>{{ row.endDate ? (row.endDate | date:'yyyy-MM-dd') : t('بدون تاريخ انتهاء', 'No end date') }}</small>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="expiryClass(row)">
+                <ng-container *ngIf="row.daysUntilExpiry === null || row.daysUntilExpiry === undefined">{{ t('غير محدد', 'Open') }}</ng-container>
+                <ng-container *ngIf="row.daysUntilExpiry !== null && row.daysUntilExpiry !== undefined && row.daysUntilExpiry >= 0">{{ row.daysUntilExpiry }} {{ t('يوم', 'days') }}</ng-container>
+                <ng-container *ngIf="row.daysUntilExpiry !== null && row.daysUntilExpiry !== undefined && row.daysUntilExpiry < 0">{{ t('منتهي', 'Expired') }}</ng-container>
+              </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="complianceClass(row.complianceStatus)">{{ statusLabel(row.complianceStatus, complianceStatuses) }}</span>
+              <small>{{ statusLabel(row.contractStatus, contractStatuses) }}</small>
+            </td>
+            <td>
+              <span>{{ row.attachmentsCount || 0 }}</span>
+              <small>{{ row.requiredDocumentsCount || 0 }} {{ t('مطلوب', 'required') }}</small>
+            </td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="icon-action" (click)="viewDetails(row)" [title]="t('تفاصيل', 'Details')"><span class="material-icons">visibility</span></button>
+                <button type="button" class="icon-action" (click)="openEdit(row)" [title]="t('تعديل', 'Edit')"><span class="material-icons">edit</span></button>
+                <button type="button" class="icon-action danger-text" (click)="deleteContract(row)" [title]="t('حذف', 'Delete')"><span class="material-icons">delete</span></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty-state" *ngIf="!contracts.length">
+        <span class="material-icons">contract</span>
+        <strong>{{ t('لا توجد عقود بعد', 'No contracts yet') }}</strong>
+        <p>{{ t('ابدأ بإضافة عقد موظف جديد لتفعيل تتبع الامتثال والتجديد.', 'Create a first employee contract to start compliance and renewal tracking.') }}</p>
+      </div>
+    </div>
+
+    <footer class="pager">
+      <button type="button" class="ghost-action" [disabled]="page <= 1" (click)="loadContracts(page - 1)">{{ t('السابق', 'Previous') }}</button>
+      <span>{{ page }} / {{ totalPages }}</span>
+      <button type="button" class="ghost-action" [disabled]="page >= totalPages" (click)="loadContracts(page + 1)">{{ t('التالي', 'Next') }}</button>
+    </footer>
+  </section>
+
+  <aside class="details-panel" *ngIf="selectedContract || detailsLoading">
+    <button type="button" class="close" (click)="selectedContract = null"><span class="material-icons">close</span></button>
+    <div class="skeleton-list" *ngIf="detailsLoading"><div></div><div></div></div>
+    <ng-container *ngIf="selectedContract && !detailsLoading">
+      <span class="eyebrow">{{ t('تفاصيل العقد', 'Contract details') }}</span>
+      <h2>{{ label(selectedContract) }}</h2>
+      <p>{{ lang.isAr ? selectedContract.employeeNameAr : selectedContract.employeeNameEn }} · {{ selectedContract.employeeCode }}</p>
+      <div class="detail-grid">
+        <article><span>{{ t('نوع العقد', 'Type') }}</span><strong>{{ lang.isAr ? selectedContract.contractTypeNameAr : selectedContract.contractTypeNameEn }}</strong></article>
+        <article><span>{{ t('فترة التجربة', 'Probation') }}</span><strong>{{ selectedContract.probationEndDate ? (selectedContract.probationEndDate | date:'yyyy-MM-dd') : '-' }}</strong></article>
+        <article><span>{{ t('إشعار التجديد', 'Renewal notice') }}</span><strong>{{ selectedContract.renewalNoticeDate ? (selectedContract.renewalNoticeDate | date:'yyyy-MM-dd') : '-' }}</strong></article>
+        <article><span>{{ t('التجديد', 'Renewal') }}</span><strong>{{ statusLabel(selectedContract.renewalStatus, renewalStatuses) }}</strong></article>
+      </div>
+      <h3>{{ t('سجل التدقيق', 'Audit history') }}</h3>
+      <div class="timeline">
+        <article *ngFor="let item of selectedContract.history">
+          <strong>{{ item.action }}</strong>
+          <span>{{ item.username || '-' }} · {{ item.changedAt | date:'medium' }}</span>
+        </article>
+        <p class="muted" *ngIf="!selectedContract.history?.length">{{ t('لا توجد أحداث مسجلة.', 'No events recorded.') }}</p>
+      </div>
+    </ng-container>
+  </aside>
+</section>
+
+<div class="modal-backdrop" *ngIf="dialogOpen">
+  <form class="modal" (ngSubmit)="saveContract()" [attr.dir]="lang.dir">
+    <header>
+      <div>
+        <span class="eyebrow">{{ t('إدارة العقد', 'Contract management') }}</span>
+        <h2>{{ form.id ? t('تعديل عقد', 'Edit contract') : t('عقد جديد', 'New contract') }}</h2>
+      </div>
+      <button type="button" class="icon-action" (click)="dialogOpen = false"><span class="material-icons">close</span></button>
+    </header>
+
+    <div class="form-grid">
+      <label>
+        <span>{{ t('الموظف', 'Employee') }}</span>
+        <select [(ngModel)]="form.employeeId" name="employeeId" required>
+          <option [ngValue]="null">{{ t('اختر موظفاً', 'Select employee') }}</option>
+          <option *ngFor="let emp of employees" [ngValue]="emp.id">{{ employeeLabel(emp) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('نوع العقد', 'Contract type') }}</span>
+        <select [(ngModel)]="form.contractTypeId" name="contractTypeId" required>
+          <option [ngValue]="null">{{ t('اختر نوعاً', 'Select type') }}</option>
+          <option *ngFor="let type of contractTypes" [ngValue]="type.id">{{ label(type) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('رقم العقد', 'Contract number') }}</span>
+        <input [(ngModel)]="form.contractNumber" name="contractNumber" />
+      </label>
+      <label>
+        <span>{{ t('العنوان العربي', 'Arabic title') }}</span>
+        <input [(ngModel)]="form.titleAr" name="titleAr" required />
+      </label>
+      <label>
+        <span>{{ t('العنوان الإنجليزي', 'English title') }}</span>
+        <input [(ngModel)]="form.titleEn" name="titleEn" required />
+      </label>
+      <label>
+        <span>{{ t('تاريخ البداية', 'Start date') }}</span>
+        <input type="date" [(ngModel)]="form.startDate" name="startDate" required />
+      </label>
+      <label>
+        <span>{{ t('تاريخ الانتهاء', 'End date') }}</span>
+        <input type="date" [(ngModel)]="form.endDate" name="endDate" />
+      </label>
+      <label>
+        <span>{{ t('نهاية التجربة', 'Probation end') }}</span>
+        <input type="date" [(ngModel)]="form.probationEndDate" name="probationEndDate" />
+      </label>
+      <label>
+        <span>{{ t('إشعار التجديد', 'Renewal notice') }}</span>
+        <input type="date" [(ngModel)]="form.renewalNoticeDate" name="renewalNoticeDate" />
+      </label>
+      <label>
+        <span>{{ t('حالة العقد', 'Contract status') }}</span>
+        <select [(ngModel)]="form.contractStatus" name="contractStatus">
+          <option *ngFor="let s of contractStatuses" [value]="s.value">{{ t(s.ar, s.en) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('حالة الامتثال', 'Compliance status') }}</span>
+        <select [(ngModel)]="form.complianceStatus" name="complianceStatus">
+          <option *ngFor="let s of complianceStatuses" [value]="s.value">{{ t(s.ar, s.en) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('حالة التجديد', 'Renewal status') }}</span>
+        <select [(ngModel)]="form.renewalStatus" name="renewalStatus">
+          <option *ngFor="let s of renewalStatuses" [value]="s.value">{{ t(s.ar, s.en) }}</option>
+        </select>
+      </label>
+      <label>
+        <span>{{ t('الراتب المرتبط', 'Linked salary') }}</span>
+        <input type="number" step="0.001" [(ngModel)]="form.salaryAmount" name="salaryAmount" />
+      </label>
+      <label>
+        <span>{{ t('العملة', 'Currency') }}</span>
+        <input [(ngModel)]="form.currency" name="currency" />
+      </label>
+      <label class="wide">
+        <span>{{ t('ملاحظات عربية', 'Arabic notes') }}</span>
+        <textarea [(ngModel)]="form.notesAr" name="notesAr"></textarea>
+      </label>
+      <label class="wide">
+        <span>{{ t('ملاحظات إنجليزية', 'English notes') }}</span>
+        <textarea [(ngModel)]="form.notesEn" name="notesEn"></textarea>
+      </label>
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="form.autoRenewal" name="autoRenewal" />
+        {{ t('تجديد تلقائي', 'Auto renewal') }}
+      </label>
+    </div>
+
+    <footer>
+      <button type="button" class="ghost-action" (click)="dialogOpen = false">{{ t('إلغاء', 'Cancel') }}</button>
+      <button type="submit" class="primary-action" [disabled]="saving">
+        <span class="material-icons">save</span>
+        {{ saving ? t('جار الحفظ...', 'Saving...') : t('حفظ', 'Save') }}
+      </button>
+    </footer>
+  </form>
+</div>
+
+<div class="modal-backdrop" *ngIf="typeDialogOpen">
+  <form class="modal compact" (ngSubmit)="saveType()" [attr.dir]="lang.dir">
+    <header>
+      <div>
+        <span class="eyebrow">{{ t('أنواع العقود', 'Contract types') }}</span>
+        <h2>{{ t('إضافة نوع عقد', 'Add contract type') }}</h2>
+      </div>
+      <button type="button" class="icon-action" (click)="typeDialogOpen = false"><span class="material-icons">close</span></button>
+    </header>
+    <div class="form-grid">
+      <label><span>{{ t('الكود', 'Code') }}</span><input [(ngModel)]="typeForm.code" name="typeCode" required /></label>
+      <label><span>{{ t('الاسم العربي', 'Arabic name') }}</span><input [(ngModel)]="typeForm.nameAr" name="typeNameAr" required /></label>
+      <label><span>{{ t('الاسم الإنجليزي', 'English name') }}</span><input [(ngModel)]="typeForm.nameEn" name="typeNameEn" required /></label>
+      <label><span>{{ t('مدة افتراضية بالأشهر', 'Default months') }}</span><input type="number" [(ngModel)]="typeForm.defaultDurationMonths" name="defaultDurationMonths" /></label>
+      <label><span>{{ t('أيام التجربة', 'Probation days') }}</span><input type="number" [(ngModel)]="typeForm.defaultProbationDays" name="defaultProbationDays" /></label>
+      <label><span>{{ t('أيام إشعار التجديد', 'Renewal notice days') }}</span><input type="number" [(ngModel)]="typeForm.renewalNoticeDays" name="renewalNoticeDays" /></label>
+      <label class="wide"><span>{{ t('الوصف العربي', 'Arabic description') }}</span><textarea [(ngModel)]="typeForm.descriptionAr" name="typeDescriptionAr"></textarea></label>
+      <label class="wide"><span>{{ t('الوصف الإنجليزي', 'English description') }}</span><textarea [(ngModel)]="typeForm.descriptionEn" name="typeDescriptionEn"></textarea></label>
+    </div>
+    <footer>
+      <button type="button" class="ghost-action" (click)="typeDialogOpen = false">{{ t('إلغاء', 'Cancel') }}</button>
+      <button type="submit" class="primary-action" [disabled]="typeSaving">{{ typeSaving ? t('جار الحفظ...', 'Saving...') : t('حفظ النوع', 'Save type') }}</button>
+    </footer>
+  </form>
+</div>

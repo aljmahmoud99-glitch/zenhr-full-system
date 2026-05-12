@@ -1,0 +1,304 @@
+{
+  "startedAt": "2026-05-12T16:38:51.767Z",
+  "baseUrl": "http://localhost:3001",
+  "logins": {
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    },
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      },
+      "token": "[redacted]"
+    }
+  },
+  "checks": {
+    "health": {
+      "status": 200,
+      "body": {
+        "status": "healthy",
+        "timestamp": "2026-05-12T16:38:51.813Z",
+        "version": "1.0.0"
+      }
+    },
+    "dashboard": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "total": 5,
+          "active": 5,
+          "expired": 0,
+          "expiringSoon": 0,
+          "probationDue": 0,
+          "complianceRisks": 0,
+          "byStatus": [
+            {
+              "complianceStatus": "compliant",
+              "count": 1
+            },
+            {
+              "complianceStatus": "pending_review",
+              "count": 4
+            }
+          ]
+        }
+      }
+    },
+    "typesList": {
+      "status": 200,
+      "count": 11
+    },
+    "employees": {
+      "status": 200,
+      "count": 10
+    },
+    "createType": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 18,
+          "companyId": 1,
+          "code": "PHASEB_1778603932164",
+          "nameAr": "عقد اختبار امتثال",
+          "nameEn": "Compliance Test Contract",
+          "descriptionAr": "نوع عقد لاختبار محرك العقود.",
+          "descriptionEn": "Contract type used for compliance engine smoke testing.",
+          "defaultDurationMonths": 12,
+          "defaultProbationDays": 90,
+          "renewalNoticeDays": 45,
+          "requiresAttachment": true,
+          "isActive": true,
+          "createdBy": 2,
+          "updatedBy": 2,
+          "createdAt": "2026-05-12T16:38:52.167Z",
+          "updatedAt": "2026-05-12T16:38:52.167Z",
+          "isDeleted": false
+        }
+      }
+    },
+    "createContract": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 11,
+          "companyId": 1,
+          "employeeId": 1,
+          "contractTypeId": 18,
+          "contractNumber": "PHB-1778603932164",
+          "titleAr": "عقد عمل اختبار",
+          "titleEn": "Smoke Test Employment Contract",
+          "startDate": "2026-05-11T21:00:00.000Z",
+          "endDate": "2027-05-10T21:00:00.000Z",
+          "probationEndDate": "2026-08-09T21:00:00.000Z",
+          "renewalNoticeDate": "2027-03-26T21:00:00.000Z",
+          "renewalStatus": "pending_review",
+          "contractStatus": "active",
+          "complianceStatus": "pending_review",
+          "autoRenewal": false,
+          "salaryAmount": "1200.500",
+          "currency": "JOD",
+          "notesAr": "تم إنشاؤه من اختبار الدخان.",
+          "notesEn": "Created by smoke test.",
+          "createdBy": 2,
+          "updatedBy": 2,
+          "createdAt": "2026-05-12T16:38:52.179Z",
+          "updatedAt": "2026-05-12T16:38:52.179Z",
+          "isDeleted": false,
+          "contractTypeCode": "PHASEB_1778603932164",
+          "contractTypeNameAr": "عقد اختبار امتثال",
+          "contractTypeNameEn": "Compliance Test Contract",
+          "employeeCode": "EMP-0001",
+          "employeeNameAr": "أحمد العلي",
+          "employeeNameEn": "Ahmed Al-Ali",
+          "departmentNameAr": "الموارد البشرية",
+          "departmentNameEn": "Human Resources",
+          "attachmentsCount": 0,
+          "requiredDocumentsCount": 0,
+          "daysUntilExpiry": 363
+        }
+      }
+    },
+    "listSearch": {
+      "status": 200,
+      "total": 4
+    },
+    "detail": {
+      "status": 200,
+      "hasHistory": true
+    },
+    "requiredDocument": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 2,
+          "companyId": 1,
+          "contractTypeId": 18,
+          "contractId": 11,
+          "documentCode": "REQ_1778603932164",
+          "nameAr": "صورة الهوية",
+          "nameEn": "ID copy",
+          "isMandatory": true,
+          "expires": true,
+          "warningDays": 30,
+          "createdBy": 2,
+          "updatedBy": 2,
+          "createdAt": "2026-05-12T16:38:52.230Z",
+          "updatedAt": "2026-05-12T16:38:52.230Z",
+          "isDeleted": false
+        }
+      }
+    },
+    "requiredDocumentsDetail": {
+      "status": 200,
+      "count": 1
+    },
+    "updateContract": {
+      "status": 200,
+      "complianceStatus": "compliant",
+      "renewalStatus": "renewed"
+    },
+    "attachment": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 7,
+          "companyId": 1,
+          "contractId": 11,
+          "employeeId": 1,
+          "documentId": null,
+          "fileName": "contract-smoke.pdf",
+          "filePath": "/uploads/contracts/contract-smoke.pdf",
+          "mimeType": "application/pdf",
+          "fileSize": "2048",
+          "attachmentType": "contract",
+          "uploadedBy": 2,
+          "uploadedAt": "2026-05-12T16:38:52.261Z",
+          "notesAr": null,
+          "notesEn": null,
+          "isDeleted": false
+        }
+      }
+    },
+    "employeeHistory": {
+      "status": 200,
+      "count": 6
+    },
+    "rbac_payroll_mutate": {
+      "status": 403
+    },
+    "rbac_manager_mutate": {
+      "status": 403
+    },
+    "rbac_employee_mutate": {
+      "status": 403
+    },
+    "rbac_recruiter_mutate": {
+      "status": 403
+    },
+    "tenantInvalidEmployee": {
+      "status": 400,
+      "message": "Employee does not belong to this company"
+    },
+    "tenantInvalidType": {
+      "status": 400,
+      "message": "Contract type does not belong to this company"
+    },
+    "adminRead": {
+      "status": 200
+    },
+    "deleteContract": {
+      "status": 200
+    },
+    "afterDeleteDetail": {
+      "status": 404
+    }
+  },
+  "created": {
+    "contractTypeId": 18,
+    "contractId": 11,
+    "requiredDocumentId": 2
+  },
+  "errors": [],
+  "status": "PASS",
+  "finishedAt": "2026-05-12T16:38:52.312Z"
+}

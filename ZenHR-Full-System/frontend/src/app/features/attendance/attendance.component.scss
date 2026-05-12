@@ -161,6 +161,11 @@
   font-size: 18px;
 }
 
+.location-status-banner.biometric {
+  border-color: color-mix(in srgb, var(--z-info, #2563eb) 28%, transparent);
+  background: color-mix(in srgb, var(--z-info, #2563eb) 10%, var(--z-surface, #fff));
+}
+
 .clock-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -371,6 +376,57 @@
   margin-top: 16px;
 }
 
+.trusted-devices-section {
+  display: grid;
+  gap: var(--z-space-4);
+}
+
+.device-enroll-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 360px) 1fr;
+  gap: var(--z-space-4);
+  align-items: end;
+  padding: var(--z-space-4);
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-md);
+  background: color-mix(in srgb, var(--z-surface-muted, var(--surface-muted)) 82%, transparent);
+}
+
+.secure-rule-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.secure-rule-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--z-border);
+  border-radius: 999px;
+  background: var(--z-surface, var(--surface));
+  color: var(--z-text-secondary, var(--foreground-muted));
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.secure-rule-list .material-icons {
+  font-size: 17px;
+  color: var(--app-primary);
+}
+
+.device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.device-actions button {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
 .clock-actions {
   display: flex;
   flex-wrap: wrap;
@@ -571,6 +627,7 @@
 @media (max-width: 900px) {
   .clock-hero,
   .map-grid,
+  .device-enroll-panel,
   .modal-grid {
     grid-template-columns: 1fr;
   }

@@ -48,6 +48,7 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/holidays': ['hradmin', 'payrolladmin', 'manager', 'employee'],
 
   '/app/compliance': ['hradmin'],
+  '/app/compliance-contracts': ['hradmin', 'superadmin'],
   '/app/documents': ['hradmin', 'employee', 'manager', 'payrolladmin', 'superadmin'],
   '/app/assets': ['hradmin', 'manager', 'employee', 'payrolladmin', 'superadmin'],
 
@@ -159,6 +160,7 @@ const HRADMIN_NAV: NavGroup[] = [
     icon: 'verified_user',
     items: [
       { labelAr: 'الامتثال', labelEn: 'Compliance', icon: 'verified_user', path: '/app/compliance' },
+      { labelAr: 'العقود والامتثال', labelEn: 'Contracts & Compliance', icon: 'contract', path: '/app/compliance-contracts', roles: ['hradmin', 'superadmin'] },
       { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
       { labelAr: 'مركز الوثائق والتقارير', labelEn: 'Documents & Reporting Center', icon: 'folder_managed', path: '/app/documents-reporting' },
       { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' }

@@ -23,6 +23,10 @@
         <span class="material-icons">location_on</span>
         {{ t('الخريطة', 'Map') }}
       </button>
+      <button class="view-tab" type="button" *ngIf="isEmployee || isHr" [class.active]="view() === 'devices'" (click)="setView('devices')">
+        <span class="material-icons">fingerprint</span>
+        {{ isEmployee ? t('جهازي الموثوق', 'My trusted device') : t('الأجهزة الموثوقة', 'Trusted devices') }}
+      </button>
     </div>
   </header>
 
@@ -49,6 +53,10 @@
     <div class="location-status-banner" *ngIf="locationStatus()">
       <span class="material-icons">my_location</span>
       <span>{{ locationStatus() }}</span>
+    </div>
+    <div class="location-status-banner biometric" *ngIf="isEmployee">
+      <span class="material-icons">fingerprint</span>
+      <span>{{ biometricStatus() || t('لا يمكن تسجيل الحضور بدون جهاز موثوق وبصمة أو Face ID.', 'Attendance requires a trusted device and biometric or Face ID verification.') }}</span>
     </div>
 
     <app-skeleton-kpi-cards *ngIf="loading()" [count]="6" />
@@ -370,6 +378,80 @@
           </div>
         </ng-template>
       </section>
+    </div>
+  </section>
+
+  <section class="z-card trusted-devices-section" *ngIf="view() === 'devices' && (isEmployee || isHr)">
+    <div class="z-card-header">
+      <div>
+        <h2 class="z-heading">{{ isEmployee ? t('تسجيل الجهاز البيومتري', 'Biometric device enrollment') : t('إدارة الأجهزة الموثوقة', 'Trusted device management') }}</h2>
+        <p class="z-small">
+          {{ isEmployee
+            ? t('سجل جهازك بنفسك باستخدام البصمة أو Face ID. لا يتم تخزين بصمات أو صور وجه داخل النظام.', 'Self-enroll your device with fingerprint or Face ID. ZenJO never stores fingerprints, face images, or biometric templates.')
+            : t('يمكن للموارد البشرية عرض الأجهزة أو حظرها أو إلغاؤها أو طلب إعادة التسجيل فقط.', 'HR can only view, block, revoke, or force re-enrollment for devices.') }}
+        </p>
+      </div>
+      <button class="z-btn-primary" type="button" *ngIf="isEmployee" (click)="enrollDevice()" [disabled]="enrollingDevice()">
+        <span class="material-icons">fingerprint</span>
+        {{ enrollingDevice() ? t('جاري التحقق...', 'Verifying...') : t('تسجيل هذا الجهاز', 'Enroll this device') }}
+      </button>
+    </div>
+
+    <div class="device-enroll-panel" *ngIf="isEmployee">
+      <label class="field">
+        <span class="z-label">{{ t('اسم الجهاز', 'Device label') }}</span>
+        <input class="z-input" [(ngModel)]="deviceLabel" [placeholder]="t('مثال: هاتف أحمد', 'Example: Ahmad mobile')">
+      </label>
+      <div class="secure-rule-list">
+        <span><i class="material-icons">no_accounts</i>{{ t('لا يوجد بديل PIN أو كلمة مرور.', 'No PIN or password fallback.') }}</span>
+        <span><i class="material-icons">privacy_tip</i>{{ t('لا يتم تخزين أي قالب بيومتري.', 'No biometric template is stored.') }}</span>
+        <span><i class="material-icons">my_location</i>{{ t('يجب السماح باستخدام الموقع.', 'Location permission is required.') }}</span>
+      </div>
+    </div>
+
+    <app-skeleton-table *ngIf="devicesLoading()" [rows]="4" [cols]="6" />
+
+    <div class="z-table-container" *ngIf="!devicesLoading() && trustedDevices().length > 0">
+      <table class="z-table">
+        <thead>
+          <tr>
+            <th *ngIf="isHr">{{ t('الموظف', 'Employee') }}</th>
+            <th>{{ t('الجهاز', 'Device') }}</th>
+            <th>{{ t('الحالة', 'Status') }}</th>
+            <th>{{ t('تاريخ التسجيل', 'Enrolled') }}</th>
+            <th>{{ t('آخر استخدام', 'Last used') }}</th>
+            <th *ngIf="isHr">{{ t('الإجراءات', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let device of trustedDevices()">
+            <td *ngIf="isHr">
+              <strong>{{ lang === 'ar' ? (device.employeeNameAr || device.employeeNameEn) : (device.employeeNameEn || device.employeeNameAr) }}</strong>
+              <div class="row-subtext">{{ device.employeeCode || '—' }}</div>
+            </td>
+            <td>
+              <strong>{{ device.deviceLabel || t('جهاز موثوق', 'Trusted device') }}</strong>
+              <div class="row-subtext">{{ device.platform || '—' }} · {{ device.browser || '—' }}</div>
+            </td>
+            <td><span class="z-badge" [class.success]="device.status === 'active'" [class.warning]="device.status === 'pending_reenroll'" [class.danger]="device.status === 'blocked' || device.status === 'revoked'">{{ deviceStatusLabel(device.status) }}</span></td>
+            <td>{{ device.enrolledAt | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td>{{ device.lastUsedAt ? (device.lastUsedAt | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+            <td *ngIf="isHr">
+              <div class="device-actions">
+                <button class="z-btn-secondary" type="button" (click)="updateDeviceStatus(device, 'active')" [disabled]="device.status === 'active'">{{ t('تفعيل', 'Activate') }}</button>
+                <button class="z-btn-secondary" type="button" (click)="updateDeviceStatus(device, 'pending_reenroll')">{{ t('إعادة تسجيل', 'Re-enroll') }}</button>
+                <button class="z-btn-danger" type="button" (click)="updateDeviceStatus(device, 'blocked')">{{ t('حظر', 'Block') }}</button>
+                <button class="z-btn-danger" type="button" (click)="updateDeviceStatus(device, 'revoked')">{{ t('إلغاء', 'Revoke') }}</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" *ngIf="!devicesLoading() && trustedDevices().length === 0">
+      <span class="material-icons empty-icon">fingerprint</span>
+      <div class="empty-title">{{ isEmployee ? t('جهازك غير مسجل للحضور', 'This device is not registered for attendance') : t('لا توجد أجهزة موثوقة بعد.', 'No trusted devices yet.') }}</div>
     </div>
   </section>
 

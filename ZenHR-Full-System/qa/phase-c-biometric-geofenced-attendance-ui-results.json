@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-05-12T23:41:06.281Z",
+  "frontend": "http://127.0.0.1:5211",
+  "backend": "http://localhost:3001/",
+  "auth": {
+    "employee": {
+      "passed": true,
+      "url": "http://127.0.0.1:5211/#/app/attendance",
+      "role": "employee"
+    },
+    "hr": {
+      "passed": true,
+      "url": "http://127.0.0.1:5211/#/app/attendance",
+      "role": "hradmin"
+    }
+  },
+  "employee": {
+    "url": "http://127.0.0.1:5211/#/app/attendance",
+    "dir": "rtl",
+    "hasArabic": true,
+    "hasDeviceTab": true,
+    "hasSecureRules": false,
+    "hasRequiredMessages": true,
+    "hasMojibake": false,
+    "buttonSample": [
+      "search",
+      "Ctrl K",
+      "عربي",
+      "EN",
+      "light_mode",
+      "notifications\n2",
+      "شركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more",
+      "logout"
+    ],
+    "cardBg": "rgb(17, 28, 24)",
+    "cardColor": "rgb(238, 248, 243)",
+    "readableDark": true
+  },
+  "hr": {
+    "url": "http://127.0.0.1:5211/#/app/attendance",
+    "dir": "rtl",
+    "hasArabic": true,
+    "hasDeviceTab": true,
+    "hasSecureRules": false,
+    "hasRequiredMessages": true,
+    "hasMojibake": false,
+    "buttonSample": [
+      "search",
+      "Ctrl K",
+      "عربي",
+      "EN",
+      "light_mode",
+      "notifications\n2",
+      "E",
+      "logout"
+    ],
+    "cardBg": "rgb(17, 28, 24)",
+    "cardColor": "rgb(238, 248, 243)",
+    "readableDark": true
+  },
+  "darkMode": {
+    "passed": true,
+    "cardBg": "rgb(17, 28, 24)",
+    "cardColor": "rgb(238, 248, 243)"
+  },
+  "responsive": [
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 820,
+      "overflow": false,
+      "hasAttendance": true,
+      "hasDevices": true,
+      "passed": true
+    },
+    {
+      "name": "tablet",
+      "width": 820,
+      "height": 900,
+      "overflow": false,
+      "hasAttendance": true,
+      "hasDevices": true,
+      "passed": true
+    }
+  ],
+  "consoleErrors": [],
+  "verdict": "PASS"
+}

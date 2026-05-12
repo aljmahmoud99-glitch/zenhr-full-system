@@ -147,6 +147,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/compliance/compliance.component').then(m => m.ComplianceComponent)
       },
       {
+        path: 'compliance-contracts',
+        ...pageAccess('/app/compliance-contracts'),
+        loadComponent: () => import('./features/compliance-contracts/compliance-contracts.component').then(m => m.ComplianceContractsComponent)
+      },
+      {
         path: 'assets',
         ...pageAccess('/app/assets'),
         loadComponent: () => import('./features/assets/assets.component').then(m => m.AssetsComponent)

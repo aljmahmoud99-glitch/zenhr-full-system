@@ -4,9 +4,11 @@ import ExcelJS from "exceljs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
+import { registerComplianceContractsRoutes } from "./compliance-contracts.service.js";
 import {
   computePolicyRates,
   resolveEmploymentTypeRule,
@@ -4029,15 +4031,22 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
-    const { attendanceType, notes, latitude, longitude } = req.body as { attendanceType?: string; notes?: string; latitude?: number; longitude?: number };
+    const { attendanceType, notes, latitude, longitude, biometricAssertion } = req.body as { attendanceType?: string; notes?: string; latitude?: number; longitude?: number; biometricAssertion?: any };
     const geo = await validateAttendanceGeofence(user.companyId, latitude, longitude);
     if (!geo.allowed) {
+      await auditBiometricAttendance(user, null, "clock_in", "blocked", "outside_geofence", geo, req);
       res.status(400).json({ success: false, message: geo.messageEn, messageAr: geo.messageAr, data: geo }); return;
+    }
+    const biometric = await verifyAttendanceBiometricAssertion(user, "clock_in", biometricAssertion, req);
+    if (!biometric.ok) {
+      await auditBiometricAttendance(user, biometric.deviceId ?? null, "clock_in", "blocked", biometric.reason, geo, req);
+      res.status(biometric.status).json({ success: false, message: biometric.messageEn, messageAr: biometric.messageAr }); return;
     }
     const today = new Date().toISOString().split("T")[0]!;
     const [existing] = await db.select().from(attendanceRecordsTable)
       .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
     if (existing?.clockIn) {
+      await auditBiometricAttendance(user, biometric.deviceId, "clock_in", "blocked", "already_clocked_in", geo, req);
       res.status(409).json({ success: false, message: "Already clocked in today" }); return;
     }
     const now = new Date();
@@ -4060,6 +4069,8 @@ app.post("/api/attendance/clock-in", auth, async (req, res) => {
     }
     await logActivity(user.companyId, "attendance_check_in",
       `Clock-in: ${user.username} at ${now.toISOString()} (${status}, late: ${lateMinutes}m)`, user.username);
+    await markAttendanceBiometric(record.id, biometric.deviceId, geo);
+    await auditBiometricAttendance(user, biometric.deviceId, "clock_in", "success", null, geo, req, record.id);
     res.status(201).json({ success: true, data: record });
   } catch (e) {
     console.error("[POST /api/attendance/clock-in]", e);
@@ -4071,18 +4082,26 @@ app.post("/api/attendance/clock-out", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
-    const { latitude, longitude } = req.body as { latitude?: number; longitude?: number };
+    const { latitude, longitude, biometricAssertion } = req.body as { latitude?: number; longitude?: number; biometricAssertion?: any };
     const geo = await validateAttendanceGeofence(user.companyId, latitude, longitude);
     if (!geo.allowed) {
+      await auditBiometricAttendance(user, null, "clock_out", "blocked", "outside_geofence", geo, req);
       res.status(400).json({ success: false, message: geo.messageEn, messageAr: geo.messageAr, data: geo }); return;
+    }
+    const biometric = await verifyAttendanceBiometricAssertion(user, "clock_out", biometricAssertion, req);
+    if (!biometric.ok) {
+      await auditBiometricAttendance(user, biometric.deviceId ?? null, "clock_out", "blocked", biometric.reason, geo, req);
+      res.status(biometric.status).json({ success: false, message: biometric.messageEn, messageAr: biometric.messageAr }); return;
     }
     const today = new Date().toISOString().split("T")[0]!;
     const [existing] = await db.select().from(attendanceRecordsTable)
       .where(and(eq(attendanceRecordsTable.employeeId, user.employeeId), eq(attendanceRecordsTable.date, today)));
     if (!existing || !existing.clockIn) {
+      await auditBiometricAttendance(user, biometric.deviceId, "clock_out", "blocked", "no_clock_in", geo, req);
       res.status(400).json({ success: false, message: "No clock-in found for today" }); return;
     }
     if (existing.clockOut) {
+      await auditBiometricAttendance(user, biometric.deviceId, "clock_out", "blocked", "already_clocked_out", geo, req);
       res.status(409).json({ success: false, message: "Already clocked out today" }); return;
     }
     const now = new Date();
@@ -4093,6 +4112,8 @@ app.post("/api/attendance/clock-out", auth, async (req, res) => {
       .where(eq(attendanceRecordsTable.id, existing.id)).returning();
     await logActivity(user.companyId, "attendance_check_out",
       `Clock-out: ${user.username} at ${now.toISOString()}, worked ${workedMinutes} minutes`, user.username);
+    await markAttendanceBiometric(record.id, biometric.deviceId, geo);
+    await auditBiometricAttendance(user, biometric.deviceId, "clock_out", "success", null, geo, req, record.id);
     res.json({ success: true, data: record });
   } catch (e) {
     console.error("[POST /api/attendance/clock-out]", e);
@@ -5338,6 +5359,443 @@ function buildAttendanceGeoNotes(notes: string | null | undefined, geo: any) {
   if (geo?.status) parts.push(`[geo:${geo.status};distance:${geo.distanceMeters ?? ""}]`);
   return parts.join(" ");
 }
+
+function b64url(input: Buffer | string) {
+  const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function b64urlToBuffer(value: string) {
+  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(normalized + "=".repeat((4 - normalized.length % 4) % 4), "base64");
+}
+
+function rpIdFromRequest(req: express.Request) {
+  const configured = process.env["WEBAUTHN_RP_ID"];
+  if (configured) return configured;
+  const host = (req.get("x-forwarded-host") || req.get("host") || "localhost").split(":")[0]!;
+  return host === "127.0.0.1" ? "localhost" : host;
+}
+
+function originFromRequest(req: express.Request) {
+  const configured = process.env["WEBAUTHN_ORIGIN"];
+  if (configured) return configured;
+  const origin = req.get("origin");
+  if (origin) return origin;
+  const host = req.get("host") || "localhost:3001";
+  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+  return `${protocol}://${host}`;
+}
+
+function randomChallenge() {
+  return b64url(crypto.randomBytes(32));
+}
+
+function parseClientData(clientDataJSON: string) {
+  const parsed = JSON.parse(b64urlToBuffer(clientDataJSON).toString("utf8"));
+  return parsed as { type: string; challenge: string; origin?: string };
+}
+
+function parseAuthenticatorData(buffer: Buffer) {
+  if (buffer.length < 37) throw new Error("Invalid authenticator data");
+  const rpIdHash = buffer.subarray(0, 32);
+  const flags = buffer[32]!;
+  const signCount = buffer.readUInt32BE(33);
+  let offset = 37;
+  let credentialId: Buffer | null = null;
+  let publicKeyCose: Buffer | null = null;
+  if (flags & 0x40) {
+    offset += 16;
+    const credentialLength = buffer.readUInt16BE(offset);
+    offset += 2;
+    credentialId = buffer.subarray(offset, offset + credentialLength);
+    offset += credentialLength;
+    publicKeyCose = buffer.subarray(offset);
+  }
+  return {
+    rpIdHash,
+    flags,
+    signCount,
+    userPresent: (flags & 0x01) !== 0,
+    userVerified: (flags & 0x04) !== 0,
+    credentialId,
+    publicKeyCose,
+  };
+}
+
+class CborReader {
+  private offset = 0;
+  constructor(private readonly data: Buffer) {}
+  read(): any {
+    const first = this.data[this.offset++];
+    if (first == null) throw new Error("Unexpected end of CBOR data");
+    const major = first >> 5;
+    const add = first & 0x1f;
+    const length = this.length(add);
+    if (major === 0) return length;
+    if (major === 1) return -1 - length;
+    if (major === 2) return this.take(length);
+    if (major === 3) return this.take(length).toString("utf8");
+    if (major === 4) return Array.from({ length }, () => this.read());
+    if (major === 5) {
+      const map = new Map<any, any>();
+      for (let i = 0; i < length; i++) map.set(this.read(), this.read());
+      return map;
+    }
+    if (major === 7) {
+      if (add === 20) return false;
+      if (add === 21) return true;
+      if (add === 22) return null;
+    }
+    throw new Error("Unsupported CBOR value");
+  }
+  private length(add: number) {
+    if (add < 24) return add;
+    if (add === 24) return this.data[this.offset++]!;
+    if (add === 25) { const value = this.data.readUInt16BE(this.offset); this.offset += 2; return value; }
+    if (add === 26) { const value = this.data.readUInt32BE(this.offset); this.offset += 4; return value; }
+    throw new Error("Unsupported CBOR length");
+  }
+  private take(length: number) {
+    const value = this.data.subarray(this.offset, this.offset + length);
+    this.offset += length;
+    return value;
+  }
+}
+
+function parseCborMap(buffer: Buffer) {
+  const value = new CborReader(buffer).read();
+  if (!(value instanceof Map)) throw new Error("CBOR map expected");
+  return value;
+}
+
+function parseAttestationObject(attestationObject: string) {
+  const map = parseCborMap(b64urlToBuffer(attestationObject));
+  const authData = map.get("authData");
+  if (!Buffer.isBuffer(authData)) throw new Error("Missing authData");
+  return parseAuthenticatorData(authData);
+}
+
+function spkiForP256(coseKey: Buffer) {
+  const key = parseCborMap(coseKey);
+  const kty = key.get(1);
+  const alg = key.get(3);
+  const crv = key.get(-1);
+  const x = key.get(-2);
+  const y = key.get(-3);
+  if (kty !== 2 || alg !== -7 || crv !== 1 || !Buffer.isBuffer(x) || !Buffer.isBuffer(y)) {
+    throw new Error("Only ES256 platform authenticators are supported");
+  }
+  return Buffer.concat([
+    Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex"),
+    Buffer.from([0x04]),
+    x,
+    y,
+  ]);
+}
+
+function verifyP256Signature(cosePublicKey: string, authenticatorData: string, clientDataJSON: string, signature: string) {
+  const verify = crypto.createVerify("SHA256");
+  verify.update(Buffer.concat([
+    b64urlToBuffer(authenticatorData),
+    crypto.createHash("sha256").update(b64urlToBuffer(clientDataJSON)).digest(),
+  ]));
+  verify.end();
+  const publicKey = crypto.createPublicKey({ key: spkiForP256(b64urlToBuffer(cosePublicKey)), format: "der", type: "spki" });
+  return verify.verify(publicKey, b64urlToBuffer(signature));
+}
+
+async function createBiometricChallenge(user: AuthReq["user"], req: express.Request, challengeType: "registration" | "authentication", action?: "clock_in" | "clock_out") {
+  if (!user.employeeId) throw Object.assign(new Error("No employee profile linked to this account"), { status: 403 });
+  const challenge = randomChallenge();
+  const rpId = rpIdFromRequest(req);
+  const origin = originFromRequest(req);
+  await pool.query(
+    `INSERT INTO attendance_biometric_challenges
+      (company_id, employee_id, user_id, challenge, challenge_type, attendance_action, rp_id, origin, expires_at, ip_address, user_agent)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW() + INTERVAL '5 minutes',$9,$10)`,
+    [user.companyId, user.employeeId, user.userId, challenge, challengeType, action || null, rpId, origin, req.ip || null, req.get("user-agent") || null],
+  );
+  return { challenge, rpId, origin };
+}
+
+async function consumeBiometricChallenge(user: AuthReq["user"], challenge: string, type: "registration" | "authentication", req: express.Request, action?: string) {
+  const { rows } = await pool.query(
+    `UPDATE attendance_biometric_challenges
+        SET used_at=NOW()
+      WHERE company_id=$1 AND user_id=$2 AND employee_id=$3 AND challenge=$4 AND challenge_type=$5
+        AND ($6::text IS NULL OR attendance_action=$6)
+        AND used_at IS NULL AND expires_at > NOW() AND is_deleted=false
+      RETURNING *`,
+    [user.companyId, user.userId, user.employeeId, challenge, type, action || null],
+  );
+  if (!rows.length) throw Object.assign(new Error("Invalid or expired biometric challenge"), { status: 400 });
+  const row = rows[0];
+  const expectedRpHash = crypto.createHash("sha256").update(row.rp_id).digest();
+  return { row, expectedRpHash };
+}
+
+function assertClientData(clientData: { type: string; challenge: string; origin?: string }, expectedType: string, expectedChallenge: string, expectedOrigin?: string) {
+  if (clientData.type !== expectedType) throw Object.assign(new Error("Invalid WebAuthn response type"), { status: 400 });
+  if (clientData.challenge !== expectedChallenge) throw Object.assign(new Error("Invalid WebAuthn challenge"), { status: 400 });
+  if (expectedOrigin && clientData.origin && clientData.origin !== expectedOrigin) {
+    throw Object.assign(new Error("Invalid WebAuthn origin"), { status: 400 });
+  }
+}
+
+async function auditBiometricAttendance(user: AuthReq["user"], deviceId: number | null, action: string, result: "success" | "blocked" | "failed", reason: string | null, geo: any, req: express.Request, attendanceRecordId?: number) {
+  try {
+    await pool.query(
+      `INSERT INTO attendance_biometric_audit_logs
+        (company_id, employee_id, user_id, device_id, attendance_record_id, event_type, result, failure_reason, message_ar, message_en, geofence_status, latitude, longitude, distance_meters, ip_address, user_agent, metadata_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb)`,
+      [
+        user.companyId, user.employeeId, user.userId, deviceId, attendanceRecordId || null, action, result, reason,
+        result === "success" ? "تم تسجيل الحضور بنجاح" : (reason === "outside_geofence" ? "لا يمكن تسجيل الحضور خارج نطاق الموقع" : "فشل التحقق البيومتري"),
+        result === "success" ? "Attendance recorded successfully" : (reason === "outside_geofence" ? "Cannot record attendance outside geofence" : "Biometric verification failed"),
+        geo?.status || null,
+        req.body?.latitude ?? null,
+        req.body?.longitude ?? null,
+        geo?.distanceMeters ?? null,
+        req.ip || null,
+        req.get("user-agent") || null,
+        JSON.stringify({ nearestLocation: geo?.nearestLocation?.id ?? null }),
+      ],
+    );
+  } catch {
+    // Audit failures must not mask the primary attendance error/result.
+  }
+}
+
+async function markAttendanceBiometric(attendanceRecordId: number, deviceId: number, geo: any) {
+  const locationId = Number(geo?.nearestLocation?.id);
+  const safeLocationId = Number.isInteger(locationId) && locationId > 0 && locationId <= 2147483647 ? locationId : null;
+  await pool.query(
+    `UPDATE attendance_records
+        SET biometric_device_id=$1, biometric_verified=true, biometric_verified_at=NOW(),
+            geofence_status=$2, geofence_distance_meters=$3, geofence_location_id=$4
+      WHERE id=$5`,
+    [deviceId, geo?.status || null, geo?.distanceMeters ?? null, safeLocationId, attendanceRecordId],
+  );
+}
+
+async function verifyAttendanceBiometricAssertion(user: AuthReq["user"], action: "clock_in" | "clock_out", assertion: any, req: express.Request): Promise<{ ok: true; deviceId: number } | { ok: false; status: number; reason: string; messageAr: string; messageEn: string; deviceId?: number }> {
+  try {
+    if (!assertion?.id || !assertion?.response?.clientDataJSON || !assertion?.response?.authenticatorData || !assertion?.response?.signature) {
+      return { ok: false, status: 400, reason: "missing_biometric", messageAr: "يجب التحقق بالبصمة أو Face ID", messageEn: "Biometric or Face ID verification is required" };
+    }
+    const credentialId = assertion.rawId || assertion.id;
+    const deviceRows = await pool.query(
+      `SELECT * FROM attendance_trusted_devices
+       WHERE company_id=$1 AND employee_id=$2 AND user_id=$3 AND credential_id=$4 AND is_deleted=false
+       LIMIT 1`,
+      [user.companyId, user.employeeId, user.userId, credentialId],
+    );
+    const device = deviceRows.rows[0];
+    if (!device) {
+      return { ok: false, status: 403, reason: "device_not_registered", messageAr: "جهازك غير مسجل للحضور", messageEn: "This device is not registered for attendance" };
+    }
+    if (device.status !== "active") {
+      return { ok: false, status: 403, reason: `device_${device.status}`, messageAr: "جهازك غير مسجل للحضور", messageEn: "This device is not active for attendance", deviceId: device.id };
+    }
+    const clientData = parseClientData(assertion.response.clientDataJSON);
+    const { row, expectedRpHash } = await consumeBiometricChallenge(user, clientData.challenge, "authentication", req, action);
+    assertClientData(clientData, "webauthn.get", row.challenge, row.origin);
+    const authData = parseAuthenticatorData(b64urlToBuffer(assertion.response.authenticatorData));
+    if (!authData.rpIdHash.equals(expectedRpHash)) throw Object.assign(new Error("Invalid relying party"), { status: 400 });
+    if (!authData.userPresent || !authData.userVerified) {
+      return { ok: false, status: 403, reason: "user_not_verified", messageAr: "يجب التحقق بالبصمة أو Face ID", messageEn: "Biometric or Face ID verification is required", deviceId: device.id };
+    }
+    const signatureOk = verifyP256Signature(device.public_key_cose, assertion.response.authenticatorData, assertion.response.clientDataJSON, assertion.response.signature);
+    if (!signatureOk) {
+      return { ok: false, status: 403, reason: "signature_failed", messageAr: "فشل التحقق البيومتري", messageEn: "Biometric verification failed", deviceId: device.id };
+    }
+    if (authData.signCount > 0 && Number(device.sign_count || 0) > 0 && authData.signCount <= Number(device.sign_count)) {
+      return { ok: false, status: 403, reason: "sign_count_replay", messageAr: "فشل التحقق البيومتري", messageEn: "Biometric verification failed", deviceId: device.id };
+    }
+    await pool.query(`UPDATE attendance_trusted_devices SET sign_count=$1, last_used_at=NOW(), last_ip=$2, user_agent=$3, updated_at=NOW() WHERE id=$4`, [authData.signCount, req.ip || null, req.get("user-agent") || null, device.id]);
+    return { ok: true, deviceId: device.id };
+  } catch (error: any) {
+    return { ok: false, status: error?.status || 400, reason: error?.message || "biometric_failed", messageAr: "فشل التحقق البيومتري", messageEn: "Biometric verification failed" };
+  }
+}
+
+app.get("/api/attendance/biometric/devices", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const params: any[] = [user.companyId];
+    let where = `d.company_id=$1 AND d.is_deleted=false`;
+    if (user.role === "employee") {
+      if (!user.employeeId) return res.json({ success: true, data: [] });
+      where += ` AND employee_id=$${params.push(user.employeeId)}`;
+    } else if (!["hradmin", "superadmin", "manager", "payrolladmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    } else if (user.role === "manager") {
+      where += ` AND employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    }
+    const { rows } = await pool.query(
+      `SELECT d.id, d.employee_id AS "employeeId", d.device_label AS "deviceLabel", d.platform, d.browser, d.status,
+              d.enrolled_at AS "enrolledAt", d.last_used_at AS "lastUsedAt",
+              e.employee_code AS "employeeCode",
+              CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "employeeNameAr",
+              CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "employeeNameEn"
+       FROM attendance_trusted_devices d
+       JOIN employees e ON e.id=d.employee_id AND e.company_id=d.company_id
+       WHERE ${where}
+       ORDER BY d.enrolled_at DESC`,
+      params,
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/attendance/biometric/devices]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/attendance/biometric/registration/challenge", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "employee") return res.status(403).json({ success: false, message: "Only employees can self-enroll attendance devices" });
+    if (!user.employeeId) return res.status(403).json({ success: false, message: "No employee profile linked to this account" });
+    const { challenge, rpId } = await createBiometricChallenge(user, req, "registration");
+    const existing = await pool.query(`SELECT credential_id FROM attendance_trusted_devices WHERE company_id=$1 AND employee_id=$2 AND status='active' AND is_deleted=false`, [user.companyId, user.employeeId]);
+    res.json({
+      success: true,
+      data: {
+        challenge,
+        rp: { name: "ZenJO Attendance", id: rpId },
+        user: { id: b64url(Buffer.from(String(user.employeeId))), name: user.username, displayName: user.username },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        timeout: 60000,
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" },
+        attestation: "none",
+        excludeCredentials: existing.rows.map((r: any) => ({ type: "public-key", id: r.credential_id })),
+      },
+    });
+  } catch (e: any) {
+    res.status(e?.status || 500).json({ success: false, message: e?.message || "Internal server error" });
+  }
+});
+
+app.post("/api/attendance/biometric/registration/verify", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "employee") return res.status(403).json({ success: false, message: "Only employees can self-enroll attendance devices" });
+    if (!user.employeeId) return res.status(403).json({ success: false, message: "No employee profile linked to this account" });
+    const credential = req.body?.credential;
+    if (!credential?.id || !credential?.response?.clientDataJSON || !credential?.response?.attestationObject) {
+      return res.status(400).json({ success: false, message: "Invalid WebAuthn registration payload" });
+    }
+    const clientData = parseClientData(credential.response.clientDataJSON);
+    const { row, expectedRpHash } = await consumeBiometricChallenge(user, clientData.challenge, "registration", req);
+    assertClientData(clientData, "webauthn.create", row.challenge, row.origin);
+    const authData = parseAttestationObject(credential.response.attestationObject);
+    if (!authData.rpIdHash.equals(expectedRpHash)) return res.status(400).json({ success: false, message: "Invalid relying party" });
+    if (!authData.userPresent || !authData.userVerified) {
+      return res.status(403).json({ success: false, message: "Biometric or Face ID verification is required", messageAr: "يجب التحقق بالبصمة أو Face ID" });
+    }
+    const credentialId = b64url(authData.credentialId!);
+    if (credentialId !== (credential.rawId || credential.id)) return res.status(400).json({ success: false, message: "Credential ID mismatch" });
+    const label = String(req.body?.deviceLabel || "Trusted device").slice(0, 120);
+    const platform = String(req.body?.platform || "").slice(0, 80) || null;
+    const browser = String(req.body?.browser || "").slice(0, 80) || null;
+    const { rows } = await pool.query(
+      `INSERT INTO attendance_trusted_devices
+        (company_id, employee_id, user_id, credential_id, public_key_cose, sign_count, device_label, platform, browser, user_agent, last_ip, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$3,$3)
+       ON CONFLICT (company_id, credential_id) WHERE is_deleted=false
+       DO UPDATE SET status='active', public_key_cose=EXCLUDED.public_key_cose, sign_count=EXCLUDED.sign_count, device_label=EXCLUDED.device_label, updated_at=NOW(), updated_by=EXCLUDED.updated_by
+       RETURNING id, employee_id AS "employeeId", device_label AS "deviceLabel", status, enrolled_at AS "enrolledAt"`,
+      [user.companyId, user.employeeId, user.userId, credentialId, b64url(authData.publicKeyCose!), authData.signCount, label, platform, browser, req.get("user-agent") || null, req.ip || null],
+    );
+    await auditBiometricAttendance(user, rows[0].id, "device_enrolled", "success", null, { status: "not_applicable" }, req);
+    res.status(201).json({ success: true, data: rows[0] });
+  } catch (e: any) {
+    console.error("[POST /api/attendance/biometric/registration/verify]", e);
+    res.status(e?.status || 400).json({ success: false, message: e?.message || "Biometric registration failed", messageAr: "فشل التحقق البيومتري" });
+  }
+});
+
+app.post("/api/attendance/biometric/attendance/challenge", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (user.role !== "employee") return res.status(403).json({ success: false, message: "Only employees can record biometric attendance" });
+    if (!user.employeeId) return res.status(403).json({ success: false, message: "No employee profile linked to this account" });
+    const action = req.body?.action === "clock_out" ? "clock_out" : "clock_in";
+    const devices = await pool.query(`SELECT credential_id FROM attendance_trusted_devices WHERE company_id=$1 AND employee_id=$2 AND user_id=$3 AND status='active' AND is_deleted=false`, [user.companyId, user.employeeId, user.userId]);
+    if (!devices.rows.length) return res.status(403).json({ success: false, message: "This device is not registered for attendance", messageAr: "جهازك غير مسجل للحضور" });
+    const { challenge, rpId } = await createBiometricChallenge(user, req, "authentication", action);
+    res.json({
+      success: true,
+      data: {
+        challenge,
+        rpId,
+        timeout: 60000,
+        userVerification: "required",
+        allowCredentials: devices.rows.map((r: any) => ({ type: "public-key", id: r.credential_id })),
+      },
+    });
+  } catch (e: any) {
+    res.status(e?.status || 500).json({ success: false, message: e?.message || "Internal server error" });
+  }
+});
+
+app.patch("/api/attendance/biometric/devices/:id/status", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params["id"]);
+    const status = String(req.body?.status || "");
+    if (!["active", "blocked", "revoked", "pending_reenroll"].includes(status)) return res.status(400).json({ success: false, message: "Invalid device status" });
+    const actionColumns: Record<string, string> = {
+      blocked: "blocked_at=NOW(), blocked_by=$4",
+      revoked: "revoked_at=NOW(), revoked_by=$4",
+      pending_reenroll: "force_reenroll_at=NOW(), force_reenroll_by=$4",
+      active: "blocked_at=NULL, blocked_by=NULL, revoked_at=NULL, revoked_by=NULL, force_reenroll_at=NULL, force_reenroll_by=NULL",
+    };
+    const { rows } = await pool.query(
+      `UPDATE attendance_trusted_devices SET status=$1, ${actionColumns[status]}, updated_by=$4, updated_at=NOW()
+       WHERE id=$2 AND company_id=$3 AND is_deleted=false
+       RETURNING id, employee_id AS "employeeId", device_label AS "deviceLabel", status`,
+      [status, id, user.companyId, user.userId],
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: "Device not found" });
+    await auditBiometricAttendance(user, id, `device_${status}`, "success", null, { status: "not_applicable" }, req);
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error("[PATCH /api/attendance/biometric/devices/:id/status]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/attendance/biometric/audit", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const params: any[] = [user.companyId];
+    let where = `abl.company_id=$1`;
+    if (user.role === "employee") {
+      where += ` AND abl.employee_id=$${params.push(user.employeeId ?? -1)}`;
+    } else if (user.role === "manager") {
+      where += ` AND abl.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
+    } else if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+    const { rows } = await pool.query(
+      `SELECT abl.*, e.employee_code AS "employeeCode",
+              CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS "employeeNameAr",
+              CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS "employeeNameEn"
+       FROM attendance_biometric_audit_logs abl
+       LEFT JOIN employees e ON e.id=abl.employee_id AND e.company_id=abl.company_id
+       WHERE ${where}
+       ORDER BY abl.created_at DESC LIMIT 100`,
+      params,
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[GET /api/attendance/biometric/audit]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
 
 app.get("/api/attendance/locations", auth, async (req, res) => {
   const user = (req as AuthReq).user;
@@ -18516,6 +18974,8 @@ app.get("/api/production/exports/:dataset", auth, async (req, res) => {
     res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
   }
 });
+
+registerComplianceContractsRoutes(app, auth);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`ZenJO API server running on http://localhost:${PORT}`);

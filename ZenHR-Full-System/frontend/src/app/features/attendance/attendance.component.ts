@@ -12,7 +12,7 @@ import { ConfirmDialogComponent } from '../../shared/components/ui/confirm-dialo
 import { RejectReasonDialogComponent } from '../../shared/components/ui/reject-reason-dialog.component';
 import { getErrorMessage } from '../../core/utils/error-message';
 
-type AttendanceView = 'dashboard' | 'log' | 'requests' | 'map';
+type AttendanceView = 'dashboard' | 'log' | 'requests' | 'map' | 'devices';
 
 interface AttendanceRecordRow {
   id: number;
@@ -69,6 +69,20 @@ interface WorkLocationRow {
   address?: string;
 }
 
+interface TrustedDeviceRow {
+  id: number;
+  employeeId: number;
+  employeeCode?: string;
+  employeeNameAr?: string;
+  employeeNameEn?: string;
+  deviceLabel?: string;
+  platform?: string;
+  browser?: string;
+  status: string;
+  enrolledAt?: string;
+  lastUsedAt?: string;
+}
+
 @Component({
   selector: 'app-attendance',
   standalone: true,
@@ -91,6 +105,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   filteredRequests = signal<AttendanceRequestRow[]>([]);
   mapRecords = signal<AttendanceRecordRow[]>([]);
   workLocations = signal<WorkLocationRow[]>([]);
+  trustedDevices = signal<TrustedDeviceRow[]>([]);
 
   loading = signal(false);
   logLoading = signal(false);
@@ -99,6 +114,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   clockLoading = signal(false);
   locationSaving = signal(false);
   requestSubmitting = signal(false);
+  enrollingDevice = signal(false);
+  devicesLoading = signal(false);
 
   feedback = signal('');
   error = signal('');
@@ -106,6 +123,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   requestsError = signal('');
   mapError = signal('');
   locationStatus = signal('');
+  biometricStatus = signal('');
 
   showRequestModal = signal(false);
   showLocationModal = signal(false);
@@ -148,6 +166,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     radiusMeters: 200,
     address: ''
   };
+
+  deviceLabel = '';
 
   readonly pendingRequests = computed(() =>
     this.requests().filter(item => item.status === 'pending' || item.status === 'manager_approved').length
@@ -228,6 +248,9 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     if (this.isHrOrManager) {
       this.loadMap();
     }
+    if (this.isEmployee || this.isHr) {
+      this.loadTrustedDevices();
+    }
   }
 
   ngOnDestroy() {
@@ -276,6 +299,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     if (view === 'log') this.loadLog();
     if (view === 'requests') this.loadRequests();
     if (view === 'map' && this.isHrOrManager) this.loadMap();
+    if (view === 'devices') this.loadTrustedDevices();
   }
 
   loadDashboard() {
@@ -475,10 +499,11 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     this.clockLoading.set(true);
     this.feedback.set('');
     this.error.set('');
-    this.getBrowserLocation().then(coords => {
+    this.secureAttendancePayload('clock_in').then(payload => {
+      const coords = { latitude: payload.latitude, longitude: payload.longitude };
       const status = this.evaluateLocalGeofence(coords.latitude, coords.longitude);
       this.locationStatus.set(status.message);
-      this.api.post<any>('/api/attendance/clock-in', { attendanceType: 'office', ...coords }).subscribe({
+      this.api.post<any>('/api/attendance/clock-in', { attendanceType: 'office', ...coords, biometricAssertion: payload.biometricAssertion }).subscribe({
       next: () => {
         const message = this.t('تم تسجيل الحضور بنجاح.', 'Clock-in recorded successfully.');
         this.clockLoading.set(false);
@@ -496,7 +521,7 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     }).catch(message => {
       this.clockLoading.set(false);
       this.error.set(message);
-      this.locationStatus.set(message);
+      this.biometricStatus.set(message);
       this.toast.error(message);
     });
   }
@@ -506,10 +531,11 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     this.clockLoading.set(true);
     this.feedback.set('');
     this.error.set('');
-    this.getBrowserLocation().then(coords => {
+    this.secureAttendancePayload('clock_out').then(payload => {
+      const coords = { latitude: payload.latitude, longitude: payload.longitude };
       const status = this.evaluateLocalGeofence(coords.latitude, coords.longitude);
       this.locationStatus.set(status.message);
-      this.api.post<any>('/api/attendance/clock-out', coords).subscribe({
+      this.api.post<any>('/api/attendance/clock-out', { ...coords, biometricAssertion: payload.biometricAssertion }).subscribe({
       next: () => {
         const message = this.t('تم تسجيل الانصراف بنجاح.', 'Clock-out recorded successfully.');
         this.clockLoading.set(false);
@@ -527,9 +553,167 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     }).catch(message => {
       this.clockLoading.set(false);
       this.error.set(message);
-      this.locationStatus.set(message);
+      this.biometricStatus.set(message);
       this.toast.error(message);
     });
+  }
+
+  loadTrustedDevices() {
+    if (!this.isEmployee && !this.isHr) return;
+    this.devicesLoading.set(true);
+    this.api.get<any>('/api/attendance/biometric/devices').subscribe({
+      next: response => {
+        this.trustedDevices.set(response.data || []);
+        this.devicesLoading.set(false);
+      },
+      error: error => {
+        this.devicesLoading.set(false);
+        this.error.set(getErrorMessage(error, this.t('تعذر تحميل الأجهزة الموثوقة.', 'Failed to load trusted devices.')));
+      }
+    });
+  }
+
+  enrollDevice() {
+    if (!this.isEmployee || this.enrollingDevice()) return;
+    if (!this.webAuthnSupported()) {
+      const message = this.t('هذا المتصفح لا يدعم مفاتيح المرور.', 'This browser does not support passkeys.');
+      this.error.set(message);
+      this.toast.error(message);
+      return;
+    }
+    this.enrollingDevice.set(true);
+    this.biometricStatus.set(this.t('يجب التحقق بالبصمة أو Face ID', 'Biometric or Face ID verification is required'));
+    this.api.post<any>('/api/attendance/biometric/registration/challenge', {}).subscribe({
+      next: async response => {
+        try {
+          const options = this.registrationOptions(response.data);
+          const credential = await navigator.credentials.create({ publicKey: options }) as PublicKeyCredential | null;
+          if (!credential) throw new Error(this.t('فشل التحقق البيومتري', 'Biometric verification failed'));
+          const payload = {
+            credential: this.publicKeyCredentialToJSON(credential),
+            deviceLabel: this.deviceLabel || this.defaultDeviceLabel(),
+            platform: navigator.platform,
+            browser: this.browserName()
+          };
+          this.api.post<any>('/api/attendance/biometric/registration/verify', payload).subscribe({
+            next: () => {
+              this.enrollingDevice.set(false);
+              this.biometricStatus.set(this.t('تم تسجيل الجهاز بنجاح.', 'Device enrolled successfully.'));
+              this.toast.success(this.biometricStatus());
+              this.loadTrustedDevices();
+            },
+            error: error => {
+              const message = getErrorMessage(error, this.t('فشل التحقق البيومتري', 'Biometric verification failed'));
+              this.enrollingDevice.set(false);
+              this.error.set(message);
+              this.toast.error(message);
+            }
+          });
+        } catch (error: any) {
+          const message = error?.message || this.t('فشل التحقق البيومتري', 'Biometric verification failed');
+          this.enrollingDevice.set(false);
+          this.error.set(message);
+          this.toast.error(message);
+        }
+      },
+      error: error => {
+        const message = getErrorMessage(error, this.t('جهازك غير مسجل للحضور', 'This device is not registered for attendance'));
+        this.enrollingDevice.set(false);
+        this.error.set(message);
+        this.toast.error(message);
+      }
+    });
+  }
+
+  updateDeviceStatus(device: TrustedDeviceRow, status: 'active' | 'blocked' | 'revoked' | 'pending_reenroll') {
+    if (!this.isHr) return;
+    this.api.patch<any>(`/api/attendance/biometric/devices/${device.id}/status`, { status }).subscribe({
+      next: () => {
+        this.toast.success(this.t('تم تحديث حالة الجهاز.', 'Device status updated.'));
+        this.loadTrustedDevices();
+      },
+      error: error => this.toast.error(getErrorMessage(error, this.t('تعذر تحديث حالة الجهاز.', 'Failed to update device status.')))
+    });
+  }
+
+  private async secureAttendancePayload(action: 'clock_in' | 'clock_out') {
+    if (!this.webAuthnSupported()) throw new Error(this.t('يجب التحقق بالبصمة أو Face ID', 'Biometric or Face ID verification is required'));
+    const coords = await this.getBrowserLocation();
+    const challenge = await this.postPromise<any>('/api/attendance/biometric/attendance/challenge', { action });
+    const assertion = await navigator.credentials.get({ publicKey: this.authenticationOptions(challenge.data) }) as PublicKeyCredential | null;
+    if (!assertion) throw new Error(this.t('فشل التحقق البيومتري', 'Biometric verification failed'));
+    return { ...coords, biometricAssertion: this.publicKeyCredentialToJSON(assertion) };
+  }
+
+  private postPromise<T>(url: string, body: unknown): Promise<T> {
+    return new Promise((resolve, reject) => this.api.post<T>(url, body).subscribe({ next: resolve, error: reject }));
+  }
+
+  private webAuthnSupported() {
+    return typeof window !== 'undefined' && !!window.PublicKeyCredential && !!navigator.credentials;
+  }
+
+  private registrationOptions(data: any): PublicKeyCredentialCreationOptions {
+    return {
+      ...data,
+      challenge: this.base64UrlToArrayBuffer(data.challenge),
+      user: { ...data.user, id: this.base64UrlToArrayBuffer(data.user.id) },
+      excludeCredentials: (data.excludeCredentials || []).map((item: any) => ({ ...item, id: this.base64UrlToArrayBuffer(item.id) }))
+    };
+  }
+
+  private authenticationOptions(data: any): PublicKeyCredentialRequestOptions {
+    return {
+      ...data,
+      challenge: this.base64UrlToArrayBuffer(data.challenge),
+      allowCredentials: (data.allowCredentials || []).map((item: any) => ({ ...item, id: this.base64UrlToArrayBuffer(item.id) }))
+    };
+  }
+
+  private publicKeyCredentialToJSON(credential: PublicKeyCredential) {
+    const response: any = credential.response;
+    const json: any = {
+      id: credential.id,
+      rawId: this.arrayBufferToBase64Url(credential.rawId),
+      type: credential.type,
+      response: {
+        clientDataJSON: this.arrayBufferToBase64Url(response.clientDataJSON)
+      }
+    };
+    if (response.attestationObject) json.response.attestationObject = this.arrayBufferToBase64Url(response.attestationObject);
+    if (response.authenticatorData) json.response.authenticatorData = this.arrayBufferToBase64Url(response.authenticatorData);
+    if (response.signature) json.response.signature = this.arrayBufferToBase64Url(response.signature);
+    if (response.userHandle) json.response.userHandle = this.arrayBufferToBase64Url(response.userHandle);
+    return json;
+  }
+
+  private base64UrlToArrayBuffer(value: string) {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  private arrayBufferToBase64Url(buffer: ArrayBuffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    bytes.forEach(byte => binary += String.fromCharCode(byte));
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  private defaultDeviceLabel() {
+    return this.t('جهازي الموثوق', 'My trusted device');
+  }
+
+  private browserName() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Edg/')) return 'Edge';
+    if (ua.includes('Chrome/')) return 'Chrome';
+    if (ua.includes('Safari/')) return 'Safari';
+    if (ua.includes('Firefox/')) return 'Firefox';
+    return 'Browser';
   }
 
   refreshAttendanceState() {
@@ -848,6 +1032,17 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     };
     const label = labels[type];
     return label ? this.t(label.ar, label.en) : type;
+  }
+
+  deviceStatusLabel(status: string) {
+    const labels: Record<string, { ar: string; en: string }> = {
+      active: { ar: 'نشط', en: 'Active' },
+      blocked: { ar: 'محظور', en: 'Blocked' },
+      revoked: { ar: 'ملغى', en: 'Revoked' },
+      pending_reenroll: { ar: 'بانتظار إعادة التسجيل', en: 'Pending re-enrollment' }
+    };
+    const label = labels[status];
+    return label ? this.t(label.ar, label.en) : status;
   }
 
   statusTone(status: string) {

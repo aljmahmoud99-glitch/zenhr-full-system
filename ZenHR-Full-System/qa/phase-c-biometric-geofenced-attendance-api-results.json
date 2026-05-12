@@ -1,0 +1,1379 @@
+{
+  "generatedAt": "2026-05-12T23:40:53.933Z",
+  "backend": "http://localhost:3001",
+  "browser": {
+    "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "virtualAuthenticator": true,
+    "authenticatorId": "89c731ca-a0d8-4ae1-b43f-7ec81393fe62"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "checks": {
+    "health": {
+      "status": 200,
+      "body": {
+        "status": "healthy",
+        "timestamp": "2026-05-12T23:40:55.798Z",
+        "version": "1.0.0"
+      }
+    },
+    "hrDeviceListBefore": {
+      "status": 200,
+      "count": 2
+    },
+    "locationCreate": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 1778629255842,
+          "nameAr": "موقع اختبار البصمة",
+          "nameEn": "Biometric Test Site",
+          "latitude": 31.95,
+          "longitude": 35.93,
+          "radiusMeters": 10000,
+          "address": "Amman smoke geofence"
+        }
+      }
+    },
+    "noTrustedDeviceChallenge": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This device is not registered for attendance",
+        "messageAr": "جهازك غير مسجل للحضور"
+      }
+    },
+    "clockInWithoutBiometric": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Biometric or Face ID verification is required",
+        "messageAr": "يجب التحقق بالبصمة أو Face ID"
+      }
+    },
+    "clockInOutsideGeofence": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Outside allowed work location",
+        "messageAr": "خارج نطاق الموقع",
+        "data": {
+          "allowed": false,
+          "status": "outside",
+          "messageAr": "خارج نطاق الموقع",
+          "messageEn": "Outside allowed work location",
+          "nearestLocation": {
+            "id": 1778628714681,
+            "nameAr": "موقع اختبار البصمة",
+            "nameEn": "Biometric Test Site",
+            "latitude": 31.95,
+            "longitude": 35.93,
+            "radiusMeters": 10000,
+            "address": "Amman smoke geofence"
+          },
+          "distanceMeters": 5181855
+        }
+      }
+    },
+    "registrationChallenge": {
+      "status": 200,
+      "hasChallenge": true
+    },
+    "registrationVerify": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "employeeId": 8,
+          "deviceLabel": "Chrome CDP Virtual Passkey",
+          "status": "active",
+          "enrolledAt": "2026-05-12T23:40:55.883Z"
+        }
+      }
+    },
+    "trustedDeviceListEmployee": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 3,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "active",
+            "enrolledAt": "2026-05-12T23:40:55.883Z",
+            "lastUsedAt": null,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 2,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:34:29.968Z",
+            "lastUsedAt": "2026-05-12T23:34:30.102Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 1,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:31:54.736Z",
+            "lastUsedAt": "2026-05-12T23:31:55.304Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          }
+        ]
+      }
+    },
+    "trustedDeviceListHr": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 3,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "active",
+            "enrolledAt": "2026-05-12T23:40:55.883Z",
+            "lastUsedAt": null,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 2,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:34:29.968Z",
+            "lastUsedAt": "2026-05-12T23:34:30.102Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 1,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:31:54.736Z",
+            "lastUsedAt": "2026-05-12T23:31:55.304Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          }
+        ]
+      }
+    },
+    "managerMutateDevice": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      }
+    },
+    "payrollMutateDevice": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      }
+    },
+    "recruiterDeviceList": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      }
+    },
+    "hrBlockDevice": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "employeeId": 8,
+          "deviceLabel": "Chrome CDP Virtual Passkey",
+          "status": "blocked"
+        }
+      }
+    },
+    "blockedDeviceChallenge": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This device is not registered for attendance",
+        "messageAr": "جهازك غير مسجل للحضور"
+      }
+    },
+    "hrRevokeDevice": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "employeeId": 8,
+          "deviceLabel": "Chrome CDP Virtual Passkey",
+          "status": "revoked"
+        }
+      }
+    },
+    "revokedDeviceChallenge": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This device is not registered for attendance",
+        "messageAr": "جهازك غير مسجل للحضور"
+      }
+    },
+    "hrForceReenroll": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "employeeId": 8,
+          "deviceLabel": "Chrome CDP Virtual Passkey",
+          "status": "pending_reenroll"
+        }
+      }
+    },
+    "forceReenrollBlocked": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This device is not registered for attendance",
+        "messageAr": "جهازك غير مسجل للحضور"
+      }
+    },
+    "hrReactivateDevice": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "employeeId": 8,
+          "deviceLabel": "Chrome CDP Virtual Passkey",
+          "status": "active"
+        }
+      }
+    },
+    "attendanceChallenge": {
+      "status": 200,
+      "hasChallenge": true
+    },
+    "failedBiometricClockIn": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Biometric verification failed",
+        "messageAr": "فشل التحقق البيومتري"
+      }
+    },
+    "clockInSuccess": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 453,
+          "employeeId": 8,
+          "date": "2026-05-12",
+          "clockIn": "2026-05-12T23:40:55.980Z",
+          "clockOut": null,
+          "workedMinutes": null,
+          "status": "present",
+          "lateMinutes": 0,
+          "overtimeMinutes": 0,
+          "attendanceType": "office",
+          "biometricDeviceId": null,
+          "biometricVerified": false,
+          "biometricVerifiedAt": null,
+          "geofenceStatus": null,
+          "geofenceDistanceMeters": null,
+          "geofenceLocationId": null,
+          "notes": "[geo:inside;distance:0]",
+          "createdAt": "2026-05-12T23:40:55.982Z",
+          "updatedAt": "2026-05-12T23:40:55.982Z"
+        }
+      }
+    },
+    "clockOutSuccess": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 453,
+          "employeeId": 8,
+          "date": "2026-05-12",
+          "clockIn": "2026-05-12T23:40:55.980Z",
+          "clockOut": "2026-05-12T23:40:56.007Z",
+          "workedMinutes": 0,
+          "status": "present",
+          "lateMinutes": 0,
+          "overtimeMinutes": 0,
+          "attendanceType": "office",
+          "biometricDeviceId": 3,
+          "biometricVerified": true,
+          "biometricVerifiedAt": "2026-05-12T23:40:55.987Z",
+          "geofenceStatus": "inside",
+          "geofenceDistanceMeters": 0,
+          "geofenceLocationId": null,
+          "notes": "[geo:inside;distance:0]",
+          "createdAt": "2026-05-12T23:40:55.982Z",
+          "updatedAt": "2026-05-12T23:40:56.008Z"
+        }
+      }
+    },
+    "todayRecord": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 453,
+          "employeeId": 8,
+          "date": "2026-05-12",
+          "clockIn": "2026-05-12T23:40:55.980Z",
+          "clockOut": "2026-05-12T23:40:56.007Z",
+          "workedMinutes": 0,
+          "status": "present",
+          "lateMinutes": 0,
+          "overtimeMinutes": 0,
+          "attendanceType": "office",
+          "biometricDeviceId": 3,
+          "biometricVerified": true,
+          "biometricVerifiedAt": "2026-05-12T23:40:56.013Z",
+          "geofenceStatus": "inside",
+          "geofenceDistanceMeters": 0,
+          "geofenceLocationId": null,
+          "notes": "[geo:inside;distance:0]",
+          "createdAt": "2026-05-12T23:40:55.982Z",
+          "updatedAt": "2026-05-12T23:40:56.008Z"
+        }
+      }
+    },
+    "auditLogs": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 31,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 3,
+            "attendance_record_id": 453,
+            "event_type": "clock_out",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:40:56.015Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 30,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 3,
+            "attendance_record_id": 453,
+            "event_type": "clock_in",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:40:55.990Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 29,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "signature_failed",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:40:55.959Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 28,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "device_active",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.943Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 27,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "device_pending_reenroll",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.933Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 26,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.923Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 25,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "device_blocked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.913Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 24,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 3,
+            "attendance_record_id": null,
+            "event_type": "device_enrolled",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.885Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 23,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "outside_geofence",
+            "message_ar": "لا يمكن تسجيل الحضور خارج نطاق الموقع",
+            "message_en": "Cannot record attendance outside geofence",
+            "geofence_status": "outside",
+            "latitude": "0.0000000",
+            "longitude": "0.0000000",
+            "distance_meters": 5181855,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:40:55.862Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 22,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "missing_biometric",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:40:55.855Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 21,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.835Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 20,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:40:55.824Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 19,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 2,
+            "attendance_record_id": 452,
+            "event_type": "clock_out",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:34:30.108Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 18,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 2,
+            "attendance_record_id": 452,
+            "event_type": "clock_in",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:34:30.086Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 17,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "signature_failed",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:34:30.055Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 16,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_active",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:30.036Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 15,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_pending_reenroll",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:30.021Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 14,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:30.009Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 13,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_blocked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:29.997Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 12,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 2,
+            "attendance_record_id": null,
+            "event_type": "device_enrolled",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:29.970Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 11,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "outside_geofence",
+            "message_ar": "لا يمكن تسجيل الحضور خارج نطاق الموقع",
+            "message_en": "Cannot record attendance outside geofence",
+            "geofence_status": "outside",
+            "latitude": "0.0000000",
+            "longitude": "0.0000000",
+            "distance_meters": 5181855,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:34:29.948Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 10,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "missing_biometric",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:34:29.943Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 9,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:34:29.920Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 8,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "signature_failed",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:31:55.050Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 7,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_active",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:31:55.028Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 6,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_pending_reenroll",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:31:55.015Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 5,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_revoked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:31:55.003Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 4,
+            "company_id": 1,
+            "employee_id": 2,
+            "user_id": 2,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_blocked",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:31:54.980Z",
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud"
+          },
+          {
+            "id": 3,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": 1,
+            "attendance_record_id": null,
+            "event_type": "device_enrolled",
+            "result": "success",
+            "failure_reason": null,
+            "message_ar": "تم تسجيل الحضور بنجاح",
+            "message_en": "Attendance recorded successfully",
+            "geofence_status": "not_applicable",
+            "latitude": null,
+            "longitude": null,
+            "distance_meters": null,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": null
+            },
+            "created_at": "2026-05-12T23:31:54.739Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 2,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "outside_geofence",
+            "message_ar": "لا يمكن تسجيل الحضور خارج نطاق الموقع",
+            "message_en": "Cannot record attendance outside geofence",
+            "geofence_status": "outside",
+            "latitude": "0.0000000",
+            "longitude": "0.0000000",
+            "distance_meters": 5181855,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:31:54.716Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 1,
+            "company_id": 1,
+            "employee_id": 8,
+            "user_id": 7,
+            "device_id": null,
+            "attendance_record_id": null,
+            "event_type": "clock_in",
+            "result": "blocked",
+            "failure_reason": "missing_biometric",
+            "message_ar": "فشل التحقق البيومتري",
+            "message_en": "Biometric verification failed",
+            "geofence_status": "inside",
+            "latitude": "31.9500000",
+            "longitude": "35.9300000",
+            "distance_meters": 0,
+            "ip_address": "127.0.0.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+            "metadata_json": {
+              "nearestLocation": 1778628714681
+            },
+            "created_at": "2026-05-12T23:31:54.701Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          }
+        ]
+      }
+    },
+    "attendanceSummary": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "present": 3,
+          "absent": 0,
+          "late": 2,
+          "total": 5,
+          "totalWorkedMinutes": 0,
+          "month": 5,
+          "year": 2026
+        }
+      }
+    },
+    "payrollAttendanceImpact": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "summary": {
+            "records": 5,
+            "late": 2,
+            "absent": 0,
+            "lateMinutes": 1275,
+            "overtimeMinutes": 0
+          },
+          "trend": [
+            {
+              "date": "2026-05-04T21:00:00.000Z",
+              "records": 1,
+              "late": 1,
+              "absent": 0
+            },
+            {
+              "date": "2026-05-07T21:00:00.000Z",
+              "records": 1,
+              "late": 1,
+              "absent": 0
+            },
+            {
+              "date": "2026-05-10T21:00:00.000Z",
+              "records": 2,
+              "late": 0,
+              "absent": 0
+            },
+            {
+              "date": "2026-05-11T21:00:00.000Z",
+              "records": 1,
+              "late": 0,
+              "absent": 0
+            }
+          ]
+        }
+      }
+    },
+    "adminDeviceRead": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 3,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "active",
+            "enrolledAt": "2026-05-12T23:40:55.883Z",
+            "lastUsedAt": "2026-05-12T23:40:56.005Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 2,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:34:29.968Z",
+            "lastUsedAt": "2026-05-12T23:34:30.102Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          },
+          {
+            "id": 1,
+            "employeeId": 8,
+            "deviceLabel": "Chrome CDP Virtual Passkey",
+            "platform": "CDP",
+            "browser": "Chrome",
+            "status": "revoked",
+            "enrolledAt": "2026-05-12T23:31:54.736Z",
+            "lastUsedAt": "2026-05-12T23:31:55.304Z",
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad"
+          }
+        ]
+      }
+    }
+  },
+  "created": {
+    "employeeId": 8,
+    "deviceId": 3
+  },
+  "errors": [],
+  "status": "PASS",
+  "finishedAt": "2026-05-12T23:40:56.412Z"
+}

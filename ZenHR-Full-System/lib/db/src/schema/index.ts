@@ -25,6 +25,7 @@ export * from "./salary-component-definitions";
 export * from "./notifications";
 export * from "./salary-advances";
 export * from "./compliance";
+export * from "./compliance-contracts";
 export * from "./disciplinary";
 export * from "./resignations";
 export * from "./clearances";
