@@ -1,0 +1,450 @@
+{
+  "generatedAt": "2026-05-13T17:21:19.543Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "checks": {
+    "healthz": {
+      "statusCode": 200,
+      "response": {
+        "status": "healthy",
+        "timestamp": "2026-05-13T17:21:19.636Z",
+        "version": "1.0.0"
+      },
+      "status": "PASS"
+    },
+    "login:hr": {
+      "status": "PASS",
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "login:employee": {
+      "status": "PASS",
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "login:manager": {
+      "status": "PASS",
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "login:payroll": {
+      "status": "PASS",
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "login:recruiter": {
+      "status": "PASS",
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "login:admin": {
+      "status": "PASS",
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    },
+    "leaveTypes:list": {
+      "statusCode": 200,
+      "count": 8,
+      "status": "PASS"
+    },
+    "leaveTypes:ANNUAL": {
+      "found": true,
+      "status": "PASS"
+    },
+    "leaveTypes:SICK": {
+      "found": true,
+      "status": "PASS"
+    },
+    "leaveTypes:EMERGENCY": {
+      "found": true,
+      "status": "PASS"
+    },
+    "leaveTypes:UNPAID": {
+      "found": true,
+      "status": "PASS"
+    },
+    "leaveTypes:createCustom": {
+      "statusCode": 201,
+      "id": 17,
+      "status": "PASS"
+    },
+    "legacyLeavePolicies:list": {
+      "statusCode": 200,
+      "count": 7,
+      "status": "PASS"
+    },
+    "legacyLeaveBalances:list": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "leaveBalances:enterprise": {
+      "statusCode": 200,
+      "count": 9,
+      "status": "PASS"
+    },
+    "leaveRequests:createAnnualHalfDay": {
+      "statusCode": 201,
+      "id": 23,
+      "status": "PASS"
+    },
+    "leaveRules:conflictValidation": {
+      "statusCode": 409,
+      "message": "Leave request conflicts with an existing request",
+      "status": "PASS"
+    },
+    "leaveRules:sickHourly": {
+      "statusCode": 201,
+      "id": 24,
+      "status": "PASS"
+    },
+    "leaveRules:emergencyLeave": {
+      "statusCode": 201,
+      "id": 25,
+      "status": "PASS"
+    },
+    "leaveRequests:createUnpaid": {
+      "statusCode": 201,
+      "id": 26,
+      "status": "PASS"
+    },
+    "workflow:managerApproveUnpaid": {
+      "statusCode": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 26,
+          "employeeId": 8,
+          "leaveType": "2",
+          "startDate": "2366-05-09T21:00:00.000Z",
+          "endDate": "2366-05-09T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase D unpaid payroll validation",
+          "status": "manager_approved",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-13T17:21:20.058Z",
+          "updatedAt": "2026-05-13T17:21:20.078Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "hradmin",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "deduct_daily_rate",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 7,
+          "updatedBy": 6
+        }
+      },
+      "status": "PASS"
+    },
+    "workflow:hrApproveUnpaid": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "workflow:managerApprovePaid": {
+      "statusCode": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 23,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2366-05-03T21:00:00.000Z",
+          "endDate": "2366-05-03T21:00:00.000Z",
+          "totalDays": "0.50",
+          "reason": "Phase D paid half-day validation",
+          "status": "manager_approved",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-13T17:21:19.978Z",
+          "updatedAt": "2026-05-13T17:21:20.109Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "half_day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "4.00",
+          "currentApprovalStep": "hradmin",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 7,
+          "updatedBy": 6
+        }
+      },
+      "status": "PASS"
+    },
+    "workflow:hrApprovePaid": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "workflow:managerReject": {
+      "statusCode": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 27,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2366-05-11T21:00:00.000Z",
+          "endDate": "2366-05-11T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase D rejection validation",
+          "status": "rejected",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": "Manager rejection smoke",
+          "createdAt": "2026-05-13T17:21:20.132Z",
+          "updatedAt": "2026-05-13T17:21:20.146Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 7,
+          "updatedBy": 6
+        }
+      },
+      "status": "PASS"
+    },
+    "workflow:requestChanges": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "workflow:cancellation": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "leaveRequests:list": {
+      "statusCode": 200,
+      "count": 10,
+      "status": "PASS"
+    },
+    "rbac:employeeOwnOnly": {
+      "statusCode": 200,
+      "leaked": false,
+      "status": "PASS"
+    },
+    "rbac:recruiterForbiddenLeave": {
+      "statusCode": 403,
+      "status": "PASS"
+    },
+    "rbac:recruiterForbiddenCreate": {
+      "statusCode": 403,
+      "status": "PASS"
+    },
+    "rbac:payrollForbiddenCreate": {
+      "statusCode": 403,
+      "status": "PASS"
+    },
+    "rbac:payrollImpactVisible": {
+      "statusCode": 200,
+      "count": 1,
+      "status": "PASS"
+    },
+    "audit:leaveHistory": {
+      "statusCode": 200,
+      "count": 3,
+      "status": "PASS"
+    },
+    "notifications:list": {
+      "statusCode": 200,
+      "count": 12,
+      "status": "PASS"
+    },
+    "notifications:testGenerated": {
+      "statusCode": 200,
+      "notificationId": 197,
+      "status": "PASS"
+    },
+    "notifications:markRead": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "notifications:markUnread": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "notifications:preferencesList": {
+      "statusCode": 200,
+      "count": 1,
+      "status": "PASS"
+    },
+    "notifications:preferencesUpdate": {
+      "statusCode": 200,
+      "status": "PASS"
+    },
+    "notifications:approvalReminders": {
+      "statusCode": 201,
+      "sent": 4,
+      "status": "PASS"
+    },
+    "payroll:unpaidLeaveDeductsPreview": {
+      "statusCode": 200,
+      "leaveDeduction": 29.032,
+      "payrollPolicy": {
+        "policyId": 2,
+        "salaryCalculationMode": "actual_calendar_days",
+        "selectedCalculationMode": "actual_calendar_days",
+        "employmentType": "full_time",
+        "salaryBasis": "monthly",
+        "dailyRate": "29.032",
+        "hourlyRate": "3.629",
+        "workingDays": 23,
+        "actualMonthDays": 31,
+        "workedHours": "0.000",
+        "leaveImpact": {
+          "days": 1,
+          "hours": 8,
+          "amount": 29.032
+        },
+        "effectiveFrom": "2026-05-09T10:36:27.701Z"
+      },
+      "status": "PASS"
+    },
+    "payroll:paidLeaveNoExtraDeductionFlag": {
+      "note": "Paid annual leave was approved in the same month; deduction is driven by approved unpaid leave impact only.",
+      "leaveDeduction": 29.032,
+      "status": "PASS"
+    },
+    "payroll:runCreateOrReuse": {
+      "statusCode": 201,
+      "runId": 10,
+      "status": "PASS"
+    },
+    "payroll:runCalculate": {
+      "statusCode": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 10,
+          "companyId": 1,
+          "runMonth": 5,
+          "runYear": 2366,
+          "status": "calculated",
+          "totalGross": "16405.000",
+          "totalNet": "0.000",
+          "totalDeductions": "104279.032",
+          "totalOvertimeEarnings": "0.000",
+          "totalSscEmployee": "104250.000",
+          "totalSscEmployer": "198075.000",
+          "totalIncomeTax": "0.000",
+          "employeeCount": 10,
+          "processedAt": "2026-05-13T17:21:21.093Z",
+          "approvedAt": null,
+          "approvedById": null,
+          "publishedAt": null,
+          "publishedById": null,
+          "createdById": 5,
+          "payrollPolicyId": 2,
+          "payrollPolicySnapshot": {
+            "policyId": 2,
+            "capturedAt": "2026-05-13T17:21:20.487Z",
+            "weekendDays": [
+              "fri",
+              "sat"
+            ],
+            "roundingPolicy": "nearest_0_001",
+            "workingHoursPerDay": 8,
+            "policyEffectiveFrom": "2026-05-09T10:36:27.701Z",
+            "salaryCalculationMode": "actual_calendar_days",
+            "applyOvertimeToPayroll": true,
+            "applyAttendanceToPayroll": false,
+            "defaultWorkingDaysPolicy": "company_calendar"
+          },
+          "notes": "Phase D validation run",
+          "createdAt": "2026-05-13T17:21:20.425Z",
+          "updatedAt": "2026-05-13T17:21:21.093Z",
+          "isDeleted": false
+        }
+      },
+      "status": "PASS"
+    },
+    "payroll:payslipLeaveSnapshot": {
+      "statusCode": 200,
+      "otherDeductions": "29.032",
+      "snapshotLeaveImpact": {
+        "days": 1,
+        "hours": 8,
+        "amount": 29.032
+      },
+      "status": "PASS"
+    },
+    "payroll:lockedRunProtection": {
+      "approveStatus": 200,
+      "recalcStatus": 409,
+      "status": "PASS"
+    },
+    "superadmin:platformBehavior": {
+      "statusCode": 200,
+      "status": "PASS"
+    }
+  },
+  "created": {
+    "employeeId": 8,
+    "managerEmployeeId": 7,
+    "paidRequestId": 23,
+    "unpaidRequestId": 26
+  },
+  "errors": []
+}

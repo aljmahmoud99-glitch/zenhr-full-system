@@ -172,6 +172,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent)
       },
       {
+        path: 'leave-management',
+        ...pageAccess('/app/leave-management'),
+        loadComponent: () => import('./features/leave-management/leave-management.component').then(m => m.LeaveManagementComponent)
+      },
+      {
+        path: 'notifications',
+        ...pageAccess('/app/notifications'),
+        loadComponent: () => import('./features/notifications/notifications.component').then(m => m.NotificationsComponent)
+      },
+      {
         path: 'overtime',
         ...pageAccess('/app/overtime'),
         loadComponent: () => import('./features/overtime/overtime.component').then(m => m.OvertimeComponent)

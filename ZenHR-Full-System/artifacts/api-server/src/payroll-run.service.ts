@@ -28,6 +28,7 @@ import {
   resolvePayrollPeriodContext,
   workedHoursForEmployee,
 } from "./payroll-policy.service.js";
+import { approvedUnpaidLeaveImpactForEmployee } from "./leave-notifications.service.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -358,8 +359,17 @@ export async function calculatePayroll(
     // Advance deductions
     const advData = advancesByEmployee.get(emp.id);
     const advanceDeductionM = advData?.totalM ?? 0;
+    const leaveImpact = await approvedUnpaidLeaveImpactForEmployee(
+      companyId,
+      emp.id,
+      runMonth,
+      runYear,
+      policyRates.dailyRate,
+      policyRates.hourlyRate,
+    );
+    const leaveDeductionM = toM(leaveImpact.amount);
 
-    const netM = grossM - deductions.totalM - advanceDeductionM;
+    const netM = grossM - deductions.totalM - advanceDeductionM - leaveDeductionM;
 
     const snapshot = {
       components: breakdown.map(b => ({
@@ -389,6 +399,8 @@ export async function calculatePayroll(
       },
       advanceDeductionJOD: fromM(advanceDeductionM),
       advanceIds: advData?.ids ?? [],
+      leaveDeductionJOD: fromM(leaveDeductionM),
+      leaveImpact,
     };
 
     const housingBreakdown   = breakdown.find(b => b.code === 'HOUSING');
@@ -418,8 +430,8 @@ export async function calculatePayroll(
       incomeTaxDeduction:      fromM(deductions.incomeTaxM),
       loanDeductions:          fromM(deductions.componentDeductionsM),
       advanceDeduction:        fromM(advanceDeductionM),
-      otherDeductions:         "0.000",
-      totalDeductions:         fromM(deductions.totalM + advanceDeductionM),
+      otherDeductions:         fromM(leaveDeductionM),
+      totalDeductions:         fromM(deductions.totalM + advanceDeductionM + leaveDeductionM),
       netSalary:               fromM(Math.max(0, netM)),
       bankName:                emp.bankName ?? null,
       iban:                    emp.iban ?? null,
@@ -433,7 +445,7 @@ export async function calculatePayroll(
 
     totalGrossM       += grossM;
     totalNetM         += Math.max(0, netM);
-    totalDeductionsM  += deductions.totalM + advanceDeductionM;
+    totalDeductionsM  += deductions.totalM + advanceDeductionM + leaveDeductionM;
     totalSscEmployeeM += deductions.sscEmployeeM;
     totalSscEmployerM += deductions.sscEmployerM;
     totalIncomeTaxM   += deductions.incomeTaxM;

@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-05-13T17:35:39.130Z",
+  "frontend": "http://127.0.0.1:5576",
+  "backend": "http://localhost:3001",
+  "auth": {
+    "employee": {
+      "passed": true,
+      "role": "employee",
+      "companyId": 1
+    },
+    "hr": {
+      "passed": true,
+      "role": "hradmin",
+      "companyId": 1
+    }
+  },
+  "pages": {
+    "employeeLeaveManagement": {
+      "url": "http://127.0.0.1:5576/#/app/leave-management",
+      "dir": "rtl",
+      "hasArabic": true,
+      "hasMojibake": false,
+      "hasRawEnum": false,
+      "readableDark": true,
+      "bg": "rgb(17, 28, 24)",
+      "color": "rgb(238, 248, 243)",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nإجازاتي\nsearch\nCtrl K\nالأربعاء، 13\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n1\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nإجازاتي\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nإدارة الوقت والغياب\nمحرك الإجازات والمؤثرات\n\nإدا"
+    },
+    "hrLeaveManagement": {
+      "url": "http://127.0.0.1:5576/#/app/leave-management",
+      "dir": "rtl",
+      "hasArabic": true,
+      "hasMojibake": false,
+      "hasRawEnum": false,
+      "readableDark": true,
+      "bg": "rgb(17, 28, 24)",
+      "color": "rgb(238, 248, 243)",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nإجازاتي\nsearch\nCtrl K\nالأربعاء، 13\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n1\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nإجازاتي\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nإدارة الوقت والغياب\nمحرك الإجازات والمؤثرات\n\nإدا"
+    },
+    "employeeNotifications": {
+      "url": "http://127.0.0.1:5576/#/app/notifications",
+      "dir": "rtl",
+      "hasArabic": true,
+      "hasMojibake": false,
+      "hasRawEnum": false,
+      "readableDark": true,
+      "bg": "rgb(17, 28, 24)",
+      "color": "rgb(238, 248, 243)",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nإشعاراتي\nsearch\nCtrl K\nالأربعاء، 13\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n1\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nإشعاراتي\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nمركز التواصل\nمركز الإشعارات\n\nمتابعة طلبات الاع"
+    }
+  },
+  "interactions": {
+    "leaveForm": {
+      "hasForm": true,
+      "hasTypeSelect": true,
+      "hasSubmit": true,
+      "hasApprove": false
+    },
+    "sendTest": {
+      "before": 15,
+      "after": 16,
+      "clickedTest": true,
+      "clickedRead": true,
+      "clickedUnread": true
+    }
+  },
+  "responsive": [
+    {
+      "name": "mobileLeave",
+      "width": 390,
+      "height": 820,
+      "route": "#/app/leave-management",
+      "overflow": false,
+      "hasContent": true,
+      "passed": true
+    },
+    {
+      "name": "tabletNotifications",
+      "width": 820,
+      "height": 900,
+      "route": "#/app/notifications",
+      "overflow": false,
+      "hasContent": true,
+      "passed": true
+    }
+  ],
+  "consoleErrors": [],
+  "verdict": "PASS"
+}

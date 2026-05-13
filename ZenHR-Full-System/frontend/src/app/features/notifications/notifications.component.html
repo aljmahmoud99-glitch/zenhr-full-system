@@ -1,0 +1,82 @@
+<section class="notifications-shell" [attr.dir]="lang.dir">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">{{ t('مركز التواصل', 'Communication center') }}</span>
+      <h1>{{ t('مركز الإشعارات', 'Notification Center') }}</h1>
+      <p>{{ t('متابعة طلبات الاعتماد والتنبيهات وحالة القراءة وتفضيلات القنوات المستقبلية.', 'Track approvals, alerts, read states, and future channel preferences.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost" (click)="load()"><span class="material-icons">refresh</span>{{ t('تحديث', 'Refresh') }}</button>
+      <button type="button" class="ghost" (click)="markAllRead()"><span class="material-icons">done_all</span>{{ t('تعليم الكل كمقروء', 'Mark all read') }}</button>
+      <button type="button" class="primary" (click)="sendTest()"><span class="material-icons">notifications_active</span>{{ t('اختبار', 'Test') }}</button>
+    </div>
+  </header>
+
+  <div class="layout-grid">
+    <section class="panel main-panel">
+      <div class="panel-title">
+        <div>
+          <h2>{{ t('الإشعارات الواردة', 'Incoming notifications') }}</h2>
+          <p>{{ t('تصفية الإشعارات حسب الحالة والنوع ومراجعة الرسائل المهمة.', 'Filter notifications by status and type, and review important messages.') }}</p>
+        </div>
+      </div>
+
+      <div class="filters">
+        <label><span>{{ t('الحالة', 'Status') }}</span><select [(ngModel)]="filters.status" (change)="page=1; load()"><option value="">{{ t('الكل', 'All') }}</option><option value="unread">{{ t('غير مقروء', 'Unread') }}</option><option value="read">{{ t('مقروء', 'Read') }}</option></select></label>
+        <label><span>{{ t('النوع', 'Type') }}</span><input [(ngModel)]="filters.type" (keyup.enter)="page=1; load()" [placeholder]="t('مثال: leave_request', 'Example: leave_request')" /></label>
+        <button type="button" class="ghost" (click)="filters={status:'',type:''}; page=1; load()">{{ t('إعادة ضبط', 'Reset') }}</button>
+      </div>
+
+      <div class="skeleton-list" *ngIf="loading"><div *ngFor="let n of [1,2,3,4]"></div></div>
+      <div class="empty" *ngIf="!loading && rows.length === 0">{{ t('لا توجد إشعارات مطابقة.', 'No matching notifications.') }}</div>
+
+      <article class="notification-row" *ngFor="let row of rows" [class.unread]="row.status === 'unread'">
+        <div class="notif-icon"><span class="material-icons">{{ row.status === 'unread' ? 'mark_email_unread' : 'drafts' }}</span></div>
+        <div>
+          <div class="row-title"><strong>{{ title(row) }}</strong><span class="badge">{{ typeLabel(row.notificationType) }}</span></div>
+          <p>{{ message(row) }}</p>
+          <small>{{ row.createdAt | date:'medium' }} · {{ statusLabel(row.status) }}</small>
+        </div>
+        <div class="row-actions">
+          <a *ngIf="row.actionUrl" [routerLink]="row.actionUrl" class="ghost-link">{{ t('فتح', 'Open') }}</a>
+          <button type="button" class="ghost sm" (click)="markRead(row)" *ngIf="row.status === 'unread'">{{ t('مقروء', 'Read') }}</button>
+          <button type="button" class="ghost sm" (click)="markUnread(row)" *ngIf="row.status === 'read'">{{ t('غير مقروء', 'Unread') }}</button>
+          <button type="button" class="ghost sm" (click)="archive(row)">{{ t('أرشفة', 'Archive') }}</button>
+        </div>
+      </article>
+
+      <div class="pager">
+        <button class="ghost" type="button" (click)="nextPage(-1)" [disabled]="page === 1">{{ t('السابق', 'Previous') }}</button>
+        <span>{{ page }} / {{ (total / pageSize) | number:'1.0-0' }}</span>
+        <button class="ghost" type="button" (click)="nextPage(1)" [disabled]="page * pageSize >= total">{{ t('التالي', 'Next') }}</button>
+      </div>
+    </section>
+
+    <aside class="side-stack">
+      <section class="panel">
+        <div class="panel-title compact"><h2>{{ t('تفضيلات الإشعارات', 'Notification preferences') }}</h2></div>
+        <article class="pref-row" *ngFor="let pref of preferences">
+          <strong>{{ pref.notification_type || pref.notificationType || '*' }}</strong>
+          <label><input type="checkbox" [(ngModel)]="pref.in_app_enabled" /> {{ t('داخل النظام', 'In-app') }}</label>
+          <label><input type="checkbox" [(ngModel)]="pref.email_enabled" /> {{ t('البريد لاحقا', 'Email later') }}</label>
+          <button type="button" class="primary sm" (click)="savePreference(pref)" [disabled]="saving">{{ t('حفظ', 'Save') }}</button>
+        </article>
+      </section>
+
+      <section class="panel" *ngIf="canAdmin">
+        <div class="panel-title compact"><h2>{{ t('تذكيرات الاعتمادات', 'Approval reminders') }}</h2></div>
+        <p class="muted">{{ t('إرسال تذكير للمدير أو الموارد البشرية عن طلبات الإجازات المعلقة.', 'Send reminders to managers or HR for pending leave approvals.') }}</p>
+        <button type="button" class="primary full" (click)="sendReminders()"><span class="material-icons">alarm</span>{{ t('إرسال التذكيرات', 'Send reminders') }}</button>
+      </section>
+
+      <section class="panel" *ngIf="canAdmin">
+        <div class="panel-title compact"><h2>{{ t('سجل التسليم', 'Delivery logs') }}</h2></div>
+        <article class="delivery-row" *ngFor="let row of deliveryLogs">
+          <strong>{{ row.channel }} · {{ row.status }}</strong>
+          <small>{{ row.attemptedAt | date:'short' }}</small>
+        </article>
+        <div class="empty" *ngIf="deliveryLogs.length === 0">{{ t('لا توجد سجلات تسليم بعد.', 'No delivery logs yet.') }}</div>
+      </section>
+    </aside>
+  </div>
+</section>

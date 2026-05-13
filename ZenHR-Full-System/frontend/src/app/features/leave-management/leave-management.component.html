@@ -1,0 +1,155 @@
+<section class="phase-shell" [attr.dir]="lang.dir">
+  <header class="hero">
+    <div>
+      <span class="eyebrow">{{ t('إدارة الوقت والغياب', 'Time and absence') }}</span>
+      <h1>{{ t('محرك الإجازات والمؤثرات', 'Leave & Notifications Engine') }}</h1>
+      <p>{{ t('إدارة أنواع الإجازات والأرصدة والاعتمادات متعددة المستويات مع أثر الرواتب وسجل التدقيق.', 'Manage leave types, balances, multi-level approvals, payroll impact, and audit history.') }}</p>
+    </div>
+    <div class="hero-actions">
+      <button type="button" class="ghost" (click)="loadAll()">
+        <span class="material-icons">refresh</span>
+        {{ t('تحديث', 'Refresh') }}
+      </button>
+    </div>
+  </header>
+
+  <div class="kpi-grid">
+    <article><span>{{ t('كل الطلبات', 'Total requests') }}</span><strong>{{ dashboard.total || 0 }}</strong></article>
+    <article><span>{{ t('بانتظار الاعتماد', 'Pending') }}</span><strong>{{ dashboard.pending || 0 }}</strong></article>
+    <article><span>{{ t('معتمدة', 'Approved') }}</span><strong>{{ dashboard.approved || 0 }}</strong></article>
+    <article><span>{{ t('أثر الرواتب', 'Payroll impact') }}</span><strong>{{ dashboard.payrollImpact || 0 }} JOD</strong></article>
+  </div>
+
+  <nav class="section-rail" aria-label="Leave sections">
+    <button type="button" *ngFor="let section of ['requests','balances','types','payroll','audit']"
+            [class.active]="selectedSection === section"
+            (click)="selectedSection = $any(section)">
+      <span class="material-icons">
+        {{ section === 'requests' ? 'event_note' : section === 'balances' ? 'account_balance_wallet' : section === 'types' ? 'category' : section === 'payroll' ? 'payments' : 'history' }}
+      </span>
+      {{ sectionLabel($any(section)) }}
+    </button>
+  </nav>
+
+  <section class="panel" *ngIf="selectedSection === 'requests'">
+    <div class="panel-title">
+      <div>
+        <h2>{{ t('طلبات الإجازات', 'Leave requests') }}</h2>
+        <p>{{ t('بحث وفلاتر واعتماد وإلغاء طلبات الإجازات.', 'Search, filter, approve, and cancel leave requests.') }}</p>
+      </div>
+    </div>
+
+    <div class="filter-grid">
+      <label><span>{{ t('بحث', 'Search') }}</span><input [(ngModel)]="filters.q" (keyup.enter)="loadRequests()" [placeholder]="t('اسم الموظف أو الكود أو السبب', 'Employee, code, or reason')" /></label>
+      <label *ngIf="role !== 'employee'"><span>{{ t('الموظف', 'Employee') }}</span><select [(ngModel)]="filters.employeeId"><option value="">{{ t('الكل', 'All') }}</option><option *ngFor="let emp of employees" [value]="emp.id">{{ employeeLabel(emp) }}</option></select></label>
+      <label><span>{{ t('نوع الإجازة', 'Leave type') }}</span><select [(ngModel)]="filters.leaveTypeId"><option value="">{{ t('الكل', 'All') }}</option><option *ngFor="let type of types" [value]="type.id">{{ label(type) }}</option></select></label>
+      <label><span>{{ t('الحالة', 'Status') }}</span><select [(ngModel)]="filters.status"><option value="">{{ t('الكل', 'All') }}</option><option *ngFor="let s of ['pending','manager_approved','approved','rejected','cancelled','changes_requested']" [value]="s">{{ statusLabel(s) }}</option></select></label>
+      <label><span>{{ t('من تاريخ', 'From') }}</span><input type="date" [(ngModel)]="filters.from" /></label>
+      <label><span>{{ t('إلى تاريخ', 'To') }}</span><input type="date" [(ngModel)]="filters.to" /></label>
+      <div class="filter-actions">
+        <button type="button" class="primary" (click)="page=1; loadRequests()">{{ t('تطبيق', 'Apply') }}</button>
+        <button type="button" class="ghost" (click)="resetFilters()">{{ t('إعادة ضبط', 'Reset') }}</button>
+      </div>
+    </div>
+
+    <div class="split-layout">
+      <form class="form-card" *ngIf="canCreateRequest" (ngSubmit)="createRequest()">
+        <h3>{{ t('طلب إجازة جديد', 'New leave request') }}</h3>
+        <label *ngIf="role !== 'employee'"><span>{{ t('الموظف', 'Employee') }}</span><select [(ngModel)]="requestForm.employeeId" name="employeeId"><option value="">{{ t('اختر موظفا', 'Select employee') }}</option><option *ngFor="let emp of employees" [value]="emp.id">{{ employeeLabel(emp) }}</option></select></label>
+        <label><span>{{ t('نوع الإجازة', 'Leave type') }}</span><select [(ngModel)]="requestForm.leaveTypeId" name="leaveTypeId"><option value="">{{ t('اختر النوع', 'Select type') }}</option><option *ngFor="let type of types" [value]="type.id">{{ label(type) }}</option></select></label>
+        <div class="two">
+          <label><span>{{ t('تاريخ البداية', 'Start date') }}</span><input type="date" [(ngModel)]="requestForm.startDate" name="startDate" /></label>
+          <label><span>{{ t('تاريخ النهاية', 'End date') }}</span><input type="date" [(ngModel)]="requestForm.endDate" name="endDate" /></label>
+        </div>
+        <div class="two">
+          <label><span>{{ t('الوحدة', 'Unit') }}</span><select [(ngModel)]="requestForm.durationUnit" name="durationUnit"><option value="day">{{ t('يوم كامل', 'Full day') }}</option><option value="half_day">{{ t('نصف يوم', 'Half day') }}</option><option value="hour">{{ t('بالساعة', 'Hourly') }}</option></select></label>
+          <label><span>{{ requestForm.durationUnit === 'hour' ? t('الساعات', 'Hours') : t('الأيام', 'Days') }}</span><input type="number" min="0.5" step="0.5" [(ngModel)]="requestForm[requestForm.durationUnit === 'hour' ? 'totalHours' : 'totalDays']" name="durationValue" /></label>
+        </div>
+        <label><span>{{ t('السبب', 'Reason') }}</span><textarea [(ngModel)]="requestForm.reason" name="reason" rows="3"></textarea></label>
+        <button type="submit" class="primary" [disabled]="saving">{{ saving ? t('جار الحفظ...', 'Saving...') : t('إرسال الطلب', 'Submit request') }}</button>
+      </form>
+
+      <div class="data-card">
+        <div class="skeleton-list" *ngIf="loading"><div *ngFor="let n of [1,2,3,4]"></div></div>
+        <div class="empty" *ngIf="!loading && requests.length === 0">{{ t('لا توجد طلبات إجازات مطابقة.', 'No matching leave requests.') }}</div>
+        <article class="request-row" *ngFor="let request of requests" (click)="selectedRequest = request">
+          <div class="request-main">
+            <strong>{{ lang.isAr ? request.employeeNameAr : request.employeeNameEn }} <small>{{ request.employeeCode }}</small></strong>
+            <span>{{ lang.isAr ? request.leaveTypeNameAr : request.leaveTypeNameEn }} · {{ request.startDate | date:'mediumDate' }} - {{ request.endDate | date:'mediumDate' }}</span>
+            <small>{{ request.reason || t('بدون سبب مسجل', 'No reason recorded') }}</small>
+          </div>
+          <div class="request-meta">
+            <span class="badge" [class.ok]="request.status === 'approved'" [class.warn]="request.status === 'pending' || request.status === 'manager_approved'" [class.danger]="request.status === 'rejected'">{{ statusLabel(request.status) }}</span>
+            <strong>{{ request.totalDays }} {{ t('يوم', 'days') }}</strong>
+          </div>
+        </article>
+        <div class="pager">
+          <button class="ghost" type="button" (click)="nextPage(-1)" [disabled]="page === 1">{{ t('السابق', 'Previous') }}</button>
+          <span>{{ page }} / {{ (total / pageSize) | number:'1.0-0' }}</span>
+          <button class="ghost" type="button" (click)="nextPage(1)" [disabled]="page * pageSize >= total">{{ t('التالي', 'Next') }}</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="selectedSection === 'balances'">
+    <div class="panel-title"><h2>{{ t('أرصدة الإجازات', 'Leave balances') }}</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>{{ t('الموظف', 'Employee') }}</th><th>{{ t('نوع الإجازة', 'Leave type') }}</th><th>{{ t('المستحق', 'Entitled') }}</th><th>{{ t('المستخدم', 'Used') }}</th><th>{{ t('قيد الاعتماد', 'Pending') }}</th><th>{{ t('المتاح', 'Available') }}</th></tr></thead>
+        <tbody><tr *ngFor="let row of balances"><td>{{ lang.isAr ? row.employeeNameAr : row.employeeNameEn }}<small>{{ row.employeeCode }}</small></td><td>{{ lang.isAr ? row.leaveTypeNameAr : row.leaveTypeNameEn }}</td><td>{{ row.entitledDays }}</td><td>{{ row.usedDays }}</td><td>{{ row.pendingDays }}</td><td><strong>{{ row.availableDays }}</strong></td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="selectedSection === 'types'">
+    <div class="panel-title"><h2>{{ t('أنواع الإجازات والسياسات', 'Leave types and policies') }}</h2></div>
+    <div class="split-layout">
+      <form class="form-card" *ngIf="canManageTypes" (ngSubmit)="saveType()">
+        <h3>{{ t('نوع إجازة جديد', 'New leave type') }}</h3>
+        <div class="two"><label><span>{{ t('الكود', 'Code') }}</span><input [(ngModel)]="typeForm.code" name="code" /></label><label><span>{{ t('التصنيف', 'Category') }}</span><select [(ngModel)]="typeForm.category" name="category"><option value="annual">{{ t('سنوية', 'Annual') }}</option><option value="sick">{{ t('مرضية', 'Sick') }}</option><option value="emergency">{{ t('طارئة', 'Emergency') }}</option><option value="unpaid">{{ t('غير مدفوعة', 'Unpaid') }}</option><option value="custom">{{ t('مخصصة', 'Custom') }}</option></select></label></div>
+        <div class="two"><label><span>{{ t('الاسم العربي', 'Arabic name') }}</span><input [(ngModel)]="typeForm.nameAr" name="nameAr" /></label><label><span>{{ t('الاسم الإنجليزي', 'English name') }}</span><input [(ngModel)]="typeForm.nameEn" name="nameEn" /></label></div>
+        <div class="toggle-grid">
+          <label><input type="checkbox" [(ngModel)]="typeForm.isPaid" name="isPaid" /> {{ t('مدفوعة', 'Paid') }}</label>
+          <label><input type="checkbox" [(ngModel)]="typeForm.allowHalfDay" name="allowHalfDay" /> {{ t('تسمح بنصف يوم', 'Allow half-day') }}</label>
+          <label><input type="checkbox" [(ngModel)]="typeForm.allowHourly" name="allowHourly" /> {{ t('تسمح بالساعات', 'Allow hourly') }}</label>
+          <label><input type="checkbox" [(ngModel)]="typeForm.affectsPayroll" name="affectsPayroll" /> {{ t('تؤثر على الرواتب', 'Affects payroll') }}</label>
+        </div>
+        <button type="submit" class="primary" [disabled]="saving">{{ t('حفظ النوع', 'Save type') }}</button>
+      </form>
+      <div class="type-grid">
+        <article *ngFor="let type of types">
+          <span class="type-dot" [style.background]="type.color"></span>
+          <strong>{{ label(type) }}</strong>
+          <small>{{ type.code }} · {{ type.category }}</small>
+          <div><span class="badge" [class.ok]="type.isPaid">{{ type.isPaid ? t('مدفوعة', 'Paid') : t('غير مدفوعة', 'Unpaid') }}</span><span class="badge" *ngIf="type.affectsPayroll">{{ t('أثر رواتب', 'Payroll') }}</span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" *ngIf="selectedSection === 'payroll'">
+    <div class="panel-title"><h2>{{ t('أثر الإجازات على الرواتب', 'Leave payroll impact') }}</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>{{ t('الموظف', 'Employee') }}</th><th>{{ t('الإجازة', 'Leave') }}</th><th>{{ t('الأيام', 'Days') }}</th><th>{{ t('الساعات', 'Hours') }}</th><th>{{ t('المبلغ', 'Amount') }}</th><th>{{ t('الحالة', 'Status') }}</th></tr></thead><tbody><tr *ngFor="let row of payrollImpacts"><td>{{ lang.isAr ? row.employeeNameAr : row.employeeNameEn }}<small>{{ row.employeeCode }}</small></td><td>{{ lang.isAr ? row.leaveTypeNameAr : row.leaveTypeNameEn }}</td><td>{{ row.days }}</td><td>{{ row.hours }}</td><td>{{ row.amount }} JOD</td><td><span class="badge warn">{{ row.status }}</span></td></tr></tbody></table></div>
+  </section>
+
+  <section class="panel" *ngIf="selectedSection === 'audit'">
+    <div class="panel-title"><h2>{{ t('سجل تدقيق الإجازات', 'Leave audit history') }}</h2></div>
+    <div class="timeline"><article *ngFor="let row of audit"><span class="material-icons">history</span><div><strong>{{ row.action }}</strong><p>{{ row.username || '-' }}</p><small>{{ row.createdAt | date:'medium' }}</small></div></article></div>
+  </section>
+
+  <aside class="drawer" *ngIf="selectedRequest">
+    <div class="drawer-panel">
+      <button type="button" class="icon-btn" (click)="selectedRequest = null"><span class="material-icons">close</span></button>
+      <h2>{{ t('مراجعة طلب الإجازة', 'Review leave request') }}</h2>
+      <p>{{ lang.isAr ? selectedRequest.employeeNameAr : selectedRequest.employeeNameEn }} · {{ statusLabel(selectedRequest.status) }}</p>
+      <label><span>{{ t('ملاحظات الإجراء', 'Action notes') }}</span><textarea rows="4" [(ngModel)]="actionReason"></textarea></label>
+      <div class="drawer-actions">
+        <button type="button" class="primary" *ngIf="canReview" (click)="approve(selectedRequest)" [disabled]="actionLoading">{{ t('اعتماد', 'Approve') }}</button>
+        <button type="button" class="danger" *ngIf="canReview" (click)="reject(selectedRequest)" [disabled]="actionLoading">{{ t('رفض', 'Reject') }}</button>
+        <button type="button" class="ghost" *ngIf="canReview" (click)="requestChanges(selectedRequest)" [disabled]="actionLoading">{{ t('طلب تعديل', 'Request changes') }}</button>
+        <button type="button" class="ghost" (click)="cancel(selectedRequest)" [disabled]="actionLoading">{{ t('إلغاء الطلب', 'Cancel request') }}</button>
+      </div>
+    </div>
+  </aside>
+</section>

@@ -9,6 +9,7 @@ import { generateExcelBuffer, type ExportColumn } from "./export.service.js";
 import { authMiddleware, authMiddleware as auth, hashPassword, signAccessToken, signRefreshToken, verifyToken } from "./auth.js";
 import { runPayroll } from "./payroll-run.service.js";
 import { registerComplianceContractsRoutes } from "./compliance-contracts.service.js";
+import { registerLeaveNotificationsRoutes, approvedUnpaidLeaveImpactForEmployee } from "./leave-notifications.service.js";
 import {
   computePolicyRates,
   resolveEmploymentTypeRule,
@@ -130,6 +131,8 @@ app.use("/uploads", auth, async (req, res) => {
 });
 
 type AuthReq = express.Request & { user: { userId: number; username: string; role: string; companyId: number; employeeId: number | null } };
+
+registerLeaveNotificationsRoutes(app, auth);
 
 // â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/healthz", (_req, res) => {
@@ -3156,7 +3159,16 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
     const annualTaxableJOD      = Math.max(0, (grossM - sscEmployeeM) * 12 / 1000 - personalExemptionJOD - familyExemptionJOD - taxExemptionJOD);
     const annualTaxJOD          = applyBrackets(annualTaxableJOD, taxBrackets);
     const monthlyTaxM           = Math.round(annualTaxJOD * 1000 / 12);
-    const totalDeductionsM      = sscEmployeeM + monthlyTaxM;
+    const leaveImpact = await approvedUnpaidLeaveImpactForEmployee(
+      user.companyId,
+      emp.id,
+      previewMonth,
+      previewYear,
+      previewRates.dailyRate,
+      previewRates.hourlyRate,
+    );
+    const leaveDeductionM       = toM(leaveImpact.amount);
+    const totalDeductionsM      = sscEmployeeM + monthlyTaxM + leaveDeductionM;
     const netM                  = grossM - totalDeductionsM;
 
     res.json({ success: true, data: {
@@ -3173,6 +3185,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       sscEmployerContribution: fromM(sscEmployerM),
       annualTaxableIncome:     annualTaxableJOD.toFixed(3),
       incomeTaxDeduction:      fromM(monthlyTaxM),
+      leaveDeduction:          fromM(leaveDeductionM),
       totalDeductions:         fromM(totalDeductionsM),
       netSalary:               fromM(netM),
       isSSCExempt:             emp.isSSCExempt,
@@ -3188,6 +3201,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
         workingDays: policyContext.workingDays,
         actualMonthDays: policyContext.actualDays,
         workedHours: previewWorkedHours.toFixed(3),
+        leaveImpact,
         effectiveFrom: policyContext.policy.policyEffectiveFrom,
       },
     }});
