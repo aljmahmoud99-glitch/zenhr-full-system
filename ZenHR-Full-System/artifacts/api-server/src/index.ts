@@ -2103,6 +2103,36 @@ async function fetchLeaveRequestRows(user: AuthReq["user"], filters: Record<stri
   return rows;
 }
 
+async function resolveLegacyLeaveTypeForEnterprisePayroll(companyId: number, rawLeaveType: any) {
+  const raw = String(rawLeaveType ?? "").trim();
+  if (!raw) return { leaveType: raw, payrollCompatible: false, warning: "Missing leave type" };
+  try {
+    const direct = await pool.query(
+      `SELECT id FROM enterprise_leave_types
+        WHERE company_id=$1 AND is_deleted=false AND (id::text=$2 OR lower(code)=lower($2))
+        LIMIT 1`,
+      [companyId, raw],
+    );
+    if (direct.rows[0]) return { leaveType: String(direct.rows[0].id), payrollCompatible: true };
+    const legacy = await pool.query(
+      `SELECT elt.id
+         FROM leave_types lt
+         JOIN enterprise_leave_types elt ON elt.company_id=$1 AND lower(elt.code)=lower(lt.code) AND elt.is_deleted=false
+        WHERE lt.id::text=$2 OR lower(lt.code)=lower($2)
+        LIMIT 1`,
+      [companyId, raw],
+    );
+    if (legacy.rows[0]) return { leaveType: String(legacy.rows[0].id), payrollCompatible: true };
+  } catch (e: any) {
+    if (!["42P01", "42703"].includes(String(e?.code ?? ""))) throw e;
+  }
+  return {
+    leaveType: raw,
+    payrollCompatible: false,
+    warning: "Legacy leave type was kept for compatibility and is ignored by enterprise payroll deductions unless mapped to an enterprise leave type.",
+  };
+}
+
 // â”€â”€â”€ Leave Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/leave/requests", auth, async (req, res) => {
   try {
@@ -2122,7 +2152,8 @@ app.post("/api/leave/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const body = req.body;
-    const leaveType = body.leaveTypeId ?? body.leaveType;
+    const mappedLeave = await resolveLegacyLeaveTypeForEnterprisePayroll(user.companyId, body.leaveTypeId ?? body.leaveType);
+    const leaveType = mappedLeave.leaveType;
     const empId = body.employeeId ?? user.employeeId;
     const start = new Date(body.startDate);
     const end = new Date(body.endDate);
@@ -2137,6 +2168,9 @@ app.post("/api/leave/requests", auth, async (req, res) => {
       status: "pending",
     }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
+    if (!mappedLeave.payrollCompatible) {
+      await logActivity(user.companyId, "legacy_leave_payroll_ignored", `Legacy leave request #${req2.id} uses unmapped leave type "${leaveType}" and is ignored by enterprise payroll impact.`, user.username);
+    }
     // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const dateRange = fmtDateRange(body.startDate, body.endDate);
     const empName = user.username;
@@ -2155,7 +2189,7 @@ app.post("/api/leave/requests", auth, async (req, res) => {
     };
     await notifyRole(user.companyId, "hradmin", notifPayload);
     if (empId) await notifyDirectManager(empId, notifPayload);
-    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType } });
+    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType, payrollCompatible: mappedLeave.payrollCompatible, warning: mappedLeave.warning } });
   } catch (e) {
     console.error("[POST /api/leave/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -2217,7 +2251,10 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
     // â”€â”€ Balance update (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const year = new Date(String(lr.startDate)).getFullYear();
-      const [lt] = await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, Number(lr.leaveType)));
+      const legacyLeaveTypeId = Number(lr.leaveType);
+      const [lt] = Number.isInteger(legacyLeaveTypeId)
+        ? await db.select().from(leaveTypesTable).where(eq(leaveTypesTable.id, legacyLeaveTypeId))
+        : [];
       if (lt) {
         const [policy] = await db.select().from(leavePoliciesTable)
           .where(and(eq(leavePoliciesTable.companyId, user.companyId), eq(leavePoliciesTable.leaveType, lt.code)));
@@ -2375,6 +2412,35 @@ function toM(s: string | null | undefined): number {
 }
 function fromM(n: number): string {
   return (Math.round(n) / 1000).toFixed(3);
+}
+
+async function approvedAttendancePayrollImpactForPreview(companyId: number, employeeId: number, month: number, year: number) {
+  const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  try {
+    const { rows } = await pool.query(
+      `SELECT api.id, api.attendance_violation_id, api.impact_type, api.amount, api.direction, api.calculation_json, av.violation_date, av.violation_type
+         FROM attendance_payroll_impacts api
+         LEFT JOIN attendance_violations av ON av.id = api.attendance_violation_id AND av.company_id = api.company_id
+        WHERE api.company_id = $1
+          AND api.employee_id = $2
+          AND api.is_deleted = false
+          AND api.status = 'approved'
+          AND (av.violation_date BETWEEN $3 AND $4 OR api.attendance_violation_id IS NULL)`,
+      [companyId, employeeId, periodStart, periodEnd],
+    );
+    const items = rows.map(camelAts);
+    const addition = items
+      .filter((item: any) => item.direction === "add")
+      .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+    const deduction = items
+      .filter((item: any) => item.direction !== "add")
+      .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+    return { amountAddition: fromM(toM(String(addition))), amountDeduction: fromM(toM(String(deduction))), items };
+  } catch (e: any) {
+    if (["42P01", "42703"].includes(String(e?.code ?? ""))) return { amountAddition: "0.000", amountDeduction: "0.000", items: [] };
+    throw e;
+  }
 }
 
 function canManagePayrollPolicy(role: string): boolean {
@@ -3168,8 +3234,12 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       previewRates.hourlyRate,
     );
     const leaveDeductionM       = toM(leaveImpact.amount);
-    const totalDeductionsM      = sscEmployeeM + monthlyTaxM + leaveDeductionM;
-    const netM                  = grossM - totalDeductionsM;
+    const attendanceImpact = await approvedAttendancePayrollImpactForPreview(user.companyId, emp.id, previewMonth, previewYear);
+    const attendanceAdditionM = toM(attendanceImpact.amountAddition);
+    const attendanceDeductionM = toM(attendanceImpact.amountDeduction);
+    const grossWithAttendanceM = grossM + attendanceAdditionM;
+    const totalDeductionsM      = sscEmployeeM + monthlyTaxM + leaveDeductionM + attendanceDeductionM;
+    const netM                  = grossWithAttendanceM - totalDeductionsM;
 
     res.json({ success: true, data: {
       employeeId: emp.id,
@@ -3179,13 +3249,16 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       mealAllowance:           fromM(mealM),
       mobileAllowance:         fromM(mobileM),
       otherAllowances:         fromM(otherM),
-      grossSalary:             fromM(grossM),
+      grossSalary:             fromM(grossWithAttendanceM),
+      baseGrossSalary:         fromM(grossM),
       insurableBase:           fromM(insurableM),
       sscEmployeeDeduction:    fromM(sscEmployeeM),
       sscEmployerContribution: fromM(sscEmployerM),
       annualTaxableIncome:     annualTaxableJOD.toFixed(3),
       incomeTaxDeduction:      fromM(monthlyTaxM),
       leaveDeduction:          fromM(leaveDeductionM),
+      attendanceImpactAddition: fromM(attendanceAdditionM),
+      attendanceImpactDeduction: fromM(attendanceDeductionM),
       totalDeductions:         fromM(totalDeductionsM),
       netSalary:               fromM(netM),
       isSSCExempt:             emp.isSSCExempt,
@@ -3202,6 +3275,7 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
         actualMonthDays: policyContext.actualDays,
         workedHours: previewWorkedHours.toFixed(3),
         leaveImpact,
+        attendanceImpact,
         effectiveFrom: policyContext.policy.policyEffectiveFrom,
       },
     }});
@@ -4021,6 +4095,11 @@ app.get("/api/attendance", auth, async (req, res) => {
         lateMinutes: attendanceRecordsTable.lateMinutes,
         overtimeMinutes: attendanceRecordsTable.overtimeMinutes,
         attendanceType: attendanceRecordsTable.attendanceType,
+        biometricVerified: attendanceRecordsTable.biometricVerified,
+        biometricDeviceId: attendanceRecordsTable.biometricDeviceId,
+        geofenceStatus: attendanceRecordsTable.geofenceStatus,
+        geofenceDistanceMeters: attendanceRecordsTable.geofenceDistanceMeters,
+        geofenceLocationId: attendanceRecordsTable.geofenceLocationId,
         notes: attendanceRecordsTable.notes,
         createdAt: attendanceRecordsTable.createdAt,
         updatedAt: attendanceRecordsTable.updatedAt,
@@ -11537,21 +11616,34 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
       if (correction.status !== "pending" && correction.status !== "manager_approved") {
         res.status(409).json({ success: false, message: "Request must be pending or manager_approved for HR approval" }); return;
       }
+      if (!notes?.trim()) {
+        res.status(400).json({ success: false, message: "HR approval reason is required for attendance corrections" }); return;
+      }
       [updated] = await db.update(attendanceCorrectionsTable).set({
         status: "approved",
         hrApprovedById: user.userId,
         hrApprovedAt: now,
-        hrNotes: notes ?? null,
+        hrNotes: notes.trim(),
       }).where(eq(attendanceCorrectionsTable.id, correctionId)).returning();
       if (updated.requestedClockIn || updated.requestedClockOut) {
         try {
+          const exceptionNote = `Manual exception correction #${correctionId} applied by ${user.username} at ${now.toISOString()}. Reason: ${notes.trim()}`;
           if (updated.attendanceRecordId) {
-            const recordSet: any = {};
+            const recordSet: any = {
+              attendanceType: "manual_exception",
+              biometricVerified: false,
+              biometricVerifiedAt: null,
+              biometricDeviceId: null,
+              geofenceStatus: "manual_exception",
+              geofenceDistanceMeters: null,
+              geofenceLocationId: null,
+            };
             if (updated.requestedClockIn) recordSet.clockIn = updated.requestedClockIn;
             if (updated.requestedClockOut) recordSet.clockOut = updated.requestedClockOut;
             const [rec] = await db.select().from(attendanceRecordsTable)
               .where(eq(attendanceRecordsTable.id, updated.attendanceRecordId));
             if (rec) {
+              recordSet.notes = [rec.notes, exceptionNote].filter(Boolean).join("\n");
               const ci = updated.requestedClockIn ?? rec.clockIn;
               const co = updated.requestedClockOut ?? rec.clockOut;
               if (ci) {
@@ -11582,8 +11674,14 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
               workedMinutes: worked,
               status: lateMin > 0 ? "late" : "present",
               lateMinutes: lateMin,
-              attendanceType: "manual",
-              notes: `Correction #${correctionId} applied`,
+              attendanceType: "manual_exception",
+              biometricVerified: false,
+              biometricVerifiedAt: null,
+              biometricDeviceId: null,
+              geofenceStatus: "manual_exception",
+              geofenceDistanceMeters: null,
+              geofenceLocationId: null,
+              notes: exceptionNote,
             }).onConflictDoNothing();
           }
         } catch (applyErr) {
@@ -11683,6 +11781,7 @@ app.post("/api/leave/me/requests", auth, async (req, res) => {
     if (!leaveTypeId || !startDate || !endDate) {
       res.status(400).json({ success: false, message: "leaveTypeId, startDate, and endDate are required" }); return;
     }
+    const mappedLeave = await resolveLegacyLeaveTypeForEnterprisePayroll(user.companyId, leaveTypeId);
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
@@ -11691,7 +11790,7 @@ app.post("/api/leave/me/requests", auth, async (req, res) => {
     const totalDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
     const [req2] = await db.insert(leaveRequestsTable).values({
       employeeId: user.employeeId,
-      leaveType: leaveTypeId,
+      leaveType: mappedLeave.leaveType,
       startDate,
       endDate,
       totalDays,
@@ -11699,6 +11798,9 @@ app.post("/api/leave/me/requests", auth, async (req, res) => {
       status: "pending",
     }).returning();
     await logActivity(user.companyId, "leave_request", `Leave request submitted`, null);
+    if (!mappedLeave.payrollCompatible) {
+      await logActivity(user.companyId, "legacy_leave_payroll_ignored", `Legacy employee leave request #${req2.id} uses unmapped leave type "${leaveTypeId}" and is ignored by enterprise payroll impact.`, user.username);
+    }
     const dateRange = fmtDateRange(startDate, endDate);
     const notifPayload = {
       companyId: user.companyId,
@@ -11715,7 +11817,7 @@ app.post("/api/leave/me/requests", auth, async (req, res) => {
     };
     await notifyRole(user.companyId, "hradmin", notifPayload);
     await notifyDirectManager(user.employeeId, notifPayload);
-    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType } });
+    res.status(201).json({ success: true, data: { ...req2, leaveTypeId: req2.leaveType, payrollCompatible: mappedLeave.payrollCompatible, warning: mappedLeave.warning } });
   } catch (e) {
     console.error("[POST /api/leave/me/requests]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -17155,16 +17257,78 @@ app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req
       [emp.rows[0].id, user.companyId, username, hashPassword(req.body.password || "Welcome@1234"), workEmail, role.rows[0]?.id ?? null],
     );
     await client.query(`UPDATE candidates SET status = 'hired', converted_employee_id = $1, converted_user_id = $2, hired_at = NOW(), updated_by = $3, updated_at = NOW() WHERE id = $4 AND company_id = $5`, [emp.rows[0].id, usr.rows[0].id, user.userId, candidate.id, user.companyId]);
-    await client.query(
+    const onboarding = await client.query(
       `INSERT INTO onboarding_batches (company_id, candidate_id, employee_id, batch_number, status, start_date, checklist_json, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,'created',$5,$6::jsonb,$7,$7)`,
+       VALUES ($1,$2,$3,$4,'created',$5,$6::jsonb,$7,$7)
+       RETURNING id`,
       [user.companyId, candidate.id, emp.rows[0].id, `ONB-${Date.now().toString(36).toUpperCase()}`, joinDate, JSON.stringify(["contract", "documents", "orientation", "systems_access"]), user.userId],
     );
+    let contractId: number | null = null;
+    let requiredDocumentIds: number[] = [];
+    try {
+      const contractTypeCode = String(offer?.contractType || req.body.contractType || "permanent").trim().toUpperCase();
+      let type = await client.query(
+        `SELECT id, default_probation_days FROM contract_types
+          WHERE company_id=$1 AND is_deleted=false AND is_active=true AND (upper(code)=$2 OR upper(code)='PERMANENT')
+          ORDER BY CASE WHEN upper(code)=$2 THEN 0 ELSE 1 END LIMIT 1`,
+        [user.companyId, contractTypeCode],
+      );
+      if (!type.rows[0]) {
+        type = await client.query(
+          `INSERT INTO contract_types
+            (company_id, code, name_ar, name_en, description_ar, description_en, default_probation_days, requires_attachment, created_by, updated_by)
+           SELECT $1,$2,'عقد تعيين افتراضي','Default Hiring Contract','تم إنشاؤه تلقائياً عند تحويل المرشح.','Created automatically during candidate conversion.',90,false,$3,$3
+           WHERE NOT EXISTS (
+             SELECT 1 FROM contract_types WHERE company_id=$1 AND upper(code)=$2 AND is_deleted=false
+           )
+           RETURNING id, default_probation_days`,
+          [user.companyId, contractTypeCode, user.userId],
+        );
+        if (!type.rows[0]) {
+          type = await client.query(`SELECT id, default_probation_days FROM contract_types WHERE company_id=$1 AND upper(code)=$2 AND is_deleted=false LIMIT 1`, [user.companyId, contractTypeCode]);
+        }
+      }
+      if (type.rows[0]) {
+        const contractNumber = `CNT-${emp.rows[0].id}-${Date.now().toString(36).toUpperCase()}`;
+        const contract = await client.query(
+          `INSERT INTO employee_contracts
+            (company_id, employee_id, contract_type_id, contract_number, title_ar, title_en, start_date, probation_end_date, contract_status, compliance_status, salary_amount, notes_en, created_by, updated_by)
+           VALUES ($1,$2,$3,$4,'مسودة عقد التعيين','Hiring contract draft',$5,($5::date + (($6 || ' days')::interval))::date,'draft','missing_documents',$7,$8,$9,$9)
+           RETURNING id`,
+          [user.companyId, emp.rows[0].id, type.rows[0].id, contractNumber, joinDate, Number(type.rows[0].default_probation_days ?? 90), offer?.salary || req.body.basicSalary || "500", `Draft contract created from candidate #${candidate.id}`, user.userId],
+        );
+        contractId = contract.rows[0]?.id ?? null;
+        if (contractId) {
+          const docs = await client.query(
+            `INSERT INTO contract_required_documents
+              (company_id, contract_type_id, contract_id, document_code, name_ar, name_en, is_mandatory, expires, created_by, updated_by)
+             VALUES
+              ($1,$2,$3,'SIGNED_CONTRACT','العقد الموقع','Signed contract',true,false,$4,$4),
+              ($1,$2,$3,'ID_DOCUMENT','إثبات الهوية','ID document',true,true,$4,$4),
+              ($1,$2,$3,'BANK_DETAILS','بيانات البنك','Bank details',true,false,$4,$4)
+             RETURNING id`,
+            [user.companyId, type.rows[0].id, contractId, user.userId],
+          );
+          requiredDocumentIds = docs.rows.map((r: any) => Number(r.id));
+          if (onboarding.rows[0]?.id) {
+            await client.query(
+              `UPDATE onboarding_batches
+                  SET checklist_json=$1::jsonb, updated_by=$2, updated_at=NOW()
+                WHERE id=$3 AND company_id=$4`,
+              [JSON.stringify(["contract", "documents", "orientation", "systems_access", `contract:${contractId}`, ...requiredDocumentIds.map(id => `required_document:${id}`)]), user.userId, onboarding.rows[0].id, user.companyId],
+            );
+          }
+        }
+      }
+    } catch (handoffErr: any) {
+      if (!["42P01", "42703"].includes(String(handoffErr?.code ?? ""))) throw handoffErr;
+      await logActivity(user.companyId, "candidate_conversion_contract_handoff_skipped", `Contract handoff skipped for candidate #${candidate.id}: compliance/contracts schema unavailable`, user.username);
+    }
     await client.query(`COMMIT`);
     await logActivity(user.companyId, "candidate_converted_to_employee", `Candidate converted to employee: ${candidate.fullNameEn}`, user.username);
     await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "طھظ… طھط¹ظٹظٹظ† ظ…ط±ط´ط­", "Candidate hired", candidate.fullNameAr, candidate.fullNameEn, "candidate", candidate.id, "/app/employees");
     await createRecruitmentEmailLog(user.companyId, user.userId, workEmail, "recruitment_onboarding", "Onboarding started", { candidateId: candidate.id, employeeId: emp.rows[0].id });
-    res.status(201).json({ success: true, data: { employeeId: emp.rows[0].id, userId: usr.rows[0].id, username, defaultPassword: req.body.password ? undefined : "Welcome@1234" } });
+    res.status(201).json({ success: true, data: { employeeId: emp.rows[0].id, userId: usr.rows[0].id, username, contractId, requiredDocumentIds, defaultPassword: req.body.password ? undefined : "Welcome@1234" } });
   } catch (e: any) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[POST /api/recruitment/candidates/:id/convert-to-employee]", e);
@@ -17548,6 +17712,13 @@ app.get("/api/payroll-adjustments/employee/:id", auth, async (req, res) => {
     const employeeId = Number(req.params["id"]);
     if (user.role === "employee" && employeeId !== user.employeeId) return res.status(403).json({ success: false, message: "Forbidden" });
     if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    if (user.role === "manager") {
+      const scoped = await pool.query(
+        `SELECT id FROM employees WHERE company_id=$1 AND id=$2 AND direct_manager_id=$3 AND is_deleted=false LIMIT 1`,
+        [user.companyId, employeeId, user.employeeId ?? -1],
+      );
+      if (!scoped.rows[0]) return res.status(403).json({ success: false, message: "Forbidden: manager scope only" });
+    }
     const r = await requestLike(`/api/payroll-adjustments?employeeId=${employeeId}`, req, res);
     return r;
   } catch (e: any) {
@@ -17650,12 +17821,49 @@ app.post("/api/attendance-intelligence/process", auth, async (req, res) => {
     let created = 0;
     for (const row of records.rows) {
       if (Number(row.late_minutes || 0) > 0) {
-        await pool.query(`INSERT INTO attendance_violations (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by) VALUES ($1,$2,$3,'late',$4,$5,$6,$7,'open',$8,$9,$9) ON CONFLICT DO NOTHING`, [user.companyId, row.employee_id, row.id, row.date, row.late_minutes, Number(row.late_minutes) > 60 ? "high" : "medium", jod(Number(row.late_minutes) * 0.05), "Auto-detected lateness", user.userId]);
-        created++;
+        const amount = jod(Number(row.late_minutes) * 0.05);
+        const violation = await pool.query(
+          `INSERT INTO attendance_violations
+            (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by)
+           SELECT $1,$2,$3,'late',$4,$5,$6,$7,'open',$8,$9,$9
+           WHERE NOT EXISTS (
+             SELECT 1 FROM attendance_violations
+              WHERE company_id=$1 AND attendance_record_id=$3 AND violation_type='late' AND is_deleted=false
+           )
+           RETURNING *`,
+          [user.companyId, row.employee_id, row.id, row.date, row.late_minutes, Number(row.late_minutes) > 60 ? "high" : "medium", amount, "Auto-detected lateness", user.userId],
+        );
+        const violationRow = violation.rows[0] ?? (await pool.query(
+          `SELECT * FROM attendance_violations WHERE company_id=$1 AND attendance_record_id=$2 AND violation_type='late' AND is_deleted=false LIMIT 1`,
+          [user.companyId, row.id],
+        )).rows[0];
+        if (violation.rows[0]) created++;
+        if (violationRow && Number(violationRow.payroll_impact_amount || 0) > 0) {
+          await pool.query(
+            `INSERT INTO attendance_payroll_impacts
+              (company_id, employee_id, attendance_violation_id, impact_type, amount, direction, calculation_json, status, created_by, updated_by)
+             SELECT $1,$2,$3,'lateness_deduction',$4,'deduct',$5::jsonb,'approved',$6,$6
+             WHERE NOT EXISTS (
+               SELECT 1 FROM attendance_payroll_impacts
+                WHERE company_id=$1 AND attendance_violation_id=$3 AND is_deleted=false
+             )`,
+            [user.companyId, row.employee_id, violationRow.id, violationRow.payroll_impact_amount, JSON.stringify({ source: "attendance_intelligence", lateMinutes: Number(row.late_minutes || 0), ratePerMinute: "0.050", attendanceRecordId: row.id }), user.userId],
+          );
+        }
       }
       if (row.status === "absent") {
-        await pool.query(`INSERT INTO attendance_violations (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by) VALUES ($1,$2,$3,'absence',$4,480,'high',0,'open','Auto-detected absence',$5,$5) ON CONFLICT DO NOTHING`, [user.companyId, row.employee_id, row.id, row.date, user.userId]);
-        created++;
+        const absence = await pool.query(
+          `INSERT INTO attendance_violations
+            (company_id, employee_id, attendance_record_id, violation_type, violation_date, minutes, severity, payroll_impact_amount, status, notes_en, created_by, updated_by)
+           SELECT $1,$2,$3,'absence',$4,480,'high',0,'open','Auto-detected absence',$5,$5
+           WHERE NOT EXISTS (
+             SELECT 1 FROM attendance_violations
+              WHERE company_id=$1 AND attendance_record_id=$3 AND violation_type='absence' AND is_deleted=false
+           )
+           RETURNING id`,
+          [user.companyId, row.employee_id, row.id, row.date, user.userId],
+        );
+        if (absence.rows[0]) created++;
       }
     }
     await logActivity(user.companyId, "attendance_intelligence_processed", `Attendance intelligence processed ${from} to ${to}: ${created} findings`, user.username);
@@ -17792,6 +18000,111 @@ async function createBundleBWorkflow(companyId: number, entityType: string, enti
     [companyId, rows[0].id, actorUserId, rows[0].current_step_order, JSON.stringify(context)],
   );
   return camelAts(rows[0]);
+}
+
+async function applyPerformancePromotionRecommendation(companyId: number, workflowInstanceId: number, recommendationId: number, actorUserId: number, username: string) {
+  const { rows } = await pool.query(
+    `SELECT pr.*, e.basic_salary, e.job_description_id, e.job_title_id
+       FROM performance_promotion_recommendations pr
+       JOIN employees e ON e.id = pr.employee_id AND e.company_id = pr.company_id AND e.is_deleted = false
+      WHERE pr.company_id=$1 AND pr.id=$2 AND pr.is_deleted=false
+      LIMIT 1`,
+    [companyId, recommendationId],
+  );
+  const recommendation = rows[0];
+  if (!recommendation) return { applied: false, reason: "not_found" };
+  if (["applied", "rejected"].includes(String(recommendation.status))) {
+    return { applied: false, reason: "already_final", status: recommendation.status };
+  }
+
+  const existingAction = await pool.query(
+    `SELECT id FROM employee_actions
+      WHERE company_id=$1
+        AND employee_id=$2
+        AND (new_value_json LIKE $3 OR new_value_json LIKE $4)
+      LIMIT 1`,
+    [companyId, recommendation.employee_id, `%"performancePromotionId":${recommendationId}%`, `%"performancePromotionId":"${recommendationId}"%`],
+  );
+  if (existingAction.rows[0]) {
+    await pool.query(
+      `UPDATE performance_promotion_recommendations
+          SET status='applied', updated_by=$1, updated_at=NOW()
+        WHERE company_id=$2 AND id=$3`,
+      [actorUserId, companyId, recommendationId],
+    );
+    return { applied: false, reason: "already_applied", employeeActionId: existingAction.rows[0].id };
+  }
+
+  const before = {
+    basicSalary: recommendation.basic_salary,
+    jobDescriptionId: recommendation.job_description_id,
+    jobTitleId: recommendation.job_title_id,
+  };
+  const after = {
+    basicSalary: recommendation.recommended_salary ?? recommendation.basic_salary,
+    jobDescriptionId: recommendation.recommended_job_profile_id ?? recommendation.job_description_id,
+    jobTitleId: recommendation.job_title_id,
+    performancePromotionId: recommendationId,
+    workflowInstanceId,
+  };
+  const updates: string[] = [];
+  const params: any[] = [];
+  if (recommendation.recommended_salary !== null && recommendation.recommended_salary !== undefined) {
+    params.push(recommendation.recommended_salary);
+    updates.push(`basic_salary=$${params.length}`);
+  }
+  if (recommendation.recommended_job_profile_id) {
+    params.push(recommendation.recommended_job_profile_id);
+    updates.push(`job_description_id=$${params.length}`);
+  }
+  if (updates.length) {
+    params.push(recommendation.employee_id, companyId);
+    await pool.query(
+      `UPDATE employees SET ${updates.join(", ")}, updated_at=NOW()
+        WHERE id=$${params.length - 1} AND company_id=$${params.length} AND is_deleted=false`,
+      params,
+    );
+  }
+
+  const actionType = recommendation.recommended_job_profile_id ? "promotion" : "salary_change";
+  const action = await pool.query(
+    `INSERT INTO employee_actions
+      (company_id, employee_id, action_type, effective_date, created_by_user_id, previous_value_json, new_value_json, notes, status, approval_steps_json)
+     VALUES ($1,$2,$3,CURRENT_DATE,$4,$5,$6,$7,'applied',$8)
+     RETURNING id`,
+    [
+      companyId,
+      recommendation.employee_id,
+      actionType,
+      actorUserId,
+      JSON.stringify(before),
+      JSON.stringify(after),
+      `Applied performance promotion recommendation #${recommendationId}`,
+      JSON.stringify([{ workflowInstanceId, status: "approved", appliedBy: actorUserId }]),
+    ],
+  );
+  const employeeActionId = action.rows[0].id;
+  await pool.query(
+    `UPDATE performance_promotion_recommendations
+        SET status='applied', updated_by=$1, updated_at=NOW()
+      WHERE company_id=$2 AND id=$3`,
+    [actorUserId, companyId, recommendationId],
+  );
+  await logActivity(companyId, "performance_promotion_applied", `Performance promotion #${recommendationId} applied to employee #${recommendation.employee_id}`, username);
+  await notifyEmployee(recommendation.employee_id, companyId, {
+    companyId,
+    actorUserId,
+    entityType: "performance_promotion",
+    entityId: recommendationId,
+    notificationType: "performance_promotion_applied",
+    titleAr: "تم تطبيق توصية الأداء",
+    titleEn: "Performance recommendation applied",
+    messageAr: "تم اعتماد وتطبيق توصية الأداء على ملفك الوظيفي.",
+    messageEn: "Your performance recommendation has been approved and applied to your employee profile.",
+    priority: "normal",
+    actionUrl: "/app/performance-workflows",
+  });
+  return { applied: true, employeeActionId };
 }
 
 app.get("/api/performance/dashboard", auth, async (req, res) => {
@@ -18052,6 +18365,9 @@ app.post("/api/performance/workflow-instances/:id/approve", auth, async (req, re
     const current = await pool.query(`SELECT * FROM performance_workflow_instances WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
     const instance = current.rows[0];
     if (!instance) return res.status(404).json({ success: false, message: "Workflow not found" });
+    if (["approved", "rejected", "cancelled"].includes(String(instance.status))) {
+      return res.status(409).json({ success: false, message: `Workflow is already ${instance.status}` });
+    }
     if (user.role !== "hradmin" && instance.current_approver_role !== user.role) return res.status(403).json({ success: false, message: `This step requires ${instance.current_approver_role}` });
     const next = await pool.query(`SELECT * FROM performance_workflow_steps WHERE company_id=$1 AND template_id=$2 AND step_order>$3 AND is_deleted=false ORDER BY step_order LIMIT 1`, [user.companyId, instance.template_id, instance.current_step_order]);
     const beforeStatus = instance.status;
@@ -18062,8 +18378,12 @@ app.post("/api/performance/workflow-instances/:id/approve", auth, async (req, re
     if (!nextStep && instance.entity_type === "performance_evaluation") {
       await pool.query(`UPDATE performance_evaluations SET status='approved', approved_at=NOW(), updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3`, [user.userId, instance.entity_id, user.companyId]);
     }
+    let businessEffect: any = null;
+    if (!nextStep && instance.entity_type === "promotion_recommendation") {
+      businessEffect = await applyPerformancePromotionRecommendation(user.companyId, id, instance.entity_id, user.userId, user.username);
+    }
     const updated = await pool.query(`SELECT * FROM performance_workflow_instances WHERE id=$1`, [id]);
-    res.json({ success: true, data: camelAts(updated.rows[0]) });
+    res.json({ success: true, data: { ...camelAts(updated.rows[0]), businessEffect } });
   } catch (e: any) {
     console.error("[POST /api/performance/workflow-instances/:id/approve]", e);
     res.status(bundleBStatus(e)).json({ success: false, message: bundleBMessage(e) });

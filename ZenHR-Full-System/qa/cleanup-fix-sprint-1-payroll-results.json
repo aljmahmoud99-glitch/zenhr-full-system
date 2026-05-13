@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-05-13T22:51:58.546Z",
+  "attendancePayrollImpact": {
+    "classification": "CONFIRMED WORKING",
+    "correctionRequestId": 23,
+    "processStatus": 200,
+    "createdViolations": 0,
+    "previewStatus": 200,
+    "previewAttendanceImpactDeduction": "26.500",
+    "runId": 15,
+    "calculateStatus": 200,
+    "payslipId": 206,
+    "snapshotAttendanceImpactDeduction": "26.500",
+    "conclusion": "Approved attendance impacts are consumed by preview/run/payslip snapshot once."
+  },
+  "performancePromotion": {
+    "classification": "CONFIRMED WORKING",
+    "createStatus": 201,
+    "recommendationId": "11",
+    "workflowId": "12",
+    "approvals": [
+      {
+        "status": 200,
+        "workflowStatus": "pending",
+        "businessEffect": null
+      },
+      {
+        "status": 200,
+        "workflowStatus": "approved",
+        "businessEffect": {
+          "applied": true,
+          "employeeActionId": 19
+        }
+      }
+    ],
+    "retryApproveStatus": 409,
+    "beforeSalary": 995,
+    "afterSalary": 1014,
+    "payrollPreviewBasicSalary": "1014.000",
+    "employeeActionLinked": false,
+    "conclusion": "Approved recommendation updates employee salary, payroll preview, and rejects duplicate approval."
+  },
+  "legacyVsEnterpriseLeave": {
+    "classification": "CONFIRMED WORKING",
+    "legacyCreateStatus": 201,
+    "legacyPayrollCompatible": false,
+    "legacyWarning": "Legacy leave type was kept for compatibility and is ignored by enterprise payroll deductions unless mapped to an enterprise leave type.",
+    "legacyApproveStatus": 200,
+    "enterpriseTypeId": 2,
+    "enterpriseCreateStatus": 409,
+    "payrollPreviewStatus": 200,
+    "leaveDeduction": "65.424",
+    "conclusion": "Legacy unmapped leave is explicitly flagged as payroll-ignored; enterprise leave remains canonical payroll source."
+  }
+}

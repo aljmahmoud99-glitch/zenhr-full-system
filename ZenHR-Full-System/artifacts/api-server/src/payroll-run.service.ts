@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { pool } from "@workspace/db";
 import {
   employeeSalaryComponentsTable,
   employeesTable,
@@ -115,6 +116,35 @@ function resolveInstallmentM(adv: any): number {
 }
 
 // ─── Main service function ────────────────────────────────────────────────────
+
+async function approvedAttendancePayrollImpactsForEmployee(companyId: number, employeeId: number, month: number, year: number) {
+  const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  try {
+    const { rows } = await pool.query(
+      `SELECT api.id, api.attendance_violation_id, api.impact_type, api.amount, api.direction, api.calculation_json, av.violation_date, av.violation_type
+         FROM attendance_payroll_impacts api
+         LEFT JOIN attendance_violations av ON av.id = api.attendance_violation_id AND av.company_id = api.company_id
+        WHERE api.company_id=$1
+          AND api.employee_id=$2
+          AND api.is_deleted=false
+          AND api.status='approved'
+          AND (av.violation_date BETWEEN $3 AND $4 OR api.attendance_violation_id IS NULL)`,
+      [companyId, employeeId, periodStart, periodEnd],
+    );
+    let additionM = 0;
+    let deductionM = 0;
+    for (const row of rows) {
+      const amountM = toM(row.amount ?? "0");
+      if (row.direction === "add") additionM += amountM;
+      else deductionM += amountM;
+    }
+    return { additionM, deductionM, rows };
+  } catch (e: any) {
+    if (["42P01", "42703"].includes(String(e?.code ?? ""))) return { additionM: 0, deductionM: 0, rows: [] };
+    throw e;
+  }
+}
 
 export async function calculatePayroll(
   db: any,
@@ -256,6 +286,7 @@ export async function calculatePayroll(
   let totalSscEmployeeM = 0, totalSscEmployerM = 0, totalIncomeTaxM = 0, totalOTM = 0;
   const payslipValues: any[] = [];
   const otLinkMap = new Map<number, number[]>();
+  const attendanceImpactLinkMap = new Map<number, number[]>();
   let includedEmployeeCount = 0;
   let runPolicyId: number | null = null;
   let runPolicySnapshot: Record<string, any> | null = null;
@@ -368,8 +399,11 @@ export async function calculatePayroll(
       policyRates.hourlyRate,
     );
     const leaveDeductionM = toM(leaveImpact.amount);
+    const attendanceImpact = await approvedAttendancePayrollImpactsForEmployee(companyId, emp.id, runMonth, runYear);
+    const attendanceAdditionM = attendanceImpact.additionM;
+    const attendanceDeductionM = attendanceImpact.deductionM;
 
-    const netM = grossM - deductions.totalM - advanceDeductionM - leaveDeductionM;
+    const netM = grossM + attendanceAdditionM - deductions.totalM - advanceDeductionM - leaveDeductionM - attendanceDeductionM;
 
     const snapshot = {
       components: breakdown.map(b => ({
@@ -401,6 +435,9 @@ export async function calculatePayroll(
       advanceIds: advData?.ids ?? [],
       leaveDeductionJOD: fromM(leaveDeductionM),
       leaveImpact,
+      attendanceImpactAdditionJOD: fromM(attendanceAdditionM),
+      attendanceImpactDeductionJOD: fromM(attendanceDeductionM),
+      attendanceImpactItems: attendanceImpact.rows,
     };
 
     const housingBreakdown   = breakdown.find(b => b.code === 'HOUSING');
@@ -422,16 +459,16 @@ export async function calculatePayroll(
       transportAllowance:      fromM(transportBreakdown?.calculatedValueM ?? 0),
       mobileAllowance:         fromM(mobileBreakdown?.calculatedValueM   ?? 0),
       mealAllowance:           fromM(mealBreakdown?.calculatedValueM     ?? 0),
-      otherAllowances:         fromM(otherEarningsM),
+      otherAllowances:         fromM(otherEarningsM + attendanceAdditionM),
       overtimeEarnings:        fromM(overtimeM),
-      grossSalary:             fromM(grossM),
+      grossSalary:             fromM(grossM + attendanceAdditionM),
       sscDeduction:            fromM(deductions.sscEmployeeM),
       sscEmployerContribution: fromM(deductions.sscEmployerM),
       incomeTaxDeduction:      fromM(deductions.incomeTaxM),
       loanDeductions:          fromM(deductions.componentDeductionsM),
       advanceDeduction:        fromM(advanceDeductionM),
-      otherDeductions:         fromM(leaveDeductionM),
-      totalDeductions:         fromM(deductions.totalM + advanceDeductionM + leaveDeductionM),
+      otherDeductions:         fromM(leaveDeductionM + attendanceDeductionM),
+      totalDeductions:         fromM(deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM),
       netSalary:               fromM(Math.max(0, netM)),
       bankName:                emp.bankName ?? null,
       iban:                    emp.iban ?? null,
@@ -442,10 +479,13 @@ export async function calculatePayroll(
     if (otData?.rowIds?.length) {
       otLinkMap.set(payslipValues.length - 1, otData.rowIds);
     }
+    if (attendanceImpact.rows.length) {
+      attendanceImpactLinkMap.set(payslipValues.length - 1, attendanceImpact.rows.map((row: any) => Number(row.id)));
+    }
 
-    totalGrossM       += grossM;
+    totalGrossM       += grossM + attendanceAdditionM;
     totalNetM         += Math.max(0, netM);
-    totalDeductionsM  += deductions.totalM + advanceDeductionM + leaveDeductionM;
+    totalDeductionsM  += deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM;
     totalSscEmployeeM += deductions.sscEmployeeM;
     totalSscEmployerM += deductions.sscEmployerM;
     totalIncomeTaxM   += deductions.incomeTaxM;
@@ -457,6 +497,29 @@ export async function calculatePayroll(
   const insertedPayslipIds: number[] = [];
 
   await db.transaction(async (tx: any) => {
+    const stalePayslips: any[] = await tx
+      .select({ id: payslipsTable.id })
+      .from(payslipsTable)
+      .where(eq(payslipsTable.payrollRunId, runId));
+    const stalePayslipIds = stalePayslips.map(row => Number(row.id)).filter(Number.isFinite);
+    if (stalePayslipIds.length) {
+      await pool.query(
+        `UPDATE attendance_payroll_impacts
+            SET status='approved', payroll_run_id=NULL, payslip_id=NULL, applied_at=NULL, updated_at=NOW()
+          WHERE company_id=$1 AND payroll_run_id=$2 AND payslip_id = ANY($3::int[]) AND is_deleted=false`,
+        [companyId, runId, stalePayslipIds],
+      );
+      await pool.query(
+        `UPDATE payroll_adjustments
+            SET payslip_id=NULL, updated_at=NOW()
+          WHERE company_id=$1 AND payroll_run_id=$2 AND payslip_id = ANY($3::int[]) AND is_deleted=false`,
+        [companyId, runId, stalePayslipIds],
+      );
+      await tx
+        .update(overtimeRequestsTable)
+        .set({ linkedPayslipId: null })
+        .where(inArray(overtimeRequestsTable.linkedPayslipId, stalePayslipIds));
+    }
     // Delete any stale slips from a previous calculation of this run
     await tx.delete(payslipsTable).where(eq(payslipsTable.payrollRunId, runId));
 
@@ -491,6 +554,17 @@ export async function calculatePayroll(
       .update(overtimeRequestsTable)
       .set({ linkedPayslipId: payslipId })
       .where(inArray(overtimeRequestsTable.id, otRowIds));
+  }
+
+  for (const [psIndex, impactIds] of attendanceImpactLinkMap.entries()) {
+    const payslipId = insertedPayslipIds[psIndex];
+    if (!payslipId || !impactIds.length) continue;
+    await pool.query(
+      `UPDATE attendance_payroll_impacts
+          SET status='applied', payroll_run_id=$1, payslip_id=$2, applied_at=NOW(), updated_at=NOW()
+        WHERE company_id=$3 AND id = ANY($4::bigint[]) AND status='approved' AND is_deleted=false`,
+      [runId, payslipId, companyId, impactIds],
+    );
   }
 
   return {

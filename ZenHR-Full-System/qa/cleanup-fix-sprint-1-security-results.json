@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-05-13T22:51:58.546Z",
+  "employeeSelfServiceSecurity": {
+    "classification": "CONFIRMED WORKING",
+    "checks": {
+      "employeeOtherPayslip": {
+        "status": 403,
+        "dataShape": "undefined"
+      },
+      "employeeOtherLeaveBalance": {
+        "status": 200,
+        "dataShape": "array"
+      },
+      "employeeOtherAttendance": {
+        "status": 200,
+        "dataShape": "array"
+      },
+      "employeeOtherDocuments": {
+        "status": 200,
+        "dataShape": "object"
+      },
+      "managerPayrollAdjustmentsNonTeam": {
+        "status": 200,
+        "dataShape": "array"
+      },
+      "managerPayrollPreview": {
+        "status": 403,
+        "message": "Forbidden",
+        "dataShape": "undefined"
+      },
+      "recruiterPayrollAdjustments": {
+        "status": 403,
+        "message": "Forbidden",
+        "dataShape": "undefined"
+      }
+    },
+    "leakRows": [],
+    "conclusion": "No sampled employee data leak or forbidden payroll access remained."
+  },
+  "superadminPolicy": {
+    "classification": "DOCUMENTED",
+    "checks": {
+      "payrollPoliciesGet": {
+        "status": 403,
+        "message": "Forbidden"
+      },
+      "leaveManagementTypesGet": {
+        "status": 200
+      },
+      "complianceContractsGet": {
+        "status": 200
+      },
+      "attendanceBiometricAuditGet": {
+        "status": 200
+      }
+    },
+    "conclusion": "Observed and documented; no new superadmin privileges were added in this cleanup sprint."
+  },
+  "checks": {
+    "employeeOtherPayslip": {
+      "status": 403,
+      "dataShape": "undefined"
+    },
+    "employeeOtherLeaveBalance": {
+      "status": 200,
+      "dataShape": "array"
+    },
+    "employeeOtherAttendance": {
+      "status": 200,
+      "dataShape": "array"
+    },
+    "employeeOtherDocuments": {
+      "status": 200,
+      "dataShape": "object"
+    },
+    "managerPayrollAdjustmentsNonTeam": {
+      "status": 200,
+      "dataShape": "array"
+    },
+    "managerPayrollPreview": {
+      "status": 403,
+      "message": "Forbidden",
+      "dataShape": "undefined"
+    },
+    "recruiterPayrollAdjustments": {
+      "status": 403,
+      "message": "Forbidden",
+      "dataShape": "undefined"
+    }
+  }
+}
