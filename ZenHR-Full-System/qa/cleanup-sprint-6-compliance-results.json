@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-05-14T13:22:42.814Z",
+  "status": "GO",
+  "contractDetailStatus": 200,
+  "requiredDocumentsCount": 36,
+  "convertedRequiredDocumentsCount": 3,
+  "requiredDocsHaveEnterpriseDocuments": true,
+  "contractEnterpriseDocumentFound": true,
+  "attachmentCreateStatus": 201,
+  "attachmentEnterpriseDocumentId": 21,
+  "contractAttachmentLinkedInDetail": true
+}

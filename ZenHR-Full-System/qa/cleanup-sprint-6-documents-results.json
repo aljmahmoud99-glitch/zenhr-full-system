@@ -1,0 +1,10 @@
+{
+  "generatedAt": "2026-05-14T13:22:42.814Z",
+  "status": "GO",
+  "attachmentVisibleInDocuments": true,
+  "candidateDocVisibleInDocuments": true,
+  "employeeDocumentListStatus": 200,
+  "managerDocumentListStatus": 200,
+  "employeeSeesOnlyOwn": true,
+  "managerSeesScopedOnly": true
+}

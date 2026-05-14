@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-05-14T13:22:42.814Z",
+  "status": "GO",
+  "candidateCreateStatus": 201,
+  "candidateId": "22",
+  "candidateDocumentStatus": 201,
+  "candidateEnterpriseDocumentId": 16,
+  "convertStatus": 201,
+  "employeeId": 48,
+  "contractId": 25,
+  "requiredDocumentIds": [
+    36,
+    37,
+    38
+  ],
+  "enterpriseDocumentIds": [
+    17,
+    18,
+    19,
+    20,
+    16
+  ],
+  "secondConvertStatus": 200,
+  "secondConvertAlreadyConverted": true,
+  "noDuplicateConversion": true
+}

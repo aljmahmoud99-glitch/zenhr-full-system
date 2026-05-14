@@ -17781,12 +17781,41 @@ app.post("/api/recruitment/candidates/:id/documents", auth, async (req, res) => 
     const candidateId = Number(req.params["id"]);
     const candidate = await getCandidateDetail(user.companyId, candidateId);
     if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+    const fileObjectId = toInt(req.body.fileObjectId);
+    if (fileObjectId) {
+      const file = await pool.query(`SELECT id FROM file_objects WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [fileObjectId, user.companyId]);
+      if (!file.rows[0]) return res.status(400).json({ success: false, message: "fileObjectId does not belong to this company" });
+    }
     const { rows } = await pool.query(
       `INSERT INTO candidate_documents (company_id, candidate_id, file_object_id, document_type, file_name, file_url, notes, created_by, updated_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
-      [user.companyId, candidateId, toInt(req.body.fileObjectId), req.body.documentType || "resume", req.body.fileName || null, req.body.fileUrl || null, req.body.notes || null, user.userId],
+      [user.companyId, candidateId, fileObjectId, req.body.documentType || "resume", req.body.fileName || null, req.body.fileUrl || null, req.body.notes || null, user.userId],
     );
-    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+    let enterpriseDocumentId: number | null = null;
+    try {
+      enterpriseDocumentId = await createEnterpriseDocumentIfMissing(pool, {
+        companyId: user.companyId,
+        categoryCode: "RECRUITMENT_DOCUMENTS",
+        categoryNameAr: "وثائق التوظيف",
+        categoryNameEn: "Recruitment Documents",
+        moduleScope: "recruitment",
+        candidateId,
+        sourceModule: "recruitment",
+        entityType: "candidate_document",
+        entityId: Number(rows[0].id),
+        titleAr: req.body.titleAr || "وثيقة مرشح",
+        titleEn: req.body.titleEn || rows[0].file_name || "Candidate document",
+        status: fileObjectId ? "pending_approval" : "draft",
+        fileObjectId,
+        fileName: rows[0].file_name,
+        fileUrl: rows[0].file_url,
+        metadata: { requiredState: fileObjectId ? "uploaded" : "pending_upload", candidateDocumentId: rows[0].id, documentType: rows[0].document_type },
+        userId: user.userId,
+      });
+    } catch (docErr: any) {
+      if (!["42P01", "42703"].includes(String(docErr?.code ?? ""))) throw docErr;
+    }
+    res.status(201).json({ success: true, data: { ...camelAts(rows[0]), enterpriseDocumentId } });
   } catch (e: any) {
     console.error("[POST /api/recruitment/candidates/:id/documents]", e);
     res.status(recruitmentErrorStatus(e)).json({ success: false, message: recruitmentMigrationMessage(e) });
@@ -17955,7 +17984,23 @@ app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req
     if (!["hradmin", "superadmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
     const candidate = await getCandidateDetail(user.companyId, Number(req.params["id"]));
     if (!candidate) { res.status(404).json({ success: false, message: "Candidate not found" }); return; }
-    if (candidate.convertedEmployeeId) { res.status(409).json({ success: false, message: "Candidate is already converted" }); return; }
+    if (candidate.convertedEmployeeId) {
+      const [contract, docs] = await Promise.all([
+        pool.query(`SELECT id FROM employee_contracts WHERE company_id=$1 AND employee_id=$2 AND is_deleted=false ORDER BY created_at ASC LIMIT 1`, [user.companyId, candidate.convertedEmployeeId]),
+        pool.query(`SELECT id FROM enterprise_documents WHERE company_id=$1 AND (candidate_id=$2 OR employee_id=$3) AND source_module IN ('recruitment','compliance','hr') AND is_deleted=false ORDER BY created_at ASC`, [user.companyId, candidate.id, candidate.convertedEmployeeId]),
+      ]);
+      res.status(200).json({
+        success: true,
+        data: {
+          employeeId: candidate.convertedEmployeeId,
+          userId: candidate.convertedUserId,
+          contractId: contract.rows[0]?.id ? Number(contract.rows[0].id) : null,
+          enterpriseDocumentIds: docs.rows.map((r: any) => Number(r.id)),
+          alreadyConverted: true,
+        },
+      });
+      return;
+    }
     const offer = (candidate.offers ?? []).find((o: any) => ["approved", "accepted"].includes(o.status)) ?? candidate.offers?.[0];
     const joinDate = req.body.hireDate || offer?.joiningDate || new Date().toISOString().slice(0, 10);
     const empCode = req.body.employeeCode || `REC-${Date.now().toString(36).toUpperCase()}`;
@@ -17997,6 +18042,7 @@ app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req
     );
     let contractId: number | null = null;
     let requiredDocumentIds: number[] = [];
+    const enterpriseDocumentIds: number[] = [];
     try {
       const contractTypeCode = String(offer?.contractType || req.body.contractType || "permanent").trim().toUpperCase();
       let type = await client.query(
@@ -18042,12 +18088,75 @@ app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req
             [user.companyId, type.rows[0].id, contractId, user.userId],
           );
           requiredDocumentIds = docs.rows.map((r: any) => Number(r.id));
+          enterpriseDocumentIds.push(await createEnterpriseDocumentIfMissing(client, {
+            companyId: user.companyId,
+            categoryCode: "EMPLOYEE_CONTRACTS",
+            categoryNameAr: "عقود الموظفين",
+            categoryNameEn: "Employee Contracts",
+            moduleScope: "hr",
+            employeeId: emp.rows[0].id,
+            candidateId: candidate.id,
+            sourceModule: "compliance",
+            entityType: "employee_contract",
+            entityId: contractId,
+            titleAr: "مسودة عقد التعيين",
+            titleEn: "Hiring contract draft",
+            documentNumber: contractNumber,
+            status: "draft",
+            metadata: { requiredState: "pending_upload", contractId, onboardingBatchId: onboarding.rows[0]?.id ?? null, candidateId: candidate.id },
+            userId: user.userId,
+          }));
+          for (const docRow of docs.rows) {
+            enterpriseDocumentIds.push(await createEnterpriseDocumentIfMissing(client, {
+              companyId: user.companyId,
+              categoryCode: "COMPLIANCE_EXPIRY",
+              categoryNameAr: "وثائق الامتثال",
+              categoryNameEn: "Compliance Documents",
+              moduleScope: "hr",
+              employeeId: emp.rows[0].id,
+              candidateId: candidate.id,
+              sourceModule: "compliance",
+              entityType: "contract_required_document",
+              entityId: Number(docRow.id),
+              titleAr: docRow.name_ar || "وثيقة مطلوبة",
+              titleEn: docRow.name_en || "Required document",
+              status: "draft",
+              metadata: { requiredState: "pending_upload", contractId, requiredDocumentId: docRow.id, onboardingBatchId: onboarding.rows[0]?.id ?? null },
+              userId: user.userId,
+            }));
+          }
+          const candidateDocs = await client.query(
+            `SELECT * FROM candidate_documents WHERE company_id=$1 AND candidate_id=$2 AND is_deleted=false ORDER BY created_at ASC`,
+            [user.companyId, candidate.id],
+          );
+          for (const candidateDoc of candidateDocs.rows) {
+            enterpriseDocumentIds.push(await createEnterpriseDocumentIfMissing(client, {
+              companyId: user.companyId,
+              categoryCode: "RECRUITMENT_DOCUMENTS",
+              categoryNameAr: "وثائق التوظيف",
+              categoryNameEn: "Recruitment Documents",
+              moduleScope: "recruitment",
+              employeeId: emp.rows[0].id,
+              candidateId: candidate.id,
+              sourceModule: "recruitment",
+              entityType: "candidate_document",
+              entityId: Number(candidateDoc.id),
+              titleAr: "وثيقة مرشح",
+              titleEn: candidateDoc.file_name || "Candidate document",
+              status: candidateDoc.file_object_id ? "pending_approval" : "draft",
+              fileObjectId: candidateDoc.file_object_id ? Number(candidateDoc.file_object_id) : null,
+              fileName: candidateDoc.file_name,
+              fileUrl: candidateDoc.file_url,
+              metadata: { requiredState: candidateDoc.file_object_id ? "uploaded" : "pending_upload", convertedEmployeeId: emp.rows[0].id, candidateDocumentId: candidateDoc.id },
+              userId: user.userId,
+            }));
+          }
           if (onboarding.rows[0]?.id) {
             await client.query(
               `UPDATE onboarding_batches
                   SET checklist_json=$1::jsonb, updated_by=$2, updated_at=NOW()
                 WHERE id=$3 AND company_id=$4`,
-              [JSON.stringify(["contract", "documents", "orientation", "systems_access", `contract:${contractId}`, ...requiredDocumentIds.map(id => `required_document:${id}`)]), user.userId, onboarding.rows[0].id, user.companyId],
+              [JSON.stringify(["contract", "documents", "orientation", "systems_access", `contract:${contractId}`, ...requiredDocumentIds.map(id => `required_document:${id}`), ...enterpriseDocumentIds.map(id => `enterprise_document:${id}`)]), user.userId, onboarding.rows[0].id, user.companyId],
             );
           }
         }
@@ -18060,7 +18169,7 @@ app.post("/api/recruitment/candidates/:id/convert-to-employee", auth, async (req
     await logActivity(user.companyId, "candidate_converted_to_employee", `Candidate converted to employee: ${candidate.fullNameEn}`, user.username);
     await notifyRecruitmentRole(user.companyId, "hradmin", user.userId, "طھظ… طھط¹ظٹظٹظ† ظ…ط±ط´ط­", "Candidate hired", candidate.fullNameAr, candidate.fullNameEn, "candidate", candidate.id, "/app/employees");
     await createRecruitmentEmailLog(user.companyId, user.userId, workEmail, "recruitment_onboarding", "Onboarding started", { candidateId: candidate.id, employeeId: emp.rows[0].id });
-    res.status(201).json({ success: true, data: { employeeId: emp.rows[0].id, userId: usr.rows[0].id, username, contractId, requiredDocumentIds, defaultPassword: req.body.password ? undefined : "Welcome@1234" } });
+    res.status(201).json({ success: true, data: { employeeId: emp.rows[0].id, userId: usr.rows[0].id, username, contractId, requiredDocumentIds, enterpriseDocumentIds, defaultPassword: req.body.password ? undefined : "Welcome@1234" } });
   } catch (e: any) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[POST /api/recruitment/candidates/:id/convert-to-employee]", e);
@@ -19260,11 +19369,117 @@ function bundleCVisibilityClause(alias: string, user: any, params: any[]) {
 function bundleCDocumentScope(alias: string, user: any, params: any[]) {
   if (user.role === "employee") return ` AND ${alias}.employee_id=$${params.push(user.employeeId ?? -1)}`;
   if (user.role === "manager") {
-    return ` AND (${alias}.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false) OR ${alias}.employee_id IS NULL)`;
+    return ` AND ${alias}.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false)`;
   }
   if (user.role === "payrolladmin") return ` AND ${alias}.source_module='payroll'`;
   if (user.role === "recruiter") return ` AND ${alias}.source_module='recruitment'`;
   return "";
+}
+
+async function ensureEnterpriseDocumentCategory(client: any, companyId: number, code: string, nameAr: string, nameEn: string, moduleScope = "hr", userId?: number) {
+  const normalized = String(code || "").trim().toUpperCase();
+  const existing = await client.query(
+    `SELECT id FROM enterprise_document_categories WHERE company_id=$1 AND code=$2 AND is_deleted=false LIMIT 1`,
+    [companyId, normalized],
+  );
+  if (existing.rows[0]) return Number(existing.rows[0].id);
+  const { rows } = await client.query(
+    `INSERT INTO enterprise_document_categories
+       (company_id, code, name_ar, name_en, module_scope, requires_expiry, requires_approval, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,$5,false,true,$6,$6)
+     ON CONFLICT (company_id, code) DO UPDATE SET updated_at=NOW()
+     RETURNING id`,
+    [companyId, normalized, nameAr, nameEn, moduleScope, userId ?? null],
+  );
+  return Number(rows[0].id);
+}
+
+async function createEnterpriseDocumentIfMissing(client: any, input: {
+  companyId: number;
+  categoryCode: string;
+  categoryNameAr: string;
+  categoryNameEn: string;
+  moduleScope?: string;
+  employeeId?: number | null;
+  candidateId?: number | null;
+  sourceModule: string;
+  entityType: string;
+  entityId: number;
+  titleAr: string;
+  titleEn: string;
+  documentNumber?: string | null;
+  status?: string;
+  fileObjectId?: number | null;
+  fileName?: string | null;
+  fileUrl?: string | null;
+  expiresAt?: string | null;
+  metadata?: any;
+  userId?: number | null;
+}) {
+  const existing = await client.query(
+    `SELECT id FROM enterprise_documents
+      WHERE company_id=$1 AND source_module=$2 AND entity_type=$3 AND entity_id=$4 AND is_deleted=false
+      LIMIT 1`,
+    [input.companyId, input.sourceModule, input.entityType, input.entityId],
+  );
+  if (existing.rows[0]) return Number(existing.rows[0].id);
+  const categoryId = await ensureEnterpriseDocumentCategory(
+    client,
+    input.companyId,
+    input.categoryCode,
+    input.categoryNameAr,
+    input.categoryNameEn,
+    input.moduleScope || input.sourceModule || "hr",
+    input.userId ?? undefined,
+  );
+  const { rows } = await client.query(
+    `INSERT INTO enterprise_documents
+      (company_id, category_id, employee_id, candidate_id, source_module, entity_type, entity_id,
+       title_ar, title_en, document_number, status, tags, metadata_json,
+       file_object_id, file_name, file_url, expires_at, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$18)
+     RETURNING id`,
+    [
+      input.companyId,
+      categoryId,
+      input.employeeId ?? null,
+      input.candidateId ?? null,
+      input.sourceModule,
+      input.entityType,
+      input.entityId,
+      input.titleAr,
+      input.titleEn,
+      input.documentNumber ?? null,
+      input.status || "draft",
+      JSON.stringify(["canonical", input.entityType]),
+      JSON.stringify(input.metadata || {}),
+      input.fileObjectId ?? null,
+      input.fileName ?? null,
+      input.fileUrl ?? null,
+      input.expiresAt ?? null,
+      input.userId ?? null,
+    ],
+  );
+  return Number(rows[0].id);
+}
+
+async function assertBundleCReferences(companyId: number, body: any) {
+  const employeeId = toInt(body.employeeId);
+  if (employeeId) {
+    const employee = await pool.query(`SELECT id FROM employees WHERE id=$1 AND company_id=$2 AND COALESCE(is_deleted,false)=false`, [employeeId, companyId]);
+    if (!employee.rows[0]) return "employeeId does not belong to this company";
+  }
+  const candidateId = toInt(body.candidateId);
+  if (candidateId) {
+    const candidate = await pool.query(`SELECT id FROM candidates WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [candidateId, companyId]);
+    if (!candidate.rows[0]) return "candidateId does not belong to this company";
+  }
+  const fileObjectId = toInt(body.fileObjectId);
+  if (fileObjectId) {
+    const file = await pool.query(`SELECT id FROM file_objects WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [fileObjectId, companyId]);
+    if (!file.rows[0]) return "fileObjectId does not belong to this company";
+  }
+  return null;
 }
 
 app.get("/api/document-reporting/dashboard", auth, async (req, res) => {
@@ -19397,10 +19612,18 @@ app.post("/api/document-reporting/documents", auth, async (req, res) => {
     if (!canManageBundleC(user, sourceModule)) return res.status(403).json({ success: false, message: "Forbidden" });
     const { titleAr, titleEn } = req.body;
     if (!titleAr || !titleEn) return res.status(400).json({ success: false, message: "titleAr and titleEn are required" });
+    const refError = await assertBundleCReferences(user.companyId, req.body);
+    if (refError) return res.status(400).json({ success: false, message: refError });
+    const categoryId = toInt(req.body.categoryId);
+    if (categoryId) {
+      const category = await pool.query(`SELECT id, module_scope FROM enterprise_document_categories WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [categoryId, user.companyId]);
+      if (!category.rows[0]) return res.status(400).json({ success: false, message: "categoryId does not belong to this company" });
+      if (!canManageBundleC(user, category.rows[0].module_scope)) return res.status(403).json({ success: false, message: "Forbidden" });
+    }
     const { rows } = await pool.query(
       `INSERT INTO enterprise_documents (company_id, category_id, employee_id, candidate_id, source_module, entity_type, entity_id, title_ar, title_en, document_number, status, tags, metadata_json, file_object_id, file_name, file_url, issued_at, expires_at, created_by, updated_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18,$19,$19) RETURNING *`,
-      [user.companyId, toInt(req.body.categoryId), toInt(req.body.employeeId), toInt(req.body.candidateId), sourceModule, req.body.entityType || null, toInt(req.body.entityId), titleAr, titleEn, req.body.documentNumber || null, req.body.status || "draft", JSON.stringify(req.body.tags || []), JSON.stringify(req.body.metadata || {}), toInt(req.body.fileObjectId), req.body.fileName || null, req.body.fileUrl || null, req.body.issuedAt || null, req.body.expiresAt || null, user.userId],
+      [user.companyId, categoryId, toInt(req.body.employeeId), toInt(req.body.candidateId), sourceModule, req.body.entityType || null, toInt(req.body.entityId), titleAr, titleEn, req.body.documentNumber || null, req.body.status || "draft", JSON.stringify(req.body.tags || []), JSON.stringify(req.body.metadata || {}), toInt(req.body.fileObjectId), req.body.fileName || null, req.body.fileUrl || null, req.body.issuedAt || null, req.body.expiresAt || null, user.userId],
     );
     await logActivity(user.companyId, "enterprise_document_created", `Enterprise document created: ${titleEn}`, user.username);
     res.status(201).json({ success: true, data: camelAts(rows[0]) });

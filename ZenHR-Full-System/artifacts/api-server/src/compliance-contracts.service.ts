@@ -150,6 +150,90 @@ async function audit(companyId: number, contractId: number | null, employeeId: n
   );
 }
 
+async function ensureEnterpriseDocumentCategory(companyId: number, code: string, nameAr: string, nameEn: string, moduleScope = "hr", userId?: number) {
+  const normalized = String(code || "").trim().toUpperCase();
+  const existing = await pool.query(
+    `SELECT id FROM enterprise_document_categories WHERE company_id=$1 AND code=$2 AND is_deleted=false LIMIT 1`,
+    [companyId, normalized],
+  );
+  if (existing.rows[0]) return Number(existing.rows[0].id);
+  const { rows } = await pool.query(
+    `INSERT INTO enterprise_document_categories
+       (company_id, code, name_ar, name_en, module_scope, requires_expiry, requires_approval, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,$5,false,true,$6,$6)
+     ON CONFLICT (company_id, code) DO UPDATE SET updated_at=NOW()
+     RETURNING id`,
+    [companyId, normalized, nameAr, nameEn, moduleScope, userId ?? null],
+  );
+  return Number(rows[0].id);
+}
+
+async function createEnterpriseDocumentIfMissing(input: {
+  companyId: number;
+  categoryCode: string;
+  categoryNameAr: string;
+  categoryNameEn: string;
+  moduleScope?: string;
+  employeeId?: number | null;
+  sourceModule: string;
+  entityType: string;
+  entityId: number;
+  titleAr: string;
+  titleEn: string;
+  documentNumber?: string | null;
+  status?: string;
+  fileObjectId?: number | null;
+  fileName?: string | null;
+  fileUrl?: string | null;
+  expiresAt?: string | null;
+  metadata?: any;
+  userId?: number | null;
+}) {
+  const existing = await pool.query(
+    `SELECT id FROM enterprise_documents
+      WHERE company_id=$1 AND source_module=$2 AND entity_type=$3 AND entity_id=$4 AND is_deleted=false
+      LIMIT 1`,
+    [input.companyId, input.sourceModule, input.entityType, input.entityId],
+  );
+  if (existing.rows[0]) return Number(existing.rows[0].id);
+  const categoryId = await ensureEnterpriseDocumentCategory(
+    input.companyId,
+    input.categoryCode,
+    input.categoryNameAr,
+    input.categoryNameEn,
+    input.moduleScope || input.sourceModule || "hr",
+    input.userId ?? undefined,
+  );
+  const { rows } = await pool.query(
+    `INSERT INTO enterprise_documents
+      (company_id, category_id, employee_id, source_module, entity_type, entity_id,
+       title_ar, title_en, document_number, status, tags, metadata_json,
+       file_object_id, file_name, file_url, expires_at, created_by, updated_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$17)
+     RETURNING id`,
+    [
+      input.companyId,
+      categoryId,
+      input.employeeId ?? null,
+      input.sourceModule,
+      input.entityType,
+      input.entityId,
+      input.titleAr,
+      input.titleEn,
+      input.documentNumber ?? null,
+      input.status || "draft",
+      JSON.stringify(["canonical", input.entityType]),
+      JSON.stringify(input.metadata || {}),
+      input.fileObjectId ?? null,
+      input.fileName ?? null,
+      input.fileUrl ?? null,
+      input.expiresAt ?? null,
+      input.userId ?? null,
+    ],
+  );
+  return Number(rows[0].id);
+}
+
 function contractSelect() {
   return `
     ec.*,
@@ -393,8 +477,32 @@ export function registerComplianceContractsRoutes(app: express.Express, auth: ex
       if (!contract) return res.status(404).json({ success: false, message: "Contract not found" });
       const [history, attachments, requiredDocuments] = await Promise.all([
         pool.query(`SELECT cal.*, u.username FROM contract_audit_logs cal LEFT JOIN users u ON u.id=cal.changed_by WHERE cal.company_id=$1 AND cal.contract_id=$2 ORDER BY cal.changed_at DESC LIMIT 50`, [user.companyId, id]),
-        pool.query(`SELECT * FROM contract_attachments WHERE company_id=$1 AND contract_id=$2 AND is_deleted=false ORDER BY uploaded_at DESC`, [user.companyId, id]),
-        pool.query(`SELECT * FROM contract_required_documents WHERE company_id=$1 AND (contract_id=$2 OR contract_type_id=$3) AND is_deleted=false ORDER BY is_mandatory DESC, name_en ASC`, [user.companyId, id, contract.contractTypeId]),
+        pool.query(
+          `SELECT ca.*, ed.id AS enterprise_document_id, ed.status AS enterprise_document_status, ed.file_object_id AS enterprise_file_object_id
+             FROM contract_attachments ca
+             LEFT JOIN enterprise_documents ed
+               ON ed.company_id=ca.company_id
+              AND ed.source_module='compliance'
+              AND ed.entity_type='contract_attachment'
+              AND ed.entity_id=ca.id
+              AND ed.is_deleted=false
+            WHERE ca.company_id=$1 AND ca.contract_id=$2 AND ca.is_deleted=false
+            ORDER BY ca.uploaded_at DESC`,
+          [user.companyId, id],
+        ),
+        pool.query(
+          `SELECT crd.*, ed.id AS enterprise_document_id, ed.status AS enterprise_document_status, ed.metadata_json AS enterprise_document_metadata
+             FROM contract_required_documents crd
+             LEFT JOIN enterprise_documents ed
+               ON ed.company_id=crd.company_id
+              AND ed.source_module='compliance'
+              AND ed.entity_type='contract_required_document'
+              AND ed.entity_id=crd.id
+              AND ed.is_deleted=false
+            WHERE crd.company_id=$1 AND (crd.contract_id=$2 OR crd.contract_type_id=$3) AND crd.is_deleted=false
+            ORDER BY crd.is_mandatory DESC, crd.name_en ASC`,
+          [user.companyId, id, contract.contractTypeId],
+        ),
       ]);
       res.json({ success: true, data: { ...contract, history: history.rows.map(camel), attachments: attachments.rows.map(camel), requiredDocuments: requiredDocuments.rows.map(camel) } });
     } catch (e: any) {
@@ -432,6 +540,27 @@ export function registerComplianceContractsRoutes(app: express.Express, auth: ex
         ],
       );
       await audit(user.companyId, rows[0].id, rows[0].employee_id, "created", user.userId, null, rows[0], "Contract created");
+      try {
+        await createEnterpriseDocumentIfMissing({
+          companyId: user.companyId,
+          categoryCode: "EMPLOYEE_CONTRACTS",
+          categoryNameAr: "عقود الموظفين",
+          categoryNameEn: "Employee Contracts",
+          moduleScope: "hr",
+          employeeId: rows[0].employee_id,
+          sourceModule: "compliance",
+          entityType: "employee_contract",
+          entityId: Number(rows[0].id),
+          titleAr: rows[0].title_ar,
+          titleEn: rows[0].title_en,
+          documentNumber: rows[0].contract_number,
+          status: "draft",
+          metadata: { requiredState: "pending_upload", contractId: rows[0].id, contractStatus: rows[0].contract_status, complianceStatus: rows[0].compliance_status },
+          userId: user.userId,
+        });
+      } catch (docErr: any) {
+        if (!["42P01", "42703"].includes(String(docErr?.code ?? ""))) throw docErr;
+      }
       res.status(201).json({ success: true, data: await getContract(user.companyId, rows[0].id) });
     } catch (e: any) {
       console.error("[POST /api/compliance-contracts/contracts]", e);
@@ -563,8 +692,32 @@ export function registerComplianceContractsRoutes(app: express.Express, auth: ex
           user.userId, nullableText(req.body.notesAr), nullableText(req.body.notesEn),
         ],
       );
-      await audit(user.companyId, id, contract.employeeId, "attachment_added", user.userId, null, rows[0], "Contract attachment metadata added");
-      res.status(201).json({ success: true, data: camel(rows[0]) });
+      let enterpriseDocumentId: number | null = null;
+      try {
+        enterpriseDocumentId = await createEnterpriseDocumentIfMissing({
+          companyId: user.companyId,
+          categoryCode: "EMPLOYEE_CONTRACTS",
+          categoryNameAr: "عقود الموظفين",
+          categoryNameEn: "Employee Contracts",
+          moduleScope: "hr",
+          employeeId: contract.employeeId,
+          sourceModule: "compliance",
+          entityType: "contract_attachment",
+          entityId: Number(rows[0].id),
+          titleAr: req.body.titleAr || "مرفق عقد",
+          titleEn: req.body.titleEn || fileName,
+          documentNumber: contract.contractNumber || null,
+          status: "pending_approval",
+          fileName,
+          fileUrl: nullableText(req.body.filePath),
+          metadata: { requiredState: "uploaded", contractId: id, contractAttachmentId: rows[0].id, attachmentType: rows[0].attachment_type },
+          userId: user.userId,
+        });
+      } catch (docErr: any) {
+        if (!["42P01", "42703"].includes(String(docErr?.code ?? ""))) throw docErr;
+      }
+      await audit(user.companyId, id, contract.employeeId, "attachment_added", user.userId, null, { ...rows[0], enterprise_document_id: enterpriseDocumentId }, "Contract attachment metadata added");
+      res.status(201).json({ success: true, data: { ...camel(rows[0]), enterpriseDocumentId } });
     } catch (e: any) {
       console.error("[POST /api/compliance-contracts/contracts/:id/attachments]", e);
       res.status(statusCode(e)).json({ success: false, message: errorMessage(e) });
@@ -591,8 +744,29 @@ export function registerComplianceContractsRoutes(app: express.Express, auth: ex
           req.body.isMandatory !== false, req.body.expires === true, toInt(req.body.warningDays) || 30, user.userId,
         ],
       );
-      await audit(user.companyId, id, contract.employeeId, "required_document_added", user.userId, null, rows[0], "Contract required document added");
-      res.status(201).json({ success: true, data: camel(rows[0]) });
+      let enterpriseDocumentId: number | null = null;
+      try {
+        enterpriseDocumentId = await createEnterpriseDocumentIfMissing({
+          companyId: user.companyId,
+          categoryCode: "COMPLIANCE_EXPIRY",
+          categoryNameAr: "وثائق الامتثال",
+          categoryNameEn: "Compliance Documents",
+          moduleScope: "hr",
+          employeeId: contract.employeeId,
+          sourceModule: "compliance",
+          entityType: "contract_required_document",
+          entityId: Number(rows[0].id),
+          titleAr: nameAr,
+          titleEn: nameEn,
+          status: "draft",
+          metadata: { requiredState: "pending_upload", contractId: id, requiredDocumentId: rows[0].id, documentCode },
+          userId: user.userId,
+        });
+      } catch (docErr: any) {
+        if (!["42P01", "42703"].includes(String(docErr?.code ?? ""))) throw docErr;
+      }
+      await audit(user.companyId, id, contract.employeeId, "required_document_added", user.userId, null, { ...rows[0], enterprise_document_id: enterpriseDocumentId }, "Contract required document added");
+      res.status(201).json({ success: true, data: { ...camel(rows[0]), enterpriseDocumentId } });
     } catch (e: any) {
       console.error("[POST /api/compliance-contracts/contracts/:id/required-documents]", e);
       res.status(statusCode(e)).json({ success: false, message: errorMessage(e) });
