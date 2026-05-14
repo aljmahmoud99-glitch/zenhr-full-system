@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-05-14T17:18:51.487Z",
+  "status": "GO",
+  "exportSecurity": {
+    "employeePayrollExportStatus": 403,
+    "managerPayrollExportStatus": 403,
+    "recruiterPayrollExportStatus": 403,
+    "recruiterRecruitmentExportStatus": 200,
+    "recruiterRecruitmentExportDownload": true,
+    "employeeForeignFileDownloadStatus": 403,
+    "employeeForeignFileFixture": {
+      "id": "21",
+      "employeeId": 1
+    },
+    "employeeFilesScopedOwn": true,
+    "managerFilesScopedTeam": true,
+    "payrollGenericFilesHidden": true,
+    "recruiterGenericFilesHidden": true,
+    "passed": true
+  }
+}

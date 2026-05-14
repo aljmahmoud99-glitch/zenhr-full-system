@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-05-14T17:21:42.000Z",
+  "status": "GO",
+  "backend": "http://localhost:3001",
+  "regressions": {
+    "cleanupSprint2ApprovalsNotifications": {
+      "command": "cmd /c node qa\\cleanup-sprint-2-smoke.cjs",
+      "status": "GO",
+      "evidenceFile": "qa/cleanup-sprint-2-results.json"
+    },
+    "cleanupSprint3LeaveCanonicalization": {
+      "command": "cmd /c node qa\\cleanup-sprint-3-smoke.cjs",
+      "status": "GO",
+      "evidenceFile": "qa/cleanup-sprint-3-results.json"
+    },
+    "cleanupSprint5PayrollTruth": {
+      "command": "cmd /c node qa\\cleanup-sprint-5-smoke.cjs",
+      "status": "GO",
+      "evidenceFile": "qa/cleanup-sprint-5-results.json"
+    },
+    "cleanupSprint6DocumentsComplianceRecruitment": {
+      "command": "cmd /c node qa\\cleanup-sprint-6-smoke.cjs",
+      "status": "GO",
+      "evidenceFile": "qa/cleanup-sprint-6-results.json"
+    }
+  },
+  "notes": [
+    "Regression harnesses were rerun after Sprint 7 route hardening.",
+    "No payroll truth, leave canonicalization, unified approvals/notifications, or documents/compliance/recruitment handoff regression was detected."
+  ]
+}

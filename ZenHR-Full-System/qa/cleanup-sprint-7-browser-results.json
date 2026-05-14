@@ -1,0 +1,93 @@
+{
+  "generatedAt": "2026-05-14T17:20:34.379Z",
+  "status": "GO",
+  "baseUrl": "http://localhost:5017",
+  "backend": "http://localhost:3001",
+  "pages": {
+    "employeeApprovals": {
+      "url": "http://localhost:5017/#/app/dashboard",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nلوحة التحكم\nchevron_right\nلوحة التحكم\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n50\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nلوحة التحكم\nلوحة التحكم\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nحضوري هذا الشهر\n\nتوزيع أيام الحضور حسب الحالة\n\nالتفاصيل\nمتأخر\n3 يوم\nحاضر\n2 يوم\nأرصدة إجازاتي\n\nالمستخدم والمتبقي من كل نوع إجازة\n\nالتفاصيل\nإجازة سنوية\n14/14 يوم\nإجازة طارئة\n3/3 يوم\nإجازة مرضية\n14/14 يوم\nمتبقي\nمستخدم\nقسائم راتبي — آخر 6 أشهر\n\nإجمالي الراتب لكل شهر\n\nعرض\nمايو 27\nمايو 66\nمارس 82\nنوفمبر 82\nيناير 84\nسبتمبر 84\nالوثائق والأصول والامتثال\n\nملخص الوضع الحالي لملفاتي\n\nالملف\nوثائق سارية\n0\nتنتهي قريباً\n0\nمنتهية / مفقودة\n4\nأصول معيّنة لي\n0\nحالة الحضور اليوم\nلم أسجل بعد\nschedule\n\nلا يوجد سجل حضور لليوم بعد\n\nعرض التفاصيل\nطلباتي المعلقة\n8\npending_actions\n\nإجازات 7 • إضافي 1 • سلف 0\n\nعرض التفاصيل\nرصيد الإجازات\n31 يوم\nevent_note\n\nمستخدم 0 يوم • معلق 0 يوم\n\nعرض التفاصيل\nآخر قسيمة راتب\n—\nreceipt_long\n\nلا توجد قسيمة راتب معتمدة بعد\n\nعرض التفاصيل\nتنبيهات الوثائق والامتثال\n4\nverified_user\n\nمفقود 4 • منتهي 0 • قريب 0\n\nعرض التفاصيل\nالأصول المعيّنة لي\n0\ninventory_2\n\nلا توجد أصول معيّنة لك حاليًا\n\nعرض التفاصيل\nالإجراءات السريعة\n\nاختصارات مرتبطة مباشرة بوحدات الموارد البشرية الخاصة بك.\n\nschedule\nتسجيل الحضور والانصراف\nevent_note\nطلب إجازة\nmore_time\nطلب عمل إضافي\npayments\nطلب سلفة\nreceipt_long\nعرض قسيمة الراتب\nfolder_open\nعرض الوثائق",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeDocuments": {
+      "url": "http://localhost:5017/#/app/documents-reporting",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالخدمة الذاتية\nchevron_right\nنماذجي وتقاريري\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n50\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nالخدمة الذاتية\nنماذجي وتقاريري\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\n\nحزمة C\n\nالوثائق والنماذج والتقارير\n\nمركز مؤسسي موحد للوثائق، النماذج الديناميكية، القوالب، التقارير، وسجل الطباعة.\n\nتحديث\nوثيقة جديدة\nview_agenda\nلوحة الوثائق\nلوحة الوثائق\nمركز الوثائق\nمنشئ النماذج\nإرسالات النماذج\nقوالب PDF\nمركز التقارير\nالتقارير المجدولة\nمركز التصدير\nسجل الطباعة\nالتحليلات\nالوثائق\n2\nبانتظار الاعتماد: 0\nالنماذج\n2\nقوالب قابلة لإعادة الاستخدام\nالتقارير\n6\nتعريفات تقارير محفوظة\nتنتهي قريباً\n0\nخلال 45 يوماً",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeMobileDocuments": {
+      "url": "http://localhost:5017/#/app/documents-reporting",
+      "text": "Z\nsearch\nnotifications\n50\nE\nmenu\nالخدمة الذاتية\nنماذجي وتقاريري\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\n\nحزمة C\n\nالوثائق والنماذج والتقارير\n\nمركز مؤسسي موحد للوثائق، النماذج الديناميكية، القوالب، التقارير، وسجل الطباعة.\n\nتحديث\nوثيقة جديدة\nview_agenda\nلوحة الوثائق\nلوحة الوثائق\nمركز الوثائق\nمنشئ النماذج\nإرسالات النماذج\nقوالب PDF\nمركز التقارير\nالتقارير المجدولة\nمركز التصدير\nسجل الطباعة\nالتحليلات\nالوثائق\n2\nبانتظار الاعتماد: 0\nالنماذج\n2\nقوالب قابلة لإعادة الاستخدام\nالتقارير\n6\nتعريفات تقارير محفوظة\nتنتهي قريباً\n0\nخلال 45 يوماً",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "recruiterPayroll": {
+      "url": "http://localhost:5017/#/app/recruitment",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالتوظيف\nchevron_right\nمركز التوظيف\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\nشركة زنجو للتقنية\nR\nrecruiter\nroles.recruiter\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson_search\nالتوظيف\nexpand_more\nالتوظيف\nمركز التوظيف\nroles.recruiter\n/\ncorporate_fare\nشركة زنجو للتقنية\nالموارد البشرية / التوظيف\nمركز التوظيف والتعيين\n\nإدارة طلبات التوظيف والمرشحين والمقابلات والعروض ضمن مسار توظيف متكامل مرتبط بالملفات الوظيفية.\n\nrefresh\nتحديث\nassignment_add\nطلب توظيف\nperson_add\nمرشح جديد\ndashboard\nلوحة التوظيف\nassignment\nطلبات التوظيف\nperson_search\nالمرشحون\nview_kanban\nمسار التوظيف\nevent\nالمقابلات\nlocal_offer\nالعروض\nmonitoring\nالتقارير\nالوظائف المفتوحة\n8\nالمرشحون\n22\nالمقابلات القادمة\n4\nقبول العروض\n100%\nالمرشحون حسب المرحلة\nتم التقديم\n18\nالفرز الأولي\n0\nمقابلة الموارد البشرية\n0\nالمقابلة الفنية\n3\nمقابلة المدير\n0\nالعرض الوظيفي\n1\nتم التعيين\n0\nمرفوض\n0\nمنسحب\n0",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "recruiterRecruitment": {
+      "url": "http://localhost:5017/#/app/recruitment",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالتوظيف\nchevron_right\nمركز التوظيف\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\nشركة زنجو للتقنية\nR\nrecruiter\nroles.recruiter\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson_search\nالتوظيف\nexpand_more\nالتوظيف\nمركز التوظيف\nroles.recruiter\n/\ncorporate_fare\nشركة زنجو للتقنية\nالموارد البشرية / التوظيف\nمركز التوظيف والتعيين\n\nإدارة طلبات التوظيف والمرشحين والمقابلات والعروض ضمن مسار توظيف متكامل مرتبط بالملفات الوظيفية.\n\nrefresh\nتحديث\nassignment_add\nطلب توظيف\nperson_add\nمرشح جديد\ndashboard\nلوحة التوظيف\nassignment\nطلبات التوظيف\nperson_search\nالمرشحون\nview_kanban\nمسار التوظيف\nevent\nالمقابلات\nlocal_offer\nالعروض\nmonitoring\nالتقارير\nالوظائف المفتوحة\n8\nالمرشحون\n22\nالمقابلات القادمة\n4\nقبول العروض\n100%\nالمرشحون حسب المرحلة\nتم التقديم\n18\nالفرز الأولي\n0\nمقابلة الموارد البشرية\n0\nالمقابلة الفنية\n3\nمقابلة المدير\n0\nالعرض الوظيفي\n1\nتم التعيين\n0\nمرفوض\n0\nمنسحب\n0",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "managerApprovals": {
+      "url": "http://localhost:5017/#/app/approvals",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nإدارة الفريق\nchevron_right\nالاعتمادات\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n65\nشركة زنجو للتقنية / Information Technology\nM\nmanager\nمدير القسم\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nإدارة الفريق\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nbuild\nالأدوات\nexpand_more\nإدارة الفريق\nالاعتمادات\nمدير القسم\n/\ncorporate_fare\nشركة زنجو للتقنية / Information Technology\nمركز الاعتمادات\n\nاعتماد موحد لكل طلبات سير العمل حسب دورك ونطاق صلاحياتك.\n\nغير مقروء: 0\nتحميل...\nالمجال\nكل المجالات\nالإجازات\nحركات الموظفين\nتعديلات الرواتب\nتصحيحات الحضور\nالتوظيف\nالأداء\nالعقود والامتثال\nبحث",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrApprovals": {
+      "url": "http://localhost:5017/#/app/approvals",
+      "text": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nحركات الموظفين\nchevron_right\nالاعتمادات\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n1\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nحركات الموظفين\nالاعتمادات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nمركز الاعتمادات\n\nاعتماد موحد لكل طلبات سير العمل حسب دورك ونطاق صلاحياتك.\n\nغير مقروء: 0\nتحميل...\nالمجال\nكل المجالات\nالإجازات\nحركات الموظفين\nتعديلات الرواتب\nتصحيحات الحضور\nالتوظيف\nالأداء\nالعقود والامتثال\nبحث",
+      "hasSensitivePayroll": false,
+      "hasApprovalActions": false,
+      "hasForbidden": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  },
+  "checks": {
+    "employeeApprovalsDenied": true,
+    "employeeDocumentsLoads": true,
+    "recruiterPayrollNoSensitiveData": true,
+    "recruiterRecruitmentLoads": true,
+    "managerApprovalsLoadsScoped": true,
+    "hrApprovalsLoads": true,
+    "noHorizontalOverflow": true,
+    "darkModeReadable": true,
+    "noCriticalConsoleErrors": true,
+    "noUnexpected500s": true
+  },
+  "consoleErrors": [],
+  "networkErrors": [],
+  "errors": []
+}

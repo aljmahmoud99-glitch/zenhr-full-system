@@ -134,6 +134,22 @@ type AuthReq = express.Request & { user: { userId: number; username: string; rol
 
 registerLeaveNotificationsRoutes(app, auth);
 
+async function canAccessEmployeeScoped(user: AuthReq["user"], employeeId: number, mode: "read" | "mutate" = "read") {
+  if (!Number.isFinite(employeeId) || employeeId <= 0) return false;
+  const { rows } = await pool.query(
+    `SELECT id, direct_manager_id FROM employees WHERE id=$1 AND company_id=$2 AND COALESCE(is_deleted,false)=false LIMIT 1`,
+    [employeeId, user.companyId],
+  );
+  const emp = rows[0];
+  if (!emp) return false;
+  if (user.role === "superadmin") return mode === "read";
+  if (user.role === "hradmin") return true;
+  if (user.role === "payrolladmin") return mode === "read";
+  if (user.role === "manager") return mode === "read" && Number(emp.direct_manager_id) === Number(user.employeeId);
+  if (user.role === "employee") return mode === "read" && Number(employeeId) === Number(user.employeeId);
+  return false;
+}
+
 // â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/healthz", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString(), version: "1.0.0" });
@@ -838,6 +854,7 @@ app.get("/api/employees", auth, async (req, res) => {
 app.post("/api/employees", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (user.role !== "hradmin") { res.status(403).json({ success: false, message: "Forbidden" }); return; }
     const body = req.body;
     const [emp] = await db.insert(employeesTable).values({ ...body, companyId: user.companyId }).returning();
     await logActivity(user.companyId, "employee_created", `New employee added: ${emp.firstNameEn} ${emp.lastNameEn}`, `${emp.firstNameEn} ${emp.lastNameEn}`);
@@ -852,10 +869,13 @@ app.get("/api/employees/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "read"))) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
 
     const [[emp], quals, maps] = await Promise.all([
       db.select().from(employeesTable)
-        .where(and(eq(employeesTable.id, empId), eq(employeesTable.isDeleted, false))),
+        .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false))),
       db.select().from(employeeQualificationsTable)
         .where(eq(employeeQualificationsTable.employeeId, empId))
         .orderBy(asc(employeeQualificationsTable.createdAt)),
@@ -980,7 +1000,12 @@ app.get("/api/employees/:id", auth, async (req, res) => {
 
 app.patch("/api/employees/:id", auth, async (req, res) => {
   try {
-    const [emp] = await db.update(employeesTable).set(req.body).where(eq(employeesTable.id, parseInt(req.params["id"]!))).returning();
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
+    const [emp] = await db.update(employeesTable).set({ ...req.body, companyId: user.companyId }).where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId))).returning();
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
     res.json({ success: true, data: emp });
   } catch (e) {
@@ -990,13 +1015,18 @@ app.patch("/api/employees/:id", auth, async (req, res) => {
 
 app.delete("/api/employees/:id", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    }
     const { reason, terminationDate } = req.body as { reason?: string; terminationDate?: string };
     const [emp] = await db.update(employeesTable).set({
       employmentStatus: "terminated",
       terminationDate: terminationDate ?? new Date().toISOString().split("T")[0],
       terminationReason: reason,
       isDeleted: true,
-    }).where(eq(employeesTable.id, parseInt(req.params["id"]!))).returning();
+    }).where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId))).returning();
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
     res.json({ success: true, data: emp });
   } catch (e) {
@@ -1006,8 +1036,13 @@ app.delete("/api/employees/:id", auth, async (req, res) => {
 
 app.get("/api/employees/:id/documents", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "read"))) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
     const docs = await db.select().from(documentsTable)
-      .where(and(eq(documentsTable.employeeId, parseInt(req.params["id"]!)), eq(documentsTable.isDeleted, false)));
+      .where(and(eq(documentsTable.companyId, user.companyId), eq(documentsTable.employeeId, empId), eq(documentsTable.isDeleted, false)));
     res.json({ success: true, data: docs });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1016,7 +1051,11 @@ app.get("/api/employees/:id/documents", auth, async (req, res) => {
 
 app.get("/api/employees/:id/qualifications", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
     const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "read"))) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
     const rows = await db.select().from(employeeQualificationsTable)
       .where(eq(employeeQualificationsTable.employeeId, empId))
       .orderBy(asc(employeeQualificationsTable.createdAt));
@@ -1029,10 +1068,10 @@ app.get("/api/employees/:id/qualifications", auth, async (req, res) => {
 app.post("/api/employees/:id/qualifications", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin"].includes(user.role)) {
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
-    const empId = parseInt(req.params["id"]!);
     const { qualificationType, dataJson } = req.body as { qualificationType: string; dataJson: string };
     if (!qualificationType) { res.status(400).json({ success: false, message: "qualificationType required" }); return; }
     const [row] = await db.insert(employeeQualificationsTable).values({
@@ -1049,7 +1088,8 @@ app.post("/api/employees/:id/qualifications", auth, async (req, res) => {
 app.put("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin"].includes(user.role)) {
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const qualId = parseInt(req.params["qualId"]!);
@@ -1059,7 +1099,7 @@ app.put("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
     if (dataJson !== undefined) updates["dataJson"] = typeof dataJson === "string" ? dataJson : JSON.stringify(dataJson ?? {});
     const [row] = await db.update(employeeQualificationsTable)
       .set(updates)
-      .where(eq(employeeQualificationsTable.id, qualId))
+      .where(and(eq(employeeQualificationsTable.id, qualId), eq(employeeQualificationsTable.employeeId, empId)))
       .returning();
     if (!row) { res.status(404).json({ success: false, message: "Qualification not found" }); return; }
     res.json({ success: true, data: row });
@@ -1071,11 +1111,12 @@ app.put("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
 app.delete("/api/employees/:id/qualifications/:qualId", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "superadmin"].includes(user.role)) {
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     await db.delete(employeeQualificationsTable)
-      .where(eq(employeeQualificationsTable.id, parseInt(req.params["qualId"]!)));
+      .where(and(eq(employeeQualificationsTable.id, parseInt(req.params["qualId"]!)), eq(employeeQualificationsTable.employeeId, empId)));
     res.status(204).send();
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -1084,8 +1125,13 @@ app.delete("/api/employees/:id/qualifications/:qualId", auth, async (req, res) =
 
 app.get("/api/employees/:id/leave-balances", auth, async (req, res) => {
   try {
+    const user = (req as AuthReq).user;
+    const empId = parseInt(req.params["id"]!);
+    if (!(await canAccessEmployeeScoped(user, empId, "read"))) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
     const balances = await db.select().from(leaveBalancesTable)
-      .where(eq(leaveBalancesTable.employeeId, parseInt(req.params["id"]!)));
+      .where(eq(leaveBalancesTable.employeeId, empId));
     res.json({ success: true, data: balances });
   } catch (e) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -6367,9 +6413,9 @@ app.post("/api/documents/upload", auth, (req, res) => {
       fs.unlink(file.path, () => {});
       res.status(400).json({ success: false, message: "employeeId is required" }); return;
     }
-    if (user.role === "employee" && Number(employeeId) !== user.employeeId) {
+    if (!(await canAccessEmployeeScoped(user, Number(employeeId), user.role === "employee" ? "read" : "mutate"))) {
       fs.unlink(file.path, () => {});
-      res.status(403).json({ success: false, message: "Employees can only upload their own files" }); return;
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const { rows } = await pool.query(
       `INSERT INTO file_objects
@@ -6400,15 +6446,18 @@ app.get("/api/files/:id/download", auth, async (req, res) => {
     if (user.role === "superadmin") {
       res.status(403).json({ success: false, message: "Forbidden: platform admin cannot access private company files" }); return;
     }
-    if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
+    if (user.role === "hradmin") {
+      // HR has company-scoped document access.
+    } else if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
-    if (user.role === "manager" && file.employee_id) {
+    } else if (user.role === "manager" && file.employee_id) {
       const scope = await getEmployeeScopeConditions(req as AuthReq);
       const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
       if (!team.some(e => Number(e.id) === Number(file.employee_id))) {
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
+    } else if (user.role !== "employee" && user.role !== "manager") {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const absolute = safeStoragePath(file.storage_key);
     if (!absolute || !fs.existsSync(absolute)) { res.status(404).json({ success: false, message: "File missing on storage" }); return; }
@@ -6429,9 +6478,16 @@ app.get("/api/files", auth, async (req, res) => {
     const user = (req as AuthReq).user;
     const values: any[] = [user.companyId];
     const filters = ["company_id = $1", "is_deleted = false"];
-    if (user.role === "employee") {
+    if (user.role === "hradmin") {
+      // HR sees company files.
+    } else if (user.role === "employee") {
       filters.push(`employee_id = $${values.length + 1}`);
       values.push(user.employeeId);
+    } else if (user.role === "manager") {
+      filters.push(`employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${values.length + 1} AND is_deleted=false)`);
+      values.push(user.employeeId ?? -1);
+    } else {
+      res.json({ success: true, data: [] }); return;
     }
     const { rows } = await pool.query(`SELECT * FROM file_objects WHERE ${filters.join(" AND ")} ORDER BY created_at DESC LIMIT 100`, values);
     res.json({ success: true, data: rows });

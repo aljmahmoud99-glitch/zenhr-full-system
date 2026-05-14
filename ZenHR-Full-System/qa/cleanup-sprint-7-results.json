@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-05-14T17:18:51.487Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "size": 77,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-14T17:18:51.536Z",
+      "version": "1.0.0"
+    },
+    "sample": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-14T17:18:51.536Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "fixtures": {
+    "employeeListStatus": 200,
+    "employeeId": 8,
+    "ownEmployeeId": 8,
+    "otherEmployeeId": 37,
+    "managerEmployeeId": 7,
+    "managerTeamIds": [
+      2,
+      8,
+      31,
+      32,
+      33,
+      34
+    ],
+    "managerNonTeamId": 37
+  },
+  "tenant": {
+    "crossCompanyEmployeeDocumentStatus": 400,
+    "employeeOtherProfileStatus": 404,
+    "employeeOtherDocumentsStatus": 404,
+    "employeeOtherLeaveBalancesStatus": 404,
+    "fileDownloadCrossEmployeeStatus": 403,
+    "fileDownloadCrossEmployeeTested": true,
+    "passed": true
+  },
+  "rbac": {
+    "employeeOwnProfileStatus": 200,
+    "employeeOtherProfileStatus": 404,
+    "employeeOtherDocumentsStatus": 404,
+    "employeeOtherLeaveBalancesStatus": 404,
+    "employeeApprovalsStatus": 403,
+    "employeePayrollPreviewStatus": 403,
+    "managerNonTeamProfileStatus": 404,
+    "managerApprovalsStatus": 200,
+    "recruiterPayrollAdjustmentsStatus": 403,
+    "payrollRecruitmentMutationStatus": 403,
+    "payrollHrDocumentStatus": 403,
+    "recruiterPayrollDocumentStatus": 403,
+    "passed": true
+  },
+  "exportSecurity": {
+    "employeePayrollExportStatus": 403,
+    "managerPayrollExportStatus": 403,
+    "recruiterPayrollExportStatus": 403,
+    "recruiterRecruitmentExportStatus": 200,
+    "recruiterRecruitmentExportDownload": true,
+    "employeeForeignFileDownloadStatus": 403,
+    "employeeForeignFileFixture": {
+      "id": "21",
+      "employeeId": 1
+    },
+    "employeeFilesScopedOwn": true,
+    "managerFilesScopedTeam": true,
+    "payrollGenericFilesHidden": true,
+    "recruiterGenericFilesHidden": true,
+    "passed": true
+  },
+  "notifications": {
+    "createStatus": 201,
+    "hrNotificationId": 430,
+    "employeeReadForeignStatus": 200,
+    "employeeOwnNotificationIds": [
+      420,
+      412,
+      407,
+      402,
+      397,
+      393,
+      381,
+      377,
+      373,
+      369
+    ],
+    "employeeUnreadStatus": 200,
+    "legacyNotificationsStatus": 200,
+    "legacyMatchesCenterShape": true,
+    "foreignNotificationNotVisible": true,
+    "passed": true
+  },
+  "legacyRoutes": {
+    "employeeLegacyDocumentsStatus": 404,
+    "employeeLegacyLeaveBalancesStatus": 404,
+    "genericFilesEmployeeStatus": 200,
+    "genericFilesManagerStatus": 200,
+    "genericFilesPayrollStatus": 200,
+    "genericFilesRecruiterStatus": 200,
+    "legacyNotificationsStatus": 200,
+    "passed": true
+  },
+  "errors": []
+}

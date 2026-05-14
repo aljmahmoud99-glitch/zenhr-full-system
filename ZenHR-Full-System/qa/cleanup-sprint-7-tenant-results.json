@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-05-14T17:18:51.487Z",
+  "status": "GO",
+  "tenant": {
+    "crossCompanyEmployeeDocumentStatus": 400,
+    "employeeOtherProfileStatus": 404,
+    "employeeOtherDocumentsStatus": 404,
+    "employeeOtherLeaveBalancesStatus": 404,
+    "fileDownloadCrossEmployeeStatus": 403,
+    "fileDownloadCrossEmployeeTested": true,
+    "passed": true
+  },
+  "fixtures": {
+    "employeeListStatus": 200,
+    "employeeId": 8,
+    "ownEmployeeId": 8,
+    "otherEmployeeId": 37,
+    "managerEmployeeId": 7,
+    "managerTeamIds": [
+      2,
+      8,
+      31,
+      32,
+      33,
+      34
+    ],
+    "managerNonTeamId": 37
+  }
+}
