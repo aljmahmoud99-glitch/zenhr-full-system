@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-05-14T18:39:39.558Z",
+  "status": "GO",
+  "baseUrl": "http://localhost:5019",
+  "backend": "http://localhost:3001",
+  "pages": {
+    "hrDashboard": {
+      "url": "http://localhost:5019/#/app/dashboard",
+      "length": 2022,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrDocumentsReporting": {
+      "url": "http://localhost:5019/#/app/documents-reporting",
+      "length": 976,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrApprovals": {
+      "url": "http://localhost:5019/#/app/approvals",
+      "length": 743,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrPayrollOperations": {
+      "url": "http://localhost:5019/#/app/payroll-attendance",
+      "length": 1108,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "payrollRun": {
+      "url": "http://localhost:5019/#/app/payroll/runs",
+      "length": 6489,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeNotifications": {
+      "url": "http://localhost:5019/#/app/notifications",
+      "length": 3970,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeMobileNotifications": {
+      "url": "http://localhost:5019/#/app/notifications",
+      "length": 3732,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "recruiterRecruitment": {
+      "url": "http://localhost:5019/#/app/recruitment",
+      "length": 909,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  },
+  "checks": {
+    "pagesLoaded": true,
+    "noStuckLoading": true,
+    "noHorizontalOverflow": true,
+    "darkModeReadable": true,
+    "noMojibakeDetected": true,
+    "noCriticalConsoleErrors": true,
+    "noUnexpected500s": true
+  },
+  "consoleErrors": [],
+  "networkErrors": [],
+  "errors": []
+}

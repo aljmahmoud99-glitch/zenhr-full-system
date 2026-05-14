@@ -1,0 +1,207 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "validationGates": {
+    "typecheck": "PASS",
+    "angularDevelopmentBuild": "PASS",
+    "angularProductionBuild": "PASS",
+    "backendHealth": "PASS",
+    "apiSmoke": "PASS",
+    "browserUat": "PASS"
+  },
+  "health": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "aa2d87a4-91ac-4050-8c28-a0be95bc9de3",
+    "rateRemaining": "",
+    "size": 77,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-14T18:41:11.430Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-14T18:41:11.430Z\",\"version\":\"1.0.0\"}"
+  },
+  "readiness": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "64a39b17-dd97-4884-91d5-e00077db73f7",
+    "rateRemaining": "",
+    "size": 90,
+    "body": {
+      "status": "ready",
+      "version": "1.0.0",
+      "checks": {
+        "database": {
+          "ok": true
+        },
+        "queue": {
+          "ok": true
+        }
+      }
+    },
+    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true}}}"
+  },
+  "version": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "214e7f12-905a-4e02-b7c7-ac5212528c94",
+    "rateRemaining": "",
+    "size": 90,
+    "body": {
+      "success": true,
+      "data": {
+        "name": "zenjo-api",
+        "version": "1.0.0",
+        "environment": "development"
+      }
+    },
+    "text": "{\"success\":true,\"data\":{\"name\":\"zenjo-api\",\"version\":\"1.0.0\",\"environment\":\"development\"}}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "logging": {
+    "requestId": "phase9-1778784071669",
+    "responseRequestId": "phase9-1778784071669",
+    "structuredLogFound": true,
+    "passwordLeaked": false,
+    "passed": true
+  },
+  "queue": {
+    "firstJobStatus": 202,
+    "secondJobStatus": 202,
+    "firstJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
+    "secondJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
+    "deduped": true,
+    "finalStatus": "completed",
+    "attempts": 1,
+    "downloadStatus": 200,
+    "downloadSize": 15818,
+    "metricsStatus": 200,
+    "queueMetrics": {
+      "size": 1,
+      "activeKeys": 0,
+      "byStatus": {
+        "completed": 1
+      }
+    },
+    "passed": true
+  },
+  "exports": {
+    "syncCsv": {
+      "status": 200,
+      "contentType": "text/csv; charset=utf-8",
+      "size": 14659,
+      "downloadable": true
+    },
+    "syncXlsx": {
+      "status": 200,
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size": 15818,
+      "downloadable": true
+    },
+    "syncPdf": {
+      "status": 200,
+      "contentType": "application/pdf",
+      "size": 7002,
+      "downloadable": true
+    },
+    "asyncDownload": {
+      "status": 200,
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size": 15818,
+      "downloadable": true
+    },
+    "passed": true
+  },
+  "performance": {
+    "readinessStatus": 200,
+    "metricsStatus": 200,
+    "metricsHaveRoutes": true,
+    "exportDurationHeaderPresent": true,
+    "passed": true
+  },
+  "rateLimit": {
+    "statuses": [
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429,
+      429
+    ],
+    "blocked": true,
+    "passed": true
+  },
+  "storage": {
+    "hrFilesStatus": 200,
+    "foreignFixture": {
+      "id": "21",
+      "employeeId": 1,
+      "storageKey": "doc_1778200161693_sarb9xbsr2f.pdf"
+    },
+    "foreignApiDownloadStatus": 403,
+    "foreignUploadsDownloadStatus": 403,
+    "recruiterFilesStatus": 200,
+    "recruiterFilesCount": 0,
+    "passed": true
+  },
+  "regression": {
+    "cleanupSprint5PayrollTruth": "GO",
+    "cleanupSprint7Security": "GO",
+    "cleanupSprint8EnterpriseRegression": "GO",
+    "passed": true
+  },
+  "errors": []
+}

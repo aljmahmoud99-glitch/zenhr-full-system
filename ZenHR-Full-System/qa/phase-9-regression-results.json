@@ -1,0 +1,10 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "status": "GO",
+  "regression": {
+    "cleanupSprint5PayrollTruth": "GO",
+    "cleanupSprint7Security": "GO",
+    "cleanupSprint8EnterpriseRegression": "GO",
+    "passed": true
+  }
+}

@@ -60,8 +60,91 @@ import {
 } from "./permission-service.js";
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+const SERVICE_VERSION = process.env["APP_VERSION"] || "1.0.0";
+const IS_PRODUCTION = process.env["NODE_ENV"] === "production";
+const corsOrigins = (process.env["CORS_ORIGINS"] || "").split(",").map(s => s.trim()).filter(Boolean);
+app.set("trust proxy", process.env["TRUST_PROXY"] === "true" ? 1 : false);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || !IS_PRODUCTION || corsOrigins.length === 0 || corsOrigins.includes(origin)) return cb(null, true);
+    cb(new Error("CORS origin not allowed"));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: process.env["JSON_BODY_LIMIT"] || "1mb" }));
+
+type OperationalMetric = { count: number; totalMs: number; maxMs: number; errors: number };
+const operationalMetrics: Record<string, OperationalMetric> = {};
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function routeBucket(req: express.Request) {
+  const pathName = req.path || "";
+  if (pathName === "/api/auth/login") return { name: "auth", limit: 12, windowMs: 60_000 };
+  if (pathName.includes("/exports")) return { name: "exports", limit: 30, windowMs: 60_000 };
+  if (pathName.includes("/upload") || pathName.startsWith("/uploads")) return { name: "uploads", limit: 40, windowMs: 60_000 };
+  if (/(approve|reject|action|calculate|recalculate|read-all|test)/i.test(pathName)) return { name: "sensitive-actions", limit: 80, windowMs: 60_000 };
+  return null;
+}
+
+function safeLog(details: Record<string, unknown>) {
+  console.log(JSON.stringify({ service: "zenjo-api", ...details }));
+}
+
+function metricKey(req: express.Request) {
+  const route = (req.route?.path && typeof req.route.path === "string") ? req.route.path : req.path;
+  return `${req.method} ${route}`;
+}
+
+app.use((req, res, next) => {
+  const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
+  (req as any).requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+  const started = Date.now();
+  res.on("finish", () => {
+    const durationMs = Date.now() - started;
+    const user = (req as Partial<AuthReq>).user;
+    const key = metricKey(req);
+    const metric = operationalMetrics[key] || { count: 0, totalMs: 0, maxMs: 0, errors: 0 };
+    metric.count += 1;
+    metric.totalMs += durationMs;
+    metric.maxMs = Math.max(metric.maxMs, durationMs);
+    if (res.statusCode >= 500) metric.errors += 1;
+    operationalMetrics[key] = metric;
+    safeLog({
+      level: res.statusCode >= 500 ? "error" : "info",
+      event: "http_request",
+      requestId,
+      method: req.method,
+      route: req.route?.path || req.path,
+      status: res.statusCode,
+      durationMs,
+      userId: user?.userId ?? null,
+      companyId: user?.companyId ?? null,
+      role: user?.role ?? null,
+    });
+  });
+  next();
+});
+
+app.use((req, res, next) => {
+  if (["/api/healthz", "/api/readiness", "/api/version"].includes(req.path)) return next();
+  const bucket = routeBucket(req);
+  if (!bucket) return next();
+  const key = `${bucket.name}:${req.ip}:${(req as Partial<AuthReq>).user?.userId ?? "anon"}`;
+  const now = Date.now();
+  const current = rateBuckets.get(key);
+  const entry = current && current.resetAt > now ? current : { count: 0, resetAt: now + bucket.windowMs };
+  entry.count += 1;
+  rateBuckets.set(key, entry);
+  res.setHeader("x-rate-limit-limit", String(bucket.limit));
+  res.setHeader("x-rate-limit-remaining", String(Math.max(0, bucket.limit - entry.count)));
+  res.setHeader("retry-after", String(Math.ceil(Math.max(0, entry.resetAt - now) / 1000)));
+  if (entry.count > bucket.limit) {
+    res.status(429).json({ success: false, message: "Too many requests. Please retry shortly.", requestId: (req as any).requestId });
+    return;
+  }
+  next();
+});
 
 // â”€â”€â”€ File upload (multer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
@@ -79,7 +162,9 @@ const docUpload = multer({
   storage: docStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_DOC_MIMES.has(file.mimetype)) cb(null, true);
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const allowedExts = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp"]);
+    if (ALLOWED_DOC_MIMES.has(file.mimetype) && allowedExts.has(ext)) cb(null, true);
     else cb(new Error("Unsupported file type. Allowed: PDF, JPEG, PNG, WEBP"));
   },
 });
@@ -118,7 +203,17 @@ app.use("/uploads", auth, async (req, res) => {
     if (file.company_id !== user.companyId || user.role === "superadmin") {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
-    if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
+    if (user.role === "hradmin") {
+      // HR has company-scoped access to uploaded employee files.
+    } else if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
+    } else if (user.role === "manager" && file.employee_id) {
+      const scope = await getEmployeeScopeConditions(req as AuthReq);
+      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
+      if (!team.some(e => Number(e.id) === Number(file.employee_id))) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
+    } else if (user.role !== "employee" && user.role !== "manager") {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const absolute = safeStoragePath(file.storage_key);
@@ -152,7 +247,26 @@ async function canAccessEmployeeScoped(user: AuthReq["user"], employeeId: number
 
 // â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/healthz", (_req, res) => {
-  res.json({ status: "healthy", timestamp: new Date().toISOString(), version: "1.0.0" });
+  res.json({ status: "healthy", timestamp: new Date().toISOString(), version: SERVICE_VERSION });
+});
+
+app.get("/api/version", (_req, res) => {
+  res.json({ success: true, data: { name: "zenjo-api", version: SERVICE_VERSION, environment: process.env["NODE_ENV"] || "development" } });
+});
+
+app.get("/api/readiness", async (_req, res) => {
+  const checks: Record<string, { ok: boolean; message?: string }> = {
+    database: { ok: false },
+    queue: { ok: true },
+  };
+  try {
+    await pool.query("SELECT 1");
+    checks.database = { ok: true };
+  } catch (e: any) {
+    checks.database = { ok: false, message: IS_PRODUCTION ? "database check failed" : e?.message };
+  }
+  const ok = Object.values(checks).every(check => check.ok);
+  res.status(ok ? 200 : 503).json({ status: ok ? "ready" : "not_ready", version: SERVICE_VERSION, checks });
 });
 
 // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -20096,6 +20210,34 @@ app.get("/api/document-reporting/analytics", auth, async (req, res) => {
 
 // Bundle D: production export hardening
 type BundleDExportDataset = "employees" | "attendance" | "payroll" | "recruitment" | "evaluations" | "reports" | "workflows";
+type ExportFormat = "csv" | "xlsx" | "pdf";
+type ExportJobStatus = "queued" | "running" | "completed" | "failed";
+type ExportJob = {
+  id: string;
+  key: string;
+  companyId: number;
+  userId: number;
+  role: string;
+  dataset: BundleDExportDataset;
+  format: ExportFormat;
+  status: ExportJobStatus;
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  failedAt?: string;
+  durationMs?: number;
+  error?: string;
+  fileName?: string;
+  contentType?: string;
+  size?: number;
+  buffer?: Buffer;
+  requestId?: string;
+};
+const exportJobs = new Map<string, ExportJob>();
+const activeExportKeys = new Map<string, string>();
+const EXPORT_JOB_RETENTION_MS = 30 * 60 * 1000;
 
 function bundleDCanExport(user: any, dataset: BundleDExportDataset) {
   if (user?.role === "hradmin") return true;
@@ -20107,6 +20249,14 @@ function bundleDCanExport(user: any, dataset: BundleDExportDataset) {
   if (dataset === "reports") return ["payrolladmin", "manager"].includes(user?.role);
   if (dataset === "workflows") return ["manager", "payrolladmin"].includes(user?.role);
   return false;
+}
+
+function allowedExportDataset(dataset: string): dataset is BundleDExportDataset {
+  return ["employees", "attendance", "payroll", "recruitment", "evaluations", "reports", "workflows"].includes(dataset);
+}
+
+function allowedExportFormat(format: string): format is ExportFormat {
+  return ["csv", "xlsx", "pdf"].includes(format);
 }
 
 function csvEscape(value: unknown) {
@@ -20291,52 +20441,216 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
   ] as ExportColumn[] };
 }
 
+async function buildProductionExport(user: any, dataset: BundleDExportDataset, format: ExportFormat) {
+  const started = Date.now();
+  const exportData = await bundleDExportData(user, dataset);
+  const fileBase = `zenjo-${dataset}-${new Date().toISOString().slice(0, 10)}`;
+  if (format === "csv") {
+    const buffer = Buffer.from(toCsv(exportData.columns, exportData.rows), "utf8");
+    return { buffer, contentType: "text/csv; charset=utf-8", fileName: `${fileBase}.csv`, rowCount: exportData.rows.length, durationMs: Date.now() - started };
+  }
+  if (format === "pdf") {
+    const buffer = simplePdfBuffer(exportData.title, exportData.columns, exportData.rows);
+    return { buffer, contentType: "application/pdf", fileName: `${fileBase}.pdf`, rowCount: exportData.rows.length, durationMs: Date.now() - started };
+  }
+  const company = await pool.query(`SELECT name_en, name_ar FROM companies WHERE id=$1`, [user.companyId]);
+  const buffer = await generateExcelBuffer({
+    sheetName: dataset,
+    columns: exportData.columns,
+    data: exportData.rows,
+    companyName: company.rows[0]?.name_en || "ZenJO",
+    companyNameAr: company.rows[0]?.name_ar || undefined,
+    reportTitle: exportData.title,
+    reportTitleAr: exportData.titleAr,
+  });
+  return { buffer, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName: `${fileBase}.xlsx`, rowCount: exportData.rows.length, durationMs: Date.now() - started };
+}
+
+function exportQueueStats() {
+  const byStatus: Record<string, number> = {};
+  for (const job of exportJobs.values()) byStatus[job.status] = (byStatus[job.status] || 0) + 1;
+  return { size: exportJobs.size, activeKeys: activeExportKeys.size, byStatus };
+}
+
+function sanitizeJob(job: ExportJob) {
+  const { buffer: _buffer, ...safe } = job;
+  return safe;
+}
+
+async function runExportJob(id: string) {
+  const job = exportJobs.get(id);
+  if (!job || job.status === "running" || job.status === "completed") return;
+  job.status = "running";
+  job.attempts += 1;
+  job.startedAt = new Date().toISOString();
+  job.updatedAt = job.startedAt;
+  const started = Date.now();
+  try {
+    const built = await buildProductionExport({
+      userId: job.userId,
+      companyId: job.companyId,
+      role: job.role,
+      employeeId: null,
+    }, job.dataset, job.format);
+    job.buffer = built.buffer;
+    job.contentType = built.contentType;
+    job.fileName = built.fileName;
+    job.size = built.buffer.length;
+    job.status = "completed";
+    job.completedAt = new Date().toISOString();
+    job.durationMs = Date.now() - started;
+    job.updatedAt = job.completedAt;
+    safeLog({ level: "info", event: "export_job_completed", requestId: job.requestId, jobId: job.id, dataset: job.dataset, format: job.format, userId: job.userId, companyId: job.companyId, durationMs: job.durationMs, size: job.size });
+  } catch (e: any) {
+    job.status = "failed";
+    job.failedAt = new Date().toISOString();
+    job.updatedAt = job.failedAt;
+    job.durationMs = Date.now() - started;
+    job.error = IS_PRODUCTION ? "Export generation failed" : (e?.stack || e?.message || String(e));
+    safeLog({ level: "error", event: "export_job_failed", requestId: job.requestId, jobId: job.id, dataset: job.dataset, format: job.format, userId: job.userId, companyId: job.companyId, durationMs: job.durationMs, error: job.error });
+  } finally {
+    activeExportKeys.delete(job.key);
+    setTimeout(() => exportJobs.delete(id), EXPORT_JOB_RETENTION_MS).unref?.();
+  }
+}
+
 app.get("/api/production/exports/:dataset", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const dataset = String(req.params["dataset"] || "") as BundleDExportDataset;
+    const requestId = (req as any).requestId;
+    const started = Date.now();
+    const dataset = String(req.params["dataset"] || "");
     const format = String(req.query["format"] || "xlsx").toLowerCase();
-    const allowedDatasets = new Set(["employees", "attendance", "payroll", "recruitment", "evaluations", "reports", "workflows"]);
-    if (!allowedDatasets.has(dataset)) return res.status(404).json({ success: false, message: "Export dataset not found" });
-    if (!["csv", "xlsx", "pdf"].includes(format)) return res.status(400).json({ success: false, message: "format must be csv, xlsx, or pdf" });
+    if (!allowedExportDataset(dataset)) return res.status(404).json({ success: false, message: "Export dataset not found" });
+    if (!allowedExportFormat(format)) return res.status(400).json({ success: false, message: "format must be csv, xlsx, or pdf" });
     if (!bundleDCanExport(user, dataset)) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    const exportData = await bundleDExportData(user, dataset);
-    const fileBase = `zenjo-${dataset}-${new Date().toISOString().slice(0, 10)}`;
-    if (format === "csv") {
-      const csv = toCsv(exportData.columns, exportData.rows);
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.csv"`);
-      res.send(csv);
-      return;
-    }
-    if (format === "pdf") {
-      const pdf = simplePdfBuffer(exportData.title, exportData.columns, exportData.rows);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.pdf"`);
-      res.send(pdf);
-      return;
-    }
-    const company = await pool.query(`SELECT name_en, name_ar FROM companies WHERE id=$1`, [user.companyId]);
-    const buffer = await generateExcelBuffer({
-      sheetName: dataset,
-      columns: exportData.columns,
-      data: exportData.rows,
-      companyName: company.rows[0]?.name_en || "ZenJO",
-      companyNameAr: company.rows[0]?.name_ar || undefined,
-      reportTitle: exportData.title,
-      reportTitleAr: exportData.titleAr,
-    });
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.xlsx"`);
-    res.send(buffer);
+    const built = await buildProductionExport(user, dataset, format);
+    safeLog({ level: "info", event: "export_sync_completed", requestId, dataset, format, userId: user.userId, companyId: user.companyId, durationMs: Date.now() - started, size: built.buffer.length });
+    res.setHeader("Content-Type", built.contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${built.fileName}"`);
+    res.setHeader("x-export-duration-ms", String(built.durationMs));
+    res.setHeader("x-export-row-count", String(built.rowCount));
+    res.send(built.buffer);
   } catch (e: any) {
     console.error("[GET /api/production/exports/:dataset]", e);
-    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e) });
+    res.status(bundleCStatus(e)).json({ success: false, message: bundleCMessage(e), requestId: (req as any).requestId });
   }
 });
 
+app.post("/api/production/exports/:dataset/jobs", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const dataset = String(req.params["dataset"] || "");
+    const format = String(req.body?.format || req.query["format"] || "xlsx").toLowerCase();
+    if (!allowedExportDataset(dataset)) return res.status(404).json({ success: false, message: "Export dataset not found" });
+    if (!allowedExportFormat(format)) return res.status(400).json({ success: false, message: "format must be csv, xlsx, or pdf" });
+    if (!bundleDCanExport(user, dataset)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const key = `${user.companyId}:${user.userId}:${dataset}:${format}`;
+    const existingId = activeExportKeys.get(key);
+    const existing = existingId ? exportJobs.get(existingId) : null;
+    if (existing && ["queued", "running"].includes(existing.status)) {
+      res.status(202).json({ success: true, data: sanitizeJob(existing), deduped: true });
+      return;
+    }
+    const now = new Date().toISOString();
+    const job: ExportJob = {
+      id: crypto.randomUUID(),
+      key,
+      companyId: user.companyId,
+      userId: user.userId,
+      role: user.role,
+      dataset,
+      format,
+      status: "queued",
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+      requestId: (req as any).requestId,
+    };
+    exportJobs.set(job.id, job);
+    activeExportKeys.set(key, job.id);
+    safeLog({ level: "info", event: "export_job_queued", requestId: job.requestId, jobId: job.id, dataset, format, userId: user.userId, companyId: user.companyId });
+    setImmediate(() => runExportJob(job.id));
+    res.status(202).json({ success: true, data: sanitizeJob(job) });
+  } catch (e: any) {
+    console.error("[POST /api/production/exports/:dataset/jobs]", e);
+    res.status(500).json({ success: false, message: IS_PRODUCTION ? "Export queue failed" : e?.message, requestId: (req as any).requestId });
+  }
+});
+
+app.get("/api/production/exports/jobs/:id", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const job = exportJobs.get(String(req.params["id"] || ""));
+  if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
+  res.json({ success: true, data: sanitizeJob(job) });
+});
+
+app.post("/api/production/exports/jobs/:id/retry", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const job = exportJobs.get(String(req.params["id"] || ""));
+  if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
+  if (job.status !== "failed") return res.status(409).json({ success: false, message: "Only failed jobs can be retried" });
+  job.status = "queued";
+  job.error = undefined;
+  job.updatedAt = new Date().toISOString();
+  activeExportKeys.set(job.key, job.id);
+  setImmediate(() => runExportJob(job.id));
+  res.status(202).json({ success: true, data: sanitizeJob(job) });
+});
+
+app.get("/api/production/exports/jobs/:id/download", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  const job = exportJobs.get(String(req.params["id"] || ""));
+  if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
+  if (job.status !== "completed" || !job.buffer || !job.contentType || !job.fileName) return res.status(409).json({ success: false, message: "Export job is not ready" });
+  res.setHeader("Content-Type", job.contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${job.fileName}"`);
+  res.setHeader("x-export-job-id", job.id);
+  res.send(job.buffer);
+});
+
+app.get("/api/ops/metrics", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+  const routes = Object.entries(operationalMetrics).map(([key, m]) => ({
+    route: key,
+    count: m.count,
+    errors: m.errors,
+    avgMs: m.count ? Math.round(m.totalMs / m.count) : 0,
+    maxMs: m.maxMs,
+  })).sort((a, b) => b.count - a.count).slice(0, 200);
+  res.json({ success: true, data: { generatedAt: new Date().toISOString(), version: SERVICE_VERSION, queue: exportQueueStats(), routes } });
+});
+
 registerComplianceContractsRoutes(app, auth);
+
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const requestId = (req as any).requestId || crypto.randomUUID();
+  safeLog({
+    level: "error",
+    event: "unhandled_request_error",
+    requestId,
+    route: req.path,
+    method: req.method,
+    status: err?.status || 500,
+    error: IS_PRODUCTION ? err?.message || "Unhandled error" : err?.stack || err?.message || String(err),
+  });
+  if (res.headersSent) return;
+  res.status(err?.status || 500).json({
+    success: false,
+    message: IS_PRODUCTION ? "Internal server error" : (err?.message || "Internal server error"),
+    requestId,
+  });
+});
+
+process.on("unhandledRejection", (reason) => {
+  safeLog({ level: "error", event: "unhandled_rejection", error: IS_PRODUCTION ? "Unhandled promise rejection" : String(reason) });
+});
+
+process.on("uncaughtException", (error) => {
+  safeLog({ level: "error", event: "uncaught_exception", error: IS_PRODUCTION ? error.message : error.stack || error.message });
+});
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`ZenJO API server running on http://localhost:${PORT}`);

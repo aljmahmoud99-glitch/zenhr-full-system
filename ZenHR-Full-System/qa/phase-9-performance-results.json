@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "status": "GO",
+  "performance": {
+    "readinessStatus": 200,
+    "metricsStatus": 200,
+    "metricsHaveRoutes": true,
+    "exportDurationHeaderPresent": true,
+    "passed": true
+  }
+}

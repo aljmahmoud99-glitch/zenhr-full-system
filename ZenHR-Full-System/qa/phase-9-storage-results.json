@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "status": "GO",
+  "storage": {
+    "hrFilesStatus": 200,
+    "foreignFixture": {
+      "id": "21",
+      "employeeId": 1,
+      "storageKey": "doc_1778200161693_sarb9xbsr2f.pdf"
+    },
+    "foreignApiDownloadStatus": 403,
+    "foreignUploadsDownloadStatus": 403,
+    "recruiterFilesStatus": 200,
+    "recruiterFilesCount": 0,
+    "passed": true
+  }
+}

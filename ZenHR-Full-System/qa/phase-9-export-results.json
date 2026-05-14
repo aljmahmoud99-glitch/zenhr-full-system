@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "status": "GO",
+  "exports": {
+    "syncCsv": {
+      "status": 200,
+      "contentType": "text/csv; charset=utf-8",
+      "size": 14659,
+      "downloadable": true
+    },
+    "syncXlsx": {
+      "status": 200,
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size": 15818,
+      "downloadable": true
+    },
+    "syncPdf": {
+      "status": 200,
+      "contentType": "application/pdf",
+      "size": 7002,
+      "downloadable": true
+    },
+    "asyncDownload": {
+      "status": 200,
+      "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size": 15818,
+      "downloadable": true
+    },
+    "passed": true
+  }
+}

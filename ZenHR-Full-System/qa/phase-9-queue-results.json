@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "status": "GO",
+  "queue": {
+    "firstJobStatus": 202,
+    "secondJobStatus": 202,
+    "firstJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
+    "secondJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
+    "deduped": true,
+    "finalStatus": "completed",
+    "attempts": 1,
+    "downloadStatus": 200,
+    "downloadSize": 15818,
+    "metricsStatus": 200,
+    "queueMetrics": {
+      "size": 1,
+      "activeKeys": 0,
+      "byStatus": {
+        "completed": 1
+      }
+    },
+    "passed": true
+  }
+}
