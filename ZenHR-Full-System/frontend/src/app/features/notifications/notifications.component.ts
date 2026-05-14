@@ -113,7 +113,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   loadPreferences(): void {
-    this.api.get<ApiResponse<any[]>>('/api/notifications/preferences')
+    this.api.get<ApiResponse<any[]>>('/api/notifications/center/preferences')
       .subscribe({ next: res => { this.preferences = res.data || []; this.cdr.markForCheck(); } });
   }
 
@@ -124,7 +124,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   markRead(row: NotificationRow): void {
-    this.api.patch<ApiResponse<unknown>>(`/api/notifications/${row.id}/read`)
+    this.api.patch<ApiResponse<unknown>>(`/api/notifications/center/${row.id}/read`)
       .subscribe({
         next: () => { row.status = 'read'; this.cdr.markForCheck(); },
         error: err => this.toast.error(err?.error?.message || this.t('تعذر تحديث الإشعار.', 'Unable to update notification.'))
@@ -132,7 +132,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   markUnread(row: NotificationRow): void {
-    this.api.patch<ApiResponse<unknown>>(`/api/notifications/${row.id}/unread`)
+    this.api.patch<ApiResponse<unknown>>(`/api/notifications/center/${row.id}/unread`)
       .subscribe({
         next: () => { row.status = 'unread'; this.cdr.markForCheck(); },
         error: err => this.toast.error(err?.error?.message || this.t('تعذر تحديث الإشعار.', 'Unable to update notification.'))
@@ -140,7 +140,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   markAllRead(): void {
-    this.api.patch<ApiResponse<unknown>>('/api/notifications/read-all')
+    this.api.patch<ApiResponse<unknown>>('/api/notifications/center/read-all')
       .subscribe({
         next: () => {
           this.rows = this.rows.map(row => ({ ...row, status: 'read' }));
@@ -152,7 +152,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   archive(row: NotificationRow): void {
-    this.api.patch<ApiResponse<unknown>>(`/api/notifications/${row.id}/archive`)
+    this.api.patch<ApiResponse<unknown>>(`/api/notifications/center/${row.id}/archive`)
       .subscribe({
         next: () => { this.rows = this.rows.filter(item => item.id !== row.id); this.cdr.markForCheck(); },
         error: err => this.toast.error(err?.error?.message || this.t('تعذر أرشفة الإشعار.', 'Unable to archive notification.'))
@@ -161,7 +161,7 @@ export class NotificationsComponent implements OnInit {
 
   savePreference(pref: any): void {
     this.saving = true;
-    this.api.patch<ApiResponse<any>>('/api/notifications/preferences', {
+    this.api.patch<ApiResponse<any>>('/api/notifications/center/preferences', {
       notificationType: pref.notification_type || pref.notificationType || '*',
       inAppEnabled: pref.in_app_enabled ?? pref.inAppEnabled,
       emailEnabled: pref.email_enabled ?? pref.emailEnabled

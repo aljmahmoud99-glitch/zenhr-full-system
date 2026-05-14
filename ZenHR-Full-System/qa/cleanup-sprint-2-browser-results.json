@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-05-14T03:36:38.860Z",
+  "status": "GO",
+  "frontend": "http://localhost:5000",
+  "backend": "http://localhost:3001",
+  "auth": {
+    "status": 200,
+    "role": "hradmin"
+  },
+  "page": {
+    "url": "http://localhost:5000/#/app/approvals",
+    "title": "ZenJO — نظام الموارد البشرية",
+    "hasApprovalCenter": true,
+    "hasNoPendingOrCards": true,
+    "cardCount": 72,
+    "approveButtons": 72,
+    "bodyDir": "ltr",
+    "darkSurface": {
+      "background": "rgb(17, 28, 24)",
+      "color": "rgb(238, 248, 243)"
+    },
+    "horizontalOverflow": false
+  },
+  "checks": {
+    "loaded": true,
+    "hasDataOrEmptyState": true,
+    "darkModeReadableSample": true,
+    "responsiveNoHorizontalOverflowDesktop": true,
+    "responsiveNoHorizontalOverflowMobile": true
+  },
+  "consoleErrors": [],
+  "errors": []
+}

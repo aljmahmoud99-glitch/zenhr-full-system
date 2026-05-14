@@ -1,0 +1,322 @@
+{
+  "generatedAt": "2026-05-13T22:16:47.297Z",
+  "backend": "http://localhost:3001",
+  "mode": "verification-only",
+  "status": "NO_GO",
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "flows": {
+    "payrollAdjustment": {
+      "classification": "CONFIRMED WORKING",
+      "adjustmentId": "15",
+      "createStatus": 201,
+      "approvalSteps": [
+        {
+          "status": 200,
+          "bodyStatus": "pending"
+        },
+        {
+          "status": 200,
+          "bodyStatus": "pending"
+        },
+        {
+          "status": 200,
+          "bodyStatus": "approved"
+        }
+      ],
+      "finalAdjustmentStatus": "approved",
+      "runId": 13,
+      "calculateStatus": 200,
+      "payslipId": 120,
+      "appearsInSnapshot": true,
+      "beforePreviewNet": "-5650.000",
+      "afterPreviewNet": "-5650.000",
+      "applyStatus": 200,
+      "retryApplyStatus": 409,
+      "businessEffect": "Adjustment reflected by payroll preview/run evidence"
+    },
+    "attendancePayrollImpact": {
+      "classification": "PARTIAL",
+      "processStatus": 200,
+      "createdViolations": 3,
+      "violationsStatus": 200,
+      "violationCount": 8,
+      "previewStatus": 200,
+      "runId": 14,
+      "calculateStatus": 200,
+      "payslipId": 131,
+      "snapshotHasAttendanceImpact": false,
+      "conclusion": "Violations can be generated/listed, but canonical payroll snapshot did not show attendance impact evidence"
+    },
+    "legacyVsEnterpriseLeave": {
+      "classification": "PARTIAL",
+      "legacyId": 32,
+      "legacyCreateStatus": 201,
+      "legacyApproveStatus": 200,
+      "enterpriseId": 33,
+      "enterpriseCreateStatus": 201,
+      "enterpriseApprovalSteps": [
+        {
+          "actor": "manager",
+          "status": 200,
+          "requestStatus": "manager_approved"
+        },
+        {
+          "actor": "hr",
+          "status": 200,
+          "requestStatus": "approved"
+        }
+      ],
+      "enterpriseFinalStatus": "approved",
+      "legacyBalancesStatus": 200,
+      "enterpriseBalancesStatus": 200,
+      "enterpriseAuditCount": 3,
+      "notificationCount": 21,
+      "payrollPreviewStatus": 200,
+      "leaveDeduction": 29.032,
+      "conclusion": "Enterprise unpaid leave affected payroll preview; legacy leave used a non-enterprise leave type and is expected to be ignored by enterprise payroll join."
+    },
+    "attendanceCorrection": {
+      "classification": "PARTIAL",
+      "requestId": 11,
+      "requestStatus": 201,
+      "managerApproveStatus": 200,
+      "hrApproveStatus": 200,
+      "retryApproveStatus": 409,
+      "attendanceRecord": {
+        "id": 454,
+        "status": "late",
+        "attendanceType": "manual",
+        "notes": "Correction #11 applied",
+        "lateMinutes": 255
+      },
+      "biometricAuditStatus": 200,
+      "biometricAuditCount": 32,
+      "reportStatus": 200,
+      "conclusion": "Correction creates/updates attendance as manual exception, not biometric proof path"
+    },
+    "performancePromotion": {
+      "classification": "CONFIRMED BROKEN",
+      "createStatus": 201,
+      "recommendationId": "4",
+      "workflowId": "5",
+      "approvals": [
+        {
+          "status": 200,
+          "workflowStatus": "pending"
+        },
+        {
+          "status": 200,
+          "workflowStatus": "approved"
+        }
+      ],
+      "beforeSalary": 900,
+      "afterSalary": 900,
+      "employeeActionLinked": false,
+      "payrollPreviewBasicSalary": "900.000",
+      "conclusion": "Recommendation/workflow did not change employee salary/job or create detectable employee action"
+    },
+    "recruitmentConversion": {
+      "classification": "PARTIAL",
+      "candidateCreateStatus": 201,
+      "candidateId": "10",
+      "convertStatus": 201,
+      "employeeId": 36,
+      "userId": 35,
+      "employeeStatus": 200,
+      "candidateConvertedEmployeeId": 36,
+      "contractCount": 0,
+      "enterpriseDocumentCount": 5,
+      "conclusion": "Conversion creates employee/user; contract and enterprise document checklist are absent unless counts are non-zero."
+    },
+    "notifications": {
+      "classification": "CONFIRMED WORKING",
+      "centerBeforeStatus": 200,
+      "legacyStatus": 200,
+      "centerAfterStatus": 200,
+      "unreadBefore": 7,
+      "testStatus": 201,
+      "firstNotificationId": 234,
+      "markReadStatus": 200,
+      "markUnreadStatus": 200,
+      "conclusion": "Both legacy and center APIs read notification data; unread/read works on sampled center notification."
+    },
+    "documentsFiles": {
+      "classification": "PARTIAL",
+      "legacyCreateStatus": 201,
+      "legacyDocumentId": 20,
+      "enterpriseCreateStatus": 201,
+      "enterpriseDocumentId": "8",
+      "legacyListStatus": 200,
+      "enterpriseListStatus": 200,
+      "conclusion": "Legacy and enterprise document records can both be created, but they appear in separate centers/tables."
+    },
+    "employeeSelfServiceSecurity": {
+      "classification": "PARTIAL",
+      "checks": {
+        "employeeOtherPayslip": {
+          "status": 403,
+          "shape": "undefined"
+        },
+        "employeeOtherLeaveBalance": {
+          "status": 200,
+          "shape": "array"
+        },
+        "employeeOtherAttendance": {
+          "status": 200,
+          "shape": "array"
+        },
+        "employeeOtherDocuments": {
+          "status": 200,
+          "shape": "object"
+        },
+        "managerPayrollAdjustments": {
+          "status": 200,
+          "shape": "array"
+        },
+        "managerPayrollPreview": {
+          "status": 403,
+          "message": "Forbidden",
+          "shape": "undefined"
+        },
+        "recruiterPayroll": {
+          "status": 403,
+          "message": "Forbidden",
+          "shape": "undefined"
+        }
+      },
+      "risky": []
+    },
+    "superadminPolicy": {
+      "classification": "PARTIAL",
+      "checks": {
+        "payrollPoliciesGet": {
+          "status": 403,
+          "message": "Forbidden"
+        },
+        "leaveManagementTypesGet": {
+          "status": 200
+        },
+        "complianceContractsGet": {
+          "status": 200
+        },
+        "attendanceBiometricAuditGet": {
+          "status": 200
+        }
+      },
+      "conclusion": "Policy is documented as observed statuses, not judged as correct because product policy is inconsistent by design."
+    },
+    "reportTruth": {
+      "classification": "PARTIAL",
+      "payrollReportStatus": 200,
+      "leaveDashboardStatus": 200,
+      "attendanceSummaryStatus": 200,
+      "payrollExportStatus": 200,
+      "payrollExportContentType": "text/csv; charset=utf-8",
+      "conclusion": "Reports/exports respond where tested; numeric reconciliation to all newly created flow data remains partial because canonical payroll omitted some enterprise impacts."
+    }
+  },
+  "security": {
+    "employeeSelfService": {
+      "employeeOtherPayslip": {
+        "status": 403,
+        "shape": "undefined"
+      },
+      "employeeOtherLeaveBalance": {
+        "status": 200,
+        "shape": "array"
+      },
+      "employeeOtherAttendance": {
+        "status": 200,
+        "shape": "array"
+      },
+      "employeeOtherDocuments": {
+        "status": 200,
+        "shape": "object"
+      },
+      "managerPayrollAdjustments": {
+        "status": 200,
+        "shape": "array"
+      },
+      "managerPayrollPreview": {
+        "status": 403,
+        "message": "Forbidden",
+        "shape": "undefined"
+      },
+      "recruiterPayroll": {
+        "status": 403,
+        "message": "Forbidden",
+        "shape": "undefined"
+      }
+    },
+    "superadminPolicy": {
+      "payrollPoliciesGet": {
+        "status": 403,
+        "message": "Forbidden"
+      },
+      "leaveManagementTypesGet": {
+        "status": 200
+      },
+      "complianceContractsGet": {
+        "status": 200
+      },
+      "attendanceBiometricAuditGet": {
+        "status": 200
+      }
+    }
+  },
+  "evidence": [],
+  "notTested": [],
+  "errors": [],
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-13T22:16:47.352Z",
+      "version": "1.0.0"
+    }
+  },
+  "context": {
+    "employeeId": 8,
+    "managerEmployeeId": 7,
+    "month": 1,
+    "monthAlt": 9,
+    "year": 2884
+  }
+}

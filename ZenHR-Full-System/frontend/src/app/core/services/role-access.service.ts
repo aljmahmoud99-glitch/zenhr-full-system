@@ -46,6 +46,7 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/leave': ['hradmin', 'manager', 'employee'],
   '/app/leave-management': ['hradmin', 'manager', 'employee', 'payrolladmin'],
   '/app/notifications': ['hradmin', 'payrolladmin', 'manager', 'employee', 'recruiter'],
+  '/app/approvals': ['hradmin', 'payrolladmin', 'manager', 'recruiter', 'superadmin'],
   '/app/overtime': ['hradmin', 'manager', 'employee'],
   '/app/holidays': ['hradmin', 'payrolladmin', 'manager', 'employee'],
 
@@ -139,7 +140,7 @@ const HRADMIN_NAV: NavGroup[] = [
       { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
       { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'payments', path: '/app/employee-actions/salary-changes' },
       { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
-      { labelAr: 'الاعتمادات', labelEn: 'Pending Approvals', icon: 'approval', path: '/app/workflows' }
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' }
     ]
   },
   {
@@ -208,6 +209,7 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     icon: 'receipt_long',
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
       { labelAr: 'محرك الرواتب والحضور', labelEn: 'Payroll & Attendance Core', icon: 'rule', path: '/app/payroll-attendance' },
       { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
@@ -256,7 +258,7 @@ const MANAGER_NAV: NavGroup[] = [
       { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
       { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
       { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
-      { labelAr: 'الاعتمادات', labelEn: 'Pending Approvals', icon: 'approval', path: '/app/workflows' }
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' }
     ]
   },
   {
@@ -320,6 +322,7 @@ const RECRUITER_NAV: NavGroup[] = [
     icon: 'person_search',
     items: [
       { labelAr: 'مركز التوظيف', labelEn: 'Recruitment Center', icon: 'person_search', path: '/app/recruitment' },
+      { labelAr: 'اعتمادات التوظيف', labelEn: 'Recruitment Approvals', icon: 'approval', path: '/app/approvals' },
       { labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
       { labelAr: 'نماذج التوظيف', labelEn: 'Recruitment Forms', icon: 'description', path: '/app/forms' },
       { labelAr: 'وثائق التوظيف', labelEn: 'Recruitment Documents', icon: 'folder_managed', path: '/app/documents-reporting' }

@@ -182,6 +182,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/notifications/notifications.component').then(m => m.NotificationsComponent)
       },
       {
+        path: 'approvals',
+        ...pageAccess('/app/approvals'),
+        loadComponent: () => import('./features/approvals/approvals.component').then(m => m.ApprovalsComponent)
+      },
+      {
         path: 'overtime',
         ...pageAccess('/app/overtime'),
         loadComponent: () => import('./features/overtime/overtime.component').then(m => m.OvertimeComponent)

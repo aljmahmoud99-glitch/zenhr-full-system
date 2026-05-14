@@ -1,0 +1,425 @@
+{
+  "generatedAt": "2026-05-13T20:31:14.740Z",
+  "backend": "http://localhost:3001",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-13T20:31:14.818Z",
+      "version": "1.0.0"
+    },
+    "contentType": "application/json; charset=utf-8"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "endpoints": [
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/requests",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/management/requests",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize",
+        "totalPages"
+      ]
+    },
+    {
+      "role": "employee",
+      "method": "GET",
+      "url": "/api/leave/me/requests",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "employee",
+      "method": "GET",
+      "url": "/api/leave/management/requests",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize",
+        "totalPages"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/types",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/management/types",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/balances",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/leave/management/balances",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "employee",
+      "method": "POST",
+      "url": "/api/attendance/clock-in",
+      "status": 400,
+      "success": false,
+      "message": "Biometric or Face ID verification is required",
+      "dataShape": "undefined"
+    },
+    {
+      "role": "employee",
+      "method": "GET",
+      "url": "/api/attendance/biometric/devices",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/attendance/biometric/audit",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/payroll-policies",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "policy",
+        "employmentTypeRules"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/payroll-attendance/dashboard",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "summary",
+        "violations",
+        "liabilities",
+        "trends"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/payroll-adjustments",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/payroll/runs",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/workflows/pending",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/workflow/requests",
+      "status": 404,
+      "dataShape": "undefined"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/performance/workflow-instances",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/notifications",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/notifications/center",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize",
+        "totalPages"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/notifications/preferences",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/compliance/overview",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "score",
+        "total",
+        "compliant",
+        "expiringSoon",
+        "expired",
+        "missing",
+        "warningDays",
+        "alerts"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/compliance-contracts/contracts",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize",
+        "totalPages"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/documents",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/document-reporting/documents",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize"
+      ]
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/recruitment/candidates",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/recruitment/requests",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/performance/evaluations",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "hr",
+      "method": "GET",
+      "url": "/api/document-reporting/pdf-templates",
+      "status": 200,
+      "success": true,
+      "dataShape": "array"
+    },
+    {
+      "role": "manager",
+      "method": "POST",
+      "url": "/api/payroll-adjustments",
+      "status": 400,
+      "success": false,
+      "message": "employeeId, adjustmentTypeId, and positive amount are required",
+      "dataShape": "undefined"
+    },
+    {
+      "role": "recruiter",
+      "method": "GET",
+      "url": "/api/payroll-adjustments",
+      "status": 403,
+      "success": false,
+      "message": "Forbidden",
+      "dataShape": "undefined"
+    },
+    {
+      "role": "employee",
+      "method": "GET",
+      "url": "/api/document-reporting/documents",
+      "status": 200,
+      "success": true,
+      "dataShape": [
+        "items",
+        "total",
+        "page",
+        "pageSize"
+      ]
+    }
+  ],
+  "db": {
+    "runtimeInspection": "NOT_COMPLETED",
+    "runtimeInspectionError": "Plain Node smoke could not require pg from the workspace root. Table ownership was reconciled from migrations and Drizzle schema files instead.",
+    "schemaInspectionSources": [
+      "migrations/fix-database.sql",
+      "migrations/admin-v2.sql",
+      "migrations/system-admin-v1.sql",
+      "migrations/phase-1-hr-master-data.sql",
+      "migrations/phase-2-dynamic-job-profiles.sql",
+      "migrations/phase-3-recruitment-hiring.sql",
+      "migrations/bundle-a-payroll-attendance.sql",
+      "migrations/bundle-b-performance-workflows.sql",
+      "migrations/bundle-c-documents-reporting.sql",
+      "migrations/phase-b-compliance-contracts.sql",
+      "migrations/phase-c-biometric-geofenced-attendance.sql",
+      "migrations/phase-d-leave-notifications.sql",
+      "lib/db/src/schema"
+    ]
+  },
+  "observations": [
+    {
+      "severity": "critical",
+      "domain": "payroll",
+      "finding": "PayrollRunService does not consume Bundle A payroll_adjustments, installments, or attendance_payroll_impacts, so payroll-attendance data is not canonical payroll input."
+    },
+    {
+      "severity": "critical",
+      "domain": "leave",
+      "finding": "Legacy leave and enterprise leave both exist. They share leave_requests but use different type/policy systems."
+    },
+    {
+      "severity": "high",
+      "domain": "localization",
+      "finding": "Legacy leave component and Phase D seed SQL contain mojibake Arabic literals."
+    },
+    {
+      "severity": "high",
+      "domain": "attendance",
+      "finding": "Normal clock-in/out enforces biometric and geofence, but approved attendance corrections can insert attendance records without biometric proof."
+    },
+    {
+      "severity": "high",
+      "domain": "workflows",
+      "finding": "Multiple workflow systems exist. /api/workflows/pending is employee-action focused, while leave, recruitment, performance, and payroll approvals use separate tables/APIs."
+    },
+    {
+      "severity": "medium",
+      "domain": "recruitment",
+      "finding": "Candidate conversion creates employee/user/onboarding but does not create employee_contracts or enterprise document/compliance checklist records."
+    },
+    {
+      "severity": "medium",
+      "domain": "performance",
+      "finding": "Performance promotion recommendations are stored and can start workflows, but do not apply salary/job changes unless converted to employee_actions."
+    },
+    {
+      "severity": "medium",
+      "domain": "documents",
+      "finding": "Legacy documents/forms/reports and enterprise document-reporting tables coexist; PDF template preview is HTML-only."
+    }
+  ],
+  "errors": []
+}

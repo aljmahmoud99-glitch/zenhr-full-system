@@ -253,7 +253,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   markRead(notif: DbNotification) {
     if (notif.status === 'read') return;
-    this.http.patch(`/api/notifications/${notif.id}/read`, {}).subscribe({
+    this.http.patch(`/api/notifications/center/${notif.id}/read`, {}).subscribe({
       next: () => {
         this.notifications.update(list =>
           list.map(n => n.id === notif.id ? { ...n, status: 'read' as const } : n)
@@ -266,7 +266,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   markAllRead() {
     if (this.markingAllRead()) return;
     this.markingAllRead.set(true);
-    this.http.patch('/api/notifications/read-all', {}).subscribe({
+    this.http.patch('/api/notifications/center/read-all', {}).subscribe({
       next: () => {
         this.notifications.update(list => list.map(n => ({ ...n, status: 'read' as const })));
         this.unreadCount.set(0);
@@ -557,7 +557,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   }
 
   private loadUnreadCount() {
-    this.http.get<ApiResponse<{ count: number }>>('/api/notifications/unread-count').subscribe({
+    this.http.get<ApiResponse<{ count: number }>>('/api/notifications/center/unread-count').subscribe({
       next: res => this.unreadCount.set(res.data?.count ?? 0),
       error: () => {}
     });
@@ -565,10 +565,11 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   private loadNotifications() {
     this.notificationsLoading.set(true);
-    this.http.get<ApiResponse<DbNotification[]>>('/api/notifications?limit=15').subscribe({
+    this.http.get<ApiResponse<{ items: DbNotification[] }>>('/api/notifications/center?pageSize=15').subscribe({
       next: res => {
-        this.notifications.set(res.data ?? []);
-        const unread = (res.data ?? []).filter(n => n.status === 'unread').length;
+        const items = res.data?.items ?? [];
+        this.notifications.set(items);
+        const unread = items.filter(n => n.status === 'unread').length;
         this.unreadCount.set(unread);
         this.notificationsLoading.set(false);
       },

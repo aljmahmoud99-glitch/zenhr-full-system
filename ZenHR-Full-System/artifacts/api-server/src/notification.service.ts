@@ -5,7 +5,7 @@
  */
 import { db } from "@workspace/db";
 import { notificationsTable, usersTable, employeesTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export interface NotifPayload {
   companyId?: number;
@@ -29,21 +29,38 @@ export async function notifyUsers(userIds: number[], payload: NotifPayload): Pro
   if (!userIds.length) return;
   try {
     const deduped = [...new Set(userIds)];
-    const rows = deduped.map(recipientUserId => ({
-      companyId: payload.companyId ?? null,
-      recipientUserId,
-      actorUserId: payload.actorUserId ?? null,
-      entityType: payload.entityType ?? null,
-      entityId: payload.entityId ?? null,
-      notificationType: payload.notificationType,
-      titleAr: payload.titleAr,
-      titleEn: payload.titleEn,
-      messageAr: payload.messageAr,
-      messageEn: payload.messageEn,
-      priority: payload.priority ?? "normal",
-      actionUrl: payload.actionUrl ?? null,
-    }));
-    await db.insert(notificationsTable).values(rows);
+    const rows = [];
+    for (const recipientUserId of deduped) {
+      const existing = await db
+        .select({ id: notificationsTable.id })
+        .from(notificationsTable)
+        .where(and(
+          eq(notificationsTable.recipientUserId, recipientUserId),
+          eq(notificationsTable.notificationType, payload.notificationType),
+          eq(notificationsTable.status, "unread"),
+          eq(notificationsTable.isDeleted, false),
+          payload.companyId == null ? sql`${notificationsTable.companyId} IS NULL` : eq(notificationsTable.companyId, payload.companyId),
+          payload.entityType == null ? sql`${notificationsTable.entityType} IS NULL` : eq(notificationsTable.entityType, payload.entityType),
+          payload.entityId == null ? sql`${notificationsTable.entityId} IS NULL` : eq(notificationsTable.entityId, payload.entityId),
+        ))
+        .limit(1);
+      if (existing.length) continue;
+      rows.push({
+        companyId: payload.companyId ?? null,
+        recipientUserId,
+        actorUserId: payload.actorUserId ?? null,
+        entityType: payload.entityType ?? null,
+        entityId: payload.entityId ?? null,
+        notificationType: payload.notificationType,
+        titleAr: payload.titleAr,
+        titleEn: payload.titleEn,
+        messageAr: payload.messageAr,
+        messageEn: payload.messageEn,
+        priority: payload.priority ?? "normal",
+        actionUrl: payload.actionUrl ?? null,
+      });
+    }
+    if (rows.length) await db.insert(notificationsTable).values(rows);
   } catch (e) {
     console.error("[NotificationService.notifyUsers]", e);
   }

@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-05-13T00:00:00Z",
+  "executiveSummary": {
+    "status": "NO-GO",
+    "topRisks": [
+      "Dual leave systems with shared leave_requests",
+      "Payroll run ignores payroll_adjustments and attendance_payroll_impacts",
+      "Attendance correction workflow bypasses biometric proof",
+      "Multiple workflow approval engines without a unified inbox",
+      "Notifications and document APIs are duplicated"
+    ],
+    "cleanupPriorities": [
+      "Stabilize payroll run and integrate Bundle A pay sources",
+      "Canonicalize enterprise leave and retire legacy leave creation",
+      "Protect attendance correction audit and exception handling",
+      "Consolidate workflow approval models",
+      "Reconcile notification/document API duplicates"
+    ]
+  },
+  "domains": {
+    "leave": {
+      "canonical": "enterprise leave management",
+      "conflicts": [
+        "Shared leave_requests between legacy and enterprise flows",
+        "Legacy leave approvals may not generate payroll deductions",
+        "Duplicate leave UI/routes",
+        "Inconsistent leave balance mapping"
+      ],
+      "status": "critical"
+    },
+    "payroll": {
+      "canonical": "PayrollRunService",
+      "conflicts": [
+        "payroll_adjustments not consumed by payroll run",
+        "attendance_payroll_impacts not consumed by payroll run",
+        "Mismatch between payroll attendance analytics and payslip totals"
+      ],
+      "status": "high"
+    },
+    "attendance": {
+      "canonical": "attendance_records for live punches",
+      "conflicts": [
+        "Correction workflow records lack mandatory biometric proof",
+        "Shifts and attendance intelligence are split from payroll calculation",
+        "Duplicate attendance/payroll surfaces"
+      ],
+      "status": "high"
+    },
+    "workflow": {
+      "canonical": "employee_actions/workflow_requests for HR actions",
+      "conflicts": [
+        "Separate approval engines for leave, payroll, recruitment, and performance",
+        "Pending approvals may not aggregate across domains",
+        "Role semantics differ across API families"
+      ],
+      "status": "high"
+    },
+    "notifications": {
+      "canonical": "notifications center API",
+      "conflicts": [
+        "Duplicate notification endpoints",
+        "Split notification preference surfaces",
+        "Potential duplicate or missing delivery records"
+      ],
+      "status": "medium"
+    },
+    "documents": {
+      "canonical": "enterprise_documents and reporting APIs",
+      "conflicts": [
+        "Legacy document system not unified with enterprise reporting",
+        "Orphaned legacy attachments",
+        "Inconsistent RBAC across document upload endpoints"
+      ],
+      "status": "medium"
+    }
+  },
+  "rbacTenantAudit": {
+    "summary": "RBAC is generally present but inconsistent across legacy and new APIs. Tenant scoping exists but cross-tenant validation is incomplete.",
+    "highRiskAreas": [
+      "Leave API mismatch between legacy and enterprise endpoint role behavior",
+      "Workflow approval route semantics differ by module",
+      "Superadmin can be both tenant operator and platform admin in different flows"
+    ]
+  },
+  "recommendations": {
+    "phase1": [
+      "Stop legacy leave creation",
+      "Integrate Bundle A payroll sources into canonical payroll run",
+      "Hardcode attendance correction audit metadata",
+      "Consolidate or clearly segment workflow approval inboxes",
+      "Reconcile notification and document API duplication"
+    ],
+    "phase2": [
+      "Complete recruitment-to-contract handoff",
+      "Link performance promotion approvals to payroll/salary change workflows",
+      "Migrate legacy documents into enterprise reporting",
+      "Add explicit source-of-truth documentation for developers",
+      "Validate tenant isolation for key domains"
+    ]
+  }
+}

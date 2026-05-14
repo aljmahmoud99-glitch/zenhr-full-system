@@ -1,0 +1,242 @@
+{
+  "generatedAt": "2026-05-14T03:40:25.117Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-14T03:40:25.183Z",
+      "version": "1.0.0"
+    }
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "approvals": {
+    "hr": {
+      "pendingStatus": 200,
+      "total": 75,
+      "domains": [
+        "attendance_correction",
+        "employee_action",
+        "compliance_contract",
+        "payroll_adjustment",
+        "leave",
+        "performance",
+        "recruitment"
+      ],
+      "sample": {
+        "id": "attendance_correction:27",
+        "domain": "attendance_correction",
+        "entityId": 27,
+        "title": "Attendance correction",
+        "employeeName": "Layla Haddad",
+        "requester": "employee",
+        "status": "pending",
+        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "currentStep": "manager",
+        "availableActions": [
+          "approve",
+          "reject"
+        ],
+        "priority": "normal",
+        "route": "/app/attendance",
+        "companyId": 1
+      }
+    },
+    "payroll": {
+      "pendingStatus": 200,
+      "total": 18,
+      "domains": [
+        "payroll_adjustment",
+        "recruitment"
+      ],
+      "sample": {
+        "id": "payroll_adjustment:19",
+        "domain": "payroll_adjustment",
+        "entityId": 19,
+        "title": "Unified approval smoke",
+        "employeeName": "Layla Haddad",
+        "requester": "hr",
+        "status": "pending",
+        "submittedAt": "2026-05-14T03:32:51.056Z",
+        "currentStep": "payrolladmin",
+        "availableActions": [
+          "approve",
+          "reject"
+        ],
+        "priority": "high",
+        "route": "/app/payroll-attendance",
+        "companyId": 1
+      }
+    },
+    "manager": {
+      "pendingStatus": 200,
+      "total": 10,
+      "domains": [
+        "attendance_correction",
+        "leave",
+        "recruitment"
+      ],
+      "sample": {
+        "id": "attendance_correction:27",
+        "domain": "attendance_correction",
+        "entityId": 27,
+        "title": "Attendance correction",
+        "employeeName": "Layla Haddad",
+        "requester": "employee",
+        "status": "pending",
+        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "currentStep": "manager",
+        "availableActions": [
+          "approve",
+          "reject"
+        ],
+        "priority": "normal",
+        "route": "/app/attendance",
+        "companyId": 1
+      }
+    },
+    "employee": {
+      "pendingStatus": 403,
+      "domains": [],
+      "sample": null
+    },
+    "recruiter": {
+      "pendingStatus": 200,
+      "total": 0,
+      "domains": [],
+      "sample": null
+    },
+    "admin": {
+      "pendingStatus": 200,
+      "total": 83,
+      "domains": [
+        "attendance_correction",
+        "employee_action",
+        "compliance_contract",
+        "payroll_adjustment",
+        "leave",
+        "performance",
+        "recruitment"
+      ],
+      "sample": {
+        "id": "attendance_correction:27",
+        "domain": "attendance_correction",
+        "entityId": 27,
+        "title": "Attendance correction",
+        "employeeName": "Layla Haddad",
+        "requester": "employee",
+        "status": "pending",
+        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "currentStep": "manager",
+        "availableActions": [
+          "approve",
+          "reject"
+        ],
+        "priority": "normal",
+        "route": "/app/attendance",
+        "companyId": 1
+      }
+    },
+    "seededProjectionRecords": {
+      "employeeActionStatus": 201,
+      "employeeActionId": 22,
+      "attendanceCorrectionStatus": 201,
+      "attendanceCorrectionId": 27
+    },
+    "actionSmoke": {
+      "typeStatus": 200,
+      "createStatus": 201,
+      "createdId": "20",
+      "appearedInUnifiedInbox": true,
+      "actionStatus": 200,
+      "resultingStatus": "pending",
+      "currentApprovalStep": "hradmin"
+    },
+    "domainVisibility": {
+      "expected": [
+        "employee_action",
+        "leave",
+        "payroll_adjustment",
+        "attendance_correction",
+        "recruitment",
+        "performance",
+        "compliance_contract"
+      ],
+      "observedForHr": [
+        "attendance_correction",
+        "employee_action",
+        "compliance_contract",
+        "payroll_adjustment",
+        "leave",
+        "performance",
+        "recruitment"
+      ],
+      "missingForHr": []
+    }
+  },
+  "notifications": {
+    "beforeCenterStatus": 200,
+    "beforeLegacyStatus": 200,
+    "unreadCenterStatus": 200,
+    "unreadLegacyStatus": 200,
+    "unreadCountsMatch": true,
+    "testStatuses": [
+      201,
+      201
+    ],
+    "dedupeCheck": {
+      "phaseDTestRowsInLatestPage": 5,
+      "note": "Duplicate prevention is enforced for unread rows with same recipient/type/entity."
+    },
+    "readStatus": 200,
+    "unreadLegacyWrapperStatus": 200,
+    "readAllLegacyWrapperStatus": 200,
+    "preferences": {
+      "getStatus": 200,
+      "patchStatus": 200
+    }
+  },
+  "rbac": {
+    "employeeCannotAccessApprovals": true
+  },
+  "errors": []
+}

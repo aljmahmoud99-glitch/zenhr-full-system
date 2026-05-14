@@ -15692,96 +15692,131 @@ app.get("/api/workflows/:id/history", auth, async (req, res) => {
   }
 });
 
-// GET /api/notifications â€” list for the authenticated user
+async function notificationCenterList(user: AuthReq["user"], query: Record<string, any>) {
+  const page = Math.max(Number(query.page || 1), 1);
+  const limit = query.limit ? Number(query.limit) : Number(query.pageSize || 20);
+  const pageSize = Math.min(Math.max(limit || 20, 1), 100);
+  const where = ["recipient_user_id=$1", "is_deleted=false"];
+  const params: any[] = [user.userId];
+  if (query.status) { params.push(String(query.status)); where.push(`status=$${params.length}`); }
+  if (query.type || query.notificationType) { params.push(String(query.type || query.notificationType)); where.push(`notification_type=$${params.length}`); }
+  if (query.entityType) { params.push(String(query.entityType)); where.push(`entity_type=$${params.length}`); }
+  const whereSql = where.join(" AND ");
+  const totalRes = await pool.query(`SELECT COUNT(*)::int AS total FROM notifications WHERE ${whereSql}`, params);
+  const unreadRes = await pool.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE recipient_user_id=$1 AND status='unread' AND is_deleted=false`, [user.userId]);
+  const rowParams = [...params, pageSize, (page - 1) * pageSize];
+  const { rows } = await pool.query(
+    `SELECT * FROM notifications WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${rowParams.length - 1} OFFSET $${rowParams.length}`,
+    rowParams,
+  );
+  const total = Number(totalRes.rows[0]?.total || 0);
+  return { items: rows.map(camelAts), total, page, pageSize, totalPages: Math.ceil(total / pageSize), unreadCount: Number(unreadRes.rows[0]?.count || 0) };
+}
+
+async function setNotificationStatus(user: AuthReq["user"], id: number, status: "read" | "unread") {
+  const { rowCount } = await pool.query(
+    `UPDATE notifications
+        SET status=$1::varchar, read_at=CASE WHEN $1::varchar='read' THEN NOW() ELSE NULL END
+      WHERE id=$2 AND recipient_user_id=$3 AND is_deleted=false`,
+    [status, id, user.userId],
+  );
+  return rowCount ?? 0;
+}
+
+async function archiveNotification(user: AuthReq["user"], id: number) {
+  const { rowCount } = await pool.query(
+    `UPDATE notifications SET is_deleted=true WHERE id=$1 AND recipient_user_id=$2`,
+    [id, user.userId],
+  );
+  return rowCount ?? 0;
+}
+
+// GET /api/notifications - legacy compatibility wrapper over notification center list.
 app.get("/api/notifications", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const { status, limit: limitStr } = req.query as Record<string, string>;
-    const limitN = Math.min(parseInt(limitStr ?? "20", 10) || 20, 50);
-    const conditions: any[] = [
-      eq(notificationsTable.recipientUserId, user.userId),
-      eq(notificationsTable.isDeleted, false),
-    ];
-    if (status === "unread") conditions.push(eq(notificationsTable.status, "unread"));
-    const rows = await db.select().from(notificationsTable)
-      .where(and(...conditions))
-      .orderBy(desc(notificationsTable.createdAt))
-      .limit(limitN);
-    res.json({ success: true, data: rows });
+    const data = await notificationCenterList(user, req.query as Record<string, any>);
+    res.json({ success: true, data: data.items, meta: { total: data.total, page: data.page, pageSize: data.pageSize, unreadCount: data.unreadCount } });
   } catch (e) {
     console.error("[GET /api/notifications]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// GET /api/notifications/unread-count
-app.get("/api/notifications/unread-count", auth, async (req, res) => {
+app.get(["/api/notifications/unread-count", "/api/notifications/center/unread-count"], auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const [row] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(notificationsTable)
-      .where(and(
-        eq(notificationsTable.recipientUserId, user.userId),
-        eq(notificationsTable.status, "unread"),
-        eq(notificationsTable.isDeleted, false)
-      ));
-    res.json({ success: true, data: { count: row?.count ?? 0 } });
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM notifications WHERE recipient_user_id=$1 AND status='unread' AND is_deleted=false`,
+      [user.userId],
+    );
+    res.json({ success: true, data: { count: Number(rows[0]?.count || 0) } });
   } catch (e) {
-    console.error("[GET /api/notifications/unread-count]", e);
+    console.error("[GET /api/notifications/*unread-count]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// PATCH /api/notifications/read-all â€” mark all unread as read
-app.patch("/api/notifications/read-all", auth, async (req, res) => {
+app.patch(["/api/notifications/read-all", "/api/notifications/center/read-all"], auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    await db.update(notificationsTable)
-      .set({ status: "read", readAt: new Date() })
-      .where(and(
-        eq(notificationsTable.recipientUserId, user.userId),
-        eq(notificationsTable.status, "unread")
-      ));
-    res.json({ success: true });
+    const { rowCount } = await pool.query(
+      `UPDATE notifications SET status='read', read_at=NOW() WHERE recipient_user_id=$1 AND status='unread' AND is_deleted=false`,
+      [user.userId],
+    );
+    res.json({ success: true, data: { updated: rowCount ?? 0 } });
   } catch (e) {
-    console.error("[PATCH /api/notifications/read-all]", e);
+    console.error("[PATCH /api/notifications/*read-all]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// PATCH /api/notifications/:id/read â€” mark single notification as read
-app.patch("/api/notifications/:id/read", auth, async (req, res) => {
+app.patch(["/api/notifications/:id/read", "/api/notifications/center/:id/read"], auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
-    await db.update(notificationsTable)
-      .set({ status: "read", readAt: new Date() })
-      .where(and(
-        eq(notificationsTable.id, id),
-        eq(notificationsTable.recipientUserId, user.userId)
-      ));
-    res.json({ success: true });
+    const updated = await setNotificationStatus(user, id, "read");
+    res.json({ success: true, data: { updated } });
   } catch (e) {
     console.error("[PATCH /api/notifications/:id/read]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-// DELETE /api/notifications/:id â€” soft-delete
+app.patch("/api/notifications/center/:id/unread", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+    const updated = await setNotificationStatus(user, id, "unread");
+    res.json({ success: true, data: { updated } });
+  } catch (e) {
+    console.error("[PATCH /api/notifications/center/:id/unread]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/notifications/center/:id/archive", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
+    const updated = await archiveNotification(user, id);
+    res.json({ success: true, data: { updated } });
+  } catch (e) {
+    console.error("[PATCH /api/notifications/center/:id/archive]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 app.delete("/api/notifications/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
-    await db.update(notificationsTable)
-      .set({ isDeleted: true })
-      .where(and(
-        eq(notificationsTable.id, id),
-        eq(notificationsTable.recipientUserId, user.userId)
-      ));
-    res.json({ success: true });
+    const updated = await archiveNotification(user, id);
+    res.json({ success: true, data: { updated } });
   } catch (e) {
     console.error("[DELETE /api/notifications/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -15789,7 +15824,7 @@ app.delete("/api/notifications/:id", auth, async (req, res) => {
 });
 
 // â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.get("/api/notifications/preferences", auth, async (req, res) => {
+app.get(["/api/notifications/preferences", "/api/notifications/center/preferences"], auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const { rows } = await pool.query(
@@ -15806,24 +15841,30 @@ app.get("/api/notifications/preferences", auth, async (req, res) => {
   }
 });
 
-app.patch("/api/notifications/preferences", auth, async (req, res) => {
+app.patch(["/api/notifications/preferences", "/api/notifications/center/preferences"], auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const notificationType = String(req.body?.notificationType || "*");
     const inAppEnabled = req.body?.inAppEnabled !== false;
     const emailEnabled = req.body?.emailEnabled === true;
-    const { rows } = await pool.query(
-      `INSERT INTO notification_preferences
-        (company_id, user_id, notification_type, in_app_enabled, email_enabled, updated_at)
-       VALUES ($1,$2,$3,$4,$5,NOW())
-       ON CONFLICT (user_id, notification_type) DO UPDATE
-         SET in_app_enabled = EXCLUDED.in_app_enabled,
-             email_enabled = EXCLUDED.email_enabled,
-             updated_at = NOW()
-       RETURNING *`,
-      [user.companyId, user.userId, notificationType, inAppEnabled, emailEnabled],
+    const existing = await pool.query(
+      `SELECT id FROM notification_preferences WHERE user_id=$1 AND notification_type=$2 ORDER BY id LIMIT 1`,
+      [user.userId, notificationType],
     );
-    res.json({ success: true, data: rows[0] });
+    const result = existing.rows[0]
+      ? await pool.query(
+          `UPDATE notification_preferences
+             SET company_id=$1, in_app_enabled=$2, email_enabled=$3, updated_at=NOW()
+           WHERE id=$4 RETURNING *`,
+          [user.companyId, inAppEnabled, emailEnabled, existing.rows[0].id],
+        )
+      : await pool.query(
+          `INSERT INTO notification_preferences
+             (company_id, user_id, notification_type, in_app_enabled, email_enabled, updated_at)
+           VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
+          [user.companyId, user.userId, notificationType, inAppEnabled, emailEnabled],
+        );
+    res.json({ success: true, data: result.rows[0] });
   } catch (e) {
     console.error("[PATCH /api/notifications/preferences]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -16440,14 +16481,19 @@ async function notifyRecruitmentRole(companyId: number, role: string, actorUserI
       `SELECT id FROM users WHERE company_id = $1 AND role = $2 AND is_active = true AND is_deleted = false LIMIT 20`,
       [companyId, role],
     );
-    for (const recipient of rows) {
-      await pool.query(
-        `INSERT INTO notifications
-          (company_id, recipient_user_id, actor_user_id, notification_type, title_ar, title_en, message_ar, message_en, priority, status, entity_type, entity_id, action_url)
-         VALUES ($1,$2,$3,'recruitment',$4,$5,$6,$7,'normal','unread',$8,$9,$10)`,
-        [companyId, recipient.id, actorUserId, titleAr, titleEn, messageAr, messageEn, entityType, entityId, actionUrl],
-      );
-    }
+    await notifyUsers(rows.map(r => Number(r.id)), {
+      companyId,
+      actorUserId,
+      entityType,
+      entityId,
+      notificationType: "recruitment",
+      titleAr,
+      titleEn,
+      messageAr,
+      messageEn,
+      priority: "normal",
+      actionUrl,
+    });
   } catch {}
 }
 
@@ -16481,6 +16527,295 @@ async function getRecruitmentRequestDetail(companyId: number, id: number) {
   const approvers = await pool.query(`SELECT * FROM recruitment_request_approvers WHERE company_id = $1 AND recruitment_request_id = $2 ORDER BY step_order`, [companyId, id]);
   return { ...camelAts(rows[0]), approvers: approvers.rows.map(camelAts) };
 }
+
+type ApprovalProjection = {
+  id: string;
+  domain: string;
+  entityId: number;
+  title: string;
+  employeeName: string | null;
+  requester: string | null;
+  status: string;
+  submittedAt: string | Date | null;
+  currentStep: string | null;
+  availableActions: string[];
+  priority: string;
+  route: string;
+  companyId: number;
+};
+
+const APPROVAL_ACCESS_ROLES = new Set(["hradmin", "manager", "payrolladmin", "recruiter", "superadmin"]);
+
+function ensureApprovalAccess(user: AuthReq["user"], res: express.Response) {
+  if (!APPROVAL_ACCESS_ROLES.has(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return false;
+  }
+  return true;
+}
+
+function approvalName(row: any) {
+  return row.employee_name_en || row.employee_name_ar || row.employee_code || null;
+}
+
+async function approvalRows(label: string, query: string, params: any[]) {
+  try {
+    const { rows } = await pool.query(query, params);
+    return rows;
+  } catch (e: any) {
+    console.warn(`[approvals:${label}] skipped`, e?.message || e);
+    return [];
+  }
+}
+
+async function unifiedPendingApprovals(user: AuthReq["user"]): Promise<ApprovalProjection[]> {
+  const items: ApprovalProjection[] = [];
+  const companyId = user.companyId;
+  const userRole = user.role;
+  const employeeId = user.employeeId ?? -1;
+
+  if (["hradmin", "manager", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    const scope = userRole === "manager" ? ` AND s.approver_role='manager' AND e.direct_manager_id=$${params.push(employeeId)}` : "";
+    const rows = await approvalRows("leave", `
+      SELECT lr.id, lr.company_id, lr.status, lr.created_at, lr.current_approval_step, s.approver_role,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code, u.username AS requester
+        FROM leave_request_approval_steps s
+        JOIN leave_requests lr ON lr.id=s.leave_request_id AND lr.company_id=s.company_id
+        JOIN employees e ON e.id=lr.employee_id AND e.company_id=lr.company_id
+        LEFT JOIN users u ON u.id=lr.created_by
+       WHERE lr.company_id=$1 AND lr.is_deleted=false AND lr.status IN ('pending','manager_approved') AND s.is_deleted=false AND s.decision='pending'${scope}
+       ORDER BY lr.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `leave:${row.id}`, domain: "leave", entityId: Number(row.id),
+      title: "Leave request", employeeName: approvalName(row), requester: row.requester ?? null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.approver_role,
+      availableActions: ["approve", "reject", "request_changes"], priority: "normal", route: "/app/leave-management", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "manager", "payrolladmin", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    const scope = userRole === "manager"
+      ? ` AND ea.status='pending_manager' AND e.direct_manager_id=$${params.push(employeeId)}`
+      : userRole === "payrolladmin"
+        ? ` AND ea.status='pending_payroll'`
+        : userRole === "hradmin"
+          ? ` AND ea.status LIKE 'pending_%'`
+          : ` AND ea.status LIKE 'pending_%'`;
+    const rows = await approvalRows("employee_actions", `
+      SELECT ea.id, ea.company_id, ea.action_type, ea.status, ea.created_at,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code, u.username AS requester
+        FROM employee_actions ea
+        JOIN employees e ON e.id=ea.employee_id AND e.company_id=ea.company_id
+        LEFT JOIN users u ON u.id=ea.created_by_user_id
+       WHERE ea.company_id=$1${scope}
+       ORDER BY ea.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `employee_action:${row.id}`, domain: "employee_action", entityId: Number(row.id),
+      title: row.action_type || "Employee action", employeeName: approvalName(row), requester: row.requester ?? null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.status,
+      availableActions: ["approve", "reject"], priority: "normal", route: "/app/workflows", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "manager", "payrolladmin", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    const scope = userRole === "hradmin" || userRole === "superadmin" ? "" : ` AND paa.approver_role=$${params.push(userRole)}`;
+    const managerScope = userRole === "manager" ? ` AND e.direct_manager_id=$${params.push(employeeId)}` : "";
+    const rows = await approvalRows("payroll_adjustments", `
+      SELECT pa.id, pa.company_id, pa.status, pa.created_at, pa.title_en, pa.title_ar, paa.approver_role,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code, u.username AS requester
+        FROM payroll_adjustment_approvals paa
+        JOIN payroll_adjustments pa ON pa.id=paa.payroll_adjustment_id AND pa.company_id=paa.company_id
+        JOIN employees e ON e.id=pa.employee_id AND e.company_id=pa.company_id
+        LEFT JOIN users u ON u.id=pa.created_by
+       WHERE paa.company_id=$1 AND paa.decision='pending' AND pa.is_deleted=false${scope}${managerScope}
+       ORDER BY paa.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `payroll_adjustment:${row.id}`, domain: "payroll_adjustment", entityId: Number(row.id),
+      title: row.title_en || row.title_ar || "Payroll adjustment", employeeName: approvalName(row), requester: row.requester ?? null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.approver_role,
+      availableActions: ["approve", "reject"], priority: "high", route: "/app/payroll-attendance", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "manager", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    const scope = userRole === "manager" ? ` AND ac.status='pending' AND e.direct_manager_id=$${params.push(employeeId)}` : ` AND ac.status IN ('pending','manager_approved')`;
+    const rows = await approvalRows("attendance_corrections", `
+      SELECT ac.id, e.company_id, ac.status, ac.created_at,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code, u.username AS requester
+        FROM attendance_corrections ac
+        JOIN employees e ON e.id=ac.employee_id
+        LEFT JOIN users u ON u.employee_id=ac.employee_id AND u.company_id=e.company_id
+       WHERE e.company_id=$1${scope}
+       ORDER BY ac.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `attendance_correction:${row.id}`, domain: "attendance_correction", entityId: Number(row.id),
+      title: "Attendance correction", employeeName: approvalName(row), requester: row.requester ?? null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.status === "manager_approved" ? "hradmin" : "manager",
+      availableActions: ["approve", "reject"], priority: "normal", route: "/app/attendance", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "manager", "payrolladmin", "recruiter", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    let scope = userRole === "superadmin" ? "" : ` AND a.approver_role=$${params.push(userRole)}`;
+    if (userRole === "manager") scope += ` AND (rr.manager_employee_id=$${params.push(employeeId)} OR rr.requested_by_user_id=$${params.push(user.userId)})`;
+    const rows = await approvalRows("recruitment", `
+      SELECT rr.id, rr.company_id, rr.status, rr.created_at, rr.title_en, rr.title_ar, a.approver_role, u.username AS requester
+        FROM recruitment_request_approvers a
+        JOIN recruitment_requests rr ON rr.id=a.recruitment_request_id AND rr.company_id=a.company_id
+        LEFT JOIN users u ON u.id=rr.requested_by_user_id
+       WHERE a.company_id=$1 AND a.decision='pending' AND rr.is_deleted=false${scope}
+       ORDER BY rr.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `recruitment:${row.id}`, domain: "recruitment", entityId: Number(row.id),
+      title: row.title_en || row.title_ar || "Recruitment request", employeeName: null, requester: row.requester ?? null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.approver_role,
+      availableActions: ["approve", "reject"], priority: "normal", route: "/app/recruitment", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "manager", "payrolladmin", "superadmin"].includes(userRole)) {
+    const params: any[] = [companyId];
+    const scope = userRole === "hradmin" || userRole === "superadmin" ? "" : ` AND wi.current_approver_role=$${params.push(userRole)}`;
+    const managerScope = userRole === "manager" ? ` AND e.direct_manager_id=$${params.push(employeeId)}` : "";
+    const rows = await approvalRows("performance", `
+      SELECT wi.id, wi.company_id, wi.status, wi.created_at, wi.current_approver_role, t.name_en, t.name_ar,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code
+        FROM performance_workflow_instances wi
+        LEFT JOIN performance_workflow_templates t ON t.id=wi.template_id AND t.company_id=wi.company_id
+        LEFT JOIN employees e ON e.id=wi.employee_id AND e.company_id=wi.company_id
+       WHERE wi.company_id=$1 AND wi.status IN ('pending','escalated') AND wi.is_deleted=false${scope}${managerScope}
+       ORDER BY wi.created_at DESC LIMIT 100`, params);
+    for (const row of rows) items.push({
+      id: `performance:${row.id}`, domain: "performance", entityId: Number(row.id),
+      title: row.name_en || row.name_ar || "Performance workflow", employeeName: approvalName(row), requester: null,
+      status: row.status, submittedAt: row.created_at, currentStep: row.current_approver_role,
+      availableActions: ["approve", "reject"], priority: row.status === "escalated" ? "high" : "normal", route: "/app/performance-workflows", companyId: Number(row.company_id),
+    });
+  }
+
+  if (["hradmin", "superadmin"].includes(userRole)) {
+    const rows = await approvalRows("compliance_contracts", `
+      SELECT ec.id, ec.company_id, ec.contract_status, ec.compliance_status, ec.created_at, ec.title_en, ec.title_ar,
+             concat_ws(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+             concat_ws(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+             e.employee_code
+        FROM employee_contracts ec
+        JOIN employees e ON e.id=ec.employee_id AND e.company_id=ec.company_id
+       WHERE ec.company_id=$1 AND ec.is_deleted=false
+         AND (ec.compliance_status IN ('pending_review','missing_documents') OR ec.contract_status IN ('pending_renewal','draft'))
+       ORDER BY ec.created_at DESC LIMIT 100`, [companyId]);
+    for (const row of rows) items.push({
+      id: `compliance_contract:${row.id}`, domain: "compliance_contract", entityId: Number(row.id),
+      title: row.title_en || row.title_ar || "Contract compliance review", employeeName: approvalName(row), requester: null,
+      status: row.compliance_status || row.contract_status, submittedAt: row.created_at, currentStep: "hradmin",
+      availableActions: ["approve", "reject"], priority: row.compliance_status === "missing_documents" ? "high" : "normal", route: "/app/compliance-contracts", companyId: Number(row.company_id),
+    });
+  }
+
+  return items.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+}
+
+app.get("/api/approvals/pending", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!ensureApprovalAccess(user, res)) return;
+    const all = await unifiedPendingApprovals(user);
+    const domain = String(req.query.domain || "");
+    const items = domain ? all.filter(item => item.domain === domain) : all;
+    res.json({ success: true, data: { items, total: items.length } });
+  } catch (e) {
+    console.error("[GET /api/approvals/pending]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/approvals/history", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!ensureApprovalAccess(user, res)) return;
+    const rows = await approvalRows("history", `
+      SELECT 'employee_action' AS domain, id::text AS id, id AS entity_id, action_type AS title, status, updated_at AS submitted_at, company_id
+        FROM employee_actions WHERE company_id=$1 AND status IN ('applied','approved','rejected','cancelled')
+      UNION ALL
+      SELECT 'leave' AS domain, id::text AS id, id AS entity_id, 'Leave request' AS title, status, updated_at AS submitted_at, company_id
+        FROM leave_requests WHERE company_id=$1 AND is_deleted=false AND status IN ('approved','rejected','cancelled','changes_requested')
+      UNION ALL
+      SELECT 'payroll_adjustment' AS domain, id::text AS id, id AS entity_id, COALESCE(title_en,'Payroll adjustment') AS title, status, updated_at AS submitted_at, company_id
+        FROM payroll_adjustments WHERE company_id=$1 AND is_deleted=false AND status IN ('approved','rejected','applied','cancelled')
+      ORDER BY submitted_at DESC LIMIT 100`, [user.companyId]);
+    res.json({ success: true, data: { items: rows.map((row: any) => ({ ...camelAts(row), availableActions: [] })), total: rows.length } });
+  } catch (e) {
+    console.error("[GET /api/approvals/history]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+async function forwardApprovalAction(req: express.Request, res: express.Response, method: string, pathName: string) {
+  const host = req.get("host") || `localhost:${PORT}`;
+  const protocol = req.protocol || "http";
+  const response = await fetch(`${protocol}://${host}${pathName}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      ...(req.headers.authorization ? { authorization: String(req.headers.authorization) } : {}),
+    },
+    body: JSON.stringify(req.body || {}),
+  });
+  const text = await response.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { success: response.ok, message: text }; }
+  res.status(response.status).json(body);
+}
+
+app.post("/api/approvals/:domain/:id/action", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!ensureApprovalAccess(user, res)) return;
+    const domain = String(req.params.domain);
+    const id = Number(req.params.id);
+    const action = String(req.body?.action || "").replace("-", "_");
+    if (!id || !["approve", "reject", "request_changes"].includes(action)) {
+      res.status(400).json({ success: false, message: "Invalid approval action" }); return;
+    }
+    if (domain === "leave") return forwardApprovalAction(req, res, "POST", `/api/leave/management/requests/${id}/${action === "request_changes" ? "request-changes" : action}`);
+    if (domain === "employee_action") return forwardApprovalAction(req, res, "POST", `/api/workflow/requests/${id}/${action}`);
+    if (domain === "payroll_adjustment") return forwardApprovalAction(req, res, "PATCH", `/api/payroll-adjustments/${id}/${action}`);
+    if (domain === "attendance_correction") return forwardApprovalAction(req, res, "PUT", `/api/attendance/requests/${id}/${action}`);
+    if (domain === "recruitment") return forwardApprovalAction(req, res, "PATCH", `/api/recruitment/requests/${id}/${action}`);
+    if (domain === "performance") return forwardApprovalAction(req, res, "POST", `/api/performance/workflow-instances/${id}/${action}`);
+    if (domain === "compliance_contract") {
+      if (!["hradmin", "superadmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+      const status = action === "approve" ? "compliant" : "non_compliant";
+      const { rows } = await pool.query(
+        `UPDATE employee_contracts SET compliance_status=$1, updated_by=$2, updated_at=NOW()
+          WHERE id=$3 AND company_id=$4 AND is_deleted=false RETURNING *`,
+        [status, user.userId, id, user.companyId],
+      );
+      if (!rows[0]) { res.status(404).json({ success: false, message: "Contract not found" }); return; }
+      await logActivity(user.companyId, "contract_compliance_reviewed", `Contract #${id} marked ${status}`, user.username);
+      res.json({ success: true, data: camelAts(rows[0]) }); return;
+    }
+    res.status(400).json({ success: false, message: "Unsupported approval domain" });
+  } catch (e) {
+    console.error("[POST /api/approvals/:domain/:id/action]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
 
 async function getCandidateDetail(companyId: number, id: number) {
   const { rows } = await pool.query(

@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-05-14T03:40:25.117Z",
+  "status": "GO",
+  "notifications": {
+    "beforeCenterStatus": 200,
+    "beforeLegacyStatus": 200,
+    "unreadCenterStatus": 200,
+    "unreadLegacyStatus": 200,
+    "unreadCountsMatch": true,
+    "testStatuses": [
+      201,
+      201
+    ],
+    "dedupeCheck": {
+      "phaseDTestRowsInLatestPage": 5,
+      "note": "Duplicate prevention is enforced for unread rows with same recipient/type/entity."
+    },
+    "readStatus": 200,
+    "unreadLegacyWrapperStatus": 200,
+    "readAllLegacyWrapperStatus": 200,
+    "preferences": {
+      "getStatus": 200,
+      "patchStatus": 200
+    }
+  }
+}
