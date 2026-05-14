@@ -18,6 +18,15 @@
     </div>
   </header>
 
+  <aside class="compat-banner" role="note">
+    <span class="material-icons">info</span>
+    <div>
+      <strong>{{ t('شاشة توافق قديمة', 'Compatibility screen') }}</strong>
+      <p>{{ t('مصدر الإجازات التشغيلي هو مركز إدارة الإجازات. هذا المسار متاح للروابط القديمة والخدمة الذاتية فقط.', 'The operational leave source of truth is Leave Management. This route remains available for old links and self-service compatibility only.') }}</p>
+    </div>
+    <a class="z-btn-secondary" routerLink="/app/leave-management">{{ t('فتح إدارة الإجازات', 'Open Leave Management') }}</a>
+  </aside>
+
   <div class="alert alert-error" *ngIf="error()">{{ error() }}</div>
 
   <app-skeleton-kpi-cards *ngIf="loading()" [count]="5" />

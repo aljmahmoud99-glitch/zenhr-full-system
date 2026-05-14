@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
@@ -18,7 +19,7 @@ type LeaveActionType = 'approve' | 'cancel';
 @Component({
   selector: 'app-leave',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, SkeletonCardComponent, SkeletonKpiCardsComponent, ConfirmDialogComponent, RejectReasonDialogComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DatePipe, SkeletonCardComponent, SkeletonKpiCardsComponent, ConfirmDialogComponent, RejectReasonDialogComponent],
   templateUrl: './leave.component.html',
   styleUrl: './leave.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -112,6 +113,103 @@ export class LeaveComponent implements OnInit {
 
   t(ar: string, en: string) {
     if (this.lang !== 'ar') return en;
+    const sprint3Arabic: Record<string, string> = {
+      'Self-service leave': 'الخدمة الذاتية للإجازات',
+      'Leave management': 'إدارة طلبات الإجازات',
+      'Leave': 'الإجازات',
+      'Manage leave policies, requests, and balances in one printable approval workflow.': 'إدارة سياسات الإجازات والطلبات والأرصدة ضمن مسار اعتماد واضح وقابل للطباعة.',
+      'Leave settings': 'سياسات الإجازات',
+      'Request leave': 'طلب إجازة جديد',
+      'Total requests': 'إجمالي الطلبات',
+      'Pending': 'قيد الانتظار',
+      'Approved': 'موافق عليه',
+      'Rejected': 'مرفوض',
+      'Currently on leave': 'في إجازة حاليا',
+      'Remaining balance': 'الرصيد المتبقي',
+      'Used': 'المستخدم',
+      'Total': 'الإجمالي',
+      'Manager approval': 'اعتماد المدير',
+      'HR approval': 'اعتماد الموارد البشرية',
+      'Required': 'مطلوب',
+      'Not required': 'غير مطلوب',
+      'Attachment': 'المرفق',
+      'Max request': 'حد الطلب',
+      'Notice days': 'الإشعار المسبق',
+      'Policy summary': 'ملخص السياسات',
+      'Active company policy rules controlling requests and balances.': 'سياسات الشركة الفعلية التي تتحكم في الطلبات والأرصدة.',
+      'Yearly balance': 'الرصيد السنوي',
+      'Max days per request': 'أقصى أيام للطلب',
+      'Attachment required': 'مرفق مطلوب',
+      'Yes': 'نعم',
+      'No': 'لا',
+      'Search & Filters': 'البحث والفلاتر',
+      'Filter requests by status, type, and date range': 'تصفية الطلبات حسب الحالة والنوع والتاريخ',
+      'Reset filters': 'مسح الفلاتر',
+      'Search': 'بحث',
+      'Code, org unit, or reason': 'الكود أو الوحدة أو السبب',
+      'Employee': 'الموظف',
+      'All employees': 'كل الموظفين',
+      'Leave type': 'نوع الإجازة',
+      'All leave types': 'كل أنواع الإجازات',
+      'Status': 'الحالة',
+      'All statuses': 'كل الحالات',
+      'Manager approved': 'موافقة المدير',
+      'Cancelled': 'ملغي',
+      'Org Unit': 'الوحدة التنظيمية',
+      'All org units': 'كل الوحدات',
+      'From': 'من تاريخ',
+      'To': 'إلى تاريخ',
+      'Search:': 'بحث:',
+      'Employee:': 'موظف:',
+      'Org:': 'وحدة:',
+      'From:': 'من:',
+      'To:': 'إلى:',
+      'requests shown': 'طلب معروض',
+      'No matching requests yet': 'لا توجد طلبات مطابقة حتى الآن',
+      'Leave requests will appear here with status and approval trail.': 'ستظهر طلبات الإجازة هنا مع الحالة ومسار الاعتماد.',
+      'Period': 'الفترة',
+      'Days': 'عدد الأيام',
+      'Reason': 'السبب',
+      'View': 'عرض',
+      'Print': 'طباعة',
+      'Cancel request': 'إلغاء الطلب',
+      'Approve': 'موافقة',
+      'Reject': 'رفض',
+      'New leave request': 'طلب إجازة جديد',
+      'The request will be validated against company policy before submission.': 'سيتم التحقق من الطلب وفق سياسة الشركة قبل الإرسال.',
+      'Start date': 'تاريخ البداية',
+      'End date': 'تاريخ النهاية',
+      'Attachment reference': 'مرجع المرفق',
+      'Leave policies saved.': 'تم حفظ سياسات الإجازات.',
+      'Failed to save leave policies.': 'تعذر حفظ سياسات الإجازات.',
+      'Leave request submitted.': 'تم إرسال طلب الإجازة.',
+      'Failed to submit request.': 'تعذر إرسال الطلب.',
+      'Request approved.': 'تمت الموافقة على الطلب.',
+      'Failed to approve request.': 'تعذر اعتماد الطلب.',
+      'Request cancelled.': 'تم إلغاء الطلب.',
+      'Failed to cancel request.': 'تعذر إلغاء الطلب.',
+      'Request rejected.': 'تم رفض الطلب.',
+      'Failed to reject request.': 'تعذر رفض الطلب.',
+      'Please complete the required fields.': 'يرجى تعبئة الحقول المطلوبة.',
+      'Start date must be before end date.': 'تاريخ البداية يجب أن يسبق تاريخ النهاية.',
+      'Selected date range is not valid.': 'الفترة المختارة غير صالحة.',
+      'Attachment is required for this leave type.': 'المرفق مطلوب لهذا النوع من الإجازات.',
+      'Please provide a rejection reason.': 'يرجى إدخال سبب الرفض.',
+      'Employee Code': 'الرقم الوظيفي',
+      'Department': 'القسم',
+      'Job Title': 'المسمى الوظيفي',
+      'Requested Days': 'الأيام المطلوبة',
+      'Attached': 'مرفق',
+      'None': 'لا يوجد',
+      'Approval Trail': 'مسار الاعتماد',
+      'Employee Signature': 'توقيع الموظف',
+      'Direct Manager Signature': 'توقيع المدير المباشر',
+      'HR Signature': 'توقيع الموارد البشرية'
+      ,
+      'Compatibility screen': 'شاشة توافق قديمة',
+      'The operational leave source of truth is Leave Management. This route remains available for old links and self-service compatibility only.': 'مصدر الإجازات التشغيلي هو مركز إدارة الإجازات. هذا المسار متاح للروابط القديمة والخدمة الذاتية فقط.',
+      'Open Leave Management': 'فتح إدارة الإجازات'
+    };
     const cleanArabic: Record<string, string> = {
       'Self-service leave': 'الخدمة الذاتية للإجازات',
       'Leave management': 'إدارة طلبات الإجازة',
@@ -190,7 +288,7 @@ export class LeaveComponent implements OnInit {
       'Request rejected.': 'تم رفض الطلب.',
       'Failed to reject request.': 'تعذر رفض الطلب.'
     };
-    return cleanArabic[en] || ar;
+    return sprint3Arabic[en] || cleanArabic[en] || ar;
   }
 
   loadTypes() {

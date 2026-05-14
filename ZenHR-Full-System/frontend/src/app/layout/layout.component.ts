@@ -466,7 +466,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
       company: this.ui('الشركات', 'Companies'),
       user: this.ui('المستخدمون', 'Users'),
       department: this.ui('الأقسام', 'Departments'),
-      job_description: this.ui('الأوصاف الوظيفية', 'Job descriptions'),
+      job_description: this.ui('الملفات الوظيفية', 'Job profiles'),
       document: this.ui('الوثائق', 'Documents'),
       workflow: this.ui('سير العمل', 'Workflows'),
       payroll_run: this.ui('مسيرات الرواتب', 'Payroll runs'),
@@ -521,7 +521,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   private quickActions(term: string): GlobalSearchResult[] {
     const actions: GlobalSearchResult[] = [
-      { type: 'report', title: this.ui('تقرير عدد الموظفين', 'Headcount report'), subtitle: this.ui('انتقل إلى التقارير', 'Open reports'), icon: 'monitoring', url: '/app/reports' },
+      { type: 'report', title: this.ui('تقرير عدد الموظفين', 'Headcount report'), subtitle: this.ui('افتح مركز الوثائق والتقارير', 'Open Documents & Reporting'), icon: 'monitoring', url: '/app/documents-reporting' },
       { type: 'action', title: this.ui('لوحة التحكم', 'Dashboard'), subtitle: this.ui('العودة إلى الصفحة الرئيسية', 'Return to home'), icon: 'dashboard', url: this.dashboardRoute },
       { type: 'action', title: this.ui('الإشعارات', 'Notifications'), subtitle: this.ui('افتح مركز الإشعارات', 'Open notification center'), icon: 'notifications' },
     ];

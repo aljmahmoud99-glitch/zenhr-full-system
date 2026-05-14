@@ -16,6 +16,49 @@
   gap: var(--z-space-3);
 }
 
+.compat-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--z-space-3);
+  padding: var(--z-space-3) var(--z-space-4);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.28);
+  border-radius: var(--z-radius-lg, 14px);
+  background: rgba(var(--app-primary-rgb), 0.08);
+  color: var(--z-text-primary);
+}
+
+.compat-banner .material-icons {
+  color: var(--app-primary);
+}
+
+.compat-banner p {
+  margin: 0.15rem 0 0;
+  color: var(--z-text-secondary);
+}
+
+.compat-banner a {
+  margin-inline-start: auto;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+:host-context([dir='rtl']) .compat-banner a {
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
+@media (max-width: 720px) {
+  .compat-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .compat-banner a,
+  :host-context([dir='rtl']) .compat-banner a {
+    margin-inline: 0;
+  }
+}
+
 :host-context([dir='rtl']) .header-actions {
   justify-content: flex-start;
 }

@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-05-14T12:33:41.723Z",
+  "status": "GO",
+  "pages": {
+    "hrCanonical": {
+      "url": "http://localhost:5000/#/app/leave-management",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nإدارة الإجازات\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالوقت والحضور\nإدارة الإجازات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nإدارة الوقت والغياب\nمحرك الإجازات والمؤثرات\n\nإدارة أنواع الإجازات والأرصدة والاعتمادات متعددة المستويات مع أثر الرواتب وسجل التدقيق.\n\nrefresh\nتحديث\nكل الطلبات\n23\nبانتظار الاعتماد\n7\nمعتمدة\n10\nأثر الرواتب\n0.000 JOD\nevent_note\nطلبات الإجازات\naccount_balance_wallet\nالأرصدة\ncategory\nأنواع الإجازات\npayments\nأثر الرواتب\nhistory\nسجل التدقيق\nطلبات الإجازات\n\nبحث وفلاتر واعتماد وإلغاء طلبات الإجازات.\n\nبحث\nالموظف\nالكل\nمرشح تحقق 1778711790441 / CLN-11790441\nمرشح تحقق 1778711879177 / CLN-11879177\nمرشح تحقق 1778712013446 / CLN-12013446\nمرشح تحقق 1778712134139 / CLN-12134139\nمرشح تحقق 1778712155304 / CLN-12155304\nمرشح تحقق 1778712605076 / CLN-12605076\nمرشح تحقق 17787",
+      "links": [
+        "#/app/dashboard"
+      ],
+      "hasLegacyLeaveLink": false,
+      "hasDocumentsLegacyLink": false,
+      "hasReportsLegacyLink": false,
+      "hasFormsLegacyLink": false,
+      "hasCanonicalLeave": false,
+      "hasCanonicalApprovals": false,
+      "hasCanonicalDocsReporting": false,
+      "hasCompatibilityBanner": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    },
+    "hrLegacyLeave": {
+      "url": "http://localhost:5000/#/app/leave",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nلوحة التحكم\nchevron_right\nلوحة التحكم\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nلوحة التحكم\nلوحة التحكم\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nإدارة طلبات الإجازات\nالإجازات\n\nإدارة سياسات الإجازات والطلبات والأرصدة ضمن مسار اعتماد واضح وقابل للطباعة.\n\nsettings\nسياسات الإجازات\nevent_available\nطلب إجازة جديد\ninfo\nشاشة توافق قديمة\n\nمصدر الإجازات التشغيلي هو مركز إدارة الإجازات. هذا المسار متاح للروابط القديمة والخدمة الذاتية فقط.\n\nفتح إدارة الإجازات\nإجمالي الطلبات\n33\nقيد الانتظار\n7\nموافق عليه\n20\nمرفوض\n2\nفي إجازة حاليا\n0\nإجازة سنوية\n\nالرصيد المتبقي\n\n14\nالمستخدم\n0\nقيد الانتظار\n0\nالإجمالي\n14\n0%\nاعتماد المدير: مطلوباعتماد الموارد البشرية: مطلوبالمرفق: غير مطلوبحد الطلب: —الإشعار المسبق: 0\nإجازة سنوية\n\nالرصيد المتبقي\n\n14\nالمستخدم\n0\nقيد الانتظار\n0\nالإجمالي\n14\n0%\nاعتماد المدير: مطلوباعتماد الموارد البشرية: مطلوب",
+      "links": [
+        "#/app/dashboard",
+        "#/app/leave-management"
+      ],
+      "hasLegacyLeaveLink": false,
+      "hasDocumentsLegacyLink": false,
+      "hasReportsLegacyLink": false,
+      "hasFormsLegacyLink": false,
+      "hasCanonicalLeave": true,
+      "hasCanonicalApprovals": false,
+      "hasCanonicalDocsReporting": false,
+      "hasCompatibilityBanner": true,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    },
+    "mobile": {
+      "url": "http://localhost:5000/#/app/documents-reporting",
+      "textSample": "Z\nsearch\nnotifications\nH\nmenu\nالموارد البشرية\nالوثائق والتقارير\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\n\nحزمة C\n\nالوثائق والنماذج والتقارير\n\nمركز مؤسسي موحد للوثائق، النماذج الديناميكية، القوالب، التقارير، وسجل الطباعة.\n\nتحديث\nوثيقة جديدة\nview_agenda\nلوحة الوثائق\nلوحة الوثائق\nمركز الوثائق\nمنشئ النماذج\nإرسالات النماذج\nقوالب PDF\nمركز التقارير\nالتقارير المجدولة\nمركز التصدير\nسجل الطباعة\nالتحليلات\nالوثائق\n6\nبانتظار الاعتماد: 0\nالنماذج\n2\nقوالب قابلة لإعادة الاستخدام\nالتقارير\n6\nتعريفات تقارير محفوظة\nتنتهي قريباً\n0\nخلال 45 يوماً",
+      "links": [],
+      "hasLegacyLeaveLink": false,
+      "hasDocumentsLegacyLink": false,
+      "hasReportsLegacyLink": false,
+      "hasFormsLegacyLink": false,
+      "hasCanonicalLeave": false,
+      "hasCanonicalApprovals": false,
+      "hasCanonicalDocsReporting": false,
+      "hasCompatibilityBanner": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    },
+    "employee": {
+      "url": "http://localhost:5000/#/app/dashboard",
+      "textSample": "Z\nsearch\nnotifications\n44\nE\nmenu\nلوحة التحكم\nلوحة التحكم\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nحضوري هذا الشهر\n\nتوزيع أيام الحضور حسب الحالة\n\nالتفاصيل\nمتأخر\n3 يوم\nحاضر\n2 يوم\nأرصدة إجازاتي\n\nالمستخدم والمتبقي من كل نوع إجازة\n\nالتفاصيل\nإجازة سنوية\n14/14 يوم\nإجازة طارئة\n3/3 يوم\nإجازة مرضية\n14/14 يوم\nمتبقي\nمستخدم\nقسائم راتبي — آخر 6 أشهر\n\nإجمالي الراتب لكل شهر\n\nعرض\nمايو 27\nمايو 66\nمارس 82\nنوفمبر 82\nيناير 84\nسبتمبر 84\nالوثائق والأصول والامتثال\n\nملخص الوضع الحالي لملفاتي\n\nالملف\nوثائق سارية\n0\nتنتهي قريباً\n0\nمنتهية / مفقودة\n4\nأصول معيّنة لي\n0\nحالة الحضور اليوم\nلم أسجل بعد\nschedule\n\nلا يوجد سجل حضور لليوم بعد\n\nعرض التفاصيل\nطلباتي المعلقة\n8\npending_actions\n\nإجازات 7 • إضافي 1 • سلف 0\n\nعرض التفاصيل\nرصيد الإجازات\n31 يوم\nevent_note\n\nمستخدم 0 يوم • معلق 0 يوم\n\nعرض التفاصيل\nآخر قسيمة راتب\n—\nreceipt_long\n\nلا توجد قسيمة راتب معتمدة بعد\n\nعرض التفاصيل\nتنبيهات الوثائق والامتثال\n4\nverified_user\n\nمفقود 4 • منتهي 0 • قريب 0\n\nعرض التفاصيل\nالأصول المعيّنة لي\n0\ninventory_2\n\nلا توجد أصول معيّنة لك حاليًا\n\nعرض التفاصيل\nالإجراءات السريعة\n\nاختصارات مرتبطة مباشرة بوحدات الموارد البشرية الخاصة بك.\n\nschedule\nتسجيل الحضور والانصراف\nevent_note\nطلب إجازة\nmore_time\nطلب عمل إضافي\npayments\nطلب سلفة\nre",
+      "links": [
+        "#/app/attendance",
+        "#/app/leave-management",
+        "#/app/payroll/slips",
+        "#/app/documents-reporting",
+        "#/app/attendance",
+        "#/app/leave-management",
+        "#/app/leave-management",
+        "#/app/payroll/slips",
+        "#/app/documents-reporting",
+        "#/app/assets",
+        "#/app/attendance",
+        "#/app/leave-management",
+        "#/app/overtime",
+        "#/app/advances",
+        "#/app/payroll/slips",
+        "#/app/documents-reporting"
+      ],
+      "hasLegacyLeaveLink": false,
+      "hasDocumentsLegacyLink": false,
+      "hasReportsLegacyLink": false,
+      "hasFormsLegacyLink": false,
+      "hasCanonicalLeave": true,
+      "hasCanonicalApprovals": false,
+      "hasCanonicalDocsReporting": true,
+      "hasCompatibilityBanner": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    }
+  },
+  "checks": {
+    "canonicalPagesLoad": true,
+    "legacyNavHiddenForHr": true,
+    "legacyLeaveRouteHasBanner": true,
+    "employeeNavClean": true,
+    "darkModeReadable": true,
+    "responsiveNoOverflow": true
+  },
+  "consoleErrors": [],
+  "errors": []
+}

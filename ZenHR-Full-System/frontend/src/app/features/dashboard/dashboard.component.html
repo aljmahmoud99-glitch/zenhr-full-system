@@ -118,7 +118,7 @@
               <h3 class="z-heading">{{ t('الإجازات المعتمدة (هذا العام)', 'Approved Leave (This Year)') }}</h3>
               <p class="z-small">{{ t('مصنفة حسب نوع الإجازة', 'Grouped by leave type') }}</p>
             </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
+            <a routerLink="/app/leave-management" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
           </div>
           <div class="chart-empty" *ngIf="leaveTypeBreakdown().length === 0">
             <span class="material-icons">event_note</span>
@@ -244,7 +244,7 @@
               <h3 class="z-heading">{{ t('إجازات الفريق (هذا العام)', 'Team Leave (This Year)') }}</h3>
               <p class="z-small">{{ t('الإجازات المعتمدة حسب النوع', 'Approved leave by type') }}</p>
             </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('الطلبات', 'Requests') }}</a>
+            <a routerLink="/app/leave-management" class="panel-link">{{ t('الطلبات', 'Requests') }}</a>
           </div>
           <div class="chart-empty" *ngIf="leaveTypeBreakdown().length === 0">
             <span class="material-icons">event_note</span>
@@ -270,7 +270,7 @@
               <h3 class="z-heading">{{ t('طلبات بانتظار موافقتك', 'Requests Awaiting You') }}</h3>
               <p class="z-small">{{ t('إجازات وإضافي بانتظار قرارك', 'Leave and overtime pending your decision') }}</p>
             </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('مراجعة', 'Review') }}</a>
+            <a routerLink="/app/leave-management" class="panel-link">{{ t('مراجعة', 'Review') }}</a>
           </div>
           <div class="dept-list" *ngIf="summary()">
             <div class="dept-row" *ngFor="let item of pendingItemsData()">
@@ -602,7 +602,7 @@
               <h3 class="z-heading">{{ t('طلبات بانتظار موافقتك', 'Approval queue') }}</h3>
               <p class="z-small">{{ t('أقرب الطلبات التي تحتاج قرارك الآن', 'The nearest requests that need your decision now') }}</p>
             </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('فتح الطلبات', 'Open requests') }}</a>
+            <a routerLink="/app/leave-management" class="panel-link">{{ t('فتح الطلبات', 'Open requests') }}</a>
           </div>
 
           <div class="stack-list">
@@ -646,7 +646,7 @@
               <h3 class="z-heading">{{ t('تنبيهات الامتثال', 'Compliance alerts') }}</h3>
               <p class="z-small">{{ t('تنبيهات تحتاج متابعة مباشرة', 'Alerts that need direct action') }}</p>
             </div>
-            <a routerLink="/app/compliance" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
+            <a routerLink="/app/compliance-contracts" class="panel-link">{{ t('عرض الكل', 'View all') }}</a>
           </div>
 
           <div class="stack-list">
@@ -700,7 +700,7 @@
               <span class="material-icons">receipt_long</span>
               <span>{{ t('مسيرات الرواتب', 'Payroll') }}</span>
             </a>
-            <a routerLink="/app/leave" class="shortcut-link" *ngIf="access.canSeePage('/app/leave')">
+            <a routerLink="/app/leave-management" class="shortcut-link" *ngIf="access.canSeePage('/app/leave-management')">
               <span class="material-icons">event_note</span>
               <span>{{ t('الإجازات', 'Leave') }}</span>
             </a>
@@ -708,7 +708,7 @@
               <span class="material-icons">more_time</span>
               <span>{{ t('العمل الإضافي', 'Overtime') }}</span>
             </a>
-            <a routerLink="/app/reports" class="shortcut-link" *ngIf="access.canSeePage('/app/reports')">
+            <a routerLink="/app/documents-reporting" class="shortcut-link" *ngIf="access.canSeePage('/app/documents-reporting')">
               <span class="material-icons">bar_chart</span>
               <span>{{ t('التقارير', 'Reports') }}</span>
             </a>
@@ -765,7 +765,7 @@
               <h3 class="z-heading">{{ t('أرصدة إجازاتي', 'My Leave Balances') }}</h3>
               <p class="z-small">{{ t('المستخدم والمتبقي من كل نوع إجازة', 'Used and remaining by type') }}</p>
             </div>
-            <a routerLink="/app/leave" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
+            <a routerLink="/app/leave-management" class="panel-link">{{ t('التفاصيل', 'Details') }}</a>
           </div>
           <div class="chart-empty" *ngIf="leaveBalanceBars().length === 0">
             <span class="material-icons">event_note</span>
@@ -821,7 +821,7 @@
               <h3 class="z-heading">{{ t('الوثائق والأصول والامتثال', 'Documents, Assets & Compliance') }}</h3>
               <p class="z-small">{{ t('ملخص الوضع الحالي لملفاتي', 'Current status of my profile items') }}</p>
             </div>
-            <a routerLink="/app/documents" class="panel-link">{{ t('الملف', 'Profile') }}</a>
+            <a routerLink="/app/documents-reporting" class="panel-link">{{ t('الملف', 'Profile') }}</a>
           </div>
           <div class="dept-list">
             <div class="dept-row">

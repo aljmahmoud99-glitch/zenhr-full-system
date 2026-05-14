@@ -182,7 +182,7 @@ export class DashboardComponent implements OnInit {
       case 'hradmin':
         return [
           { labelAr: 'إضافة موظف', labelEn: 'Add employee', icon: 'person_add', route: '/app/employees', variant: 'primary' },
-          { labelAr: 'تقرير', labelEn: 'Report', icon: 'bar_chart', route: '/app/reports', variant: 'secondary' }
+          { labelAr: 'تقرير', labelEn: 'Report', icon: 'bar_chart', route: '/app/documents-reporting', variant: 'secondary' }
         ];
       case 'payrolladmin':
         return [
@@ -191,7 +191,7 @@ export class DashboardComponent implements OnInit {
         ];
       case 'manager':
         return [
-          { labelAr: 'طلبات الفريق', labelEn: 'Team requests', icon: 'pending_actions', route: '/app/leave', variant: 'primary' },
+          { labelAr: 'طلبات الفريق', labelEn: 'Team requests', icon: 'pending_actions', route: '/app/leave-management', variant: 'primary' },
           { labelAr: 'حضور الفريق', labelEn: 'Team attendance', icon: 'fact_check', route: '/app/attendance', variant: 'secondary' }
         ];
       default:
@@ -224,7 +224,7 @@ export class DashboardComponent implements OnInit {
         this.card('حالتي اليوم', 'Today status', this.employeeTodayLabel(myToday?.status), 'schedule', 'emerald', '/app/attendance',
           myToday?.clockIn ? this.t(`تم تسجيل الحضور ${this.formatWhen(myToday.clockIn)}`, `Clocked in ${this.formatWhen(myToday.clockIn)}`) : this.t('افتح الحضور للتسجيل', 'Open attendance to clock in'),
           myToday?.clockIn ? this.t(`تم تسجيل الحضور ${this.formatWhen(myToday.clockIn)}`, `Clocked in ${this.formatWhen(myToday.clockIn)}`) : this.t('افتح الحضور للتسجيل', 'Open attendance to clock in')),
-        this.card('طلباتي المعلقة', 'My pending requests', s.pendingLeaves + s.pendingOvertimes, 'pending_actions', 'blue', '/app/leave', 'إجازات وإضافي', 'Leave and overtime requests'),
+        this.card('طلباتي المعلقة', 'My pending requests', s.pendingLeaves + s.pendingOvertimes, 'pending_actions', 'blue', '/app/leave-management', 'إجازات وإضافي', 'Leave and overtime requests'),
         this.card('آخر كشف راتب', 'Latest payslip', latestSlip ? this.money(latestSlip.netSalary) : this.t('لم يصدر بعد', 'Not issued yet'), 'receipt_long', 'purple', '/app/payroll/slips',
           latestSlip ? `${this.monthName(latestSlip.periodMonth)} ${latestSlip.periodYear}` : this.t('سيظهر هنا عند إصداره', 'It will appear here once issued'),
           latestSlip ? `${this.monthName(latestSlip.periodMonth)} ${latestSlip.periodYear}` : this.t('سيظهر هنا عند إصداره', 'It will appear here once issued'))
@@ -235,8 +235,8 @@ export class DashboardComponent implements OnInit {
       case 'hradmin':
         return [
           this.card('حاضرون اليوم', 'Present today', s.presentToday, 'fact_check', 'blue', '/app/attendance', `${s.absentToday} غائب`, `${s.absentToday} absent`),
-          this.card('طلبات معلقة', 'Pending requests', s.pendingLeaves + s.pendingOvertimes + s.pendingAdvances, 'pending_actions', 'amber', '/app/leave', 'إجازات وإضافي وسلف', 'Leave, overtime, and advances'),
-          this.card('تنبيهات الامتثال', 'Compliance alerts', s.sscNotEnrolled + s.wpExpiringSoon + s.healthExpiringSoon, 'verified_user', 'danger', '/app/compliance', 'تحتاج إجراء فوري', 'Need immediate action')
+          this.card('طلبات معلقة', 'Pending requests', s.pendingLeaves + s.pendingOvertimes + s.pendingAdvances, 'pending_actions', 'amber', '/app/leave-management', 'إجازات وإضافي وسلف', 'Leave, overtime, and advances'),
+          this.card('تنبيهات الامتثال', 'Compliance alerts', s.sscNotEnrolled + s.wpExpiringSoon + s.healthExpiringSoon, 'verified_user', 'danger', '/app/compliance-contracts', 'تحتاج إجراء فوري', 'Need immediate action')
         ];
       case 'payrolladmin':
         return [
@@ -247,20 +247,20 @@ export class DashboardComponent implements OnInit {
       case 'manager':
         return [
           this.card('حاضرون اليوم', 'Present today', s.presentToday, 'fact_check', 'blue', '/app/attendance', `${s.onLeaveToday} في إجازة`, `${s.onLeaveToday} on leave`),
-          this.card('طلبات إجازة', 'Leave approvals', s.pendingLeaves, 'event_note', 'amber', '/app/leave', 'بانتظار قرارك', 'Waiting for your approval'),
+          this.card('طلبات إجازة', 'Leave approvals', s.pendingLeaves, 'event_note', 'amber', '/app/leave-management', 'بانتظار قرارك', 'Waiting for your approval'),
           this.card('طلبات إضافي', 'Overtime approvals', s.pendingOvertimes, 'more_time', 'danger', '/app/overtime', 'تحتاج مراجعة اليوم', 'Needs review today')
         ];
       case 'employee':
         return [
           this.card('حالتي اليوم', 'Today status', s.presentToday > 0 ? this.t('حاضر', 'Present') : this.t('لم أسجل بعد', 'Not clocked in'), 'schedule', 'emerald', '/app/attendance', this.t('سجّل حضورك من هنا', 'Open attendance to clock in'), this.t('سجّل حضورك من هنا', 'Open attendance to clock in')),
-          this.card('إجازاتي المعلقة', 'Pending leave', s.pendingLeaves, 'event_note', 'blue', '/app/leave', 'آخر طلباتك قيد المعالجة', 'Your latest requests are in progress'),
+          this.card('إجازاتي المعلقة', 'Pending leave', s.pendingLeaves, 'event_note', 'blue', '/app/leave-management', 'آخر طلباتك قيد المعالجة', 'Your latest requests are in progress'),
           this.card('إضافي معلق', 'Pending overtime', s.pendingOvertimes, 'more_time', 'purple', '/app/overtime', 'ساعات بانتظار الاعتماد', 'Hours waiting for approval')
         ];
       default:
         return [
           this.card('الشركات النشطة', 'Active companies', s.totalEmployees, 'domain', 'emerald', '/admin/companies', 'متابعة تشغيلية مباشرة', 'Operational visibility'),
           this.card('موافقات معلقة', 'Pending approvals', s.pendingLeaves + s.pendingOvertimes + s.pendingAdvances, 'pending_actions', 'amber', '/admin/users', 'مستخدمون وحالات بانتظار المتابعة', 'Users and items awaiting follow-up'),
-          this.card('تنبيهات الامتثال', 'Compliance alerts', s.sscNotEnrolled + s.wpExpiringSoon + s.healthExpiringSoon, 'verified_user', 'danger', '/app/compliance', 'عرض عابر للمنصة', 'Cross-platform visibility')
+          this.card('تنبيهات الامتثال', 'Compliance alerts', s.sscNotEnrolled + s.wpExpiringSoon + s.healthExpiringSoon, 'verified_user', 'danger', '/app/compliance-contracts', 'عرض عابر للمنصة', 'Cross-platform visibility')
         ];
     }
   });
@@ -280,11 +280,11 @@ export class DashboardComponent implements OnInit {
 
     return [
       { labelAr: 'تسجيل الحضور والانصراف', labelEn: 'Clock in / out', icon: 'schedule', route: '/app/attendance' },
-      { labelAr: 'طلب إجازة', labelEn: 'Request leave', icon: 'event_note', route: '/app/leave' },
+      { labelAr: 'طلب إجازة', labelEn: 'Request leave', icon: 'event_note', route: '/app/leave-management' },
       { labelAr: 'طلب عمل إضافي', labelEn: 'Request overtime', icon: 'more_time', route: '/app/overtime' },
       { labelAr: 'طلب سلفة', labelEn: 'Request advance', icon: 'payments', route: '/app/advances' },
       { labelAr: 'عرض قسيمة الراتب', labelEn: 'View payslip', icon: 'receipt_long', route: '/app/payroll/slips' },
-      { labelAr: 'عرض الوثائق', labelEn: 'View documents', icon: 'folder_open', route: '/app/documents' }
+      { labelAr: 'عرض الوثائق', labelEn: 'View documents', icon: 'folder_open', route: '/app/documents-reporting' }
     ];
   });
 
@@ -640,10 +640,10 @@ export class DashboardComponent implements OnInit {
   employeeWidgetRoute(key: EmployeeWidgetKey) {
     const map: Record<EmployeeWidgetKey, string> = {
       attendance: '/app/attendance',
-      requests: '/app/leave',
-      leave: '/app/leave',
+      requests: '/app/leave-management',
+      leave: '/app/leave-management',
       payslip: '/app/payroll/slips',
-      compliance: '/app/documents',
+      compliance: '/app/documents-reporting',
       assets: '/app/assets'
     };
 

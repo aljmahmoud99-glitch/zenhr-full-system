@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-05-14T11:40:33.170Z",
+  "status": "GO",
+  "frontend": "http://localhost:5000",
+  "backend": "http://localhost:3001",
+  "pages": {
+    "hrLeaveManagement": {
+      "url": "http://localhost:5000/#/app/leave-management",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالوقت والحضور\nchevron_right\nإدارة الإجازات\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n4\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالوقت والحضور\nإدارة الإجازات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nإدارة الوقت والغياب\nمحرك الإجازات والمؤثرات\n\nإدارة أنواع الإجازات والأرصدة والاعتمادات متعددة المستويات مع أثر الرواتب وسجل التدقيق.\n\nrefresh\nتحديث\nكل الطلبات\n21\nبانتظار الاعتماد\n7\nمعتمدة\n8\nأثر الرواتب\n0.000 JOD\nevent_note\nطلبات الإجازات\naccount_balance_wallet\nالأرصدة\ncategory\nأنواع الإجازات\npayments\nأثر الرواتب\nhistory\nسجل التدقيق\nطلبات الإجازات\n\nبحث وفلاتر واعتماد وإلغاء طلبات الإجازات.\n\nبحث\nالموظف\nالكل\nمرشح تحقق 1778711790441 / CLN-11790441\nمرشح تحقق",
+      "hasArabicLeave": true,
+      "hasEnglishLeave": false,
+      "hasMojibake": false,
+      "hasRawLegacyLeaveAdminLink": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false,
+      "tableOrEmpty": true
+    },
+    "hrMobile": {
+      "url": "http://localhost:5000/#/app/leave-management",
+      "textSample": "Z\nsearch\nnotifications\n4\nH\nmenu\nالوقت والحضور\nإدارة الإجازات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nإدارة الوقت والغياب\nمحرك الإجازات والمؤثرات\n\nإدارة أنواع الإجازات والأرصدة والاعتمادات متعددة المستويات مع أثر الرواتب وسجل التدقيق.\n\nrefresh\nتحديث\nكل الطلبات\n21\nبانتظار الاعتماد\n7\nمعتمدة\n8\nأثر الرواتب\n0.000 JOD\nevent_note\nطلبات الإجازات\naccount_balance_wallet\nالأرصدة\ncategory\nأنواع الإجازات\npayments\nأثر الرواتب\nhistory\nسجل التدقيق\nطلبات الإجازات\n\nبحث وفلاتر واعتماد وإلغاء طلبات الإجازات.\n\nبحث\nالموظف\nالكل\nمرشح تحقق 1778711790441 / CLN-11790441\nمرشح تحقق 1778711879177 / CLN-11879177\nمرشح تحقق 1778712013446 / CLN-12013446\nمرشح تحقق 1778712134139 / CLN-12134139\nمرشح تحقق 1778712155304 / CLN-12155304\nمرشح تحقق 1778712605076 / CLN-12605076\nمرشح تحقق 1778712720474 / CLN-12720474\nمرشح تحقق 1778729936136 / CLN-29936136\nأحمد العلي / EMP-0001\nسارة محمود / EMP-0002\nمحمد الخطيب / EMP-0003\nKhaled Al-Nemer / EMP-0004\nLayla Haddad / EMP-0005\nYousef Al-Rashid / EMP-0006\n???? P3-moviju3e",
+      "hasArabicLeave": true,
+      "hasEnglishLeave": false,
+      "hasMojibake": false,
+      "hasRawLegacyLeaveAdminLink": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false,
+      "tableOrEmpty": true
+    },
+    "employeeLegacy": {
+      "url": "http://localhost:5000/#/app/leave",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nلوحة التحكم\nchevron_right\nلوحة التحكم\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n42\nشركة زنجو للتقنية / Human Resources\nE\nemployee\nموظف\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nperson\nالخدمة الذاتية\nexpand_more\nلوحة التحكم\nلوحة التحكم\nموظف\n/\ncorporate_fare\nشركة زنجو للتقنية / Human Resources\nالخدمة الذاتية للإجازات\nالإجازات\n\nإدارة سياسات الإجازات والطلبات والأرصدة ضمن مسار اعتماد واضح وقابل للطباعة.\n\nevent_available\nطلب إجازة جديد\nإجمالي الطلبات\n31\nقيد الانتظار\n7\nموافق عليه\n18\nمرفوض\n2\nفي إجازة حاليا\n0\nإجازة سنوية\n\nالرصيد المتبقي\n\n14\nالمستخدم\n0\nقيد الانتظار\n0\nالإجمالي\n14\n0%\nاعتماد المدير: مطلوباعتماد الموارد البشرية: مطلوبالمرفق: غير مطلوبحد الطلب: —الإشعار المسبق: 0\nإجازة اختبار Phase D\n\nالرصيد المتبقي\n\n0\nالمستخدم\n0\nقيد الانتظار\n0\nالإجمالي\n0\n0%\nاعتماد المدير: مطلوباعتماد الموارد البشرية: مطلوبالمرفق: غير مطلوبحد الطلب: —الإشعار المسبق: 0\nإجازة اختبار Phase D\n\nالرصيد المتبقي\n\n0\nالمستخدم\n0\nقيد الانتظار\n0\nالإجمالي\n0\n0%\nاعتماد الم",
+      "hasArabicLeave": true,
+      "hasEnglishLeave": false,
+      "hasMojibake": false,
+      "hasRawLegacyLeaveAdminLink": false,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false,
+      "tableOrEmpty": true
+    }
+  },
+  "checks": {
+    "hrLeaveManagementLoads": true,
+    "adminNavHidesLegacyLeave": true,
+    "employeeCompatibilityRouteLoads": true,
+    "noMojibake": true,
+    "darkModeReadable": true,
+    "responsiveDesktop": true,
+    "responsiveMobile": true
+  },
+  "consoleErrors": [],
+  "errors": [],
+  "auth": {
+    "hr": 200,
+    "employee": 200
+  }
+}

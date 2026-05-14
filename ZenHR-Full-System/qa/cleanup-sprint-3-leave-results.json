@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-05-14T13:01:33.019Z",
+  "status": "GO",
+  "leave": {
+    "legacyTypesStatus": 200,
+    "enterpriseTypesStatus": 200,
+    "legacyPoliciesStatus": 200,
+    "legacyBalancesStatus": 200,
+    "enterpriseBalancesStatus": 200,
+    "selectedType": {
+      "id": 2,
+      "code": "UNPAID",
+      "nameAr": "إجازة غير مدفوعة",
+      "nameEn": "Unpaid Leave",
+      "isPaid": false,
+      "defaultDaysPerYear": 0,
+      "maxCarryForward": 0,
+      "genderRestriction": "all",
+      "onceInCareer": false,
+      "requiresMedicalCert": false,
+      "isActive": true,
+      "enterpriseLeaveTypeId": 2,
+      "legacyCompatible": true
+    },
+    "createLegacyWrapperStatus": 201,
+    "createdRequestId": 50,
+    "createdViaEnterpriseShape": true,
+    "foundInUnifiedApprovals": true,
+    "approvalStatuses": [
+      200,
+      200
+    ],
+    "finalStatus": "approved",
+    "auditStatus": 200,
+    "auditRows": 3,
+    "payrollImpactStatus": 200,
+    "payrollImpactCreated": true,
+    "legacyListStatus": 200,
+    "enterpriseListStatus": 200,
+    "legacyAndEnterpriseSeeRequest": true,
+    "unmappedLegacyFailsSafely": true
+  },
+  "notifications": {
+    "employeeCenterStatus": 200,
+    "leaveNotificationPresent": true
+  },
+  "approvals": {
+    "pendingStatus": 200
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-05-14T13:01:09.139Z",
+  "status": "GO",
+  "checks": {
+    "duplicateLegacyNavRemoved": true,
+    "canonicalModulesObvious": true,
+    "routeNamesStandardized": true
+  }
+}

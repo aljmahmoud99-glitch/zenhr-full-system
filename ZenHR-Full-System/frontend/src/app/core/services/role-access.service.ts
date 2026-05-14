@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Phase 1 — RoleAccessService (updated)
  *
  * Changes:
@@ -120,7 +120,7 @@ const HRADMIN_NAV: NavGroup[] = [
     icon: 'groups',
     items: [
       { labelAr: 'البيانات الرئيسية للموارد البشرية', labelEn: 'HR Master Data', icon: 'database', path: '/app/hr-master-data', roles: ['hradmin'] },
-      { labelAr: 'المسميات الوظيفية', labelEn: 'Job Titles', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
+      { labelAr: 'الملفات الوظيفية', labelEn: 'Job Profiles', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
       { labelAr: 'الموظفون', labelEn: 'Employees', icon: 'groups', path: '/app/employees' },
       { labelAr: 'التوظيف والتعيين', labelEn: 'Recruitment & Hiring', icon: 'person_search', path: '/app/recruitment', roles: ['hradmin'] },
       { labelAr: 'الأداء وسير العمل', labelEn: 'Performance & Workflows', icon: 'query_stats', path: '/app/performance-workflows', roles: ['hradmin'] },
@@ -151,8 +151,7 @@ const HRADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'الورديات', labelEn: 'Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'الحضور والانصراف', labelEn: 'Attendance', icon: 'fact_check', path: '/app/attendance' },
-      { labelAr: 'الإجازات', labelEn: 'Leaves', icon: 'event_note', path: '/app/leave' },
-      { labelAr: 'محرك الإجازات', labelEn: 'Leave Management', icon: 'event_available', path: '/app/leave-management', roles: ['hradmin'] },
+      { labelAr: 'إدارة الإجازات', labelEn: 'Leave Management', icon: 'event_available', path: '/app/leave-management', roles: ['hradmin'] },
       { labelAr: 'مركز الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications', roles: ['hradmin'] },
       { labelAr: 'العمل الإضافي', labelEn: 'Overtime', icon: 'more_time', path: '/app/overtime' },
       { labelAr: 'العطل الرسمية', labelEn: 'Holidays', icon: 'today', path: '/app/holidays' }
@@ -166,8 +165,7 @@ const HRADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'الامتثال', labelEn: 'Compliance', icon: 'verified_user', path: '/app/compliance' },
       { labelAr: 'العقود والامتثال', labelEn: 'Contracts & Compliance', icon: 'contract', path: '/app/compliance-contracts', roles: ['hradmin', 'superadmin'] },
-      { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
-      { labelAr: 'مركز الوثائق والتقارير', labelEn: 'Documents & Reporting Center', icon: 'folder_managed', path: '/app/documents-reporting' },
+      { labelAr: 'الوثائق والتقارير', labelEn: 'Documents & Reporting', icon: 'folder_managed', path: '/app/documents-reporting' },
       { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' }
     ]
   },
@@ -179,7 +177,7 @@ const HRADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
-      { labelAr: 'محرك الرواتب والحضور', labelEn: 'Payroll & Attendance Core', icon: 'rule', path: '/app/payroll-attendance' },
+      { labelAr: 'عمليات الرواتب', labelEn: 'Payroll Operations', icon: 'rule', path: '/app/payroll-attendance' },
       { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' }
     ]
@@ -190,8 +188,6 @@ const HRADMIN_NAV: NavGroup[] = [
     labelEn: 'Administration',
     icon: 'admin_panel_settings',
     items: [
-      { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' },
-      { labelAr: 'التقارير', labelEn: 'Reports', icon: 'bar_chart', path: '/app/reports' },
       { labelAr: 'الهيكل التنظيمي', labelEn: 'Org Structure', icon: 'account_tree', path: '/app/org-structure' },
       { labelAr: 'الأدوار والصلاحيات', labelEn: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/app/roles' },
       { labelAr: 'تعيين الأدوار', labelEn: 'User Role Assignment', icon: 'assignment_ind', path: '/app/user-roles' },
@@ -210,10 +206,10 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     items: [
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
-      { labelAr: 'محرك الرواتب والحضور', labelEn: 'Payroll & Attendance Core', icon: 'rule', path: '/app/payroll-attendance' },
+      { labelAr: 'عمليات الرواتب', labelEn: 'Payroll Operations', icon: 'rule', path: '/app/payroll-attendance' },
       { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
       { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
-      { labelAr: 'أثر الإجازات', labelEn: 'Leave Payroll Impact', icon: 'event_available', path: '/app/leave-management' },
+      { labelAr: 'أثر الإجازات على الرواتب', labelEn: 'Leave Payroll Impact', icon: 'event_available', path: '/app/leave-management' },
       { labelAr: 'مركز الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
       { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مراجعة عروض التوظيف', labelEn: 'Offer Review', icon: 'local_offer', path: '/app/recruitment' },
@@ -228,19 +224,8 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     icon: 'storage',
     items: [
       { labelAr: 'الموظفون', labelEn: 'Employees (Read)', icon: 'groups', path: '/app/employees' },
-      { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
       { labelAr: 'وثائق وتقارير الفريق', labelEn: 'Team Documents & Reports', icon: 'folder_managed', path: '/app/documents-reporting' },
       { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' },
-      { labelAr: 'التقارير المالية', labelEn: 'Financial Reports', icon: 'bar_chart', path: '/app/reports' }
-    ]
-  },
-  {
-    groupKey: 'forms',
-    labelAr: 'النماذج',
-    labelEn: 'Forms',
-    icon: 'description',
-    items: [
-      { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' }
     ]
   }
 ];
@@ -269,8 +254,7 @@ const MANAGER_NAV: NavGroup[] = [
     items: [
       { labelAr: 'ورديات الفريق', labelEn: 'Team Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'حضور الفريق', labelEn: 'Team Attendance', icon: 'fact_check', path: '/app/attendance' },
-      { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_note', path: '/app/leave' },
-      { labelAr: 'اعتمادات الإجازات', labelEn: 'Leave Approvals', icon: 'event_available', path: '/app/leave-management' },
+      { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_available', path: '/app/leave-management' },
       { labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
       { labelAr: 'العمل الإضافي للفريق', labelEn: 'Team Overtime', icon: 'more_time', path: '/app/overtime' },
       { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' }
@@ -282,9 +266,7 @@ const MANAGER_NAV: NavGroup[] = [
     labelEn: 'Tools',
     icon: 'build',
     items: [
-      { labelAr: 'الوثائق', labelEn: 'Documents', icon: 'folder_open', path: '/app/documents' },
       { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' },
-      { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' }
     ]
   }
 ];
@@ -297,19 +279,16 @@ const EMPLOYEE_NAV: NavGroup[] = [
     icon: 'person',
     items: [
       { labelAr: 'حضوري', labelEn: 'My Attendance', icon: 'fact_check', path: '/app/attendance' },
-      { labelAr: 'إجازاتي', labelEn: 'My Leave', icon: 'event_note', path: '/app/leave' },
       { labelAr: 'مركز إجازاتي', labelEn: 'My Leave Center', icon: 'event_available', path: '/app/leave-management' },
       { labelAr: 'إشعاراتي', labelEn: 'My Notifications', icon: 'notifications', path: '/app/notifications' },
       { labelAr: 'ساعاتي الإضافية', labelEn: 'My Overtime', icon: 'more_time', path: '/app/overtime' },
       { labelAr: 'سلفي', labelEn: 'My Advances', icon: 'payments', path: '/app/advances' },
-      { labelAr: 'تعديلات راتبي', labelEn: 'My Adjustments', icon: 'price_change', path: '/app/payroll-attendance' },
+      { labelAr: 'تعديلات راتبي', labelEn: 'My Payroll Operations', icon: 'price_change', path: '/app/payroll-attendance' },
       { labelAr: 'تقييماتي', labelEn: 'My Performance', icon: 'query_stats', path: '/app/performance-workflows' },
       { labelAr: 'مسير راتبي', labelEn: 'My Payslips', icon: 'receipt_long', path: '/app/payroll/slips' },
-      { labelAr: 'مستنداتي', labelEn: 'My Documents', icon: 'folder_open', path: '/app/documents' },
       { labelAr: 'نماذجي وتقاريري', labelEn: 'My Forms & Reports', icon: 'folder_managed', path: '/app/documents-reporting' },
       { labelAr: 'أصولي', labelEn: 'My Assets', icon: 'inventory_2', path: '/app/assets' },
       { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' },
-      { labelAr: 'النماذج الرسمية', labelEn: 'Official Forms', icon: 'description', path: '/app/forms' }
     ]
   }
 ];
@@ -322,10 +301,9 @@ const RECRUITER_NAV: NavGroup[] = [
     icon: 'person_search',
     items: [
       { labelAr: 'مركز التوظيف', labelEn: 'Recruitment Center', icon: 'person_search', path: '/app/recruitment' },
-      { labelAr: 'اعتمادات التوظيف', labelEn: 'Recruitment Approvals', icon: 'approval', path: '/app/approvals' },
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
       { labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
-      { labelAr: 'نماذج التوظيف', labelEn: 'Recruitment Forms', icon: 'description', path: '/app/forms' },
-      { labelAr: 'وثائق التوظيف', labelEn: 'Recruitment Documents', icon: 'folder_managed', path: '/app/documents-reporting' }
+      { labelAr: 'وثائق ونماذج التوظيف', labelEn: 'Recruitment Documents & Forms', icon: 'folder_managed', path: '/app/documents-reporting' }
     ]
   }
 ];

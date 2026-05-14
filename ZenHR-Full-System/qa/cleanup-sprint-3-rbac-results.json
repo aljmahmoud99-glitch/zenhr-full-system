@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-14T13:01:33.019Z",
+  "status": "GO",
+  "rbac": {
+    "recruiterCreateStatus": 403,
+    "employeePayrollImpactStatus": 403,
+    "employeeApprovalsStatus": 403,
+    "payrollCanUpdateCompatibilityPoliciesStatus": 200,
+    "recruiterForbidden": true,
+    "employeeCannotReadPayrollImpact": true,
+    "employeeCannotAccessApprovals": true
+  }
+}

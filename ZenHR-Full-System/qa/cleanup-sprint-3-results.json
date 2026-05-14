@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-05-14T13:01:33.019Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-14T13:01:33.092Z",
+      "version": "1.0.0"
+    }
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "leave": {
+    "legacyTypesStatus": 200,
+    "enterpriseTypesStatus": 200,
+    "legacyPoliciesStatus": 200,
+    "legacyBalancesStatus": 200,
+    "enterpriseBalancesStatus": 200,
+    "selectedType": {
+      "id": 2,
+      "code": "UNPAID",
+      "nameAr": "إجازة غير مدفوعة",
+      "nameEn": "Unpaid Leave",
+      "isPaid": false,
+      "defaultDaysPerYear": 0,
+      "maxCarryForward": 0,
+      "genderRestriction": "all",
+      "onceInCareer": false,
+      "requiresMedicalCert": false,
+      "isActive": true,
+      "enterpriseLeaveTypeId": 2,
+      "legacyCompatible": true
+    },
+    "createLegacyWrapperStatus": 201,
+    "createdRequestId": 50,
+    "createdViaEnterpriseShape": true,
+    "foundInUnifiedApprovals": true,
+    "approvalStatuses": [
+      200,
+      200
+    ],
+    "finalStatus": "approved",
+    "auditStatus": 200,
+    "auditRows": 3,
+    "payrollImpactStatus": 200,
+    "payrollImpactCreated": true,
+    "legacyListStatus": 200,
+    "enterpriseListStatus": 200,
+    "legacyAndEnterpriseSeeRequest": true,
+    "unmappedLegacyFailsSafely": true
+  },
+  "payroll": {
+    "beforePreviewStatus": 200,
+    "afterPreviewStatus": 200,
+    "beforeLeaveDeduction": "0.000",
+    "afterLeaveDeduction": "35.064",
+    "leaveImpactInPolicySnapshot": {
+      "days": 1,
+      "hours": 8,
+      "amount": 35.064
+    },
+    "enterpriseUnpaidLeaveIsPayrollSource": true
+  },
+  "rbac": {
+    "recruiterCreateStatus": 403,
+    "employeePayrollImpactStatus": 403,
+    "employeeApprovalsStatus": 403,
+    "payrollCanUpdateCompatibilityPoliciesStatus": 200,
+    "recruiterForbidden": true,
+    "employeeCannotReadPayrollImpact": true,
+    "employeeCannotAccessApprovals": true
+  },
+  "notifications": {
+    "employeeCenterStatus": 200,
+    "leaveNotificationPresent": true
+  },
+  "approvals": {
+    "pendingStatus": 200
+  },
+  "errors": []
+}
