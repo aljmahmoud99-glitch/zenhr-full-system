@@ -792,7 +792,22 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
         params,
       );
       const total = Number(count.rows[0]?.total || 0);
-      res.json({ success: true, data: { items: rowsToCamel(rows), total, page, pageSize, totalPages: Math.ceil(total / pageSize) } });
+      const items = rowsToCamel(rows).map((item: any) => {
+        if (item.notificationType === "attendance_correction_hr_approved") {
+          item.titleAr = "تم اعتماد طلب تصحيح الحضور";
+          item.messageAr = `تم اعتماد طلب تصحيح حضورك #${item.entityId} من قبل الموارد البشرية.`;
+          item.title = item.titleAr;
+          item.message = item.messageAr;
+        }
+        if (item.notificationType === "leave_request_approved") {
+          item.titleAr = "تمت الموافقة على طلب الإجازة";
+          item.messageAr = "تمت الموافقة على طلب إجازتك.";
+          item.title = item.titleAr;
+          item.message = item.messageAr;
+        }
+        return item;
+      });
+      res.json({ success: true, data: { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } });
     } catch (e) {
       console.error("[GET /api/notifications/center]", e);
       res.status(500).json({ success: false, message: "Internal server error" });

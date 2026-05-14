@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-05-14T17:53:36.403Z",
+  "status": "GO",
+  "audit": {
+    "leaveAuditRows": 3,
+    "leaveNotificationPresent": true,
+    "unifiedApprovalsStatus": null,
+    "notificationDedupe": true,
+    "performancePayrollAuditSource": "Sprint 5 payroll adjustments and Sprint 3 leave audit evidence",
+    "passed": true
+  }
+}

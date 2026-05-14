@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-14T17:53:36.403Z",
+  "status": "GO",
+  "compatibility": {
+    "legacyLeaveStatus": 200,
+    "enterpriseLeaveStatus": 200,
+    "legacyNotificationsStatus": 200,
+    "notificationCenterStatus": 200,
+    "legacyHeadcountStatus": 200,
+    "approvalsStatus": 200,
+    "passed": true
+  }
+}

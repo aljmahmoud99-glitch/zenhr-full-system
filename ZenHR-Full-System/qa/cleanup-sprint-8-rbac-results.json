@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-05-14T17:53:36.403Z",
+  "status": "GO",
+  "rbac": {
+    "employeeApprovalsStatus": 403,
+    "employeePayrollPreviewStatus": 403,
+    "recruiterPayrollAdjustmentsStatus": 403,
+    "payrollRecruitmentMutationStatus": 403,
+    "employeeOtherProfileStatus": 404,
+    "passed": true
+  }
+}

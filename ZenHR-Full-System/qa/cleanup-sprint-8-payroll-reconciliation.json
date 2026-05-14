@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-05-14T17:53:36.403Z",
+  "status": "GO",
+  "payroll": {
+    "source": "qa/cleanup-sprint-5-results.json",
+    "status": "GO",
+    "reconciliation": {
+      "employeeId": 8,
+      "period": "2122-11",
+      "adjustmentId": "31",
+      "beforeNet": "1173.100",
+      "afterPreviewNet": "1223.100",
+      "netDeltaPreview": "50.000",
+      "previewAdjustmentAddition": "50.000",
+      "payslipId": 479,
+      "payslipNet": "1223.100",
+      "payslipAdjustmentAddition": "50.000",
+      "payrollImpacts": [
+        {
+          "sourceType": "adjustment",
+          "sourceId": "adjustment:31",
+          "employeeId": "8",
+          "payrollPeriod": "2122-11",
+          "amount": 50,
+          "direction": "earning",
+          "status": "approved",
+          "metadata": {
+            "id": "31",
+            "adjustment_number": "ADJ-MP5RVM1N",
+            "direction": "add",
+            "calculation_mode": "after_net",
+            "recurrence_type": "one_time",
+            "amount": "50.000",
+            "status": "approved",
+            "payroll_run_id": null,
+            "payslip_id": null,
+            "effective_date": "2122-11-02T21:00:00.000Z",
+            "end_date": null,
+            "title_ar": "إضافة صافي اختبارية",
+            "title_en": "Sprint 5 after-net addition",
+            "type_code": "SPRINT5_AFTER_NET",
+            "type_name_ar": "اختبار تسوية الرواتب",
+            "type_name_en": "Sprint 5 Payroll Reconciliation",
+            "sourceKind": "adjustment",
+            "sourceId": "31"
+          }
+        }
+      ],
+      "runTotalNet": "25703.283",
+      "payslipNetTotal": "25703.283",
+      "reportTotalNet": "25703.283",
+      "grossReconciles": true,
+      "deductionsReconcile": true,
+      "netReconciles": true,
+      "passed": true
+    },
+    "rerunProtection": {
+      "runId": 21,
+      "firstCalculateStatus": 200,
+      "secondCalculateStatus": 200,
+      "firstPayslipId": 479,
+      "secondPayslipId": 504,
+      "firstSnapshotAdjustment": "50.000",
+      "secondSnapshotAdjustment": "50.000",
+      "adjustmentStatusAfterRun": "applied",
+      "adjustmentPayrollRunId": 21,
+      "approveRunStatus": 200,
+      "lockedRecalculateStatus": 409,
+      "duplicatePrevented": true
+    },
+    "exports": {
+      "csv": {
+        "status": 200,
+        "contentType": "text/csv; charset=utf-8",
+        "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.csv\"",
+        "size": 14659,
+        "hasPeriod": true
+      },
+      "xlsx": {
+        "status": 200,
+        "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.xlsx\"",
+        "size": 15818,
+        "hasPeriod": true
+      },
+      "pdf": {
+        "status": 200,
+        "contentType": "application/pdf",
+        "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.pdf\"",
+        "size": 7002,
+        "hasPeriod": true
+      },
+      "payrollSummaryExcel": {
+        "status": 200,
+        "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "disposition": "attachment; filename=\"zenjo-payroll-2122-11.xlsx\"",
+        "size": 10708
+      },
+      "passed": true
+    },
+    "passed": true
+  }
+}

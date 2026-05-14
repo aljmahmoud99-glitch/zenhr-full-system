@@ -2624,9 +2624,9 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "leave_request", entityId: updated.id,
         notificationType: "leave_request_approved",
-        titleAr: "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط§ظ„ط¥ط¬ط§ط²ط©",
+        titleAr: "تمت الموافقة على طلب الإجازة",
         titleEn: "Leave Request Approved",
-        messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ ط¥ط¬ط§ط²طھظƒ ظ…ظ† ${fmtDateRange(updated.startDate, updated.endDate)}.`,
+        messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(updated.startDate, updated.endDate)}.`,
         messageEn: `Your leave request from ${fmtDateRange(updated.startDate, updated.endDate)} was approved.`,
         priority: "high", actionUrl: "/app/leave",
       });
@@ -12101,9 +12101,9 @@ app.put("/api/attendance/requests/:id/approve", auth, async (req, res) => {
           entityType: "attendance_correction",
           entityId: correctionId,
           notificationType: "attendance_correction_hr_approved",
-          titleAr: "طھظ… ط§ط¹طھظ…ط§ط¯ ط·ظ„ط¨ طھطµط­ظٹط­ ط§ظ„ط­ط¶ظˆط±",
+          titleAr: "تم اعتماد طلب تصحيح الحضور",
           titleEn: "Attendance Correction Approved",
-          messageAr: `طھظ… ط§ط¹طھظ…ط§ط¯ ط·ظ„ط¨ طھطµط­ظٹط­ ط­ط¶ظˆط±ظƒ #${correctionId} ظ…ظ† ظ‚ظگط¨ظ„ HR.`,
+          messageAr: `تم اعتماد طلب تصحيح حضورك #${correctionId} من قبل الموارد البشرية.`,
           messageEn: `Your attendance correction request #${correctionId} has been approved by HR.`,
           priority: "normal",
           actionUrl: "/app/attendance",
@@ -16110,7 +16110,23 @@ async function notificationCenterList(user: AuthReq["user"], query: Record<strin
     rowParams,
   );
   const total = Number(totalRes.rows[0]?.total || 0);
-  return { items: rows.map(camelAts), total, page, pageSize, totalPages: Math.ceil(total / pageSize), unreadCount: Number(unreadRes.rows[0]?.count || 0) };
+  const normalizeNotification = (row: any) => {
+    const item = camelAts(row);
+    if (item.notificationType === "attendance_correction_hr_approved") {
+      item.titleAr = "تم اعتماد طلب تصحيح الحضور";
+      item.messageAr = `تم اعتماد طلب تصحيح حضورك #${item.entityId} من قبل الموارد البشرية.`;
+      item.title = item.titleAr;
+      item.message = item.messageAr;
+    }
+    if (item.notificationType === "leave_request_approved") {
+      item.titleAr = "تمت الموافقة على طلب الإجازة";
+      item.messageAr = "تمت الموافقة على طلب إجازتك.";
+      item.title = item.titleAr;
+      item.message = item.messageAr;
+    }
+    return item;
+  };
+  return { items: rows.map(normalizeNotification), total, page, pageSize, totalPages: Math.ceil(total / pageSize), unreadCount: Number(unreadRes.rows[0]?.count || 0) };
 }
 
 async function setNotificationStatus(user: AuthReq["user"], id: number, status: "read" | "unread") {
@@ -20152,12 +20168,12 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        WHERE e.company_id=$1 AND e.is_deleted=false${scope} ORDER BY e.employee_code LIMIT 500`,
       params,
     );
-    return { title: "Employee Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ظ…ظˆط¸ظپظٹظ†", rows, columns: [
-      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯", width: 16 },
-      { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ", width: 24 },
-      { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", width: 24, isArabic: true },
-      { key: "department", header: "Department", headerAr: "ط§ظ„ظ‚ط³ظ…", width: 20 },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©", width: 16 },
+    return { title: "Employee Export", titleAr: "تصدير الموظفين", rows, columns: [
+      { key: "employeeCode", header: "Code", headerAr: "الكود", width: 16 },
+      { key: "nameEn", header: "English Name", headerAr: "الاسم الإنجليزي", width: 24 },
+      { key: "nameAr", header: "Arabic Name", headerAr: "الاسم العربي", width: 24, isArabic: true },
+      { key: "department", header: "Department", headerAr: "القسم", width: 20 },
+      { key: "status", header: "Status", headerAr: "الحالة", width: 16 },
     ] as ExportColumn[] };
   }
 
@@ -20173,13 +20189,13 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        WHERE e.company_id=$1${scope} ORDER BY ar.date DESC LIMIT 500`,
       params,
     );
-    return { title: "Attendance Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ط­ط¶ظˆط±", rows, columns: [
-      { key: "date", header: "Date", headerAr: "ط§ظ„طھط§ط±ظٹط®", isDate: true },
-      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
-      { key: "employee", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
-      { key: "checkIn", header: "Check In", headerAr: "ط§ظ„ط¯ط®ظˆظ„" },
-      { key: "checkOut", header: "Check Out", headerAr: "ط§ظ„ط®ط±ظˆط¬" },
+    return { title: "Attendance Export", titleAr: "تصدير الحضور", rows, columns: [
+      { key: "date", header: "Date", headerAr: "التاريخ", isDate: true },
+      { key: "employeeCode", header: "Code", headerAr: "الكود" },
+      { key: "employee", header: "Employee", headerAr: "الموظف" },
+      { key: "status", header: "Status", headerAr: "الحالة" },
+      { key: "checkIn", header: "Check In", headerAr: "الدخول" },
+      { key: "checkOut", header: "Check Out", headerAr: "الخروج" },
     ] as ExportColumn[] };
   }
 
@@ -20192,14 +20208,14 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        WHERE pr.company_id=$1 ORDER BY pr.run_year DESC, pr.run_month DESC, e.employee_code LIMIT 500`,
       [user.companyId],
     );
-    return { title: "Payroll Export", titleAr: "طھطµط¯ظٹط± ط§ظ„ط±ظˆط§طھط¨", rows, columns: [
-      { key: "month", header: "Month", headerAr: "ط§ظ„ط´ظ‡ط±", isNumeric: true },
-      { key: "year", header: "Year", headerAr: "ط§ظ„ط³ظ†ط©", isNumeric: true },
-      { key: "employeeCode", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
-      { key: "gross", header: "Gross", headerAr: "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ", isCurrency: true },
-      { key: "deductions", header: "Deductions", headerAr: "ط§ظ„ط§ظ‚طھط·ط§ط¹ط§طھ", isCurrency: true },
-      { key: "net", header: "Net", headerAr: "ط§ظ„طµط§ظپظٹ", isCurrency: true },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
+    return { title: "Payroll Export", titleAr: "تصدير الرواتب", rows, columns: [
+      { key: "month", header: "Month", headerAr: "الشهر", isNumeric: true },
+      { key: "year", header: "Year", headerAr: "السنة", isNumeric: true },
+      { key: "employeeCode", header: "Employee", headerAr: "الموظف" },
+      { key: "gross", header: "Gross", headerAr: "الإجمالي", isCurrency: true },
+      { key: "deductions", header: "Deductions", headerAr: "الاقتطاعات", isCurrency: true },
+      { key: "net", header: "Net", headerAr: "الصافي", isCurrency: true },
+      { key: "status", header: "Status", headerAr: "الحالة" },
     ] as ExportColumn[] };
   }
 
@@ -20212,14 +20228,14 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        WHERE c.company_id=$1 AND c.is_deleted=false ORDER BY c.created_at DESC LIMIT 500`,
       [user.companyId],
     );
-    return { title: "Recruitment Pipeline Export", titleAr: "طھطµط¯ظٹط± ظ…ط³ط§ط± ط§ظ„طھظˆط¸ظٹظپ", rows, columns: [
-      { key: "code", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
-      { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ" },
-      { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", isArabic: true },
-      { key: "email", header: "Email", headerAr: "ط§ظ„ط¨ط±ظٹط¯" },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
-      { key: "stage", header: "Stage", headerAr: "ط§ظ„ظ…ط±ط­ظ„ط©" },
-      { key: "rating", header: "Rating", headerAr: "ط§ظ„طھظ‚ظٹظٹظ…", isNumeric: true },
+    return { title: "Recruitment Pipeline Export", titleAr: "تصدير مسار التوظيف", rows, columns: [
+      { key: "code", header: "Code", headerAr: "الكود" },
+      { key: "nameEn", header: "English Name", headerAr: "الاسم الإنجليزي" },
+      { key: "nameAr", header: "Arabic Name", headerAr: "الاسم العربي", isArabic: true },
+      { key: "email", header: "Email", headerAr: "البريد" },
+      { key: "status", header: "Status", headerAr: "الحالة" },
+      { key: "stage", header: "Stage", headerAr: "المرحلة" },
+      { key: "rating", header: "Rating", headerAr: "التقييم", isNumeric: true },
     ] as ExportColumn[] };
   }
 
@@ -20235,13 +20251,13 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        WHERE pe.company_id=$1 AND pe.is_deleted=false${scope} ORDER BY pe.created_at DESC LIMIT 500`,
       params,
     );
-    return { title: "Performance Evaluation Export", titleAr: "طھطµط¯ظٹط± طھظ‚ظٹظٹظ… ط§ظ„ط£ط¯ط§ط،", rows, columns: [
-      { key: "employeeCode", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
-      { key: "employee", header: "Employee", headerAr: "ط§ظ„ظ…ظˆط¸ظپ" },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
-      { key: "finalScore", header: "Final Score", headerAr: "ط§ظ„ظ†طھظٹط¬ط©", isNumeric: true },
-      { key: "rating", header: "Rating", headerAr: "ط§ظ„طھظ‚ط¯ظٹط±" },
-      { key: "recommendation", header: "Recommendation", headerAr: "ط§ظ„طھظˆطµظٹط©" },
+    return { title: "Performance Evaluation Export", titleAr: "تصدير تقييم الأداء", rows, columns: [
+      { key: "employeeCode", header: "Code", headerAr: "الكود" },
+      { key: "employee", header: "Employee", headerAr: "الموظف" },
+      { key: "status", header: "Status", headerAr: "الحالة" },
+      { key: "finalScore", header: "Final Score", headerAr: "النتيجة", isNumeric: true },
+      { key: "rating", header: "Rating", headerAr: "التقدير" },
+      { key: "recommendation", header: "Recommendation", headerAr: "التوصية" },
     ] as ExportColumn[] };
   }
 
@@ -20251,12 +20267,12 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
        FROM performance_workflow_instances WHERE company_id=$1 AND is_deleted=false ORDER BY created_at DESC LIMIT 500`,
       [user.companyId],
     );
-    return { title: "Workflow Export", titleAr: "طھطµط¯ظٹط± ط³ظٹط± ط§ظ„ط¹ظ…ظ„", rows, columns: [
-      { key: "entityType", header: "Entity", headerAr: "ط§ظ„ظƒظٹط§ظ†" },
-      { key: "entityId", header: "ID", headerAr: "ط§ظ„ظ…ط¹ط±ظپ" },
-      { key: "status", header: "Status", headerAr: "ط§ظ„ط­ط§ظ„ط©" },
-      { key: "approverRole", header: "Approver Role", headerAr: "ط¯ظˆط± ط§ظ„ظ…ط¹طھظ…ط¯" },
-      { key: "createdAt", header: "Created", headerAr: "طھط§ط±ظٹط® ط§ظ„ط¥ظ†ط´ط§ط،", isDate: true },
+    return { title: "Workflow Export", titleAr: "تصدير سير العمل", rows, columns: [
+      { key: "entityType", header: "Entity", headerAr: "الكيان" },
+      { key: "entityId", header: "ID", headerAr: "المعرف" },
+      { key: "status", header: "Status", headerAr: "الحالة" },
+      { key: "approverRole", header: "Approver Role", headerAr: "دور المعتمد" },
+      { key: "createdAt", header: "Created", headerAr: "تاريخ الإنشاء", isDate: true },
     ] as ExportColumn[] };
   }
 
@@ -20265,13 +20281,13 @@ async function bundleDExportData(user: any, dataset: BundleDExportDataset) {
      FROM enterprise_report_definitions WHERE company_id=$1 AND is_deleted=false ORDER BY module_scope, code LIMIT 500`,
     [user.companyId],
   );
-  return { title: "Report Definitions Export", titleAr: "طھطµط¯ظٹط± طھط¹ط±ظٹظپط§طھ ط§ظ„طھظ‚ط§ط±ظٹط±", rows, columns: [
-    { key: "code", header: "Code", headerAr: "ط§ظ„ظƒظˆط¯" },
-    { key: "nameEn", header: "English Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¥ظ†ط¬ظ„ظٹط²ظٹ" },
-    { key: "nameAr", header: "Arabic Name", headerAr: "ط§ظ„ط§ط³ظ… ط§ظ„ط¹ط±ط¨ظٹ", isArabic: true },
-    { key: "reportType", header: "Type", headerAr: "ط§ظ„ظ†ظˆط¹" },
-    { key: "moduleScope", header: "Module", headerAr: "ط§ظ„ظˆط­ط¯ط©" },
-    { key: "isActive", header: "Active", headerAr: "ظ†ط´ط·" },
+  return { title: "Report Definitions Export", titleAr: "تصدير تعريفات التقارير", rows, columns: [
+    { key: "code", header: "Code", headerAr: "الكود" },
+    { key: "nameEn", header: "English Name", headerAr: "الاسم الإنجليزي" },
+    { key: "nameAr", header: "Arabic Name", headerAr: "الاسم العربي", isArabic: true },
+    { key: "reportType", header: "Type", headerAr: "النوع" },
+    { key: "moduleScope", header: "Module", headerAr: "الوحدة" },
+    { key: "isActive", header: "Active", headerAr: "نشط" },
   ] as ExportColumn[] };
 }
 
