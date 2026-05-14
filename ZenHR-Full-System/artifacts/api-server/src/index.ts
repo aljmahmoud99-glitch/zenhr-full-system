@@ -2071,9 +2071,9 @@ async function fetchLeaveRequestRows(user: AuthReq["user"], filters: Record<stri
       lr.employee_id AS "employeeId",
       lr.leave_type AS "leaveType",
       CASE WHEN lr.leave_type ~ '^[0-9]+$' THEN lr.leave_type::int ELSE NULL END AS "leaveTypeId",
-      lt.code AS "leaveTypeCode",
-      COALESCE(lt.name_ar, lr.leave_type) AS "leaveTypeNameAr",
-      COALESCE(lt.name_en, lr.leave_type) AS "leaveTypeNameEn",
+      COALESCE(elt.code, lt.code) AS "leaveTypeCode",
+      COALESCE(elt.name_ar, lt.name_ar, lr.leave_type) AS "leaveTypeNameAr",
+      COALESCE(elt.name_en, lt.name_en, lr.leave_type) AS "leaveTypeNameEn",
       to_char(lr.start_date, 'YYYY-MM-DD') AS "startDate",
       to_char(lr.end_date, 'YYYY-MM-DD') AS "endDate",
       lr.total_days::float AS "totalDays",
@@ -2094,6 +2094,7 @@ async function fetchLeaveRequestRows(user: AuthReq["user"], filters: Record<stri
       jd.title_en AS "jobTitleEn"
     FROM leave_requests lr
     JOIN employees e ON e.id = lr.employee_id
+    LEFT JOIN enterprise_leave_types elt ON elt.id::text = lr.leave_type::text AND elt.company_id = lr.company_id
     LEFT JOIN leave_types lt ON lt.id::text = lr.leave_type OR lt.code = lr.leave_type
     LEFT JOIN departments d ON d.id = e.department_id
     LEFT JOIN job_descriptions jd ON jd.id = e.job_description_id
@@ -2129,11 +2130,311 @@ async function resolveLegacyLeaveTypeForEnterprisePayroll(companyId: number, raw
   return {
     leaveType: raw,
     payrollCompatible: false,
-    warning: "Legacy leave type was kept for compatibility and is ignored by enterprise payroll deductions unless mapped to an enterprise leave type.",
+    warning: "Legacy leave type is not mapped to an enterprise leave type. The request was not created because enterprise leave is the payroll source of truth.",
   };
 }
 
 // â”€â”€â”€ Leave Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function queryStringFrom(req: express.Request, extra?: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(req.query)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) value.forEach(item => params.append(key, String(item)));
+    else params.set(key, String(value));
+  }
+  for (const [key, value] of Object.entries(extra || {})) {
+    if (value != null && value !== "") params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
+
+async function forwardEnterpriseLeave(req: express.Request, res: express.Response, method: string, pathName: string, body?: any, queryExtra?: Record<string, string | number | undefined>) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
+  }
+  const url = `http://127.0.0.1:${process.env.PORT || 3001}${pathName}${method === "GET" ? queryStringFrom(req, queryExtra) : ""}`;
+  const response = await fetch(url, {
+    method,
+    headers: { Authorization: authHeader, "Content-Type": "application/json" },
+    body: method === "GET" ? undefined : JSON.stringify(body ?? req.body ?? {}),
+  });
+  const text = await response.text();
+  res.status(response.status);
+  if (!text) { res.end(); return; }
+  try {
+    res.json(JSON.parse(text));
+  } catch {
+    res.type(response.headers.get("content-type") || "text/plain").send(text);
+  }
+}
+
+async function legacyPolicyRows(companyId: number) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(lap.id, elt.id) AS id,
+            elt.company_id AS "companyId",
+            elt.id AS "leaveTypeId",
+            elt.code AS "leaveTypeCode",
+            elt.name_ar AS "leaveTypeNameAr",
+            elt.name_en AS "leaveTypeNameEn",
+            COALESCE(lap.entitlement_days,0)::float AS "daysPerYear",
+            COALESCE(lap.carry_forward_max_days,0)::float AS "maxCarryForward",
+            COALESCE(lap.accrual_frequency,'annual') AS "accrualType",
+            COALESCE(lap.min_service_months,0)::int AS "minServiceMonths",
+            elt.requires_manager_approval AS "requiresManagerApproval",
+            elt.requires_hr_approval AS "requiresHrApproval",
+            0 AS "noticeDaysRequired",
+            lap.max_balance_days::float AS "maxConsecutiveDays",
+            elt.requires_attachment AS "requiresAttachment",
+            lap.carry_forward_expiry_month AS "carryOverExpiresAfterDays",
+            COALESCE(lap.is_active, elt.is_active) AS "isActive"
+       FROM enterprise_leave_types elt
+       LEFT JOIN LATERAL (
+         SELECT * FROM leave_accrual_policies lap
+         WHERE lap.company_id=elt.company_id AND lap.leave_type_id=elt.id AND lap.is_deleted=false
+         ORDER BY lap.is_active DESC, lap.id DESC
+         LIMIT 1
+       ) lap ON true
+      WHERE elt.company_id=$1 AND elt.is_deleted=false
+      ORDER BY elt.category, elt.name_en`,
+    [companyId],
+  );
+  return rows;
+}
+
+async function saveLegacyPolicies(user: AuthReq["user"], policies: any[]) {
+  for (const policy of policies) {
+    const mapped = await resolveLegacyLeaveTypeForEnterprisePayroll(user.companyId, policy.leaveTypeId ?? policy.leaveTypeCode ?? policy.leaveType);
+    if (!mapped.payrollCompatible) throw Object.assign(new Error(mapped.warning), { status: 400 });
+    await pool.query(
+      `INSERT INTO leave_accrual_policies
+        (company_id, leave_type_id, accrual_frequency, entitlement_days, min_service_months,
+         carry_forward_allowed, carry_forward_max_days, max_balance_days, is_active, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,true),$10,$10)
+       ON CONFLICT DO NOTHING`,
+      [user.companyId, Number(mapped.leaveType), policy.accrualType || "annual", Number(policy.daysPerYear || 0), Number(policy.minServiceMonths || 0), Number(policy.maxCarryForward || 0) > 0, Number(policy.maxCarryForward || 0), policy.maxConsecutiveDays ?? null, policy.isActive ?? true, user.userId],
+    );
+    await pool.query(
+      `UPDATE leave_accrual_policies
+          SET entitlement_days=$3, accrual_frequency=$4, min_service_months=$5,
+              carry_forward_allowed=$6, carry_forward_max_days=$7, max_balance_days=$8,
+              is_active=COALESCE($9,is_active), updated_by=$10, updated_at=NOW()
+        WHERE id=(SELECT id FROM leave_accrual_policies WHERE company_id=$1 AND leave_type_id=$2 AND is_deleted=false ORDER BY id DESC LIMIT 1)`,
+      [user.companyId, Number(mapped.leaveType), Number(policy.daysPerYear || 0), policy.accrualType || "annual", Number(policy.minServiceMonths || 0), Number(policy.maxCarryForward || 0) > 0, Number(policy.maxCarryForward || 0), policy.maxConsecutiveDays ?? null, policy.isActive ?? true, user.userId],
+    );
+    await pool.query(
+      `UPDATE enterprise_leave_types
+          SET requires_manager_approval=COALESCE($3,requires_manager_approval),
+              requires_hr_approval=COALESCE($4,requires_hr_approval),
+              requires_attachment=COALESCE($5,requires_attachment),
+              updated_by=$6, updated_at=NOW()
+        WHERE id=$1 AND company_id=$2`,
+      [Number(mapped.leaveType), user.companyId, policy.requiresManagerApproval, policy.requiresHrApproval, policy.requiresAttachment, user.userId],
+    );
+  }
+}
+
+async function legacyBalanceRows(req: express.Request, employeeIdOverride?: number) {
+  const user = (req as AuthReq).user;
+  const year = Number(req.query["year"] || new Date().getFullYear());
+  const params: any[] = [user.companyId, year];
+  const where = ["e.company_id=$1", "e.is_deleted=false"];
+  if (user.role === "employee") {
+    params.push(user.employeeId || 0);
+    where.push(`e.id=$${params.length}`);
+  } else if (employeeIdOverride) {
+    params.push(employeeIdOverride);
+    where.push(`e.id=$${params.length}`);
+  } else if (req.query.employeeId) {
+    params.push(Number(req.query.employeeId));
+    where.push(`e.id=$${params.length}`);
+  }
+  const { rows } = await pool.query(
+    `SELECT COALESCE(lb.id, elt.id) AS id,
+            elt.id AS "leaveTypeId",
+            elt.code AS "leaveTypeCode",
+            elt.name_ar AS "leaveTypeNameAr",
+            elt.name_en AS "leaveTypeNameEn",
+            $2::int AS year,
+            (COALESCE(lap.entitlement_days,0) + COALESCE(lb.carried_forward_days,0))::float AS "totalDays",
+            COALESCE(lb.used_days,0)::float AS "usedDays",
+            COALESCE(lb.pending_days,0)::float AS "pendingDays",
+            (COALESCE(lap.entitlement_days,0) + COALESCE(lb.carried_forward_days,0) - COALESCE(lb.used_days,0) - COALESCE(lb.pending_days,0))::float AS "remainingDays",
+            jsonb_build_object('daysPerYear', COALESCE(lap.entitlement_days,0), 'maxCarryForward', COALESCE(lap.carry_forward_max_days,0), 'requiresManagerApproval', elt.requires_manager_approval, 'requiresHrApproval', elt.requires_hr_approval, 'noticeDaysRequired', 0, 'maxConsecutiveDays', lap.max_balance_days, 'requiresAttachment', elt.requires_attachment) AS policy
+       FROM employees e
+       CROSS JOIN enterprise_leave_types elt
+       LEFT JOIN leave_accrual_policies lap ON lap.company_id=e.company_id AND lap.leave_type_id=elt.id AND lap.is_deleted=false AND lap.is_active=true
+       LEFT JOIN leave_policies lp ON lp.company_id=e.company_id AND lp.leave_type=elt.code AND lp.is_deleted=false
+       LEFT JOIN leave_balances lb ON lb.employee_id=e.id AND lb.leave_policy_id=lp.id AND lb.year=$2
+      WHERE ${where.join(" AND ")} AND elt.company_id=e.company_id AND elt.is_deleted=false AND elt.is_active=true
+      ORDER BY elt.category, elt.name_en`,
+    params,
+  );
+  return rows;
+}
+
+app.get("/api/leave/types", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { rows } = await pool.query(
+      `SELECT id, code, name_ar AS "nameAr", name_en AS "nameEn", is_paid AS "isPaid",
+              0 AS "defaultDaysPerYear", 0 AS "maxCarryForward", 'all' AS "genderRestriction",
+              false AS "onceInCareer", requires_attachment AS "requiresMedicalCert", is_active AS "isActive",
+              id AS "enterpriseLeaveTypeId", true AS "legacyCompatible"
+         FROM enterprise_leave_types
+        WHERE company_id=$1 AND is_deleted=false AND is_active=true
+        ORDER BY category, name_en`,
+      [user.companyId],
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error("[compat GET /api/leave/types]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    res.json({ success: true, data: await legacyPolicyRows(user.companyId) });
+  } catch (e) {
+    console.error("[compat GET /api/leave/policies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.put("/api/leave/policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    await saveLegacyPolicies(user, Array.isArray(req.body) ? req.body : []);
+    res.json({ success: true, data: await legacyPolicyRows(user.companyId), compatibility: "enterprise_leave" });
+  } catch (e: any) {
+    if (e?.status) { res.status(e.status).json({ success: false, message: e.message }); return; }
+    console.error("[compat PUT /api/leave/policies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/leave/policies", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    await saveLegacyPolicies(user, [req.body]);
+    res.status(201).json({ success: true, data: await legacyPolicyRows(user.companyId), compatibility: "enterprise_leave" });
+  } catch (e: any) {
+    if (e?.status) { res.status(e.status).json({ success: false, message: e.message }); return; }
+    console.error("[compat POST /api/leave/policies]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.patch("/api/leave/policies/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin"].includes(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    await saveLegacyPolicies(user, [{ ...req.body, leaveTypeId: req.body.leaveTypeId ?? req.params.id }]);
+    res.json({ success: true, data: await legacyPolicyRows(user.companyId), compatibility: "enterprise_leave" });
+  } catch (e: any) {
+    if (e?.status) { res.status(e.status).json({ success: false, message: e.message }); return; }
+    console.error("[compat PATCH /api/leave/policies/:id]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/balances", auth, async (req, res) => {
+  try {
+    res.json({ success: true, data: await legacyBalanceRows(req) });
+  } catch (e) {
+    console.error("[compat GET /api/leave/balances]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/balances/:employeeId", auth, async (req, res) => {
+  try {
+    res.json({ success: true, data: await legacyBalanceRows(req, Number(req.params.employeeId)) });
+  } catch (e) {
+    console.error("[compat GET /api/leave/balances/:employeeId]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/me/balances", auth, async (req, res) => {
+  try {
+    res.json({ success: true, data: await legacyBalanceRows(req) });
+  } catch (e) {
+    console.error("[compat GET /api/leave/me/balances]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/me/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const rows = await fetchLeaveRequestRows(user, req.query as Record<string, string>);
+    res.json({ success: true, data: rows, compatibility: "enterprise_leave" });
+  } catch (e) {
+    console.error("[compat GET /api/leave/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/leave/me/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!user.employeeId) { res.status(403).json({ success: false, message: "No employee profile linked to this account" }); return; }
+    const mapped = await resolveLegacyLeaveTypeForEnterprisePayroll(user.companyId, req.body.leaveTypeId ?? req.body.leaveType);
+    if (!mapped.payrollCompatible) { res.status(400).json({ success: false, message: mapped.warning }); return; }
+    return forwardEnterpriseLeave(req, res, "POST", "/api/leave/management/requests", { ...req.body, employeeId: user.employeeId, leaveTypeId: Number(mapped.leaveType) });
+  } catch (e) {
+    console.error("[compat POST /api/leave/me/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const rows = await fetchLeaveRequestRows(user, req.query as Record<string, string>);
+    res.json({ success: true, data: rows, compatibility: "enterprise_leave" });
+  } catch (e) {
+    if ((e as any)?.status === 403) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+    console.error("[compat GET /api/leave/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.post("/api/leave/requests", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const mapped = await resolveLegacyLeaveTypeForEnterprisePayroll(user.companyId, req.body.leaveTypeId ?? req.body.leaveType);
+    if (!mapped.payrollCompatible) { res.status(400).json({ success: false, message: mapped.warning }); return; }
+    return forwardEnterpriseLeave(req, res, "POST", "/api/leave/management/requests", { ...req.body, leaveTypeId: Number(mapped.leaveType) });
+  } catch (e) {
+    console.error("[compat POST /api/leave/requests]", e);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+app.get("/api/leave/requests/:id", auth, async (req, res) => {
+  return forwardEnterpriseLeave(req, res, "GET", `/api/leave/management/requests/${encodeURIComponent(req.params.id)}`);
+});
+
+app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
+  return forwardEnterpriseLeave(req, res, "POST", `/api/leave/management/requests/${encodeURIComponent(req.params.id)}/approve`, req.body);
+});
+
+app.post("/api/leave/requests/:id/reject", auth, async (req, res) => {
+  return forwardEnterpriseLeave(req, res, "POST", `/api/leave/management/requests/${encodeURIComponent(req.params.id)}/reject`, req.body);
+});
+
+app.post("/api/leave/requests/:id/cancel", auth, async (req, res) => {
+  return forwardEnterpriseLeave(req, res, "POST", `/api/leave/management/requests/${encodeURIComponent(req.params.id)}/cancel`, req.body);
+});
+
 app.get("/api/leave/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -3148,8 +3449,12 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
     const configs = await db.select().from(systemConfigurationsTable)
       .where(eq(systemConfigurationsTable.companyId, user.companyId));
     const cfg = (key: string, fallback: string) => configs.find((c: any) => c.key === key)?.value ?? fallback;
-    const sscEmployeeRate  = parseFloat(cfg("ssc_employee_rate", "0.075"));
-    const sscEmployerRate  = parseFloat(cfg("ssc_employer_rate", "0.1425"));
+    const cfgRate = (key: string, fallback: string) => {
+      const value = parseFloat(cfg(key, fallback));
+      return value > 1 ? value / 100 : value;
+    };
+    const sscEmployeeRate  = cfgRate("ssc_employee_rate", "0.075");
+    const sscEmployerRate  = cfgRate("ssc_employer_rate", "0.1425");
     const sscInsurableCapM = toM(cfg("ssc_insurable_salary_cap", "3000"));
     let taxBrackets: { from: number; to: number; rate: number }[] = [];
     try { taxBrackets = JSON.parse(cfg("income_tax_brackets", "[]")); } catch {}
@@ -3237,9 +3542,44 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
     const attendanceImpact = await approvedAttendancePayrollImpactForPreview(user.companyId, emp.id, previewMonth, previewYear);
     const attendanceAdditionM = toM(attendanceImpact.amountAddition);
     const attendanceDeductionM = toM(attendanceImpact.amountDeduction);
-    const grossWithAttendanceM = grossM + attendanceAdditionM;
-    const totalDeductionsM      = sscEmployeeM + monthlyTaxM + leaveDeductionM + attendanceDeductionM;
+    const adjustmentImpact = await approvedPayrollAdjustmentImpactForPreview(user.companyId, emp.id, previewMonth, previewYear);
+    const adjustmentAdditionM = toM(adjustmentImpact.amountAddition);
+    const adjustmentDeductionM = toM(adjustmentImpact.amountDeduction);
+    const grossWithAttendanceM = grossM + attendanceAdditionM + adjustmentAdditionM;
+    const totalDeductionsM      = sscEmployeeM + monthlyTaxM + leaveDeductionM + attendanceDeductionM + adjustmentDeductionM;
     const netM                  = grossWithAttendanceM - totalDeductionsM;
+    const payrollImpacts = [
+      ...(leaveImpact.amount && Number(leaveImpact.amount) > 0 ? [{
+        sourceType: "leave",
+        sourceId: `employee:${emp.id}:${previewYear}-${String(previewMonth).padStart(2, "0")}`,
+        employeeId: String(emp.id),
+        payrollPeriod: `${previewYear}-${String(previewMonth).padStart(2, "0")}`,
+        amount: Number(leaveImpact.amount),
+        direction: "deduction",
+        status: "approved",
+        metadata: leaveImpact,
+      }] : []),
+      ...attendanceImpact.items.map((item: any) => ({
+        sourceType: "attendance_impact",
+        sourceId: String(item.id),
+        employeeId: String(emp.id),
+        payrollPeriod: `${previewYear}-${String(previewMonth).padStart(2, "0")}`,
+        amount: Number(item.amount || 0),
+        direction: item.direction === "add" ? "earning" : "deduction",
+        status: "approved",
+        metadata: item,
+      })),
+      ...adjustmentImpact.items.map((item: any) => ({
+        sourceType: "adjustment",
+        sourceId: `${item.sourceKind}:${item.sourceId}`,
+        employeeId: String(emp.id),
+        payrollPeriod: `${previewYear}-${String(previewMonth).padStart(2, "0")}`,
+        amount: Number(item.amount || 0),
+        direction: item.direction === "add" ? "earning" : "deduction",
+        status: "approved",
+        metadata: item,
+      })),
+    ];
 
     res.json({ success: true, data: {
       employeeId: emp.id,
@@ -3259,6 +3599,8 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
       leaveDeduction:          fromM(leaveDeductionM),
       attendanceImpactAddition: fromM(attendanceAdditionM),
       attendanceImpactDeduction: fromM(attendanceDeductionM),
+      adjustmentAddition:      fromM(adjustmentAdditionM),
+      adjustmentDeduction:     fromM(adjustmentDeductionM),
       totalDeductions:         fromM(totalDeductionsM),
       netSalary:               fromM(netM),
       isSSCExempt:             emp.isSSCExempt,
@@ -3276,6 +3618,8 @@ app.get("/api/payroll/preview/:employeeId", auth, async (req, res) => {
         workedHours: previewWorkedHours.toFixed(3),
         leaveImpact,
         attendanceImpact,
+        adjustmentImpact,
+        payrollImpacts,
         effectiveFrom: policyContext.policy.policyEffectiveFrom,
       },
     }});
@@ -16565,6 +16909,59 @@ async function approvalRows(label: string, query: string, params: any[]) {
   } catch (e: any) {
     console.warn(`[approvals:${label}] skipped`, e?.message || e);
     return [];
+  }
+}
+
+async function approvedPayrollAdjustmentImpactForPreview(companyId: number, employeeId: number, month: number, year: number) {
+  const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  try {
+    const { rows: adjustmentRows } = await pool.query(
+      `SELECT pa.id, pa.adjustment_number, pa.direction, pa.calculation_mode, pa.recurrence_type,
+              pa.amount, pa.status, pa.payroll_run_id, pa.payslip_id, pa.effective_date, pa.end_date,
+              pa.title_ar, pa.title_en, pat.code AS type_code, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en
+         FROM payroll_adjustments pa
+         LEFT JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id AND pat.company_id=pa.company_id
+        WHERE pa.company_id=$1
+          AND pa.employee_id=$2
+          AND pa.is_deleted=false
+          AND pa.status='approved'
+          AND pa.recurrence_type <> 'installments'
+          AND pa.payroll_run_id IS NULL
+          AND (
+            (pa.payroll_month=$3 AND pa.payroll_year=$4)
+            OR (pa.recurrence_type='one_time' AND pa.effective_date BETWEEN $5 AND $6)
+            OR (pa.recurrence_type IN ('monthly','date_range') AND pa.effective_date <= $6 AND (pa.end_date IS NULL OR pa.end_date >= $5))
+          )`,
+      [companyId, employeeId, month, year, periodStart, periodEnd],
+    );
+    const { rows: installmentRows } = await pool.query(
+      `SELECT pai.id, pai.payroll_adjustment_id, pai.installment_no, pai.amount, pai.status,
+              pa.adjustment_number, pa.direction, pa.calculation_mode, pa.title_ar, pa.title_en,
+              pat.code AS type_code, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en
+         FROM payroll_adjustment_installments pai
+         JOIN payroll_adjustments pa ON pa.id=pai.payroll_adjustment_id AND pa.company_id=pai.company_id
+         LEFT JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id AND pat.company_id=pa.company_id
+        WHERE pai.company_id=$1
+          AND pai.employee_id=$2
+          AND pai.due_month=$3
+          AND pai.due_year=$4
+          AND pai.status='pending'
+          AND pai.payroll_run_id IS NULL
+          AND pa.is_deleted=false
+          AND pa.status='approved'`,
+      [companyId, employeeId, month, year],
+    );
+    const items = [
+      ...adjustmentRows.map((row: any) => ({ ...camelAts(row), sourceKind: "adjustment", sourceId: row.id })),
+      ...installmentRows.map((row: any) => ({ ...camelAts(row), sourceKind: "adjustment_installment", sourceId: row.id })),
+    ];
+    const addition = items.filter((item: any) => item.direction === "add").reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+    const deduction = items.filter((item: any) => item.direction !== "add").reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
+    return { amountAddition: fromM(toM(String(addition))), amountDeduction: fromM(toM(String(deduction))), items };
+  } catch (e: any) {
+    if (["42P01", "42703"].includes(String(e?.code ?? ""))) return { amountAddition: "0.000", amountDeduction: "0.000", items: [] };
+    throw e;
   }
 }
 

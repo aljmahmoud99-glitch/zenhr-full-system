@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-05-14T12:59:37.752Z",
+  "status": "GO",
+  "pages": {
+    "payrollRuns": {
+      "url": "http://localhost:5000/#/app/payroll/runs",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالرواتب\nchevron_right\nمسيرات الرواتب\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n26\nشركة زنجو للتقنية\nP\npayroll\nمدير الرواتب\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nreceipt_long\nالرواتب\nexpand_more\nstorage\nالبيانات المساندة\nexpand_more\nالرواتب\nمسيرات الرواتب\nمدير الرواتب\n/\ncorporate_fare\nشركة زنجو للتقنية\nالرواتب\n\nمسيرات الرواتب وكشوف الرواتب المرتبطة بها\n\nadd\nإنشاء مسير جديد\nآخر مسير\nسبتمبر 2884\nالحالة: محسوب\nreceipt_long\nإجمالي الرواتب\n‏ليس رقمًا د.أ.‏\nإجمالي المبالغ الإجمالية\npayments\nإجمالي الاستقطاعات\n‏ليس رقمًا د.أ.‏\nضمان وضريبة وخصومات وسلف\nremove_circle_outline\nإجمالي الصافي\n‏ليس رقمًا د.أ.‏\nصافي الرواتب بعد الخصم\naccount_balance_wallet\nبحث وتصفية المسيرات\n\nفلترة حسب الشهر والسنة والحالة ومنشئ المسير.\n\nبحث\nالحالة\nكل الحالات\nمسودة\nمحسوب\nمعتمد\nمنشور\nالشهر\nكل الشهور\nيناير\nفبراير\nمارس\nأبريل\nمايو\nيونيو\nيوليو\nأغسطس\nسبتمبر\nأكتوبر\nنوفمبر\nديسمبر\nالسنة\nكل السنوات\n2024\n2025\n2026\n2027\nمسيرات الرواتب\n\nعرض كل مسير مع الإجماليات، الاعتماد، وكشوف الرواتب التابعة له.\n\nسبتمبر 2884\n11 موظف\nمحسوب\nالإجمالي\n‏17,182.000 د.أ.‏\nالاستقطاعات\n‏110,077.500 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏110,077.500 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nيناير 2884\n11 موظف\nمحسوب\nالإجمالي\n‏17,182.000 د.أ.‏\nالاستقطاعات\n‏110,077.500 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏110,077.500 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nنوفمبر 2782\n10 موظف\nمحسوب\nالإجمالي\n‏16,405.000 د.أ.‏\nالاستقطاعات\n‏104,250.000 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏104,250.000 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nمارس 2782\n10 موظف\nمحسوب\nالإجمالي\n‏16,405.000 د.أ.‏\nالاستقطاعات\n‏104,250.000 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ",
+      "links": [
+        "#/app/dashboard"
+      ],
+      "hasPayrollRuns": true,
+      "hasPayrollOperations": false,
+      "noRouteError": true,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    },
+    "payrollOperations": {
+      "url": "http://localhost:5000/#/app/payroll-attendance",
+      "textSample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالرواتب\nchevron_right\nعمليات الرواتب\nsearch\nCtrl K\nالخميس، 14\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n26\nشركة زنجو للتقنية\nP\npayroll\nمدير الرواتب\nexpand_more\nlogout\ndashboard\nلوحة التحكم\nreceipt_long\nالرواتب\nexpand_more\nstorage\nالبيانات المساندة\nexpand_more\nالرواتب\nعمليات الرواتب\nمدير الرواتب\n/\ncorporate_fare\nشركة زنجو للتقنية\nالرواتب والحضور\nمحرك الرواتب والحضور التشغيلي\n\nإدارة تعديلات الرواتب، الأقساط، مخالفات الحضور، الورديات، ومعاينة أثر الرواتب قبل التطبيق.\n\nrefresh\nتحديث\nrule\nتحليل الحضور\nadd_card\nتعديل راتب جديد\nview_agenda\nلوحة التشغيل\nanalytics\nلوحة التشغيل\nprice_change\nتعديلات الرواتب\nevent_repeat\nالمتكررة والأقساط\napproval\nالاعتمادات\nwarning\nمخالفات الحضور\ncalendar_month\nجدولة الورديات\ncalculate\nمعاينة الأثر\nhistory\nسجل التدقيق\nإجمالي التعديلات\n23\nإضافات\n481.000\nخصومات\n405.000\nبانتظار الاعتماد\n17\nمؤشرات مخالفات الحضور\nlate\n10\n248.800 JOD\nالالتزامات المتكررة\n360.000 JOD\n6 تعديل متكرر",
+      "links": [
+        "#/app/dashboard"
+      ],
+      "hasPayrollRuns": true,
+      "hasPayrollOperations": true,
+      "noRouteError": true,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    },
+    "mobilePayroll": {
+      "url": "http://localhost:5000/#/app/payroll/runs",
+      "textSample": "Z\nsearch\nnotifications\n26\nP\nmenu\ndashboard\nلوحة التحكم\nreceipt_long\nالرواتب\nexpand_more\nstorage\nالبيانات المساندة\nexpand_more\nالرواتب\nمسيرات الرواتب\nمدير الرواتب\n/\ncorporate_fare\nشركة زنجو للتقنية\nالرواتب\n\nمسيرات الرواتب وكشوف الرواتب المرتبطة بها\n\nadd\nإنشاء مسير جديد\nآخر مسير\nسبتمبر 2884\nالحالة: محسوب\nreceipt_long\nإجمالي الرواتب\n‏ليس رقمًا د.أ.‏\nإجمالي المبالغ الإجمالية\npayments\nإجمالي الاستقطاعات\n‏ليس رقمًا د.أ.‏\nضمان وضريبة وخصومات وسلف\nremove_circle_outline\nإجمالي الصافي\n‏ليس رقمًا د.أ.‏\nصافي الرواتب بعد الخصم\naccount_balance_wallet\nبحث وتصفية المسيرات\n\nفلترة حسب الشهر والسنة والحالة ومنشئ المسير.\n\nبحث\nالحالة\nكل الحالات\nمسودة\nمحسوب\nمعتمد\nمنشور\nالشهر\nكل الشهور\nيناير\nفبراير\nمارس\nأبريل\nمايو\nيونيو\nيوليو\nأغسطس\nسبتمبر\nأكتوبر\nنوفمبر\nديسمبر\nالسنة\nكل السنوات\n2024\n2025\n2026\n2027\nمسيرات الرواتب\n\nعرض كل مسير مع الإجماليات، الاعتماد، وكشوف الرواتب التابعة له.\n\nسبتمبر 2884\n11 موظف\nمحسوب\nالإجمالي\n‏17,182.000 د.أ.‏\nالاستقطاعات\n‏110,077.500 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏110,077.500 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nيناير 2884\n11 موظف\nمحسوب\nالإجمالي\n‏17,182.000 د.أ.‏\nالاستقطاعات\n‏110,077.500 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏110,077.500 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nنوفمبر 2782\n10 موظف\nمحسوب\nالإجمالي\n‏16,405.000 د.أ.‏\nالاستقطاعات\n‏104,250.000 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏104,250.000 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتماد المسير\nمارس 2782\n10 موظف\nمحسوب\nالإجمالي\n‏16,405.000 د.أ.‏\nالاستقطاعات\n‏104,250.000 د.أ.‏\nالصافي\n‏0.000 د.أ.‏\nأنشئ بواسطة\n—\nتاريخ الإنشاء\n14/05/2026\nتاريخ الاعتماد\n—\nSSC\n‏104,250.000 د.أ.‏\nالضريبة\n‏0.000 د.أ.‏\nاعتمد بواسطة\n—\nvisibility\nعرض الكشوف\nprint\nطباعة الملخص\ncheck_circle\nاعتما",
+      "links": [
+        "#/app/dashboard"
+      ],
+      "hasPayrollRuns": true,
+      "hasPayrollOperations": false,
+      "noRouteError": true,
+      "darkSurface": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(238, 248, 243)"
+      },
+      "horizontalOverflow": false
+    }
+  },
+  "checks": {
+    "payrollRoutesLoad": true,
+    "payrollTextVisible": true,
+    "darkModeReadable": true,
+    "responsiveNoOverflow": true
+  },
+  "consoleErrors": [],
+  "errors": []
+}

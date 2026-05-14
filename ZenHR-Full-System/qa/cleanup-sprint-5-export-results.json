@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-05-14T12:58:39.467Z",
+  "status": "GO",
+  "csv": {
+    "status": 200,
+    "contentType": "text/csv; charset=utf-8",
+    "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.csv\"",
+    "size": 10767,
+    "hasPeriod": true
+  },
+  "xlsx": {
+    "status": 200,
+    "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.xlsx\"",
+    "size": 13515,
+    "hasPeriod": true
+  },
+  "pdf": {
+    "status": 200,
+    "contentType": "application/pdf",
+    "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.pdf\"",
+    "size": 7002,
+    "hasPeriod": true
+  },
+  "payrollSummaryExcel": {
+    "status": 200,
+    "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "disposition": "attachment; filename=\"zenjo-payroll-2138-11.xlsx\"",
+    "size": 10264
+  },
+  "passed": true
+}

@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-05-14T12:58:39.467Z",
+  "status": "GO",
+  "managerPayrollMutationStatus": 403,
+  "employeePreviewStatus": 403,
+  "recruiterPayrollExportStatus": 403,
+  "payrollReadStatus": 200,
+  "passed": true
+}

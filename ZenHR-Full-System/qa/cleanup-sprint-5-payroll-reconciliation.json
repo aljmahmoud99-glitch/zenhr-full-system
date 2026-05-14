@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-05-14T12:58:39.467Z",
+  "status": "GO",
+  "employeeId": 8,
+  "period": "2138-11",
+  "adjustmentId": "24",
+  "beforeNet": "1155.525",
+  "afterPreviewNet": "1205.525",
+  "netDeltaPreview": "50.000",
+  "previewAdjustmentAddition": "50.000",
+  "payslipId": 323,
+  "payslipNet": "1205.525",
+  "payslipAdjustmentAddition": "50.000",
+  "payrollImpacts": [
+    {
+      "sourceType": "adjustment",
+      "sourceId": "adjustment:24",
+      "employeeId": "8",
+      "payrollPeriod": "2138-11",
+      "amount": 50,
+      "direction": "earning",
+      "status": "approved",
+      "metadata": {
+        "id": "24",
+        "adjustment_number": "ADJ-MP5HVFWA",
+        "direction": "add",
+        "calculation_mode": "after_net",
+        "recurrence_type": "one_time",
+        "amount": "50.000",
+        "status": "approved",
+        "payroll_run_id": null,
+        "payslip_id": null,
+        "effective_date": "2138-11-02T21:00:00.000Z",
+        "end_date": null,
+        "title_ar": "إضافة صافي اختبارية",
+        "title_en": "Sprint 5 after-net addition",
+        "type_code": "SPRINT5_AFTER_NET",
+        "type_name_ar": "اختبار تسوية الرواتب",
+        "type_name_en": "Sprint 5 Payroll Reconciliation",
+        "sourceKind": "adjustment",
+        "sourceId": "24"
+      }
+    }
+  ],
+  "runTotalNet": "22561.983",
+  "payslipNetTotal": "22561.983",
+  "reportTotalNet": "22561.983",
+  "grossReconciles": true,
+  "deductionsReconcile": true,
+  "netReconciles": true,
+  "passed": true
+}

@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-05-14T12:58:39.467Z",
+  "status": "GO",
+  "runId": 18,
+  "firstCalculateStatus": 200,
+  "secondCalculateStatus": 200,
+  "firstPayslipId": 323,
+  "secondPayslipId": 343,
+  "firstSnapshotAdjustment": "50.000",
+  "secondSnapshotAdjustment": "50.000",
+  "adjustmentStatusAfterRun": "applied",
+  "adjustmentPayrollRunId": 18,
+  "approveRunStatus": 200,
+  "lockedRecalculateStatus": 409,
+  "duplicatePrevented": true
+}

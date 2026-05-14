@@ -52,6 +52,72 @@ export interface CalculatePayrollResult {
   totalOvertimeEarnings: string;
 }
 
+export type PayrollImpactSourceType =
+  | "salary_component"
+  | "overtime"
+  | "leave"
+  | "adjustment"
+  | "attendance_impact"
+  | "advance"
+  | "employee_action";
+
+export interface PayrollImpact {
+  sourceType: PayrollImpactSourceType;
+  sourceId: string;
+  employeeId: string;
+  payrollPeriod: string;
+  amount: number;
+  direction: "earning" | "deduction";
+  status: "approved" | "applied" | "skipped" | "invalid";
+  appliedInPayrollRunId?: string;
+  metadata?: Record<string, any>;
+}
+
+class PayrollImpactRegistry {
+  private readonly items: PayrollImpact[] = [];
+  private readonly skipped: PayrollImpact[] = [];
+  private readonly seen = new Set<string>();
+
+  add(impact: PayrollImpact): boolean {
+    const key = `${impact.sourceType}:${impact.sourceId}:${impact.employeeId}:${impact.payrollPeriod}`;
+    if (this.seen.has(key)) {
+      this.skipped.push({
+        ...impact,
+        status: "skipped",
+        metadata: { ...(impact.metadata ?? {}), skippedReason: "duplicate_impact_key" },
+      });
+      return false;
+    }
+    if (!Number.isFinite(impact.amount) || impact.amount < 0) {
+      this.skipped.push({
+        ...impact,
+        status: "invalid",
+        metadata: { ...(impact.metadata ?? {}), skippedReason: "invalid_amount" },
+      });
+      return false;
+    }
+    this.seen.add(key);
+    this.items.push(impact);
+    return true;
+  }
+
+  byEmployee(employeeId: number): PayrollImpact[] {
+    return this.items.filter(item => Number(item.employeeId) === Number(employeeId));
+  }
+
+  evidence() {
+    return {
+      applied: this.items,
+      skipped: this.skipped,
+      totals: this.items.reduce((acc, item) => {
+        if (item.direction === "earning") acc.earnings += item.amount;
+        else acc.deductions += item.amount;
+        return acc;
+      }, { earnings: 0, deductions: 0 }),
+    };
+  }
+}
+
 // ─── Config helpers ───────────────────────────────────────────────────────────
 
 function toM(jod: string | number): number {
@@ -69,6 +135,10 @@ const DEFAULT_TAX_BRACKETS = [
 function buildConfig(configs: { key: string; value: string }[]): PayrollConfig {
   const get = (key: string, fallback: string) =>
     configs.find(c => c.key === key)?.value ?? fallback;
+  const rate = (key: string, fallback: string) => {
+    const value = parseFloat(get(key, fallback));
+    return value > 1 ? value / 100 : value;
+  };
 
   let taxBrackets = DEFAULT_TAX_BRACKETS;
   try {
@@ -77,8 +147,8 @@ function buildConfig(configs: { key: string; value: string }[]): PayrollConfig {
   } catch {}
 
   return {
-    sscEmployeeRate:               parseFloat(get("ssc_employee_rate",               "0.075")),
-    sscEmployerRate:               parseFloat(get("ssc_employer_rate",               "0.1425")),
+    sscEmployeeRate:               rate("ssc_employee_rate",               "0.075"),
+    sscEmployerRate:               rate("ssc_employer_rate",               "0.1425"),
     sscInsurableCapJOD:            parseFloat(get("ssc_insurable_salary_cap",        "3000")),
     workingHoursPerDay:            parseInt(get("working_hours_per_day",             "8")),
     workingDaysPerMonth:           parseInt(get("working_days_per_month",            "30")),
@@ -132,6 +202,70 @@ async function approvedAttendancePayrollImpactsForEmployee(companyId: number, em
           AND (av.violation_date BETWEEN $3 AND $4 OR api.attendance_violation_id IS NULL)`,
       [companyId, employeeId, periodStart, periodEnd],
     );
+    let additionM = 0;
+    let deductionM = 0;
+    for (const row of rows) {
+      const amountM = toM(row.amount ?? "0");
+      if (row.direction === "add") additionM += amountM;
+      else deductionM += amountM;
+    }
+    return { additionM, deductionM, rows };
+  } catch (e: any) {
+    if (["42P01", "42703"].includes(String(e?.code ?? ""))) return { additionM: 0, deductionM: 0, rows: [] };
+    throw e;
+  }
+}
+
+async function approvedPayrollAdjustmentImpactsForEmployee(companyId: number, employeeId: number, month: number, year: number, runId?: number) {
+  const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  try {
+    const { rows: adjustmentRows } = await pool.query(
+      `SELECT pa.id, pa.adjustment_number, pa.direction, pa.calculation_mode, pa.recurrence_type,
+              pa.amount, pa.status, pa.payroll_run_id, pa.payslip_id, pa.effective_date, pa.end_date,
+              pa.title_ar, pa.title_en, pat.code AS type_code, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en
+         FROM payroll_adjustments pa
+         LEFT JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id AND pat.company_id=pa.company_id
+        WHERE pa.company_id=$1
+          AND pa.employee_id=$2
+          AND pa.is_deleted=false
+          AND (
+            pa.status='approved'
+            OR (pa.status='applied' AND pa.payroll_run_id=$5)
+          )
+          AND pa.recurrence_type <> 'installments'
+          AND (
+            (pa.payroll_month=$3 AND pa.payroll_year=$4)
+            OR (pa.recurrence_type='one_time' AND pa.effective_date BETWEEN $6 AND $7)
+            OR (pa.recurrence_type IN ('monthly','date_range') AND pa.effective_date <= $7 AND (pa.end_date IS NULL OR pa.end_date >= $6))
+          )
+          AND (pa.payroll_run_id IS NULL OR pa.payroll_run_id=$5)`,
+      [companyId, employeeId, month, year, runId ?? null, periodStart, periodEnd],
+    );
+    const { rows: installmentRows } = await pool.query(
+      `SELECT pai.id, pai.payroll_adjustment_id, pai.installment_no, pai.amount, pai.status,
+              pai.payroll_run_id, pai.payslip_id, pa.adjustment_number, pa.direction, pa.calculation_mode,
+              pa.title_ar, pa.title_en, pat.code AS type_code, pat.name_ar AS type_name_ar, pat.name_en AS type_name_en
+         FROM payroll_adjustment_installments pai
+         JOIN payroll_adjustments pa ON pa.id=pai.payroll_adjustment_id AND pa.company_id=pai.company_id
+         LEFT JOIN payroll_adjustment_types pat ON pat.id=pa.adjustment_type_id AND pat.company_id=pa.company_id
+        WHERE pai.company_id=$1
+          AND pai.employee_id=$2
+          AND pai.due_month=$3
+          AND pai.due_year=$4
+          AND pa.is_deleted=false
+          AND pa.status IN ('approved','applied')
+          AND (
+            pai.status='pending'
+            OR (pai.status='applied' AND pai.payroll_run_id=$5)
+          )
+          AND (pai.payroll_run_id IS NULL OR pai.payroll_run_id=$5)`,
+      [companyId, employeeId, month, year, runId ?? null],
+    );
+    const rows = [
+      ...adjustmentRows.map((row: any) => ({ ...row, sourceKind: "adjustment", sourceId: row.id })),
+      ...installmentRows.map((row: any) => ({ ...row, sourceKind: "adjustment_installment", sourceId: row.id })),
+    ];
     let additionM = 0;
     let deductionM = 0;
     for (const row of rows) {
@@ -287,6 +421,9 @@ export async function calculatePayroll(
   const payslipValues: any[] = [];
   const otLinkMap = new Map<number, number[]>();
   const attendanceImpactLinkMap = new Map<number, number[]>();
+  const adjustmentLinkMap = new Map<number, { adjustmentIds: number[]; installmentIds: number[] }>();
+  const impactRegistry = new PayrollImpactRegistry();
+  const payrollPeriod = `${runYear}-${String(runMonth).padStart(2, "0")}`;
   let includedEmployeeCount = 0;
   let runPolicyId: number | null = null;
   let runPolicySnapshot: Record<string, any> | null = null;
@@ -362,8 +499,22 @@ export async function calculatePayroll(
       ? Math.round(
           (otData.weekday * hourlyRateJOD * config.overtimeRateWeekday +
            otData.weekend * hourlyRateJOD * config.overtimeRateWeekend) * 1000
-        )
+      )
       : 0;
+    if (otData?.rowIds?.length && overtimeM > 0) {
+      for (const rowId of otData.rowIds) {
+        impactRegistry.add({
+          sourceType: "overtime",
+          sourceId: String(rowId),
+          employeeId: String(emp.id),
+          payrollPeriod,
+          amount: Number(fromM(Math.round(overtimeM / otData.rowIds.length))),
+          direction: "earning",
+          status: "approved",
+          metadata: { weekdayHours: otData.weekday, weekendHours: otData.weekend },
+        });
+      }
+    }
 
     const { totalM: componentGrossM, breakdown } = calculateGross(assignments, {
       hours: (otData?.weekday ?? 0) + (otData?.weekend ?? 0),
@@ -390,6 +541,20 @@ export async function calculatePayroll(
     // Advance deductions
     const advData = advancesByEmployee.get(emp.id);
     const advanceDeductionM = advData?.totalM ?? 0;
+    if (advData?.ids?.length && advanceDeductionM > 0) {
+      for (const id of advData.ids) {
+        impactRegistry.add({
+          sourceType: "advance",
+          sourceId: String(id),
+          employeeId: String(emp.id),
+          payrollPeriod,
+          amount: Number(fromM(Math.round(advanceDeductionM / advData.ids.length))),
+          direction: "deduction",
+          status: "approved",
+          metadata: { source: "salary_advances" },
+        });
+      }
+    }
     const leaveImpact = await approvedUnpaidLeaveImpactForEmployee(
       companyId,
       emp.id,
@@ -399,11 +564,51 @@ export async function calculatePayroll(
       policyRates.hourlyRate,
     );
     const leaveDeductionM = toM(leaveImpact.amount);
+    for (const item of leaveImpact.items ?? []) {
+      impactRegistry.add({
+        sourceType: "leave",
+        sourceId: String(item.id ?? item.leavePayrollImpactId ?? item.leaveRequestId),
+        employeeId: String(emp.id),
+        payrollPeriod,
+        amount: Number(item.amount ?? 0),
+        direction: "deduction",
+        status: "approved",
+        metadata: item,
+      });
+    }
     const attendanceImpact = await approvedAttendancePayrollImpactsForEmployee(companyId, emp.id, runMonth, runYear);
     const attendanceAdditionM = attendanceImpact.additionM;
     const attendanceDeductionM = attendanceImpact.deductionM;
+    for (const item of attendanceImpact.rows) {
+      impactRegistry.add({
+        sourceType: "attendance_impact",
+        sourceId: String(item.id),
+        employeeId: String(emp.id),
+        payrollPeriod,
+        amount: Number(item.amount ?? 0),
+        direction: item.direction === "add" ? "earning" : "deduction",
+        status: "approved",
+        metadata: item,
+      });
+    }
+    const adjustmentImpact = await approvedPayrollAdjustmentImpactsForEmployee(companyId, emp.id, runMonth, runYear, runId);
+    const adjustmentAdditionM = adjustmentImpact.additionM;
+    const adjustmentDeductionM = adjustmentImpact.deductionM;
+    for (const item of adjustmentImpact.rows) {
+      impactRegistry.add({
+        sourceType: "adjustment",
+        sourceId: `${item.sourceKind}:${item.sourceId}`,
+        employeeId: String(emp.id),
+        payrollPeriod,
+        amount: Number(item.amount ?? 0),
+        direction: item.direction === "add" ? "earning" : "deduction",
+        status: "approved",
+        metadata: item,
+      });
+    }
 
-    const netM = grossM + attendanceAdditionM - deductions.totalM - advanceDeductionM - leaveDeductionM - attendanceDeductionM;
+    const netM = grossM + attendanceAdditionM + adjustmentAdditionM - deductions.totalM - advanceDeductionM - leaveDeductionM - attendanceDeductionM - adjustmentDeductionM;
+    const employeeImpacts = impactRegistry.byEmployee(emp.id);
 
     const snapshot = {
       components: breakdown.map(b => ({
@@ -438,6 +643,15 @@ export async function calculatePayroll(
       attendanceImpactAdditionJOD: fromM(attendanceAdditionM),
       attendanceImpactDeductionJOD: fromM(attendanceDeductionM),
       attendanceImpactItems: attendanceImpact.rows,
+      adjustmentAdditionJOD: fromM(adjustmentAdditionM),
+      adjustmentDeductionJOD: fromM(adjustmentDeductionM),
+      payrollAdjustmentItems: adjustmentImpact.rows,
+      payrollImpacts: employeeImpacts,
+      payrollImpactTotals: employeeImpacts.reduce((acc: any, item: PayrollImpact) => {
+        if (item.direction === "earning") acc.earnings += item.amount;
+        else acc.deductions += item.amount;
+        return acc;
+      }, { earnings: 0, deductions: 0 }),
     };
 
     const housingBreakdown   = breakdown.find(b => b.code === 'HOUSING');
@@ -459,16 +673,16 @@ export async function calculatePayroll(
       transportAllowance:      fromM(transportBreakdown?.calculatedValueM ?? 0),
       mobileAllowance:         fromM(mobileBreakdown?.calculatedValueM   ?? 0),
       mealAllowance:           fromM(mealBreakdown?.calculatedValueM     ?? 0),
-      otherAllowances:         fromM(otherEarningsM + attendanceAdditionM),
+      otherAllowances:         fromM(otherEarningsM + attendanceAdditionM + adjustmentAdditionM),
       overtimeEarnings:        fromM(overtimeM),
-      grossSalary:             fromM(grossM + attendanceAdditionM),
+      grossSalary:             fromM(grossM + attendanceAdditionM + adjustmentAdditionM),
       sscDeduction:            fromM(deductions.sscEmployeeM),
       sscEmployerContribution: fromM(deductions.sscEmployerM),
       incomeTaxDeduction:      fromM(deductions.incomeTaxM),
       loanDeductions:          fromM(deductions.componentDeductionsM),
       advanceDeduction:        fromM(advanceDeductionM),
-      otherDeductions:         fromM(leaveDeductionM + attendanceDeductionM),
-      totalDeductions:         fromM(deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM),
+      otherDeductions:         fromM(leaveDeductionM + attendanceDeductionM + adjustmentDeductionM),
+      totalDeductions:         fromM(deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM + adjustmentDeductionM),
       netSalary:               fromM(Math.max(0, netM)),
       bankName:                emp.bankName ?? null,
       iban:                    emp.iban ?? null,
@@ -482,10 +696,16 @@ export async function calculatePayroll(
     if (attendanceImpact.rows.length) {
       attendanceImpactLinkMap.set(payslipValues.length - 1, attendanceImpact.rows.map((row: any) => Number(row.id)));
     }
+    if (adjustmentImpact.rows.length) {
+      adjustmentLinkMap.set(payslipValues.length - 1, {
+        adjustmentIds: adjustmentImpact.rows.filter((row: any) => row.sourceKind === "adjustment").map((row: any) => Number(row.sourceId)),
+        installmentIds: adjustmentImpact.rows.filter((row: any) => row.sourceKind === "adjustment_installment").map((row: any) => Number(row.sourceId)),
+      });
+    }
 
-    totalGrossM       += grossM + attendanceAdditionM;
+    totalGrossM       += grossM + attendanceAdditionM + adjustmentAdditionM;
     totalNetM         += Math.max(0, netM);
-    totalDeductionsM  += deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM;
+    totalDeductionsM  += deductions.totalM + advanceDeductionM + leaveDeductionM + attendanceDeductionM + adjustmentDeductionM;
     totalSscEmployeeM += deductions.sscEmployeeM;
     totalSscEmployerM += deductions.sscEmployerM;
     totalIncomeTaxM   += deductions.incomeTaxM;
@@ -511,8 +731,16 @@ export async function calculatePayroll(
       );
       await pool.query(
         `UPDATE payroll_adjustments
-            SET payslip_id=NULL, updated_at=NOW()
+            SET status=CASE WHEN status='applied' THEN 'approved' ELSE status END,
+                payroll_run_id=NULL, payslip_id=NULL, applied_at=NULL, updated_at=NOW()
           WHERE company_id=$1 AND payroll_run_id=$2 AND payslip_id = ANY($3::int[]) AND is_deleted=false`,
+        [companyId, runId, stalePayslipIds],
+      );
+      await pool.query(
+        `UPDATE payroll_adjustment_installments
+            SET status=CASE WHEN status='applied' THEN 'pending' ELSE status END,
+                payroll_run_id=NULL, payslip_id=NULL, applied_at=NULL, updated_at=NOW()
+          WHERE company_id=$1 AND payroll_run_id=$2 AND payslip_id = ANY($3::int[])`,
         [companyId, runId, stalePayslipIds],
       );
       await tx
@@ -565,6 +793,48 @@ export async function calculatePayroll(
         WHERE company_id=$3 AND id = ANY($4::bigint[]) AND status='approved' AND is_deleted=false`,
       [runId, payslipId, companyId, impactIds],
     );
+  }
+
+  for (const [psIndex, links] of adjustmentLinkMap.entries()) {
+    const payslipId = insertedPayslipIds[psIndex];
+    if (!payslipId) continue;
+    if (links.adjustmentIds.length) {
+      await pool.query(
+        `UPDATE payroll_adjustments
+            SET status='applied', payroll_run_id=$1, payslip_id=$2, applied_at=NOW(), updated_at=NOW()
+          WHERE company_id=$3 AND id = ANY($4::bigint[]) AND status='approved' AND is_deleted=false`,
+        [runId, payslipId, companyId, links.adjustmentIds],
+      );
+    }
+    if (links.installmentIds.length) {
+      await pool.query(
+        `UPDATE payroll_adjustment_installments
+            SET status='applied', payroll_run_id=$1, payslip_id=$2, applied_at=NOW(), updated_at=NOW()
+          WHERE company_id=$3 AND id = ANY($4::bigint[]) AND status='pending'`,
+        [runId, payslipId, companyId, links.installmentIds],
+      );
+    }
+  }
+
+  const registryEvidence = impactRegistry.evidence();
+  if (registryEvidence.skipped.length) {
+    for (const skipped of registryEvidence.skipped) {
+      await pool.query(
+        `INSERT INTO payroll_audit_events
+          (company_id, payroll_run_id, employee_id, entity_type, entity_id, event_type, after_json, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+        [
+          companyId,
+          runId,
+          Number(skipped.employeeId),
+          skipped.sourceType,
+          Number(String(skipped.sourceId).replace(/^\D+:/, "")) || null,
+          skipped.status === "invalid" ? "impact_invalid" : "impact_skipped",
+          JSON.stringify(skipped),
+          skipped.metadata?.skippedReason ?? "payroll impact skipped",
+        ],
+      );
+    }
   }
 
   return {
