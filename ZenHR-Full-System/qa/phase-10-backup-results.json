@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-05-15T00:46:07.341Z",
+  "status": "GO",
+  "filesPresent": true,
+  "files": {
+    "scripts/db-backup.ps1": true,
+    "scripts/db-restore.ps1": true,
+    "scripts/uploads-backup.ps1": true,
+    "scripts/exports-cleanup.ps1": true
+  },
+  "backupDryRun": true,
+  "restoreDryRun": true,
+  "docsPresent": true,
+  "passed": true
+}

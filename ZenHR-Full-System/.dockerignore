@@ -1,0 +1,14 @@
+node_modules
+frontend/node_modules
+artifacts/**/node_modules
+scripts/node_modules
+.git
+qa/.chrome-*
+qa/*.log
+uploads
+exports
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.*.example

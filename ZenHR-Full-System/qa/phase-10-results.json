@@ -1,0 +1,137 @@
+{
+  "generatedAt": "2026-05-15T00:46:07.341Z",
+  "backend": "http://localhost:3001",
+  "status": "GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-15T00:46:07.453Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T00:46:07.453Z\",\"version\":\"1.0.0\"}",
+    "headers": {
+      "access-control-allow-credentials": "true",
+      "connection": "keep-alive",
+      "content-length": "77",
+      "content-type": "application/json; charset=utf-8",
+      "cross-origin-resource-policy": "same-site",
+      "date": "Fri, 15 May 2026 00:46:07 GMT",
+      "etag": "W/\"4d-PmX+AHLNuB9YdKgh1i6aOOtIqDA\"",
+      "keep-alive": "timeout=5",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(self)",
+      "referrer-policy": "no-referrer",
+      "vary": "Origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-request-id": "ffeac83b-c4fa-4c78-8cbc-e927c37825bd"
+    }
+  },
+  "readiness": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "ready",
+      "version": "1.0.0",
+      "checks": {
+        "database": {
+          "ok": true
+        },
+        "queue": {
+          "ok": true,
+          "message": "memory adapter"
+        },
+        "environment": {
+          "ok": true
+        }
+      }
+    },
+    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true,\"message\":\"memory adapter\"},\"environment\":{\"ok\":true}}}",
+    "headers": {
+      "access-control-allow-credentials": "true",
+      "connection": "keep-alive",
+      "content-length": "143",
+      "content-type": "application/json; charset=utf-8",
+      "cross-origin-resource-policy": "same-site",
+      "date": "Fri, 15 May 2026 00:46:07 GMT",
+      "etag": "W/\"8f-iihoaobm2Q1zuyZYIYjcXKvbAUg\"",
+      "keep-alive": "timeout=5",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(self)",
+      "referrer-policy": "no-referrer",
+      "vary": "Origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-request-id": "4cff6b53-11a5-489f-bb30-88408e5bbc97"
+    }
+  },
+  "env": {
+    "envExample": true,
+    "productionEnvExample": true,
+    "envEndpointStatus": 200,
+    "envOk": true,
+    "adapter": "memory",
+    "sanitized": true,
+    "passed": true
+  },
+  "docker": {
+    "filesPresent": true,
+    "files": {
+      "Dockerfile.api": true,
+      "frontend/Dockerfile": true,
+      "frontend/nginx.conf": true,
+      "docker-compose.yml": true,
+      "docker-compose.staging.yml": true,
+      ".dockerignore": true
+    },
+    "dockerAvailable": false,
+    "dockerVersion": "",
+    "composeConfigChecked": false,
+    "limitation": "Docker CLI not available in this local environment; deployment files were statically validated.",
+    "passed": true
+  },
+  "saas": {
+    "moduleStatus": 200,
+    "modulesCount": 7,
+    "usageStatus": 200,
+    "usageHasLimits": true,
+    "employeeForbidden": true,
+    "passed": true
+  },
+  "ci": {
+    "filesPresent": true,
+    "localCommand": "scripts\\ci-check.ps1",
+    "referencesPhase9Smoke": true,
+    "passed": true
+  },
+  "backup": {
+    "filesPresent": true,
+    "files": {
+      "scripts/db-backup.ps1": true,
+      "scripts/db-restore.ps1": true,
+      "scripts/uploads-backup.ps1": true,
+      "scripts/exports-cleanup.ps1": true
+    },
+    "backupDryRun": true,
+    "restoreDryRun": true,
+    "docsPresent": true,
+    "passed": true
+  },
+  "securityHeaders": {
+    "versionStatus": 200,
+    "requestIdEchoed": true,
+    "nosniff": true,
+    "frameDeny": true,
+    "referrerPolicy": true,
+    "noPoweredBy": true,
+    "passed": true
+  },
+  "regression": {
+    "cleanupSprint5": "GO",
+    "cleanupSprint7": "GO",
+    "cleanupSprint8": "GO",
+    "phase9Reliability": "GO",
+    "passed": true
+  },
+  "errors": []
+}

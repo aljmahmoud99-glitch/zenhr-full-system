@@ -1,0 +1,12 @@
+services:
+  api:
+    environment:
+      NODE_ENV: production
+      APP_VERSION: staging
+      CORS_ORIGINS: https://staging.example.com
+      TRUST_PROXY: "true"
+      RUNTIME_STORE_ADAPTER: memory
+    restart: unless-stopped
+
+  frontend:
+    restart: unless-stopped

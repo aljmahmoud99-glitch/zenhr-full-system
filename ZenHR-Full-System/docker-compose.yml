@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zenhr
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zenhr"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_VERSION: local-compose
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/zenhr
+      JWT_SECRET: change-this-compose-secret-at-least-32-characters
+      CORS_ORIGINS: http://localhost:8080
+      TRUST_PROXY: "true"
+      UPLOADS_DIR: /app/uploads
+      EXPORTS_DIR: /app/exports
+      RUNTIME_STORE_ADAPTER: memory
+    volumes:
+      - uploads-data:/app/uploads
+      - exports-data:/app/exports
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres-data:
+  uploads-data:
+  exports-data:

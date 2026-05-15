@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-05-15T00:41:43.356Z",
+  "status": "GO",
+  "baseUrl": "http://localhost:5020",
+  "backend": "http://localhost:3001",
+  "pages": {
+    "hrDashboard": {
+      "url": "http://localhost:5020/#/app/dashboard",
+      "length": 1994,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrLeave": {
+      "url": "http://localhost:5020/#/app/leave-management",
+      "length": 5821,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrApprovals": {
+      "url": "http://localhost:5020/#/app/approvals",
+      "length": 743,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrDocuments": {
+      "url": "http://localhost:5020/#/app/documents-reporting",
+      "length": 976,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "hrContracts": {
+      "url": "http://localhost:5020/#/app/compliance-contracts",
+      "length": 3631,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "payroll": {
+      "url": "http://localhost:5020/#/app/payroll/runs",
+      "length": 6396,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "payrollOperations": {
+      "url": "http://localhost:5020/#/app/payroll-attendance",
+      "length": 1001,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeNotifications": {
+      "url": "http://localhost:5020/#/app/notifications",
+      "length": 3970,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "employeeMobile": {
+      "url": "http://localhost:5020/#/app/notifications",
+      "length": 3732,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    "recruitment": {
+      "url": "http://localhost:5020/#/app/recruitment",
+      "length": 931,
+      "loadingStuck": false,
+      "hasMojibake": false,
+      "overflow": false,
+      "color": "rgb(238, 248, 243)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  },
+  "checks": {
+    "pagesLoaded": true,
+    "noStuckLoading": true,
+    "noHorizontalOverflow": true,
+    "darkModeReadable": true,
+    "noMojibakeDetected": true,
+    "noCriticalConsoleErrors": true,
+    "noUnexpected500s": true
+  },
+  "consoleErrors": [],
+  "networkErrors": [],
+  "errors": []
+}

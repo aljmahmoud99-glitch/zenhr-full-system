@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-05-15T00:46:07.341Z",
+  "status": "GO",
+  "filesPresent": true,
+  "files": {
+    "Dockerfile.api": true,
+    "frontend/Dockerfile": true,
+    "frontend/nginx.conf": true,
+    "docker-compose.yml": true,
+    "docker-compose.staging.yml": true,
+    ".dockerignore": true
+  },
+  "dockerAvailable": false,
+  "dockerVersion": "",
+  "composeConfigChecked": false,
+  "limitation": "Docker CLI not available in this local environment; deployment files were statically validated.",
+  "passed": true
+}

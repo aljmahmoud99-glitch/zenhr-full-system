@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-05-15T00:46:07.341Z",
+  "status": "GO",
+  "filesPresent": true,
+  "localCommand": "scripts\\ci-check.ps1",
+  "referencesPhase9Smoke": true,
+  "passed": true
+}

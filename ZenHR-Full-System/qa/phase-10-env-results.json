@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-05-15T00:46:07.341Z",
+  "status": "GO",
+  "envExample": true,
+  "productionEnvExample": true,
+  "envEndpointStatus": 200,
+  "envOk": true,
+  "adapter": "memory",
+  "sanitized": true,
+  "passed": true
+}

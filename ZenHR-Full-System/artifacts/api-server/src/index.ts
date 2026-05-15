@@ -58,15 +58,38 @@ import {
   getDescendantNodeIds,
   getEmployeeScopeConditions,
 } from "./permission-service.js";
+import {
+  moduleForApiPath,
+  productionSecurityHeaders,
+  sanitizedEnvironmentSummary,
+  validateEnvironment,
+} from "./production-readiness.js";
+
+const environmentReport = validateEnvironment(process.env);
+if (!environmentReport.ok && environmentReport.production) {
+  console.error(JSON.stringify({
+    service: "zenjo-api",
+    event: "environment_validation_failed",
+    issues: environmentReport.issues,
+  }));
+  process.exit(1);
+}
 
 const app = express();
+app.disable("x-powered-by");
 const SERVICE_VERSION = process.env["APP_VERSION"] || "1.0.0";
 const IS_PRODUCTION = process.env["NODE_ENV"] === "production";
-const corsOrigins = (process.env["CORS_ORIGINS"] || "").split(",").map(s => s.trim()).filter(Boolean);
+const corsOrigins = environmentReport.corsOrigins;
 app.set("trust proxy", process.env["TRUST_PROXY"] === "true" ? 1 : false);
+app.use((_req, res, next) => {
+  const headers = productionSecurityHeaders();
+  for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
+  if (IS_PRODUCTION) res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  next();
+});
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || !IS_PRODUCTION || corsOrigins.length === 0 || corsOrigins.includes(origin)) return cb(null, true);
+    if (!origin || !IS_PRODUCTION || corsOrigins.includes(origin)) return cb(null, true);
     cb(new Error("CORS origin not allowed"));
   },
   credentials: true,
@@ -76,6 +99,8 @@ app.use(express.json({ limit: process.env["JSON_BODY_LIMIT"] || "1mb" }));
 type OperationalMetric = { count: number; totalMs: number; maxMs: number; errors: number };
 const operationalMetrics: Record<string, OperationalMetric> = {};
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+const moduleAccessCache = new Map<string, { enabled: boolean; checkedAt: number }>();
+const MODULE_CACHE_MS = 30_000;
 
 function routeBucket(req: express.Request) {
   const pathName = req.path || "";
@@ -89,6 +114,14 @@ function routeBucket(req: express.Request) {
 function safeLog(details: Record<string, unknown>) {
   console.log(JSON.stringify({ service: "zenjo-api", ...details }));
 }
+
+safeLog({
+  event: environmentReport.ok ? "environment_validation_passed" : "environment_validation_warning",
+  environment: environmentReport.environment,
+  adapter: environmentReport.adapter,
+  issueCount: environmentReport.issues.length,
+  issues: environmentReport.issues,
+});
 
 function metricKey(req: express.Request) {
   const route = (req.route?.path && typeof req.route.path === "string") ? req.route.path : req.path;
@@ -146,8 +179,40 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(async (req, res, next) => {
+  const moduleKey = moduleForApiPath(req.path || "");
+  if (!moduleKey || req.path === "/api/tenant/modules/status") return next();
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) return next();
+  const payload = verifyToken(authHeader.slice(7));
+  if (!payload) return next();
+  const companyId = Number(payload["companyId"]);
+  if (!companyId) return next();
+  const cacheKey = `${companyId}:${moduleKey}`;
+  const cached = moduleAccessCache.get(cacheKey);
+  if (cached && Date.now() - cached.checkedAt < MODULE_CACHE_MS) {
+    if (!cached.enabled) {
+      res.status(403).json({ success: false, message: "Module is disabled for this tenant", module: moduleKey });
+      return;
+    }
+    return next();
+  }
+  try {
+    const { rows } = await pool.query(`SELECT is_enabled FROM company_modules WHERE company_id = $1 AND module_key = $2 LIMIT 1`, [companyId, moduleKey]);
+    const enabled = rows.length === 0 ? true : rows[0].is_enabled !== false;
+    moduleAccessCache.set(cacheKey, { enabled, checkedAt: Date.now() });
+    if (!enabled) {
+      res.status(403).json({ success: false, message: "Module is disabled for this tenant", module: moduleKey });
+      return;
+    }
+  } catch (error) {
+    safeLog({ event: "module_access_check_failed", module: moduleKey, companyId, error: (error as Error).message });
+  }
+  next();
+});
+
 // â”€â”€â”€ File upload (multer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+const UPLOADS_DIR = environmentReport.paths.uploadsDir;
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const docStorage = multer.diskStorage({
@@ -251,13 +316,14 @@ app.get("/api/healthz", (_req, res) => {
 });
 
 app.get("/api/version", (_req, res) => {
-  res.json({ success: true, data: { name: "zenjo-api", version: SERVICE_VERSION, environment: process.env["NODE_ENV"] || "development" } });
+  res.json({ success: true, data: { name: "zenjo-api", version: SERVICE_VERSION, environment: environmentReport.environment } });
 });
 
 app.get("/api/readiness", async (_req, res) => {
   const checks: Record<string, { ok: boolean; message?: string }> = {
     database: { ok: false },
-    queue: { ok: true },
+    queue: { ok: true, message: `${environmentReport.adapter} adapter` },
+    environment: { ok: environmentReport.ok, message: environmentReport.ok ? undefined : "environment has validation issues" },
   };
   try {
     await pool.query("SELECT 1");
@@ -270,6 +336,72 @@ app.get("/api/readiness", async (_req, res) => {
 });
 
 // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.get("/api/ops/environment", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+  res.json({ success: true, data: sanitizedEnvironmentSummary(environmentReport) });
+});
+
+app.get("/api/tenant/modules/status", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    const { rows } = await pool.query(`
+      SELECT cm.module_key, cm.is_enabled, pp.code AS plan_code, cs.status AS subscription_status, cs.max_users, cs.max_employees
+      FROM company_modules cm
+      LEFT JOIN company_subscriptions cs ON cs.company_id = cm.company_id
+      LEFT JOIN platform_plans pp ON pp.id = cs.plan_id
+      WHERE cm.company_id = $1
+      ORDER BY cm.module_key
+    `, [user.companyId]);
+    res.json({ success: true, data: rows });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: IS_PRODUCTION ? "Unable to load module status" : e?.message });
+  }
+});
+
+app.get("/api/tenant/usage", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+      res.status(403).json({ success: false, message: "Forbidden" });
+      return;
+    }
+    const { rows } = await pool.query(`
+      SELECT
+        COALESCE(cs.max_users, pp.max_users, 0)::int AS max_users,
+        COALESCE(cs.max_employees, pp.max_employees, 0)::int AS max_employees,
+        COALESCE(pp.code, 'custom') AS plan_code,
+        COALESCE(cs.status, 'unknown') AS subscription_status,
+        (SELECT COUNT(*)::int FROM users WHERE company_id = $1 AND COALESCE(is_deleted,false)=false) AS active_users,
+        (SELECT COUNT(*)::int FROM employees WHERE company_id = $1 AND COALESCE(is_deleted,false)=false) AS employees,
+        (SELECT COUNT(*)::int FROM file_objects WHERE company_id = $1 AND COALESCE(is_deleted,false)=false) AS document_files,
+        (SELECT COALESCE(SUM(size_bytes),0)::bigint FROM file_objects WHERE company_id = $1 AND COALESCE(is_deleted,false)=false) AS document_storage_bytes,
+        (SELECT COUNT(*)::int FROM payroll_runs WHERE company_id = $1) AS payroll_runs
+      FROM company_subscriptions cs
+      LEFT JOIN platform_plans pp ON pp.id = cs.plan_id
+      WHERE cs.company_id = $1
+      LIMIT 1
+    `, [user.companyId]);
+    const usage = rows[0] || { max_users: 0, max_employees: 0, plan_code: "unknown", subscription_status: "unknown", active_users: 0, employees: 0, document_files: 0, document_storage_bytes: 0, payroll_runs: 0 };
+    res.json({
+      success: true,
+      data: {
+        ...usage,
+        limits: {
+          users: { used: Number(usage.active_users || 0), limit: Number(usage.max_users || 0), exceeded: Number(usage.max_users || 0) > 0 && Number(usage.active_users || 0) > Number(usage.max_users || 0) },
+          employees: { used: Number(usage.employees || 0), limit: Number(usage.max_employees || 0), exceeded: Number(usage.max_employees || 0) > 0 && Number(usage.employees || 0) > Number(usage.max_employees || 0) },
+          documentStorageBytes: { used: Number(usage.document_storage_bytes || 0), limit: null },
+        },
+      },
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: IS_PRODUCTION ? "Unable to load tenant usage" : e?.message });
+  }
+});
+
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body as { username: string; password: string };
