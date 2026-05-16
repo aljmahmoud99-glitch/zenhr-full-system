@@ -1,24 +1,21 @@
 {
-  "generatedAt": "2026-05-16T22:45:34.723Z",
+  "generatedAt": "2026-05-16T22:45:01.812Z",
   "status": "GO",
   "backend": "http://127.0.0.1:3001",
-  "duplicateRouteFindings": {
-    "target": "POST /api/leave/requests/:id/approve",
-    "activeRegistration": "Single compatibility wrapper in artifacts/api-server/src/index.ts forwards to /api/leave/management/requests/:id/approve.",
-    "duplicateRegistration": "Removed in Phase 1.5; no independent duplicate legacy approve implementation should remain.",
-    "securedHandlers": [
-      "leave-notifications.service.ts /api/leave/management/requests/:id/approve",
-      "index.ts compatibility /api/leave/requests/:id/approve forwarder"
-    ]
-  },
   "health": {
     "status": 200,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-16T22:45:34.763Z",
+      "timestamp": "2026-05-16T22:45:01.845Z",
       "version": "1.0.0"
     },
-    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-16T22:45:34.763Z\",\"version\":\"1.0.0\"}"
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-16T22:45:01.845Z\",\"version\":\"1.0.0\"}"
+  },
+  "routeRegistrations": {
+    "legacyApproveRegistrationsInIndex": 1,
+    "canonicalApproveRegistrationsInService": 1,
+    "legacyForwarderPresent": true,
+    "independentLegacyBusinessMarkersRemaining": false
   },
   "logins": {
     "hr": {
@@ -106,24 +103,24 @@
     "deletedLeaveId": 114
   },
   "setup": {
-    "hrRequest": {
+    "legacyValidRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 122,
+          "id": 115,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-06T21:00:00.000Z",
-          "endDate": "2134-07-06T21:00:00.000Z",
+          "startDate": "2138-04-03T21:00:00.000Z",
+          "endDate": "2138-04-03T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation hr-same-company 1778971535002",
+          "reason": "Phase 1.5 leave route dedupe legacy-valid 1778971502271",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.015Z",
-          "updatedAt": "2026-05-16T22:45:35.015Z",
+          "createdAt": "2026-05-16T22:45:02.284Z",
+          "updatedAt": "2026-05-16T22:45:02.284Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -140,26 +137,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":122,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-06T21:00:00.000Z\",\"endDate\":\"2134-07-06T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation hr-same-company 1778971535002\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.015Z\",\"updatedAt\":\"2026-05-16T22:45:35.015Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"tota"
+      "text": "{\"success\":true,\"data\":{\"id\":115,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-03T21:00:00.000Z\",\"endDate\":\"2138-04-03T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe legacy-valid 1778971502271\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.284Z\",\"updatedAt\":\"2026-05-16T22:45:02.284Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\""
     },
-    "managerDirectRequest": {
+    "managementValidRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 123,
-          "employeeId": 2,
+          "id": 116,
+          "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-08T21:00:00.000Z",
-          "endDate": "2134-07-08T21:00:00.000Z",
+          "startDate": "2138-04-05T21:00:00.000Z",
+          "endDate": "2138-04-05T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation manager-direct-report 1778971535042",
+          "reason": "Phase 1.5 leave route dedupe management-valid 1778971502319",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.050Z",
-          "updatedAt": "2026-05-16T22:45:35.050Z",
+          "createdAt": "2026-05-16T22:45:02.326Z",
+          "updatedAt": "2026-05-16T22:45:02.326Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -176,26 +173,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":123,\"employeeId\":2,\"leaveType\":\"8\",\"startDate\":\"2134-07-08T21:00:00.000Z\",\"endDate\":\"2134-07-08T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation manager-direct-report 1778971535042\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.050Z\",\"updatedAt\":\"2026-05-16T22:45:35.050Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null"
+      "text": "{\"success\":true,\"data\":{\"id\":116,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-05T21:00:00.000Z\",\"endDate\":\"2138-04-05T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe management-valid 1778971502319\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.326Z\",\"updatedAt\":\"2026-05-16T22:45:02.326Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHo"
     },
     "managerUnrelatedRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 124,
+          "id": 117,
           "employeeId": 37,
           "leaveType": "8",
-          "startDate": "2134-07-10T21:00:00.000Z",
-          "endDate": "2134-07-10T21:00:00.000Z",
+          "startDate": "2138-04-07T21:00:00.000Z",
+          "endDate": "2138-04-07T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation manager-unrelated 1778971535056",
+          "reason": "Phase 1.5 leave route dedupe manager-unrelated 1778971502343",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.064Z",
-          "updatedAt": "2026-05-16T22:45:35.064Z",
+          "createdAt": "2026-05-16T22:45:02.350Z",
+          "updatedAt": "2026-05-16T22:45:02.350Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -212,26 +209,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":124,\"employeeId\":37,\"leaveType\":\"8\",\"startDate\":\"2134-07-10T21:00:00.000Z\",\"endDate\":\"2134-07-10T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation manager-unrelated 1778971535056\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.064Z\",\"updatedAt\":\"2026-05-16T22:45:35.064Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"t"
+      "text": "{\"success\":true,\"data\":{\"id\":117,\"employeeId\":37,\"leaveType\":\"8\",\"startDate\":\"2138-04-07T21:00:00.000Z\",\"endDate\":\"2138-04-07T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe manager-unrelated 1778971502343\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.350Z\",\"updatedAt\":\"2026-05-16T22:45:02.350Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"total"
     },
     "employeeForbiddenRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 125,
+          "id": 118,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-12T21:00:00.000Z",
-          "endDate": "2134-07-12T21:00:00.000Z",
+          "startDate": "2138-04-09T21:00:00.000Z",
+          "endDate": "2138-04-09T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation employee-forbidden 1778971535069",
+          "reason": "Phase 1.5 leave route dedupe employee-forbidden 1778971502362",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.077Z",
-          "updatedAt": "2026-05-16T22:45:35.077Z",
+          "createdAt": "2026-05-16T22:45:02.367Z",
+          "updatedAt": "2026-05-16T22:45:02.367Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -248,26 +245,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":125,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-12T21:00:00.000Z\",\"endDate\":\"2134-07-12T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation employee-forbidden 1778971535069\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.077Z\",\"updatedAt\":\"2026-05-16T22:45:35.077Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"t"
+      "text": "{\"success\":true,\"data\":{\"id\":118,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-09T21:00:00.000Z\",\"endDate\":\"2138-04-09T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe employee-forbidden 1778971502362\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.367Z\",\"updatedAt\":\"2026-05-16T22:45:02.367Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"total"
     },
     "payrollForbiddenRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 126,
+          "id": 119,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-14T21:00:00.000Z",
-          "endDate": "2134-07-14T21:00:00.000Z",
+          "startDate": "2138-04-11T21:00:00.000Z",
+          "endDate": "2138-04-11T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation payroll-forbidden 1778971535084",
+          "reason": "Phase 1.5 leave route dedupe payroll-forbidden 1778971502382",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.092Z",
-          "updatedAt": "2026-05-16T22:45:35.092Z",
+          "createdAt": "2026-05-16T22:45:02.389Z",
+          "updatedAt": "2026-05-16T22:45:02.389Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -284,26 +281,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":126,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-14T21:00:00.000Z\",\"endDate\":\"2134-07-14T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation payroll-forbidden 1778971535084\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.092Z\",\"updatedAt\":\"2026-05-16T22:45:35.092Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"to"
+      "text": "{\"success\":true,\"data\":{\"id\":119,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-11T21:00:00.000Z\",\"endDate\":\"2138-04-11T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe payroll-forbidden 1778971502382\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.389Z\",\"updatedAt\":\"2026-05-16T22:45:02.389Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalH"
     },
     "recruiterForbiddenRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 127,
+          "id": 120,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-16T21:00:00.000Z",
-          "endDate": "2134-07-16T21:00:00.000Z",
+          "startDate": "2138-04-13T21:00:00.000Z",
+          "endDate": "2138-04-13T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation recruiter-forbidden 1778971535098",
+          "reason": "Phase 1.5 leave route dedupe recruiter-forbidden 1778971502402",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.105Z",
-          "updatedAt": "2026-05-16T22:45:35.105Z",
+          "createdAt": "2026-05-16T22:45:02.408Z",
+          "updatedAt": "2026-05-16T22:45:02.408Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -320,26 +317,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":127,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-16T21:00:00.000Z\",\"endDate\":\"2134-07-16T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation recruiter-forbidden 1778971535098\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.105Z\",\"updatedAt\":\"2026-05-16T22:45:35.105Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\""
+      "text": "{\"success\":true,\"data\":{\"id\":120,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-13T21:00:00.000Z\",\"endDate\":\"2138-04-13T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe recruiter-forbidden 1778971502402\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.408Z\",\"updatedAt\":\"2026-05-16T22:45:02.408Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"tota"
     },
     "alreadyApprovedRequest": {
       "status": 201,
       "body": {
         "success": true,
         "data": {
-          "id": 128,
+          "id": 121,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-18T21:00:00.000Z",
-          "endDate": "2134-07-18T21:00:00.000Z",
+          "startDate": "2138-04-15T21:00:00.000Z",
+          "endDate": "2138-04-15T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation already-approved 1778971535112",
+          "reason": "Phase 1.5 leave route dedupe already-approved 1778971502423",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.119Z",
-          "updatedAt": "2026-05-16T22:45:35.119Z",
+          "createdAt": "2026-05-16T22:45:02.428Z",
+          "updatedAt": "2026-05-16T22:45:02.428Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -356,26 +353,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":128,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-18T21:00:00.000Z\",\"endDate\":\"2134-07-18T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation already-approved 1778971535112\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.119Z\",\"updatedAt\":\"2026-05-16T22:45:35.119Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"tot"
+      "text": "{\"success\":true,\"data\":{\"id\":121,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-15T21:00:00.000Z\",\"endDate\":\"2138-04-15T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe already-approved 1778971502423\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.428Z\",\"updatedAt\":\"2026-05-16T22:45:02.428Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHo"
     },
     "alreadyApprovedFirst": {
       "status": 200,
       "body": {
         "success": true,
         "data": {
-          "id": 128,
+          "id": 121,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-18T21:00:00.000Z",
-          "endDate": "2134-07-18T21:00:00.000Z",
+          "startDate": "2138-04-15T21:00:00.000Z",
+          "endDate": "2138-04-15T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation already-approved 1778971535112",
+          "reason": "Phase 1.5 leave route dedupe already-approved 1778971502423",
           "status": "manager_approved",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.119Z",
-          "updatedAt": "2026-05-16T22:45:35.248Z",
+          "createdAt": "2026-05-16T22:45:02.428Z",
+          "updatedAt": "2026-05-16T22:45:02.553Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -392,26 +389,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":128,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-18T21:00:00.000Z\",\"endDate\":\"2134-07-18T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation already-approved 1778971535112\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.119Z\",\"updatedAt\":\"2026-05-16T22:45:35.248Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":"
+      "text": "{\"success\":true,\"data\":{\"id\":121,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-15T21:00:00.000Z\",\"endDate\":\"2138-04-15T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe already-approved 1778971502423\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.428Z\",\"updatedAt\":\"2026-05-16T22:45:02.553Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null"
     },
     "alreadyApprovedSecond": {
       "status": 200,
       "body": {
         "success": true,
         "data": {
-          "id": 128,
+          "id": 121,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-18T21:00:00.000Z",
-          "endDate": "2134-07-18T21:00:00.000Z",
+          "startDate": "2138-04-15T21:00:00.000Z",
+          "endDate": "2138-04-15T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation already-approved 1778971535112",
+          "reason": "Phase 1.5 leave route dedupe already-approved 1778971502423",
           "status": "approved",
           "approvedById": 2,
-          "approvedAt": "2026-05-16T22:45:35.264Z",
+          "approvedAt": "2026-05-16T22:45:02.568Z",
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.119Z",
-          "updatedAt": "2026-05-16T22:45:35.264Z",
+          "createdAt": "2026-05-16T22:45:02.428Z",
+          "updatedAt": "2026-05-16T22:45:02.568Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -428,28 +425,28 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":128,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-18T21:00:00.000Z\",\"endDate\":\"2134-07-18T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation already-approved 1778971535112\",\"status\":\"approved\",\"approvedById\":2,\"approvedAt\":\"2026-05-16T22:45:35.264Z\",\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.119Z\",\"updatedAt\":\"2026-05-16T22:45:35.264Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null"
+      "text": "{\"success\":true,\"data\":{\"id\":121,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-15T21:00:00.000Z\",\"endDate\":\"2138-04-15T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe already-approved 1778971502423\",\"status\":\"approved\",\"approvedById\":2,\"approvedAt\":\"2026-05-16T22:45:02.568Z\",\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.428Z\",\"updatedAt\":\"2026-05-16T22:45:02.568Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"en"
     }
   },
   "tests": {
-    "hrSameCompanyApprove": {
+    "legacyApprove": {
       "status": 200,
       "body": {
         "success": true,
         "data": {
-          "id": 122,
+          "id": 115,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-06T21:00:00.000Z",
-          "endDate": "2134-07-06T21:00:00.000Z",
+          "startDate": "2138-04-03T21:00:00.000Z",
+          "endDate": "2138-04-03T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation hr-same-company 1778971535002",
+          "reason": "Phase 1.5 leave route dedupe legacy-valid 1778971502271",
           "status": "manager_approved",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.015Z",
-          "updatedAt": "2026-05-16T22:45:35.165Z",
+          "createdAt": "2026-05-16T22:45:02.284Z",
+          "updatedAt": "2026-05-16T22:45:02.484Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -466,26 +463,26 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":122,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2134-07-06T21:00:00.000Z\",\"endDate\":\"2134-07-06T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation hr-same-company 1778971535002\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.015Z\",\"updatedAt\":\"2026-05-16T22:45:35.165Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":n"
+      "text": "{\"success\":true,\"data\":{\"id\":115,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-03T21:00:00.000Z\",\"endDate\":\"2138-04-03T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe legacy-valid 1778971502271\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.284Z\",\"updatedAt\":\"2026-05-16T22:45:02.484Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"to"
     },
-    "managerDirectReportApprove": {
+    "managementApprove": {
       "status": 200,
       "body": {
         "success": true,
         "data": {
-          "id": 123,
-          "employeeId": 2,
+          "id": 116,
+          "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2134-07-08T21:00:00.000Z",
-          "endDate": "2134-07-08T21:00:00.000Z",
+          "startDate": "2138-04-05T21:00:00.000Z",
+          "endDate": "2138-04-05T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 1.4 leave tenant isolation manager-direct-report 1778971535042",
+          "reason": "Phase 1.5 leave route dedupe management-valid 1778971502319",
           "status": "manager_approved",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-16T22:45:35.050Z",
-          "updatedAt": "2026-05-16T22:45:35.185Z",
+          "createdAt": "2026-05-16T22:45:02.326Z",
+          "updatedAt": "2026-05-16T22:45:02.504Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -499,10 +496,10 @@
           "payrollImpactType": "none",
           "payrollImpactAmount": "0.000",
           "createdBy": 2,
-          "updatedBy": 6
+          "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":123,\"employeeId\":2,\"leaveType\":\"8\",\"startDate\":\"2134-07-08T21:00:00.000Z\",\"endDate\":\"2134-07-08T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.4 leave tenant isolation manager-direct-report 1778971535042\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:35.050Z\",\"updatedAt\":\"2026-05-16T22:45:35.185Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endT"
+      "text": "{\"success\":true,\"data\":{\"id\":116,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2138-04-05T21:00:00.000Z\",\"endDate\":\"2138-04-05T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 1.5 leave route dedupe management-valid 1778971502319\",\"status\":\"manager_approved\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-16T22:45:02.326Z\",\"updatedAt\":\"2026-05-16T22:45:02.504Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null"
     },
     "managerUnrelatedApprove": {
       "status": 403,
@@ -559,38 +556,31 @@
         "message": "Not found"
       },
       "text": "{\"success\":false,\"message\":\"Not found\"}"
-    },
-    "randomId": {
-      "status": 404,
-      "body": {
-        "success": false,
-        "message": "Not found"
-      },
-      "text": "{\"success\":false,\"message\":\"Not found\"}"
     }
   },
   "skipped": [],
   "errors": [],
   "assertions": {
     "health": true,
-    "hrSameCompanyApprove": true,
-    "crossCompanyApprove404": true,
-    "managerDirectReportApprove": true,
+    "staticLegacyRouteSingleForwarder": true,
+    "staticCanonicalRoutePresent": true,
+    "legacyApproveWorks": true,
+    "managementApproveWorks": true,
+    "crossCompanyBlocked": true,
     "managerUnrelatedForbidden": true,
     "employeeForbidden": true,
     "payrollForbidden": true,
     "recruiterForbidden": true,
-    "deletedApprove404": true,
-    "randomId404": true,
+    "deletedBlocked": true,
     "alreadyApprovedProtected": true
   },
   "createdIds": {
-    "hrRequest": 122,
-    "managerDirectRequest": 123,
-    "managerUnrelatedRequest": 124,
-    "employeeForbiddenRequest": 125,
-    "payrollForbiddenRequest": 126,
-    "recruiterForbiddenRequest": 127,
-    "alreadyApprovedRequest": 128
+    "legacyValidRequest": 115,
+    "managementValidRequest": 116,
+    "managerUnrelatedRequest": 117,
+    "employeeForbiddenRequest": 118,
+    "payrollForbiddenRequest": 119,
+    "recruiterForbiddenRequest": 120,
+    "alreadyApprovedRequest": 121
   }
 }
