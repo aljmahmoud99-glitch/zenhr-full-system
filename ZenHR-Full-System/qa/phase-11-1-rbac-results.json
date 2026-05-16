@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-05-15T11:58:51.937Z",
+  "status": "PASS",
+  "profileAccess": {
+    "managerOwnStatus": 200,
+    "managerDirectReportStatus": 200,
+    "managerUnrelatedStatus": 404,
+    "managerUnrelatedForbidden": true,
+    "managerUnrelatedLeakedName": false,
+    "hrCompanyEmployeeStatus": 200,
+    "employeeOwnStatus": 200,
+    "employeeOtherStatus": 404,
+    "employeeOtherForbidden": true,
+    "payrollReadStatus": 200,
+    "recruiterReadStatus": 404,
+    "recruiterForbidden": true
+  },
+  "relatedScope": {
+    "unrelatedQualificationsStatus": 404,
+    "unrelatedDocumentsStatus": 404,
+    "unrelatedLeaveBalancesStatus": 404,
+    "unrelatedEnterpriseLeaveBalanceStatus": 200,
+    "unrelatedAttendanceQueryStatus": 200,
+    "unrelatedEnterpriseLeaveBalanceRows": 72,
+    "unrelatedAttendanceRows": 0,
+    "enterpriseBalanceContainsUnrelated": false,
+    "attendanceContainsUnrelated": false,
+    "qualificationsBlocked": true,
+    "documentsBlocked": true,
+    "leaveBalancesBlocked": true,
+    "enterpriseLeaveBalanceBlocked": true,
+    "attendanceBlockedOrScopedEmpty": true
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "status": "GO",
+  "rbac": {
+    "payrollSeparation": {
+      "payrollRecruitmentMutationStatus": 403,
+      "payrollHrDocumentStatus": 404,
+      "passed": true
+    },
+    "passed": true
+  },
+  "manager": {
+    "teamListStatus": 200,
+    "otherProfileStatus": 404,
+    "unrelatedEmployeeId": 2,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  },
+  "employee": {
+    "ownProfileStatus": 200,
+    "otherProfileStatus": 404,
+    "payrollPreviewDeniedStatus": 403,
+    "exportsDeniedStatus": 403,
+    "contractsDeniedStatus": 403,
+    "passed": true
+  },
+  "recruiter": {
+    "candidateListStatus": 200,
+    "handoffEvidenceSource": "qa/cleanup-sprint-6-results.json",
+    "sprint6Status": "GO",
+    "convertedEmployeeId": 52,
+    "contractId": 29,
+    "enterpriseDocumentIds": [
+      41,
+      42,
+      43,
+      44,
+      40
+    ],
+    "noDuplicateConversion": true,
+    "payrollDeniedStatus": 403,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  },
+  "superadmin": {
+    "modulesStatus": 200,
+    "usageStatus": 200,
+    "opsEnvironmentStatus": 200,
+    "opsMetricsStatus": 200,
+    "unsafeTenantMutationStatus": 403,
+    "noSensitiveEnvLeak": true,
+    "passed": true
+  }
+}

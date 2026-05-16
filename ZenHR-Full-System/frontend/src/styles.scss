@@ -227,6 +227,123 @@ button {
   cursor: pointer;
 }
 
+.z-btn-primary,
+.primary-action,
+button.primary,
+.btn-primary {
+  min-height: var(--z-control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid var(--app-primary);
+  border-radius: 12px;
+  background: var(--app-primary);
+  color: var(--app-on-primary, #fff);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(var(--app-primary-rgb), 0.18);
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+}
+
+.z-btn-primary:hover,
+.primary-action:hover,
+button.primary:hover,
+.btn-primary:hover {
+  background: var(--app-primary-dark);
+  border-color: var(--app-primary-dark);
+  color: var(--app-on-primary, #fff);
+  box-shadow: 0 12px 26px rgba(var(--app-primary-rgb), 0.24);
+  transform: translateY(-1px);
+}
+
+.z-btn-secondary,
+.ghost-action,
+button.secondary,
+.btn-secondary {
+  min-height: var(--z-control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(var(--app-primary-rgb), 0.38);
+  border-radius: 12px;
+  background: var(--z-surface);
+  color: var(--app-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.z-btn-secondary:hover,
+.ghost-action:hover,
+button.secondary:hover,
+.btn-secondary:hover {
+  background: rgba(var(--app-primary-rgb), 0.08);
+  border-color: rgba(var(--app-primary-rgb), 0.58);
+  color: var(--app-primary-dark);
+}
+
+.z-btn-danger,
+button.danger,
+.btn-danger {
+  min-height: var(--z-control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--z-danger);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.z-btn-danger:hover,
+button.danger:hover,
+.btn-danger:hover {
+  background: rgba(220, 38, 38, 0.14);
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #b91c1c;
+}
+
+.z-btn-primary .material-icons,
+.primary-action .material-icons,
+.z-btn-secondary .material-icons,
+.ghost-action .material-icons,
+.z-btn-danger .material-icons,
+button.danger .material-icons,
+.btn-primary .material-icons,
+.btn-secondary .material-icons,
+.btn-danger .material-icons {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+button:disabled,
+.z-btn-primary:disabled,
+.primary-action:disabled,
+.z-btn-secondary:disabled,
+.ghost-action:disabled,
+.z-btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+  box-shadow: none;
+}
+
 img {
   display: block;
   max-width: 100%;
@@ -566,6 +683,75 @@ body.theme-dark .bar-chart,
 body.theme-dark .trend-chart,
 body.theme-dark .usage-box {
   background: linear-gradient(180deg, rgba(23, 36, 31, 0.98), rgba(13, 23, 19, 0.96)) !important;
+}
+
+body.theme-dark .z-input,
+body.theme-dark .form-control,
+body.theme-dark .form-input,
+body.theme-dark .form-select,
+body.theme-dark .form-textarea,
+body.theme-dark input[type='text'],
+body.theme-dark input[type='search'],
+body.theme-dark input[type='email'],
+body.theme-dark input[type='password'],
+body.theme-dark input[type='number'],
+body.theme-dark input[type='date'],
+body.theme-dark input[type='time'],
+body.theme-dark select,
+body.theme-dark textarea {
+  border-color: var(--z-border-strong) !important;
+  background: rgba(13, 23, 19, 0.96) !important;
+  color: var(--z-text-primary) !important;
+  caret-color: var(--z-text-primary);
+}
+
+body.theme-dark .z-input:focus,
+body.theme-dark .form-control:focus,
+body.theme-dark .form-input:focus,
+body.theme-dark .form-select:focus,
+body.theme-dark .form-textarea:focus,
+body.theme-dark input:focus,
+body.theme-dark select:focus,
+body.theme-dark textarea:focus {
+  border-color: var(--app-primary) !important;
+  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb), 0.18) !important;
+}
+
+body.theme-dark select option {
+  background: #111c18;
+  color: var(--z-text-primary);
+}
+
+body.theme-dark .btn-secondary,
+body.theme-dark .btn.btn-secondary,
+body.theme-dark .z-btn-secondary,
+body.theme-dark .ghost-action,
+body.theme-dark .secondary-action {
+  border-color: var(--z-border-strong) !important;
+  background: rgba(23, 36, 31, 0.94) !important;
+  color: var(--z-text-primary) !important;
+}
+
+body.theme-dark .btn-secondary:hover,
+body.theme-dark .btn.btn-secondary:hover,
+body.theme-dark .z-btn-secondary:hover,
+body.theme-dark .ghost-action:hover,
+body.theme-dark .secondary-action:hover {
+  border-color: rgba(var(--app-primary-rgb), 0.42) !important;
+  background: rgba(var(--app-primary-rgb), 0.14) !important;
+  color: var(--z-pine) !important;
+}
+
+body.theme-dark .filter-bar,
+body.theme-dark .search-bar,
+body.theme-dark .toolbar-row,
+body.theme-dark .filter-row,
+body.theme-dark .filters-head,
+body.theme-dark .side-panel,
+body.theme-dark .drawer-footer,
+body.theme-dark .modal-footer,
+body.theme-dark .modal-actions {
+  border-color: var(--z-border) !important;
 }
 
 .z-card-header,

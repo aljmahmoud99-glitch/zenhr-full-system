@@ -10,6 +10,8 @@ export class I18nService {
   private readonly current = signal<Lang>('ar');
   private readonly initialized = signal(false);
   private readonly loading = signal(false);
+  private readonly cleanArabicCache = new Map<string, string>();
+  private windows1256Reverse: Map<string, number> | null = null;
 
   readonly lang = this.current.asReadonly();
   readonly ready = computed(() => this.initialized() && !this.loading());
@@ -70,12 +72,24 @@ export class I18nService {
   }
 
   instant(key: string, params?: object) {
-    return this.translate.instant(key, params);
+    return this.cleanArabicText(this.translate.instant(key, params));
   }
 
   t(key: string, fallback = '', params?: object) {
     const translated = this.translate.instant(key, params);
-    return translated && translated !== key ? translated : fallback;
+    return this.cleanArabicText(translated && translated !== key ? translated : fallback);
+  }
+
+  cleanArabicText(value: string): string {
+    if (!value || !/[طظØÙÛÃÂï�]/.test(value)) return value;
+    const cached = this.cleanArabicCache.get(value);
+    if (cached != null) return cached;
+
+    const repaired = this.tryRepairWindows1256Mojibake(value);
+    const result = repaired || value;
+    if (this.cleanArabicCache.size > 2000) this.cleanArabicCache.clear();
+    this.cleanArabicCache.set(value, result);
+    return result;
   }
 
   private persistLanguage(lang: Lang) {
@@ -92,5 +106,31 @@ export class I18nService {
     this.document.body.dir = direction;
     this.document.body.classList.toggle('ltr', lang === 'en');
     this.document.body.classList.toggle('rtl', lang === 'ar');
+  }
+
+  private tryRepairWindows1256Mojibake(value: string): string | null {
+    try {
+      const utf8 = new TextDecoder('utf-8', { fatal: true });
+      if (!this.windows1256Reverse) {
+        const decoder = new TextDecoder('windows-1256');
+        const reverse = new Map<string, number>();
+        for (let i = 0; i <= 255; i++) {
+          reverse.set(decoder.decode(Uint8Array.of(i)), i);
+        }
+        this.windows1256Reverse = reverse;
+      }
+
+      const bytes: number[] = [];
+      for (const ch of value) {
+        const b = this.windows1256Reverse.get(ch);
+        if (b == null) return null;
+        bytes.push(b);
+      }
+      const repaired = utf8.decode(Uint8Array.from(bytes));
+      if (!/[\u0600-\u06ff]/.test(repaired) || /�/.test(repaired)) return null;
+      return repaired;
+    } catch {
+      return null;
+    }
   }
 }

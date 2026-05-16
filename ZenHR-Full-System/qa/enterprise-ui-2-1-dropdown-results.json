@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-05-15T17:00:26.596Z",
+  "status": "PASS",
+  "implementation": {
+    "groupedDropdownMethod": "LayoutComponent.dropdownSections(group)",
+    "preservesRbacSource": "RoleAccessService.getNavGroups()",
+    "sections": [
+      "Core HR",
+      "Workforce",
+      "Payroll Run",
+      "Adjustments",
+      "Reports",
+      "Approvals",
+      "Admin Tools",
+      "My Records",
+      "Other"
+    ],
+    "css": [
+      "dropdown-section",
+      "dropdown-section-title",
+      "compact dropdown-item sizing"
+    ]
+  },
+  "validation": {
+    "staticBuildPassed": true,
+    "browserHarnessStatus": "PARTIAL",
+    "note": "Browser harness was able to capture dropdown screenshots in an earlier pass but final rebuilt run timed out in local Chrome cleanup; no RBAC source was changed."
+  }
+}

@@ -8,6 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { BrandingService } from '../../core/services/branding.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { getErrorMessage } from '../../core/utils/error-message';
 
 type ConfigItem = {
@@ -28,10 +29,10 @@ type BrandingValues = {
 };
 
 const BRANDING_DEFAULT: BrandingValues = {
-  primaryColor:   '#2d9e6b',
+  primaryColor: '#2d9e6b',
   secondaryColor: '#475569',
-  accentColor:    '#52d9a0',
-  logoUrl:        '',
+  accentColor: '#52d9a0',
+  logoUrl: '',
 };
 
 const TEXTAREA_KEYS = new Set(['income_tax_brackets']);
@@ -49,6 +50,23 @@ const INTEGER_KEYS = new Set([
   'notice_period_days', 'annual_leave_days', 'sick_leave_days', 'compliance_warning_days',
 ]);
 
+const SETTINGS_LABELS_AR: Record<string, string> = {
+  working_hours_per_day: 'ساعات العمل اليومية',
+  working_days_per_week: 'أيام العمل الأسبوعية',
+  overtime_rate_weekday: 'معدل العمل الإضافي في أيام العمل',
+  overtime_rate_weekend: 'معدل العمل الإضافي في نهاية الأسبوع',
+  income_tax_brackets: 'شرائح ضريبة الدخل',
+  income_tax_exempt_annual: 'الإعفاء السنوي من ضريبة الدخل',
+  ssc_employee_rate: 'نسبة اشتراك الموظف في الضمان',
+  ssc_employer_rate: 'نسبة اشتراك صاحب العمل في الضمان',
+  ssc_insurable_salary_cap: 'سقف الراتب الخاضع للضمان',
+  probation_period_months: 'فترة التجربة بالأشهر',
+  notice_period_days: 'مدة الإشعار بالأيام',
+  annual_leave_days: 'أيام الإجازة السنوية',
+  sick_leave_days: 'أيام الإجازة المرضية',
+  compliance_warning_days: 'أيام التنبيه قبل انتهاء الامتثال',
+};
+
 @Component({
   selector: 'app-settings',
   standalone: true,
@@ -58,33 +76,32 @@ const INTEGER_KEYS = new Set([
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SettingsComponent implements OnInit {
-  configs  = signal<ConfigItem[]>([]);
-  loading  = signal(true);
-  saving   = signal(false);
+  configs = signal<ConfigItem[]>([]);
+  loading = signal(true);
+  saving = signal(false);
   successMsg = signal('');
-  errorMsg   = signal('');
+  errorMsg = signal('');
   activeCategory = signal('payroll');
 
-  editValues     = signal<Record<string, string>>({});
+  editValues = signal<Record<string, string>>({});
   originalValues: Record<string, string> = {};
 
-  // ── Branding state ────────────────────────────────────────────────────────
-  brandingValues   = signal<BrandingValues>({ ...BRANDING_DEFAULT });
+  brandingValues = signal<BrandingValues>({ ...BRANDING_DEFAULT });
   brandingOriginal: BrandingValues = { ...BRANDING_DEFAULT };
-  uploadingLogo    = signal(false);
-  logoUploadError  = signal('');
-  logoPreviewUrl   = signal('');
+  uploadingLogo = signal(false);
+  logoUploadError = signal('');
+  logoPreviewUrl = signal('');
   generatedPalette = signal<{ primaryColor: string; secondaryColor: string; accentColor: string } | null>(null);
 
   categories = [
-    { key: 'general',       labelAr: 'الإعدادات العامة',         labelEn: 'General',          icon: 'domain' },
-    { key: 'attendance',    labelAr: 'الحضور والدوام',            labelEn: 'Attendance',        icon: 'schedule' },
-    { key: 'payroll',       labelAr: 'الرواتب وضريبة الدخل',     labelEn: 'Payroll',           icon: 'payments' },
-    { key: 'hr',            labelAr: 'الموارد البشرية',           labelEn: 'HR',                icon: 'groups' },
-    { key: 'leave',         labelAr: 'سياسات الإجازات',           labelEn: 'Leave Policies',    icon: 'event_available' },
-    { key: 'compliance',    labelAr: 'الامتثال',                  labelEn: 'Compliance',        icon: 'verified_user' },
-    { key: 'notifications', labelAr: 'الإشعارات',                 labelEn: 'Notifications',     icon: 'notifications' },
-    { key: 'branding',      labelAr: 'الهوية البصرية',            labelEn: 'Branding',          icon: 'palette' },
+    { key: 'general', labelAr: 'الإعدادات العامة', labelEn: 'General', icon: 'domain' },
+    { key: 'attendance', labelAr: 'الحضور والدوام', labelEn: 'Attendance', icon: 'schedule' },
+    { key: 'payroll', labelAr: 'الرواتب وضريبة الدخل', labelEn: 'Payroll', icon: 'payments' },
+    { key: 'hr', labelAr: 'الموارد البشرية', labelEn: 'HR', icon: 'groups' },
+    { key: 'leave', labelAr: 'سياسات الإجازات', labelEn: 'Leave Policies', icon: 'event_available' },
+    { key: 'compliance', labelAr: 'الامتثال', labelEn: 'Compliance', icon: 'verified_user' },
+    { key: 'notifications', labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications' },
+    { key: 'branding', labelAr: 'الهوية البصرية', labelEn: 'Branding', icon: 'palette' },
   ];
 
   filteredConfigs = computed(() =>
@@ -97,22 +114,22 @@ export class SettingsComponent implements OnInit {
       if (value !== this.originalValues[key]) return true;
     }
     const b = this.brandingValues();
-    if (b.primaryColor   !== this.brandingOriginal.primaryColor)   return true;
-    if (b.secondaryColor !== this.brandingOriginal.secondaryColor) return true;
-    if (b.accentColor    !== this.brandingOriginal.accentColor)    return true;
-    return false;
+    return b.primaryColor !== this.brandingOriginal.primaryColor ||
+      b.secondaryColor !== this.brandingOriginal.secondaryColor ||
+      b.accentColor !== this.brandingOriginal.accentColor;
   });
 
-  brandingDark  = computed(() => this.brandingService.darken(this.brandingValues().primaryColor, 0.5));
+  brandingDark = computed(() => this.brandingService.darken(this.brandingValues().primaryColor, 0.5));
   brandingLight = computed(() => this.brandingService.lighten(this.brandingValues().primaryColor, 0.42));
 
   constructor(
-    public  auth:            AuthService,
-    private api:             ApiService,
-    private http:            HttpClient,
-    private toast:           ToastService,
-    private settings:        AppSettingsService,
-    public  brandingService: BrandingService,
+    public auth: AuthService,
+    private api: ApiService,
+    private http: HttpClient,
+    private toast: ToastService,
+    private settings: AppSettingsService,
+    public brandingService: BrandingService,
+    private i18n: I18nService,
   ) {}
 
   get lang() { return this.auth.lang; }
@@ -124,12 +141,12 @@ export class SettingsComponent implements OnInit {
     this.errorMsg.set('');
 
     forkJoin({
-      configs:  this.api.get<any>('/api/config/catalog'),
+      configs: this.api.get<any>('/api/config/catalog'),
       branding: this.api.get<any>('/api/branding').pipe(catchError(() => of({ success: false }))),
     }).subscribe({
       next: ({ configs, branding }) => {
         const groups = configs.data || [];
-        const flat   = groups.flatMap((g: any) => g.items ?? []);
+        const flat = groups.flatMap((g: any) => g.items ?? []);
         this.configs.set(flat);
         const values: Record<string, string> = {};
         flat.forEach((c: ConfigItem) => { values[c.key] = c.value; });
@@ -139,10 +156,10 @@ export class SettingsComponent implements OnInit {
         if (branding?.success && branding.data) {
           const d = branding.data;
           const b: BrandingValues = {
-            primaryColor:   d.primaryColor   ?? BRANDING_DEFAULT.primaryColor,
+            primaryColor: d.primaryColor ?? BRANDING_DEFAULT.primaryColor,
             secondaryColor: d.secondaryColor ?? BRANDING_DEFAULT.secondaryColor,
-            accentColor:    d.accentColor    ?? BRANDING_DEFAULT.accentColor,
-            logoUrl:        d.logoUrl        ?? '',
+            accentColor: d.accentColor ?? BRANDING_DEFAULT.accentColor,
+            logoUrl: d.logoUrl ?? '',
           };
           this.brandingValues.set(b);
           this.brandingOriginal = { ...b };
@@ -159,9 +176,9 @@ export class SettingsComponent implements OnInit {
   }
 
   fieldLabel(cfg: ConfigItem) {
-    return this.lang === 'ar'
-      ? (cfg.descriptionAr || cfg.descriptionEn || cfg.key)
-      : (cfg.descriptionEn || cfg.key);
+    if (this.lang !== 'ar') return cfg.descriptionEn || cfg.key;
+    return SETTINGS_LABELS_AR[cfg.key] ||
+      this.i18n.cleanArabicText(cfg.descriptionAr || cfg.descriptionEn || cfg.key);
   }
 
   isBoolean(cfg: ConfigItem) { return cfg.dataType === 'boolean'; }
@@ -181,9 +198,9 @@ export class SettingsComponent implements OnInit {
   categoryHasChanges(key: string) {
     if (key === 'branding') {
       const b = this.brandingValues();
-      return b.primaryColor   !== this.brandingOriginal.primaryColor   ||
-             b.secondaryColor !== this.brandingOriginal.secondaryColor ||
-             b.accentColor    !== this.brandingOriginal.accentColor;
+      return b.primaryColor !== this.brandingOriginal.primaryColor ||
+        b.secondaryColor !== this.brandingOriginal.secondaryColor ||
+        b.accentColor !== this.brandingOriginal.accentColor;
     }
     const vals = this.editValues();
     return this.configs()
@@ -204,8 +221,6 @@ export class SettingsComponent implements OnInit {
     this.setValue(key, checked ? 'true' : 'false');
   }
 
-  // ── Branding methods ──────────────────────────────────────────────────────
-
   setBrandingColor(field: keyof Omit<BrandingValues, 'logoUrl'>, value: string) {
     this.brandingValues.update(prev => ({ ...prev, [field]: value }));
     this.brandingService.applyToDocument(this.brandingValues());
@@ -219,7 +234,7 @@ export class SettingsComponent implements OnInit {
 
   onLogoUpload(event: Event) {
     const input = event.target as HTMLInputElement;
-    const file  = input.files?.[0];
+    const file = input.files?.[0];
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
@@ -228,7 +243,7 @@ export class SettingsComponent implements OnInit {
       return;
     }
     if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
-      this.logoUploadError.set(this.lang === 'ar' ? 'نوع الملف غير مدعوم. PNG أو JPG أو WEBP فقط' : 'Invalid type — PNG, JPG, WEBP only');
+      this.logoUploadError.set(this.lang === 'ar' ? 'نوع الملف غير مدعوم. PNG أو JPG أو WEBP فقط' : 'Invalid type - PNG, JPG, WEBP only');
       input.value = '';
       return;
     }
@@ -264,15 +279,13 @@ export class SettingsComponent implements OnInit {
     if (!p) return;
     this.brandingValues.update(prev => ({
       ...prev,
-      primaryColor:   p.primaryColor,
+      primaryColor: p.primaryColor,
       secondaryColor: p.secondaryColor,
-      accentColor:    p.accentColor,
+      accentColor: p.accentColor,
     }));
     this.brandingService.applyToDocument(this.brandingValues());
     this.generatedPalette.set(null);
   }
-
-  // ── Save / Discard ────────────────────────────────────────────────────────
 
   saveAll() {
     if (this.saving() || !this.hasChanges()) return;
@@ -290,9 +303,9 @@ export class SettingsComponent implements OnInit {
     this.errorMsg.set('');
 
     this.api.patch<any>('/api/branding', {
-      primaryColor:   b.primaryColor,
+      primaryColor: b.primaryColor,
       secondaryColor: b.secondaryColor,
-      accentColor:    b.accentColor,
+      accentColor: b.accentColor,
     }).subscribe({
       next: () => {
         this.brandingOriginal = { ...b };
@@ -346,10 +359,10 @@ export class SettingsComponent implements OnInit {
   resetBranding() {
     this.saving.set(true);
     this.api.patch<any>('/api/branding', {
-      primaryColor:   BRANDING_DEFAULT.primaryColor,
+      primaryColor: BRANDING_DEFAULT.primaryColor,
       secondaryColor: BRANDING_DEFAULT.secondaryColor,
-      accentColor:    BRANDING_DEFAULT.accentColor,
-      logoUrl:        '',
+      accentColor: BRANDING_DEFAULT.accentColor,
+      logoUrl: '',
     }).subscribe({
       next: () => {
         this.saving.set(false);
@@ -358,7 +371,7 @@ export class SettingsComponent implements OnInit {
         this.logoPreviewUrl.set('');
         this.generatedPalette.set(null);
         this.brandingService.resetToDefault();
-        this.toast.success(this.lang === 'ar' ? 'تم إعادة تعيين المظهر للقيم الافتراضية' : 'Branding reset to defaults');
+        this.toast.success(this.lang === 'ar' ? 'تمت إعادة تعيين المظهر للقيم الافتراضية' : 'Branding reset to defaults');
       },
       error: () => {
         this.saving.set(false);

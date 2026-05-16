@@ -156,6 +156,7 @@ export class JobDescriptionsComponent implements OnInit {
 
   addFlyOpenFor: string | null = null;
   addFlySaving = false;
+  addFlyError = '';
   addFlyForm = { code: '', nameAr: '', nameEn: '' };
 
   private searchTerms = new Subject<string>();
@@ -376,14 +377,36 @@ export class JobDescriptionsComponent implements OnInit {
   }
 
   openAddFly(route: string): void {
-    this.addFlyOpenFor = this.addFlyOpenFor === route ? null : route;
+    this.addFlyOpenFor = route;
+    this.addFlyError = '';
     this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
+  }
+
+  closeAddFly(): void {
+    if (this.addFlySaving) return;
+    this.addFlyOpenFor = null;
+    this.addFlyError = '';
+    this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
+  }
+
+  addFlyTitle(route: string): string {
+    const picker = this.pickers.find(item => item.route === route);
+    if (route === 'responsibility-groups') return this.lang.t('إضافة مجموعة مسؤوليات', 'Add responsibility group');
+    if (route === 'job-grades') return this.lang.t('إضافة درجة وظيفية', 'Add job grade');
+    return this.lang.t(`إضافة ${picker?.labelAr || 'عنصر'}`, `Add ${picker?.labelEn || 'item'}`);
   }
 
   addOnTheFly(route: string): void {
     if (this.addFlySaving) return;
+    this.addFlyError = '';
     if (!this.addFlyForm.code.trim() || !this.addFlyForm.nameAr.trim() || !this.addFlyForm.nameEn.trim()) {
-      this.toast.warning(this.lang.t('أدخل الكود والاسمين العربي والإنجليزي', 'Enter code, Arabic name, and English name'));
+      this.addFlyError = this.lang.t('أدخل الكود والاسمين العربي والإنجليزي', 'Enter code, Arabic name, and English name');
+      this.toast.warning(this.addFlyError);
+      return;
+    }
+    if (route === 'responsibilities' && !this.form.responsibilityGroupId) {
+      this.addFlyError = this.lang.t('اختر مجموعة المسؤوليات قبل إضافة مسؤولية جديدة.', 'Select a responsibility group before adding a new responsibility.');
+      this.toast.warning(this.addFlyError);
       return;
     }
     this.addFlySaving = true;
@@ -397,6 +420,20 @@ export class JobDescriptionsComponent implements OnInit {
       body.gradeCode = body.code;
       body.levelOrder = 0;
     }
+    if (route === 'responsibilities') {
+      body.responsibilityGroupId = this.form.responsibilityGroupId;
+      body.priorityOrder = (this.options[route]?.length ?? 0) + 1;
+    }
+    if (route === 'educational-qualifications' || route === 'experience-levels') {
+      body.levelOrder = (this.options[route]?.length ?? 0) + 1;
+    }
+    if (route === 'training-courses') {
+      body.durationHours = 0;
+    }
+    if (route === 'languages') {
+      body.proficiencyLevels = ['basic', 'intermediate', 'advanced'];
+      body.isRtl = false;
+    }
     this.api.post<ApiResponse<any>>(`/api/${route}`, body)
       .pipe(finalize(() => {
         this.addFlySaving = false;
@@ -406,12 +443,16 @@ export class JobDescriptionsComponent implements OnInit {
         next: res => {
           this.toast.success(this.lang.t('تمت الإضافة', 'Added successfully'));
           this.addFlyOpenFor = null;
+          this.addFlyError = '';
           this.addFlyForm = { code: '', nameAr: '', nameEn: '' };
           this.loadMasterOptions(route);
           const id = res.data?.id;
           if (id) this.selectNewOption(route, id);
         },
-        error: err => this.toast.error(err?.error?.message || this.lang.t('تعذرت الإضافة', 'Add failed'))
+        error: err => {
+          this.addFlyError = err?.error?.message || this.lang.t('تعذرت الإضافة', 'Add failed');
+          this.toast.error(this.addFlyError);
+        }
       });
   }
 

@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-05-15T16:55:49.701Z",
+  "status": "PARTIAL",
+  "baseUrl": "http://localhost:5041",
+  "pages": {
+    "hr_attendance_map": {
+      "url": "http://localhost:5041/#/app/attendance",
+      "length": 1487,
+      "actionable": 43,
+      "overflow": false,
+      "hasMojibake": false,
+      "accessDenied": false,
+      "selectors": {
+        "mapPicker": true,
+        "schedulePanel": false,
+        "groupedDropdown": false,
+        "jobProfileModal": false
+      },
+      "screenshot": "qa/enterprise-ui-2-1-screenshots/hr_attendance_map.png"
+    },
+    "hr_shifts_assignment": {
+      "url": "http://localhost:5041/#/app/shifts",
+      "length": 1721,
+      "actionable": 17,
+      "overflow": false,
+      "hasMojibake": false,
+      "accessDenied": false,
+      "selectors": {
+        "mapPicker": false,
+        "schedulePanel": false,
+        "groupedDropdown": false,
+        "jobProfileModal": false
+      },
+      "screenshot": "qa/enterprise-ui-2-1-screenshots/hr_shifts_assignment.png"
+    },
+    "hr_job_profiles": {
+      "url": "http://localhost:5041/#/app/job-descriptions",
+      "length": 2103,
+      "actionable": 54,
+      "overflow": false,
+      "hasMojibake": false,
+      "accessDenied": false,
+      "selectors": {
+        "mapPicker": false,
+        "schedulePanel": false,
+        "groupedDropdown": false,
+        "jobProfileModal": false
+      }
+    },
+    "employee_attendance_schedule_mobile": {},
+    "manager_nav_dropdown": {}
+  },
+  "checks": {
+    "pagesLoaded": false,
+    "noUnexpected500s": true,
+    "noCriticalConsoleErrors": true,
+    "noHorizontalOverflow": true,
+    "mapSurfaceAvailable": true,
+    "employeeSchedulePanelAvailable": false,
+    "groupedDropdownAvailable": false
+  },
+  "consoleErrors": [],
+  "networkErrors": [],
+  "errors": [],
+  "screenshotsDir": "Z:\\ZenHR-Full-System\\qa\\enterprise-ui-2-1-screenshots"
+}

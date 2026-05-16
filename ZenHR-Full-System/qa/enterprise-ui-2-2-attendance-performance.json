@@ -1,0 +1,10 @@
+{
+  "generatedAt": "2026-05-15T17:55:30.181Z",
+  "status": "PASS",
+  "waitedSeconds": 60,
+  "taskDurationDelta": 0.1884530000000001,
+  "pageResponsive": true,
+  "noHorizontalOverflow": true,
+  "visibleButtons": 19,
+  "network500Count": 0
+}

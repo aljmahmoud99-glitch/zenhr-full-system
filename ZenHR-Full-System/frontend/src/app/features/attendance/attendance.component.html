@@ -59,6 +59,52 @@
       <span>{{ biometricStatus() || t('لا يمكن تسجيل الحضور بدون جهاز موثوق وبصمة أو Face ID.', 'Attendance requires a trusted device and biometric or Face ID verification.') }}</span>
     </div>
 
+    <section class="employee-schedule-panel" *ngIf="isEmployee">
+      <div class="schedule-panel-head">
+        <div>
+          <h3>{{ t('جدولي وورديتي', 'My schedule and shift') }}</h3>
+          <p>{{ t('يعرض الجدول المعتمد من الموارد البشرية مع موقع الحضور ونطاقه.', 'Shows the HR-approved schedule with attendance location and geofence.') }}</p>
+        </div>
+        <span class="z-badge info" *ngIf="primaryScheduleShift() as badgeShift">{{ scheduleStatusLabel(badgeShift.status) }}</span>
+      </div>
+      <div class="today-shift-card" *ngIf="primaryScheduleShift() as todayShift; else noShiftAssigned">
+        <div>
+          <small class="schedule-date-line">{{ todayShift.date }} · {{ recurrenceLabel(todayShift.recurrence) }}</small>
+          <strong>{{ lang === 'ar' ? todayShift.shift.nameAr : todayShift.shift.nameEn }}</strong>
+          <span>{{ todayShift.shift.startTime }} - {{ todayShift.shift.endTime }}</span>
+        </div>
+        <div>
+          <span class="material-icons">location_on</span>
+          <span>{{ todayShift.location?.nameAr || todayShift.location?.nameEn || todayShift.location?.address || t('لا يوجد موقع محدد', 'No location assigned') }}</span>
+          <small *ngIf="todayShift.location">{{ todayShift.location.radiusMeters }}m</small>
+          <button
+            *ngIf="todayShift.googleMapsUrl"
+            type="button"
+            class="inline-map-button"
+            (click)="openExternalMapUrl(todayShift.googleMapsUrl, 'employee-schedule')"
+            [disabled]="openingMapKey() === 'employee-schedule'">
+            {{ t('فتح خرائط Google', 'Open Google Maps') }}
+          </button>
+        </div>
+      </div>
+      <ng-template #noShiftAssigned>
+        <div class="empty-state compact">
+          <span class="material-icons empty-icon">event_busy</span>
+          <div class="empty-title">{{ t('لا توجد وردية معينة اليوم.', 'No shift assigned for today.') }}</div>
+        </div>
+      </ng-template>
+      <div class="upcoming-shifts" *ngIf="upcomingSchedulePreview().length > 0">
+        <article *ngFor="let item of upcomingSchedulePreview()">
+          <span>{{ item.date }}</span>
+          <strong>{{ lang === 'ar' ? item.shift.nameAr : item.shift.nameEn }}</strong>
+          <small>{{ item.shift.startTime }} - {{ item.shift.endTime }}</small>
+          <small>{{ recurrenceLabel(item.recurrence) }}</small>
+          <small *ngIf="item.location">{{ item.location.nameAr || item.location.nameEn || item.location.address }} · {{ item.location.radiusMeters }}m</small>
+          <em>{{ scheduleStatusLabel(item.status) }}</em>
+        </article>
+      </div>
+    </section>
+
     <app-skeleton-kpi-cards *ngIf="loading()" [count]="6" />
 
     <div class="summary-card-grid" *ngIf="!loading()">
@@ -350,7 +396,16 @@
             <strong>{{ locationName(location) }}</strong>
             <span>{{ location.radiusMeters }}m</span>
             <span>{{ location.address || '—' }}</span>
-            <a [href]="mapsUrl(location.latitude, location.longitude)" target="_blank">{{ t('فتح الخريطة', 'Open map') }}</a>
+            <button
+              class="inline-map-button"
+              type="button"
+              (click)="openExternalMap(location.latitude, location.longitude, 'location-' + location.id)"
+              [disabled]="openingMapKey() === 'location-' + location.id">
+              {{ t('فتح الخريطة', 'Open map') }}
+            </button>
+            <button class="z-btn-secondary" type="button" *ngIf="isHr" (click)="openLocationModal(location)">
+              {{ t('تعديل', 'Edit') }}
+            </button>
             <button class="z-btn-danger" type="button" *ngIf="isHr" (click)="deleteLocation(location.id)" [disabled]="isRequestActionLoading(location.id)">
               {{ isRequestActionLoading(location.id) ? t('جارٍ...', 'Working...') : t('حذف', 'Delete') }}
             </button>
@@ -369,7 +424,13 @@
           <article class="location-card" *ngFor="let record of mapRecords()">
             <strong>{{ employeeName(record) }}</strong>
             <span>{{ fmtTime(record.clockIn) }}</span>
-            <a [href]="mapsUrl(record.latitude, record.longitude)" target="_blank">{{ t('موقع تسجيل الحضور', 'Check-in map') }}</a>
+            <button
+              class="inline-map-button"
+              type="button"
+              (click)="openExternalMap(record.latitude, record.longitude, 'record-' + record.id)"
+              [disabled]="openingMapKey() === 'record-' + record.id">
+              {{ t('موقع تسجيل الحضور', 'Check-in map') }}
+            </button>
           </article>
         </div>
         <ng-template #noMapRecords>
@@ -497,7 +558,7 @@
   <div class="modal-overlay" *ngIf="showLocationModal()" (click)="showLocationModal.set(false)">
     <section class="modal-card z-card" (click)="$event.stopPropagation()">
       <header class="modal-head">
-        <div><h2 class="z-heading">{{ t('إضافة موقع عمل', 'Add work location') }}</h2></div>
+        <div><h2 class="z-heading">{{ editingLocationId() ? t('تعديل موقع عمل', 'Edit work location') : t('إضافة موقع عمل', 'Add work location') }}</h2></div>
       </header>
       <div class="modal-grid">
         <label class="field">
@@ -514,8 +575,27 @@
         </label>
         <div class="field field-full map-picker-field">
           <span class="z-label">{{ t('اختيار الموقع من الخريطة', 'Pick location from map') }}</span>
-          <div class="map-picker" role="button" tabindex="0" (click)="pickLocationFromMap($event)">
+          <div
+            class="map-picker"
+            role="button"
+            tabindex="0"
+            [class.dragging]="mapDragging()"
+            (click)="pickLocationFromMap($event)"
+            (pointerdown)="startMapDrag($event)"
+            (pointermove)="dragMapMarker($event)"
+            (pointerup)="endMapDrag($event)"
+            (pointercancel)="endMapDrag($event)"
+            (keydown.arrowUp)="nudgeMapMarker(0.001, 0); $event.preventDefault()"
+            (keydown.arrowDown)="nudgeMapMarker(-0.001, 0); $event.preventDefault()"
+            (keydown.arrowLeft)="nudgeMapMarker(0, -0.001); $event.preventDefault()"
+            (keydown.arrowRight)="nudgeMapMarker(0, 0.001); $event.preventDefault()">
             <div class="map-grid-lines"></div>
+            <div
+              class="map-radius-ring"
+              [style.width.%]="radiusDiameterPercent()"
+              [style.height.%]="radiusDiameterPercent()"
+              [style.left.%]="markerX()"
+              [style.top.%]="markerY()"></div>
             <div class="map-pin" [style.left.%]="markerX()" [style.top.%]="markerY()">
               <span class="material-icons">location_on</span>
             </div>
@@ -524,13 +604,27 @@
           <div class="map-actions-row">
             <button class="z-btn-secondary" type="button" (click)="useBrowserLocationForPicker()">{{ t('استخدام موقعي الحالي', 'Use my current location') }}</button>
             <button class="z-btn-secondary" type="button" (click)="useDefaultLocation()">{{ t('مركز عمّان', 'Amman center') }}</button>
-            <a class="z-btn-secondary" [href]="mapsUrl(locationForm.latitude, locationForm.longitude)" target="_blank" rel="noopener">{{ t('فتح خرائط Google', 'Open Google Maps') }}</a>
+            <button
+              class="z-btn-secondary"
+              type="button"
+              (click)="openExternalMap(locationForm.latitude, locationForm.longitude, 'picker')"
+              [disabled]="openingMapKey() === 'picker'">
+              {{ t('فتح خرائط Google', 'Open Google Maps') }}
+            </button>
           </div>
           <small class="muted-coordinates">
             {{ t('يتم حفظ الإحداثيات داخلياً:', 'Coordinates saved internally:') }}
             {{ locationForm.latitude | number:'1.5-5' }}, {{ locationForm.longitude | number:'1.5-5' }}
           </small>
         </div>
+        <label class="field">
+          <span class="z-label">{{ t('خط العرض', 'Latitude') }}</span>
+          <input class="z-input" type="number" step="0.000001" [(ngModel)]="locationForm.latitude" (ngModelChange)="syncLocationAddressHint()">
+        </label>
+        <label class="field">
+          <span class="z-label">{{ t('خط الطول', 'Longitude') }}</span>
+          <input class="z-input" type="number" step="0.000001" [(ngModel)]="locationForm.longitude" (ngModelChange)="syncLocationAddressHint()">
+        </label>
         <label class="field field-full">
           <span class="z-label">{{ t('نطاق الموقع بالمتر', 'Radius (m)') }}</span>
           <input class="z-input" type="number" [(ngModel)]="locationForm.radiusMeters">

@@ -498,18 +498,53 @@
 }
 
 .location-card span,
-.location-card a {
+.location-card a,
+.inline-map-button {
   font-size: 13px;
   color: var(--z-text-secondary);
 }
 
-.location-card a {
+.location-card a,
+.inline-map-button {
   color: var(--z-info);
   text-decoration: none;
 }
 
-.location-card a:hover {
+.inline-map-button {
+  width: max-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inline-map-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.location-card a:hover,
+.inline-map-button:not(:disabled):hover {
   text-decoration: underline;
+}
+
+:host-context(body.theme-dark) .location-card {
+  background: rgba(13, 23, 19, 0.92);
+  border-color: rgba(191, 219, 207, 0.14);
+}
+
+:host-context(body.theme-dark) .location-card strong {
+  color: #eef8f3;
+}
+
+:host-context(body.theme-dark) .location-card span {
+  color: #b8c9c0;
+}
+
+:host-context(body.theme-dark) .inline-map-button,
+:host-context(body.theme-dark) .location-card a {
+  color: #5ee0a0;
 }
 
 .modal-overlay {
@@ -564,6 +599,18 @@
     linear-gradient(135deg, color-mix(in srgb, var(--z-primary, var(--primary)) 10%, transparent), transparent 35%),
     linear-gradient(45deg, color-mix(in srgb, var(--z-info, #2563eb) 12%, transparent), transparent 45%),
     var(--z-surface-muted, var(--surface-muted));
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+
+.map-picker:focus-visible {
+  border-color: var(--app-primary, var(--primary));
+  box-shadow: 0 0 0 3px rgba(var(--app-primary-rgb, 45, 158, 107), 0.16);
+}
+
+.map-picker.dragging {
+  cursor: grabbing;
 }
 
 .map-grid-lines {
@@ -582,10 +629,22 @@
   color: var(--z-danger, var(--danger));
   filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.24));
   pointer-events: none;
+  z-index: 3;
 }
 
 .map-pin .material-icons {
   font-size: 36px;
+}
+
+.map-radius-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(var(--app-primary-rgb, 45, 158, 107), 0.42);
+  border-radius: 999px;
+  background: rgba(var(--app-primary-rgb, 45, 158, 107), 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.42) inset;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .map-hint {
@@ -604,6 +663,96 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.employee-schedule-panel {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-md);
+  background: var(--z-surface-muted);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.schedule-panel-head,
+.today-shift-card,
+.upcoming-shifts article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  min-width: 0;
+}
+
+.schedule-panel-head h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.schedule-panel-head p {
+  margin: 0;
+  color: var(--z-text-secondary, var(--foreground-muted));
+  font-size: 0.84rem;
+}
+
+.today-shift-card {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--z-radius-sm);
+  border: 1px solid rgba(var(--app-primary-rgb, 45, 158, 107), 0.18);
+  background: var(--z-surface, var(--surface));
+}
+
+.today-shift-card > div {
+  min-width: min(100%, 220px);
+}
+
+.schedule-date-line {
+  margin-bottom: 4px;
+  color: var(--z-text-secondary, var(--foreground-muted));
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.today-shift-card strong,
+.today-shift-card span,
+.today-shift-card small,
+.today-shift-card a {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.today-shift-card .material-icons {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+  color: var(--app-primary, #2d9e6b);
+}
+
+.upcoming-shifts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.upcoming-shifts article {
+  padding: 10px;
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-sm);
+  background: var(--z-surface, var(--surface));
+  font-size: 0.82rem;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.upcoming-shifts em {
+  color: var(--app-primary, #2d9e6b);
+  font-style: normal;
+  font-weight: 700;
 }
 
 .muted-coordinates {

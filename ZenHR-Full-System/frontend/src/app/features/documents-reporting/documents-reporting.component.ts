@@ -107,6 +107,8 @@ export class DocumentsReportingComponent implements OnInit {
     { key: 'analytics', ar: 'التحليلات', en: 'Analytics' }
   ];
 
+  readonly exportCreationSupported = false;
+
   constructor(
     private api: ApiService,
     public lang: LangService,
@@ -193,6 +195,10 @@ export class DocumentsReportingComponent implements OnInit {
   }
 
   openDrawer(type: typeof this.drawer) {
+    if (type === 'export' && !this.exportCreationSupported) {
+      this.toast.error(this.t('إنشاء تصدير جديد غير متاح حالياً لهذه البيانات.', 'New export creation is not currently available for this dataset.'));
+      return;
+    }
     this.drawer = type;
   }
 

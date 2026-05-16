@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T12:58:39.467Z",
+  "generatedAt": "2026-05-15T11:23:33.875Z",
   "backend": "http://localhost:3001",
   "status": "GO",
   "health": {
@@ -7,13 +7,13 @@
     "ok": true,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-14T12:58:39.528Z",
+      "timestamp": "2026-05-15T11:23:34.137Z",
       "version": "1.0.0"
     },
     "contentType": "application/json; charset=utf-8",
     "disposition": "",
     "size": 77,
-    "sample": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-14T12:58:39.528Z\",\"version\":\"1.0.0\"}"
+    "sample": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T11:23:34.137Z\",\"version\":\"1.0.0\"}"
   },
   "logins": {
     "hr": {
@@ -55,27 +55,27 @@
   },
   "reconciliation": {
     "employeeId": 8,
-    "period": "2138-11",
-    "adjustmentId": "24",
-    "beforeNet": "1155.525",
-    "afterPreviewNet": "1205.525",
+    "period": "2172-11",
+    "adjustmentId": "36",
+    "beforeNet": "1173.100",
+    "afterPreviewNet": "1223.100",
     "netDeltaPreview": "50.000",
     "previewAdjustmentAddition": "50.000",
-    "payslipId": 323,
-    "payslipNet": "1205.525",
+    "payslipId": 635,
+    "payslipNet": "1223.100",
     "payslipAdjustmentAddition": "50.000",
     "payrollImpacts": [
       {
         "sourceType": "adjustment",
-        "sourceId": "adjustment:24",
+        "sourceId": "adjustment:36",
         "employeeId": "8",
-        "payrollPeriod": "2138-11",
+        "payrollPeriod": "2172-11",
         "amount": 50,
         "direction": "earning",
         "status": "approved",
         "metadata": {
-          "id": "24",
-          "adjustment_number": "ADJ-MP5HVFWA",
+          "id": "36",
+          "adjustment_number": "ADJ-MP6TX0IY",
           "direction": "add",
           "calculation_mode": "after_net",
           "recurrence_type": "one_time",
@@ -83,7 +83,7 @@
           "status": "approved",
           "payroll_run_id": null,
           "payslip_id": null,
-          "effective_date": "2138-11-02T21:00:00.000Z",
+          "effective_date": "2172-11-02T21:00:00.000Z",
           "end_date": null,
           "title_ar": "إضافة صافي اختبارية",
           "title_en": "Sprint 5 after-net addition",
@@ -91,28 +91,28 @@
           "type_name_ar": "اختبار تسوية الرواتب",
           "type_name_en": "Sprint 5 Payroll Reconciliation",
           "sourceKind": "adjustment",
-          "sourceId": "24"
+          "sourceId": "36"
         }
       }
     ],
-    "runTotalNet": "22561.983",
-    "payslipNetTotal": "22561.983",
-    "reportTotalNet": "22561.983",
+    "runTotalNet": "26905.783",
+    "payslipNetTotal": "26905.783",
+    "reportTotalNet": "26905.783",
     "grossReconciles": true,
     "deductionsReconcile": true,
     "netReconciles": true,
     "passed": true
   },
   "rerunProtection": {
-    "runId": 18,
+    "runId": 24,
     "firstCalculateStatus": 200,
     "secondCalculateStatus": 200,
-    "firstPayslipId": 323,
-    "secondPayslipId": 343,
+    "firstPayslipId": 635,
+    "secondPayslipId": 662,
     "firstSnapshotAdjustment": "50.000",
     "secondSnapshotAdjustment": "50.000",
     "adjustmentStatusAfterRun": "applied",
-    "adjustmentPayrollRunId": 18,
+    "adjustmentPayrollRunId": 24,
     "approveRunStatus": 200,
     "lockedRecalculateStatus": 409,
     "duplicatePrevented": true
@@ -128,29 +128,29 @@
     "csv": {
       "status": 200,
       "contentType": "text/csv; charset=utf-8",
-      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.csv\"",
-      "size": 10767,
+      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.csv\"",
+      "size": 18962,
       "hasPeriod": true
     },
     "xlsx": {
       "status": 200,
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.xlsx\"",
-      "size": 13515,
+      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.xlsx\"",
+      "size": 18222,
       "hasPeriod": true
     },
     "pdf": {
       "status": 200,
       "contentType": "application/pdf",
-      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-14.pdf\"",
+      "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.pdf\"",
       "size": 7002,
       "hasPeriod": true
     },
     "payrollSummaryExcel": {
       "status": 200,
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "disposition": "attachment; filename=\"zenjo-payroll-2138-11.xlsx\"",
-      "size": 10264
+      "disposition": "attachment; filename=\"zenjo-payroll-2172-11.xlsx\"",
+      "size": 10883
     },
     "passed": true
   },

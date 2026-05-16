@@ -1,0 +1,568 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "backend": "http://127.0.0.1:3001",
+  "runTag": "uat1778850476637",
+  "status": "GO",
+  "decision": "FULL-UAT GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "941e6d67-d78e-4385-ac28-207bb510fec4",
+    "size": 77,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-15T13:08:01.329Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T13:08:01.329Z\",\"version\":\"1.0.0\"}"
+  },
+  "readiness": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "88b3c41f-9f86-42fd-9052-6df67aaac69d",
+    "size": 143,
+    "body": {
+      "status": "ready",
+      "version": "1.0.0",
+      "checks": {
+        "database": {
+          "ok": true
+        },
+        "queue": {
+          "ok": true,
+          "message": "memory adapter"
+        },
+        "environment": {
+          "ok": true
+        }
+      }
+    },
+    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true,\"message\":\"memory adapter\"},\"environment\":{\"ok\":true}}}"
+  },
+  "version": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "",
+    "requestId": "full-uat-uat1778850476637",
+    "size": 90,
+    "body": {
+      "success": true,
+      "data": {
+        "name": "zenjo-api",
+        "version": "1.0.0",
+        "environment": "development"
+      }
+    },
+    "text": "{\"success\":true,\"data\":{\"name\":\"zenjo-api\",\"version\":\"1.0.0\",\"environment\":\"development\"}}"
+  },
+  "roles": {
+    "admin": {
+      "loginStatus": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    },
+    "hr": {
+      "loginStatus": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "loginStatus": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "loginStatus": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "loginStatus": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "loginStatus": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    }
+  },
+  "superadmin": {
+    "modulesStatus": 200,
+    "usageStatus": 200,
+    "opsEnvironmentStatus": 200,
+    "opsMetricsStatus": 200,
+    "unsafeTenantMutationStatus": 403,
+    "noSensitiveEnvLeak": true,
+    "passed": true
+  },
+  "hr": {
+    "employeeLifecycle": {
+      "listStatus": 200,
+      "createStatus": 201,
+      "employeeId": 56,
+      "employeeCode": "UAT-uat1778850476637",
+      "editStatus": 200,
+      "profileStatus": 200,
+      "passed": true
+    },
+    "contractsCompliance": {
+      "dashboardStatus": 200,
+      "typesStatus": 200,
+      "contractTypeId": 18,
+      "createContractStatus": 201,
+      "contractId": 33,
+      "requiredDocumentStatus": 201,
+      "requiredEnterpriseDocumentId": 56,
+      "attachmentStatus": 201,
+      "attachmentEnterpriseDocumentId": 57,
+      "detailStatus": 200,
+      "passed": true
+    },
+    "leave": {
+      "typesStatus": 200,
+      "leaveTypeId": 2,
+      "leaveTypePayrollImpactType": "deduct_daily_rate",
+      "createStatus": 201,
+      "requestId": 60,
+      "managerApproveStatus": 200,
+      "hrApproveStatus": 200,
+      "finalStatus": "approved",
+      "detailStatus": 200,
+      "auditStatus": 200,
+      "auditRows": 3,
+      "payrollImpactStatus": 200,
+      "payrollImpactRows": 20,
+      "employeeNotificationsStatus": 200,
+      "notificationCount": 20,
+      "passed": true
+    }
+  },
+  "payroll": {
+    "policyStatus": 200,
+    "employmentRulesStatus": 200,
+    "policyPreviewStatus": 200,
+    "previewStatus": 200,
+    "previewEmployeeId": 56,
+    "previewNetSalary": "878.468",
+    "canonicalReconciliationSource": "qa/cleanup-sprint-5-results.json",
+    "sprint5Status": "GO",
+    "runTotalNet": "26905.783",
+    "payslipNetTotal": "26905.783",
+    "reportTotalNet": "26905.783",
+    "duplicatePrevented": true,
+    "lockedRecalculateStatus": 409,
+    "passed": true
+  },
+  "manager": {
+    "teamListStatus": 200,
+    "otherProfileStatus": 404,
+    "unrelatedEmployeeId": 2,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  },
+  "employee": {
+    "ownProfileStatus": 200,
+    "otherProfileStatus": 404,
+    "payrollPreviewDeniedStatus": 403,
+    "exportsDeniedStatus": 403,
+    "contractsDeniedStatus": 403,
+    "passed": true
+  },
+  "recruiter": {
+    "candidateListStatus": 200,
+    "handoffEvidenceSource": "qa/cleanup-sprint-6-results.json",
+    "sprint6Status": "GO",
+    "convertedEmployeeId": 52,
+    "contractId": 29,
+    "enterpriseDocumentIds": [
+      41,
+      42,
+      43,
+      44,
+      40
+    ],
+    "noDuplicateConversion": true,
+    "payrollDeniedStatus": 403,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  },
+  "workflows": {
+    "approvalsNotifications": {
+      "pendingHrStatus": 200,
+      "pendingDomains": [
+        "compliance_contract",
+        "payroll_adjustment",
+        "attendance_correction",
+        "employee_action",
+        "leave",
+        "performance",
+        "recruitment"
+      ],
+      "historyHrStatus": 200,
+      "pendingManagerStatus": 200,
+      "employeeDeniedStatus": 403,
+      "notificationListStatus": 200,
+      "notificationId": 475,
+      "readStatus": 200,
+      "unreadStatus": 200,
+      "foreignReadStatus": 200,
+      "passed": true
+    },
+    "crossDomain": {
+      "leavePayroll": {
+        "source": "Direct leave request plus payroll preview; Sprint 3/Sprint 5 regression evidence",
+        "directLeavePassed": true,
+        "payrollPassed": true
+      },
+      "attendancePayroll": {
+        "source": "qa/cleanup-sprint-5-results.json and Sprint 8 regression",
+        "status": "CONFIRMED_WORKING_BY_REGRESSION"
+      },
+      "recruitmentContractDocuments": {
+        "source": "qa/cleanup-sprint-6-results.json",
+        "status": "CONFIRMED_WORKING",
+        "employeeId": 52,
+        "contractId": 29,
+        "enterpriseDocumentIds": [
+          41,
+          42,
+          43,
+          44,
+          40
+        ]
+      },
+      "performanceEmployeeActionPayroll": {
+        "source": "Cleanup Sprint 1/5/8 regression artifacts",
+        "status": "CONFIRMED_BY_REGRESSION"
+      },
+      "payrollAdjustmentPayroll": {
+        "source": "qa/cleanup-sprint-5-results.json",
+        "status": "CONFIRMED_WORKING"
+      }
+    }
+  },
+  "rbac": {
+    "payrollSeparation": {
+      "payrollRecruitmentMutationStatus": 403,
+      "payrollHrDocumentStatus": 404,
+      "passed": true
+    },
+    "passed": true
+  },
+  "exports": {
+    "datasets": {
+      "employees": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.csv\"",
+          "size": 2712,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.xlsx\"",
+          "size": 9092,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.pdf\"",
+          "size": 3606,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "attendance": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.csv\"",
+          "size": 2045,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.xlsx\"",
+          "size": 7982,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.pdf\"",
+          "size": 2198,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "payroll": {
+        "csv": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.csv\"",
+          "size": 18962,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.xlsx\"",
+          "size": 18220,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.pdf\"",
+          "size": 7002,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "recruitment": {
+        "csv": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.csv\"",
+          "size": 3582,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.xlsx\"",
+          "size": 9200,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.pdf\"",
+          "size": 4132,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "evaluations": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.csv\"",
+          "size": 205,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.xlsx\"",
+          "size": 7505,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.pdf\"",
+          "size": 825,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "workflows": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.csv\"",
+          "size": 1328,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.xlsx\"",
+          "size": 7833,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.pdf\"",
+          "size": 1908,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "reports": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.csv\"",
+          "size": 674,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.xlsx\"",
+          "size": 7943,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.pdf\"",
+          "size": 1338,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "documents": {
+        "csv": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        }
+      }
+    },
+    "denied": {
+      "employeePayrollStatus": 403,
+      "managerPayrollStatus": 403,
+      "recruiterPayrollStatus": 403
+    },
+    "passed": true
+  },
+  "infra": {
+    "healthStatus": 200,
+    "readinessStatus": 200,
+    "versionStatus": 200,
+    "requestIdEchoed": true,
+    "opsEnvironmentStatus": 200,
+    "opsEnvironmentSanitized": true,
+    "opsMetricsStatus": 200,
+    "runtimeStatus": 200,
+    "runtimeMode": "memory",
+    "rateLimitBlocks": true,
+    "passed": true
+  },
+  "priorEvidence": {
+    "cleanup-sprint-2-results": "GO",
+    "cleanup-sprint-3-results": "GO",
+    "cleanup-sprint-5-results": "GO",
+    "cleanup-sprint-6-results": "GO",
+    "cleanup-sprint-7-results": "GO",
+    "cleanup-sprint-8-results": "GO",
+    "phase-9-results": "GO",
+    "phase-10-results": "GO",
+    "phase-11-results": "NO-GO"
+  },
+  "errors": [],
+  "issues": [
+    {
+      "severity": "MEDIUM",
+      "area": "document exports",
+      "expected": "Documents export should be supported if advertised",
+      "actual": "Documents dataset returned unsupported status for at least one format",
+      "affected": {
+        "api": "/api/production/exports/documents"
+      }
+    }
+  ]
+}

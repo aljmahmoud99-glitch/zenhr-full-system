@@ -407,6 +407,21 @@ const SHIFT_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2
               <label>تاريخ النهاية (اختياري)</label>
               <input type="date" class="form-control" [(ngModel)]="assignForm.endDate">
             </div>
+            <div class="form-group">
+              <label>نمط التكرار</label>
+              <select class="form-control" [(ngModel)]="assignForm.recurrence">
+                <option value="daily">يومي</option>
+                <option value="weekly">أسبوعي حسب أيام الوردية</option>
+                <option value="monthly">شهري</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>موقع الحضور</label>
+              <select class="form-control" [(ngModel)]="assignForm.locationId">
+                <option [ngValue]="null">بدون موقع محدد</option>
+                <option *ngFor="let location of workLocations()" [ngValue]="location.id">{{ location.nameAr || location.nameEn || location.address }}</option>
+              </select>
+            </div>
             <div class="form-group full">
               <label>ملاحظات</label>
               <input type="text" class="form-control" [(ngModel)]="assignForm.notes">
@@ -641,13 +656,14 @@ export class ShiftsComponent implements OnInit {
   scheduleData = signal<any[]>([]);
   exceptions = signal<any[]>([]);
   templates = signal<any[]>([]);
+  workLocations = signal<any[]>([]);
 
   allDays = ALL_DAYS;
   colorOptions = SHIFT_COLORS;
   currentWeekStart: Date = this.getWeekStart(new Date());
 
   form = this.emptyForm();
-  assignForm = { shiftId: 0, employeeId: 0, departmentId: 0, startDate: new Date().toISOString().substring(0, 10), endDate: '', notes: '' };
+  assignForm = { shiftId: 0, employeeId: 0, departmentId: 0, startDate: new Date().toISOString().substring(0, 10), endDate: '', recurrence: 'weekly', locationId: null as number | null, notes: '' };
   excForm = { employeeId: 0, date: new Date().toISOString().substring(0, 10), customShiftId: 0, customStartTime: '', customEndTime: '', reason: '' };
 
   activeShifts = computed(() => this.shifts().filter(s => s.status === 'active').length);
@@ -664,6 +680,7 @@ export class ShiftsComponent implements OnInit {
     this.api.get<any>('/api/employees?status=active').subscribe(r => this.employees.set(r.data || []));
     this.api.get<any>('/api/departments').subscribe(r => this.departments.set(r.data || []));
     this.api.get<any>('/api/shifts/templates').subscribe(r => this.templates.set(r.data || []));
+    this.api.get<any>('/api/attendance/locations').subscribe(r => this.workLocations.set(r.data || []));
   }
 
   loadShifts() {
@@ -755,6 +772,8 @@ export class ShiftsComponent implements OnInit {
       employeeId: this.assignType === 'employee' ? this.assignForm.employeeId : null,
       departmentId: this.assignType === 'department' ? this.assignForm.departmentId : null,
       startDate: this.assignForm.startDate, endDate: this.assignForm.endDate || null,
+      recurrence: this.assignForm.recurrence,
+      locationId: this.assignForm.locationId,
       notes: this.assignForm.notes
     };
     this.api.post<any>('/api/shifts/assignments', payload).subscribe({

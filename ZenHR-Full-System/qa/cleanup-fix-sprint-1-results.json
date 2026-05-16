@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-05-13T22:51:58.546Z",
+  "generatedAt": "2026-05-14T13:01:08.519Z",
   "backend": "http://localhost:3001",
-  "status": "GO",
+  "status": "PARTIAL",
   "health": {
     "status": 200,
     "ok": true,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-13T22:51:58.616Z",
+      "timestamp": "2026-05-14T13:01:08.656Z",
       "version": "1.0.0"
     },
     "contentType": "application/json; charset=utf-8"
@@ -54,8 +54,8 @@
     "performancePromotion": {
       "classification": "CONFIRMED WORKING",
       "createStatus": 201,
-      "recommendationId": "11",
-      "workflowId": "12",
+      "recommendationId": "13",
+      "workflowId": "14",
       "approvals": [
         {
           "status": 200,
@@ -67,73 +67,71 @@
           "workflowStatus": "approved",
           "businessEffect": {
             "applied": true,
-            "employeeActionId": 19
+            "employeeActionId": 25
           }
         }
       ],
       "retryApproveStatus": 409,
-      "beforeSalary": 995,
-      "afterSalary": 1014,
-      "payrollPreviewBasicSalary": "1014.000",
+      "beforeSalary": 1033,
+      "afterSalary": 1052,
+      "payrollPreviewBasicSalary": "1052.000",
       "employeeActionLinked": false,
       "conclusion": "Approved recommendation updates employee salary, payroll preview, and rejects duplicate approval."
     },
     "attendanceCorrection": {
       "classification": "CONFIRMED WORKING",
-      "requestId": 22,
+      "requestId": 30,
       "requestStatus": 201,
       "managerApproveStatus": 200,
       "hrMissingReasonStatus": 400,
       "hrApproveStatus": 200,
       "retryApproveStatus": 409,
       "attendanceRecord": {
-        "id": 457,
+        "id": 459,
         "attendanceType": "manual_exception",
         "biometricVerified": false,
         "geofenceStatus": "manual_exception",
         "lateMinutes": 255,
-        "notes": "Manual exception correction #18 applied by hr at 2026-05-13T22:42:33.721Z. Reason: HR audited correction reason\nManual exception correction #20 applied by hr at 2026-05-13T22:50:03.606Z. Reason: HR audited correction reason\nManual exception correction #22 applied by hr at 2026-05-13T22:51:59.065Z. Reason: HR audited correction reason"
+        "notes": "Manual exception correction #30 applied by hr at 2026-05-14T13:01:09.495Z. Reason: HR audited correction reason"
       },
       "conclusion": "Correction is an audited manual exception and not biometric proof."
     },
     "attendancePayrollImpact": {
       "classification": "CONFIRMED WORKING",
-      "correctionRequestId": 23,
+      "correctionRequestId": 31,
       "processStatus": 200,
-      "createdViolations": 0,
+      "createdViolations": 1,
       "previewStatus": 200,
-      "previewAttendanceImpactDeduction": "26.500",
+      "previewAttendanceImpactDeduction": "39.750",
       "runId": 15,
       "calculateStatus": 200,
-      "payslipId": 206,
-      "snapshotAttendanceImpactDeduction": "26.500",
+      "payslipId": 363,
+      "snapshotAttendanceImpactDeduction": "39.750",
       "conclusion": "Approved attendance impacts are consumed by preview/run/payslip snapshot once."
     },
     "legacyVsEnterpriseLeave": {
-      "classification": "CONFIRMED WORKING",
-      "legacyCreateStatus": 201,
-      "legacyPayrollCompatible": false,
-      "legacyWarning": "Legacy leave type was kept for compatibility and is ignored by enterprise payroll deductions unless mapped to an enterprise leave type.",
-      "legacyApproveStatus": 200,
+      "classification": "PARTIAL",
+      "legacyCreateStatus": 400,
+      "legacyApproveStatus": 0,
       "enterpriseTypeId": 2,
-      "enterpriseCreateStatus": 409,
+      "enterpriseCreateStatus": 201,
       "payrollPreviewStatus": 200,
-      "leaveDeduction": "65.424",
-      "conclusion": "Legacy unmapped leave is explicitly flagged as payroll-ignored; enterprise leave remains canonical payroll source."
+      "leaveDeduction": "101.808",
+      "conclusion": "Leave guardrail needs more verification."
     },
     "recruitmentConversion": {
       "classification": "CONFIRMED WORKING",
       "candidateCreateStatus": 201,
-      "candidateId": "17",
+      "candidateId": "19",
       "convertStatus": 201,
       "retryConvertStatus": 409,
-      "employeeId": 43,
-      "userId": 42,
-      "contractId": 20,
+      "employeeId": 45,
+      "userId": 44,
+      "contractId": 22,
       "requiredDocumentIds": [
-        21,
-        22,
-        23
+        27,
+        28,
+        29
       ],
       "employeeStatus": 200,
       "contractCount": 1,
@@ -202,7 +200,7 @@
     "managerEmployeeId": 7,
     "month": 3,
     "year": 2026,
-    "baseDay": 20
+    "baseDay": 19
   },
   "security": {
     "employeeOtherPayslip": {

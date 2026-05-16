@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-05-15T01:21:16.912Z",
+  "status": "GO",
+  "metricsStatus": 200,
+  "metricsMode": "memory",
+  "environmentStatus": 200,
+  "requestIdPropagated": true,
+  "structuredLogs": true,
+  "vendorConfigured": false,
+  "limitation": "OpenTelemetry/Sentry vendor sinks are prepared conceptually through structured events and correlation IDs, but no external vendor DSN/exporter is configured locally.",
+  "passed": true
+}

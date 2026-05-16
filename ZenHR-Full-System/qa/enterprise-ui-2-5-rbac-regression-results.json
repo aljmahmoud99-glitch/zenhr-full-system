@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-05-16T13:41:04.806Z",
+  "status": "PASS",
+  "source": "qa/rbac-navigation-security-smoke.cjs",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "version": "1.0.0"
+    }
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "status": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "status": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "status": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "status": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    },
+    "admin": {
+      "status": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    }
+  },
+  "permissions": {
+    "managerDisciplinaryCreate": false,
+    "managerDisciplinaryUpdate": false,
+    "managerDisciplinaryView": false,
+    "employeeEmployeesView": false,
+    "employeeReportsView": false,
+    "payrollRecruitmentView": false,
+    "payrollComplianceView": false
+  },
+  "endpoints": {
+    "managerDisciplinaryListStatus": 403,
+    "managerDisciplinaryCreateStatus": 403,
+    "employeeDisciplinaryListStatus": 200,
+    "hrDisciplinaryListStatus": 200,
+    "recruiterPayrollRunsStatus": 403,
+    "employeePayrollPolicyStatus": 403
+  },
+  "routePolicy": {
+    "employeeHiddenRoutes": [
+      "/app/payroll-attendance",
+      "/app/documents-reporting",
+      "/app/performance-workflows"
+    ],
+    "managerHiddenRoutes": [
+      "/app/disciplinary",
+      "/app/employee-actions/career-movements",
+      "/app/employee-actions/status-changes"
+    ],
+    "payrollHiddenRoutes": [
+      "/app/recruitment",
+      "/app/performance-workflows"
+    ],
+    "accessDeniedRoute": "/access-denied"
+  },
+  "issues": [
+    {
+      "severity": "INFO",
+      "area": "employee-disciplinary-self-view",
+      "note": "Backend still permits employee self-view of own disciplinary cases while route navigation remains hidden/denied; retained as notification/self-record compatibility."
+    }
+  ]
+}

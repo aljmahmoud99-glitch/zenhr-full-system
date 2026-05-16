@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-05-15T12:01:30.000Z",
+  "status": "PARTIAL",
+  "typecheck": {
+    "command": "pnpm.cmd run typecheck",
+    "status": "PASS"
+  },
+  "backend": {
+    "healthz": 200,
+    "status": "PASS"
+  },
+  "focusedSecuritySmoke": {
+    "source": "qa/phase-11-1-results.json",
+    "status": "PASS"
+  },
+  "cleanupSprint7Security": {
+    "source": "qa/cleanup-sprint-7-results.json",
+    "status": "GO"
+  },
+  "fullOperationalUat": {
+    "source": "qa/full-operational-uat-results.json",
+    "status": "GO",
+    "decision": "FULL-UAT GO"
+  },
+  "browserSpotCheck": {
+    "source": "qa/phase-11-1-browser-results.json",
+    "status": "NO-GO",
+    "reason": "Local Chrome/Edge process did not expose a CDP debugging port in this Windows sandbox. Product route/API browser security was not completed in this spot harness."
+  },
+  "regression": {
+    "healthOk": true,
+    "loginsOk": true,
+    "hrProfileStillWorks": true,
+    "payrollProfileReadUnchanged": true,
+    "employeeOwnStillWorks": true,
+    "managerDirectStillWorks": true,
+    "fullOperationalApiUatPassed": true,
+    "cleanupSprint7Passed": true,
+    "browserSpotCheckPassed": false
+  }
+}

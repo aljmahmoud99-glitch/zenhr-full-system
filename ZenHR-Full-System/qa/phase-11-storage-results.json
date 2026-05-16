@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-05-15T01:21:16.912Z",
+  "status": "GO",
+  "endpointStatus": 200,
+  "adapter": "local",
+  "localWorks": true,
+  "s3AdapterSourcePresent": true,
+  "signedDownloadReady": true,
+  "limitation": "S3 adapter structure exists, but no S3 credentials/client were configured for live object-store validation.",
+  "passed": true
+}

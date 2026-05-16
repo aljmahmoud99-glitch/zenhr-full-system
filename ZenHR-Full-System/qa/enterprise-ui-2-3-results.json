@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-05-15T23:40:00.000Z",
+  "status": "PARTIAL",
+  "decision": "PARTIAL",
+  "gates": {
+    "typecheck": "PASS",
+    "angularProductionBuild": "PASS_WITH_WARNING",
+    "backendHealth": "PASS",
+    "rbacRegression": "PASS",
+    "googleMapsExternalOpen": "PASS",
+    "attendanceResponsivenessPreserved": "PASS",
+    "arabicOperationalSampling": "PASS",
+    "darkModeOperationalSampling": "PASS",
+    "documentExportUnsupportedHidden": "PASS",
+    "topDropdowns": "PARTIAL",
+    "recruiterDropdown": "FAIL",
+    "superadminDropdown": "FAIL",
+    "mobileTopbar": "FAIL"
+  },
+  "nonBlockingWarnings": [
+    "Angular production build still reports the existing layout.component.scss budget warning: 32.26 kB vs 24.58 kB budget."
+  ],
+  "blockingForGO": [
+    "Recruiter and superadmin dropdown browser validation did not pass.",
+    "Mobile topbar/browser slice returned a blank page screenshot."
+  ]
+}

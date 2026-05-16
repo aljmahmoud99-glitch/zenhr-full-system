@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-05-16T01:22:51+03:00",
+  "status": "PASS",
+  "source": "qa/rbac-navigation-security-smoke.cjs",
+  "permissions": {
+    "managerDisciplinaryCreate": false,
+    "managerDisciplinaryUpdate": false,
+    "managerDisciplinaryView": false,
+    "employeeEmployeesView": false,
+    "employeeReportsView": false,
+    "payrollRecruitmentView": false,
+    "payrollComplianceView": false
+  },
+  "endpoints": {
+    "managerDisciplinaryListStatus": 403,
+    "managerDisciplinaryCreateStatus": 403,
+    "employeeDisciplinaryListStatus": 200,
+    "hrDisciplinaryListStatus": 200,
+    "recruiterPayrollRunsStatus": 403,
+    "employeePayrollPolicyStatus": 403
+  },
+  "notes": [
+    {
+      "severity": "INFO",
+      "area": "employee-disciplinary-self-view",
+      "note": "Backend still permits employee self-view of own disciplinary cases, while route navigation is hidden/denied. Retained as compatibility behavior from the existing security layer."
+    }
+  ]
+}

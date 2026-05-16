@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-05-16T13:40:10.000Z",
+  "status": "PASS",
+  "darkMode": {
+    "status": "PASS",
+    "routes": {
+      "/app/dashboard": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/dashboard",
+        "controls": 1,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 1999,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-dashboard.png"
+      },
+      "/app/job-descriptions": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/job-descriptions",
+        "controls": 5,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 2122,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-job-descriptions.png"
+      },
+      "/app/attendance": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/attendance",
+        "controls": 1,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 977,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-attendance.png"
+      },
+      "/app/settings": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/settings",
+        "controls": 8,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 1337,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-settings.png"
+      },
+      "/app/payroll-attendance": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/payroll-attendance",
+        "controls": 1,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 1142,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-payroll-attendance.png"
+      },
+      "/app/documents-reporting": {
+        "status": "PASS",
+        "route": "http://127.0.0.1:5078/#/app/documents-reporting",
+        "controls": 1,
+        "whiteControls": 0,
+        "noHorizontalOverflow": true,
+        "bodyLength": 1013,
+        "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-documents-reporting.png"
+      }
+    }
+  },
+  "jobProfileDialog": {
+    "status": "PASS",
+    "modalExists": true,
+    "width": 620,
+    "viewportWidth": 1366,
+    "noHorizontalOverflow": true,
+    "modalOverflowX": "hidden",
+    "visibleActions": [
+      "close",
+      "إلغاء",
+      "إضافة وتحديد"
+    ],
+    "screenshot": "qa/enterprise-ui-2-5-screenshots/job-profile-add-dialog.png"
+  },
+  "shiftReflection": {
+    "status": "PASS",
+    "note": "Persisted shift API smoke was executed externally before browser validation.",
+    "shiftId": 10,
+    "assignmentId": "7",
+    "employeeId": 8,
+    "locationId": 1778628714681,
+    "browser": {
+      "status": "PASS",
+      "panelExists": true,
+      "text": "جدولي وورديتي\n\nيعرض الجدول المعتمد من الموارد البشرية مع موقع الحضور ونطاقه.\n\nنشطة اليوم\n2026-05-16 · يومي\n????? ?????? 1778938449745\n09:00 - 17:00\nlocation_on\nموقع اختبار البصمة\n10000m\nفتح خرائط Google\n2026-05-16\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nنشطة اليوم\n2026-05-17\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-18\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-19\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-20\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة",
+      "hasMapsButton": true,
+      "noHorizontalOverflow": true,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/employee-shift-reflection.png"
+    }
+  },
+  "consoleErrors": [],
+  "api500s": [],
+  "errors": []
+}

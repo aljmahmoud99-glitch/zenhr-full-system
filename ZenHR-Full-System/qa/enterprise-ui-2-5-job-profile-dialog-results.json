@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-05-16T13:40:10.000Z",
+  "status": "PASS",
+  "modalExists": true,
+  "width": 620,
+  "viewportWidth": 1366,
+  "noHorizontalOverflow": true,
+  "modalOverflowX": "hidden",
+  "visibleActions": [
+    "close",
+    "إلغاء",
+    "إضافة وتحديد"
+  ],
+  "screenshot": "qa/enterprise-ui-2-5-screenshots/job-profile-add-dialog.png"
+}

@@ -28,6 +28,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/subscription-expired/subscription-expired.component').then(m => m.SubscriptionExpiredComponent)
   },
   {
+    path: 'access-denied',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/access-denied/access-denied.component').then(m => m.AccessDeniedComponent)
+  },
+  {
     path: 'admin',
     canActivate: [authGuard],
     loadComponent: () => import('./layout/layout.component').then(m => m.LayoutComponent),

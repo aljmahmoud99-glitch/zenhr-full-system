@@ -1,6 +1,8 @@
 
 import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { catchError, map, of } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { SCREEN_ACCESS } from '../services/role-access.service';
 
@@ -37,10 +39,12 @@ export const guestGuard: CanActivateFn = (route, state) => {
 export const roleGuard: CanActivateFn = (route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const http = inject(HttpClient);
   const page: string = route.data?.['pathKey'] ?? route.data?.['page'] ?? '';
   const roles: string[] = route.data?.['roles'] ?? [];
   const role = auth.currentUser()?.role ?? '';
   const allowed = roles.length ? roles : (SCREEN_ACCESS[page] ?? []);
+  const denied = () => router.createUrlTree(['/access-denied'], { queryParams: { returnUrl: state.url } });
   if (auth.requiresPasswordChange()) {
     router.navigate(['/change-password']);
     return false;
@@ -50,12 +54,20 @@ export const roleGuard: CanActivateFn = (route, state) => {
       const routeEmployeeId = Number(route.paramMap.get('id') ?? 0);
       const myEmployeeId = Number(auth.currentUser()?.employeeId ?? auth.currentUser()?.employee?.id ?? 0);
       if (!routeEmployeeId || !myEmployeeId || routeEmployeeId !== myEmployeeId) {
-        router.navigateByUrl(auth.defaultHomeUrl(role));
-        return false;
+        return denied();
       }
+    }
+    if (role === 'manager' && page === '/app/employees/:id') {
+      const routeEmployeeId = Number(route.paramMap.get('id') ?? 0);
+      const myEmployeeId = Number(auth.currentUser()?.employeeId ?? auth.currentUser()?.employee?.id ?? 0);
+      if (!routeEmployeeId) return denied();
+      if (routeEmployeeId === myEmployeeId) return true;
+      return http.get(`/api/employees/${routeEmployeeId}`, { headers: { 'x-silent-authz': '1' } }).pipe(
+        map(() => true),
+        catchError(() => of(denied()))
+      );
     }
     return true;
   }
-  router.navigateByUrl(auth.defaultHomeUrl(role));
-  return false;
+  return denied();
 };

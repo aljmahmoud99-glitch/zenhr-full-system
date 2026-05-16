@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-05-16T13:41:04.964Z",
+  "status": "PASS",
+  "roles": {
+    "hr": {
+      "status": "PASS",
+      "expectedGroups": [
+        "الموظفين",
+        "الحضور والإجازات",
+        "التوظيف",
+        "الرواتب",
+        "الامتثال والأصول",
+        "الأداء والتحليلات",
+        "الإدارة"
+      ],
+      "actualGroups": [
+        "الموظفين",
+        "الحضور والإجازات",
+        "التوظيف",
+        "الرواتب",
+        "الامتثال والأصول",
+        "الأداء والتحليلات",
+        "الإدارة"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "الموظفين",
+          "sections": []
+        },
+        {
+          "title": "الحضور والإجازات",
+          "sections": []
+        },
+        {
+          "title": "التوظيف",
+          "sections": []
+        },
+        {
+          "title": "الرواتب",
+          "sections": []
+        },
+        {
+          "title": "الامتثال والأصول",
+          "sections": []
+        },
+        {
+          "title": "الأداء والتحليلات",
+          "sections": []
+        },
+        {
+          "title": "الإدارة",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-hr.png"
+    },
+    "payroll": {
+      "status": "PASS",
+      "expectedGroups": [
+        "الرواتب",
+        "البيانات المساندة"
+      ],
+      "actualGroups": [
+        "الرواتب",
+        "البيانات المساندة"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "الرواتب",
+          "sections": []
+        },
+        {
+          "title": "البيانات المساندة",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-payroll.png"
+    },
+    "manager": {
+      "status": "PASS",
+      "expectedGroups": [
+        "My Team",
+        "Approvals",
+        "Performance",
+        "Tools"
+      ],
+      "actualGroups": [
+        "My Team",
+        "Approvals",
+        "Performance",
+        "Tools"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "My Team",
+          "sections": []
+        },
+        {
+          "title": "Approvals",
+          "sections": []
+        },
+        {
+          "title": "Performance",
+          "sections": []
+        },
+        {
+          "title": "Tools",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-manager.png"
+    },
+    "employee": {
+      "status": "PASS",
+      "expectedGroups": [
+        "My Attendance & Leave",
+        "My Salary",
+        "My Profile",
+        "Notifications"
+      ],
+      "actualGroups": [
+        "My Attendance & Leave",
+        "My Salary",
+        "My Profile",
+        "Notifications"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "My Attendance & Leave",
+          "sections": []
+        },
+        {
+          "title": "My Salary",
+          "sections": []
+        },
+        {
+          "title": "My Profile",
+          "sections": []
+        },
+        {
+          "title": "Notifications",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-employee.png"
+    }
+  }
+}

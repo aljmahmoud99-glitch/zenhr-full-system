@@ -691,6 +691,15 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
       } else if (user.role === "manager") {
         params.push(user.employeeId || 0);
         where.push(`e.direct_manager_id=$${params.length}`);
+        where.push(`NOT EXISTS (
+          SELECT 1
+            FROM users scoped_user
+           WHERE scoped_user.employee_id=e.id
+             AND scoped_user.company_id=e.company_id
+             AND COALESCE(scoped_user.is_deleted,false)=false
+             AND COALESCE(scoped_user.is_active,true)=true
+             AND scoped_user.role <> 'employee'
+        )`);
       } else if (req.query.employeeId) {
         params.push(Number(req.query.employeeId));
         where.push(`e.id=$${params.length}`);

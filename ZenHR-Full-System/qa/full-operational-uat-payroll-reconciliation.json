@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "status": "GO",
+  "payroll": {
+    "policyStatus": 200,
+    "employmentRulesStatus": 200,
+    "policyPreviewStatus": 200,
+    "previewStatus": 200,
+    "previewEmployeeId": 56,
+    "previewNetSalary": "878.468",
+    "canonicalReconciliationSource": "qa/cleanup-sprint-5-results.json",
+    "sprint5Status": "GO",
+    "runTotalNet": "26905.783",
+    "payslipNetTotal": "26905.783",
+    "reportTotalNet": "26905.783",
+    "duplicatePrevented": true,
+    "lockedRecalculateStatus": 409,
+    "passed": true
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-05-16T13:40:10.000Z",
+  "status": "PASS",
+  "routes": {
+    "/app/dashboard": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/dashboard",
+      "controls": 1,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 1999,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-dashboard.png"
+    },
+    "/app/job-descriptions": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/job-descriptions",
+      "controls": 5,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 2122,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-job-descriptions.png"
+    },
+    "/app/attendance": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/attendance",
+      "controls": 1,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 977,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-attendance.png"
+    },
+    "/app/settings": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/settings",
+      "controls": 8,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 1337,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-settings.png"
+    },
+    "/app/payroll-attendance": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/payroll-attendance",
+      "controls": 1,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 1142,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-payroll-attendance.png"
+    },
+    "/app/documents-reporting": {
+      "status": "PASS",
+      "route": "http://127.0.0.1:5078/#/app/documents-reporting",
+      "controls": 1,
+      "whiteControls": 0,
+      "noHorizontalOverflow": true,
+      "bodyLength": 1013,
+      "screenshot": "qa/enterprise-ui-2-5-screenshots/dark-app-documents-reporting.png"
+    }
+  }
+}

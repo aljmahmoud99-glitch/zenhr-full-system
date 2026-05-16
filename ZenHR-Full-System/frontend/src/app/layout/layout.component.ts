@@ -5,7 +5,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, filter, finalize, forkJoin, map, of, Subject, switchMap } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, filter, finalize, forkJoin, map, of, Subject, Subscription, switchMap } from 'rxjs';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../core/services/auth.service';
 import { I18nService } from '../core/services/i18n.service';
@@ -44,6 +44,28 @@ interface GlobalSearchResult {
   route?: string;
 }
 
+interface DropdownSection {
+  titleAr: string;
+  titleEn: string;
+  items: NavItem[];
+}
+
+interface NavItemView extends NavItem {
+  label: string;
+}
+
+interface DropdownSectionView {
+  key: string;
+  title: string;
+  items: NavItemView[];
+}
+
+interface NavGroupView extends Omit<NavGroup, 'items'> {
+  label: string;
+  items: NavItemView[];
+  sections: DropdownSectionView[];
+}
+
 @Component({
   selector: 'app-layout',
   standalone: true,
@@ -78,13 +100,20 @@ export class LayoutComponent implements OnInit, OnDestroy {
   selectedSearchIndex = signal(0);
   recentSearches = signal<string[]>([]);
 
-  navGroups: NavGroup[] = [];
+  navGroups: NavGroupView[] = [];
+  currentGroupKey = signal<string | null>(null);
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private _dropdownCloseTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly searchTerms = new Subject<string>();
+  private readonly labelCache = new Map<string, string>();
+  private readonly subscriptions = new Subscription();
 
   readonly notificationCount = computed(() => this.unreadCount());
+  readonly activeDropdownSections = computed(() => {
+    const key = this.activeGroupKey();
+    return key ? (this.navGroups.find(group => group.groupKey === key)?.sections ?? []) : [];
+  });
 
   constructor(
     public auth: AuthService,
@@ -99,7 +128,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.user.set(this.auth.currentUser());
-    this.navGroups = this.access.getNavGroups();
+    this.rebuildNavGroups();
     this.syncPageMeta();
     this.loadUnreadCount();
     this.restoreRecentSearches();
@@ -113,18 +142,23 @@ export class LayoutComponent implements OnInit, OnDestroy {
     if (role !== 'superadmin') {
       this.tenant.load();
     }
-    this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(() => {
+    this.subscriptions.add(this.access.permissionMap$.subscribe(() => {
+      this.rebuildNavGroups();
+      this.syncPageMeta();
+    }));
+    this.subscriptions.add(this.router.events.pipe(filter(event => event instanceof NavigationEnd)).subscribe(() => {
       this.syncPageMeta();
       this.notificationsOpen.set(false);
       this.mobileNavOpen.set(false);
       this.activeGroupKey.set(null);
-    });
+    }));
     this.pollTimer = setInterval(() => this.loadUnreadCount(), 60_000);
   }
 
   ngOnDestroy() {
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this._dropdownCloseTimer) clearTimeout(this._dropdownCloseTimer);
+    this.subscriptions.unsubscribe();
   }
 
   @HostListener('window:resize')
@@ -187,10 +221,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
     if (event) {
       const wrap = event.currentTarget as HTMLElement;
       const rect = wrap.getBoundingClientRect();
+      const dropdownWidth = Math.min(420, Math.max(280, window.innerWidth * 0.24));
+      const gutter = 16;
       if (this.i18n.isRTL()) {
-        this.dropdownX.set(window.innerWidth - rect.right);
+        this.dropdownX.set(Math.max(gutter, Math.min(window.innerWidth - rect.right, window.innerWidth - dropdownWidth - gutter)));
       } else {
-        this.dropdownX.set(rect.left);
+        this.dropdownX.set(Math.max(gutter, Math.min(rect.left, window.innerWidth - dropdownWidth - gutter)));
       }
       this.dropdownY.set(rect.bottom);
     }
@@ -228,6 +264,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
   setLang(lang: 'ar' | 'en') {
     if (lang === this.i18n.currentLang) return;
     this.i18n.setLanguage(lang);
+    this.labelCache.clear();
+    this.rebuildNavGroups();
     this.avatarLoadFailed.set(false);
   }
 
@@ -293,11 +331,6 @@ export class LayoutComponent implements OnInit, OnDestroy {
     this.avatarLoadFailed.set(true);
   }
 
-  isActiveGroup(group: NavGroup): boolean {
-    const url = this.router.url;
-    return group.items.some(item => url.startsWith(item.path));
-  }
-
   notifIcon(type: string): string {
     if (type.startsWith('leave')) return 'event_note';
     if (type.startsWith('overtime')) return 'more_time';
@@ -332,7 +365,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   get pageGroupTitle() {
     const page = this.currentPage();
     const group = this.navGroups.find(navGroup => navGroup.items.some(item => item.path === page?.path));
-    return group ? this.label(group.labelAr, group.labelEn) : this.i18n.instant('shell.dashboard');
+    return group?.label ?? this.i18n.instant('shell.dashboard');
   }
 
   get roleName() {
@@ -396,7 +429,115 @@ export class LayoutComponent implements OnInit, OnDestroy {
   }
 
   label(ar: string, en: string) {
-    return this.i18n.currentLang === 'ar' ? ar : en;
+    const lang = this.i18n.currentLang;
+    const key = `${lang}|${ar}|${en}`;
+    const cached = this.labelCache.get(key);
+    if (cached != null) return cached;
+    const value = lang === 'ar' ? this.i18n.cleanArabicText(ar) : en;
+    if (this.labelCache.size > 1200) this.labelCache.clear();
+    this.labelCache.set(key, value);
+    return value;
+  }
+
+  private dropdownSections(group: NavGroup): DropdownSection[] {
+    const role = this.user()?.role ?? 'employee';
+    const rules = this.dropdownRulesForRole(role);
+    const fallback = { titleEn: 'Other', titleAr: 'أخرى', patterns: [/./] };
+    const map = new Map<string, DropdownSection & { order: number }>();
+    for (const item of group.items) {
+      const ruleIndex = rules.findIndex(rule => rule.patterns.some(pattern => pattern.test(item.path)));
+      const rule = ruleIndex >= 0 ? rules[ruleIndex] : fallback;
+      if (!map.has(rule.titleEn)) map.set(rule.titleEn, { titleEn: rule.titleEn, titleAr: rule.titleAr, items: [], order: ruleIndex >= 0 ? ruleIndex : 999 });
+      map.get(rule.titleEn)!.items.push(item);
+    }
+    return Array.from(map.values())
+      .sort((a, b) => a.order - b.order)
+      .map(({ order: _order, ...section }) => section);
+  }
+
+  private buildDropdownSections(role: string, items: NavItemView[]): DropdownSectionView[] {
+    const rules = this.dropdownRulesForRole(role);
+    const fallback = { titleEn: 'Other', titleAr: 'أخرى', patterns: [/./] };
+    const map = new Map<string, DropdownSectionView & { order: number }>();
+    for (const item of items) {
+      const ruleIndex = rules.findIndex(rule => rule.patterns.some(pattern => pattern.test(item.path)));
+      const rule = ruleIndex >= 0 ? rules[ruleIndex] : fallback;
+      if (!map.has(rule.titleEn)) {
+        map.set(rule.titleEn, {
+          key: rule.titleEn,
+          title: this.label(rule.titleAr, rule.titleEn),
+          items: [],
+          order: ruleIndex >= 0 ? ruleIndex : 999
+        });
+      }
+      map.get(rule.titleEn)!.items.push(item);
+    }
+    return Array.from(map.values())
+      .sort((a, b) => a.order - b.order)
+      .map(({ order: _order, ...section }) => section);
+  }
+
+  private rebuildNavGroups() {
+    const role = this.user()?.role ?? 'employee';
+    this.navGroups = this.access.getNavGroups().map(group => {
+      const items = group.items.map(item => ({
+        ...item,
+        label: this.label(item.labelAr, item.labelEn)
+      }));
+      return {
+        ...group,
+        label: this.label(group.labelAr, group.labelEn),
+        items,
+        sections: this.buildDropdownSections(role, items)
+      };
+    });
+  }
+
+  private dropdownRulesForRole(role: string) {
+    const hrRules = [
+      { titleEn: 'Employees', titleAr: 'الموظفين', patterns: [/employees/, /job-descriptions/, /employee-actions\/career/, /employee-actions\/status/, /hr-master-data/] },
+      { titleEn: 'Attendance & Leave', titleAr: 'الحضور والإجازات', patterns: [/attendance/, /leave-management/, /shifts/, /overtime/, /holidays/, /notifications/] },
+      { titleEn: 'Recruitment', titleAr: 'التوظيف', patterns: [/recruitment/, /pre-employment/] },
+      { titleEn: 'Payroll Operations', titleAr: 'عمليات الرواتب', patterns: [/payroll\/runs/, /payroll-attendance/, /employee-actions\/salary/, /advances/] },
+      { titleEn: 'Payroll Settings', titleAr: 'إعدادات الرواتب', patterns: [/salary-components/, /payroll-policies/] },
+      { titleEn: 'Compliance & Assets', titleAr: 'الامتثال والأصول', patterns: [/documents/, /compliance/, /contracts/, /disciplinary/, /clearance/, /resignations/, /assets/] },
+      { titleEn: 'Performance & Analytics', titleAr: 'الأداء والتحليلات', patterns: [/reports/, /analytics/, /performance-workflows/] },
+      { titleEn: 'Administration', titleAr: 'الإدارة', patterns: [/settings/, /roles/, /user-roles/, /users/, /org-structure/, /approvals/] },
+    ];
+    const payrollRules = [
+      { titleEn: 'Payroll Workflow', titleAr: 'سير الرواتب', patterns: [/payroll-attendance/, /payroll\/runs/, /employee-actions\/salary/, /advances/, /leave-management/] },
+      { titleEn: 'Payroll Settings', titleAr: 'إعدادات الرواتب', patterns: [/salary-components/, /payroll-policies/] },
+      { titleEn: 'Supporting Data', titleAr: 'البيانات المساندة', patterns: [/employees/, /holidays/, /documents-reporting/] },
+    ];
+    const managerRules = [
+      { titleEn: 'My Team', titleAr: 'فريقي', patterns: [/employees/, /attendance/, /leave-management/, /overtime/, /shifts/] },
+      { titleEn: 'Approvals', titleAr: 'الموافقات', patterns: [/approvals/, /recruitment/] },
+      { titleEn: 'Performance', titleAr: 'الأداء', patterns: [/performance/] },
+      { titleEn: 'Tools', titleAr: 'الأدوات', patterns: [/notifications/, /assets/] },
+    ];
+    const employeeRules = [
+      { titleEn: 'My Attendance & Leave', titleAr: 'حضوري وإجازاتي', patterns: [/attendance/, /leave-management/, /overtime/, /holidays/] },
+      { titleEn: 'My Salary', titleAr: 'راتبي', patterns: [/payroll\/slips/, /advances/] },
+      { titleEn: 'My Profile', titleAr: 'ملفي', patterns: [/forms/, /documents/, /assets/] },
+      { titleEn: 'Notifications', titleAr: 'الإشعارات', patterns: [/notifications/] },
+    ];
+    const recruiterRules = [
+      { titleEn: 'Recruitment', titleAr: 'التوظيف', patterns: [/recruitment/] },
+      { titleEn: 'Candidates', titleAr: 'المرشحون', patterns: [/documents/, /forms/] },
+      { titleEn: 'Hiring Pipeline', titleAr: 'مسار التعيين', patterns: [/approvals/, /notifications/, /onboarding/, /offers/, /interviews/] },
+    ];
+    const superadminRules = [
+      { titleEn: 'Platform', titleAr: 'المنصة', patterns: [/admin(\/)?$/, /analytics/, /automation/] },
+      { titleEn: 'Companies', titleAr: 'الشركات', patterns: [/companies/] },
+      { titleEn: 'Plans & Modules', titleAr: 'الخطط والوحدات', patterns: [/plans-subscriptions/, /subscriptions/, /modules/] },
+      { titleEn: 'System Settings', titleAr: 'إعدادات النظام', patterns: [/users/, /roles-permissions/, /permissions/, /company-settings/, /audit-logs/, /settings/] },
+    ];
+    if (role === 'superadmin') return superadminRules;
+    if (role === 'payrolladmin') return payrollRules;
+    if (role === 'manager') return managerRules;
+    if (role === 'employee') return employeeRules;
+    if (role === 'recruiter') return recruiterRules;
+    return hrRules;
   }
 
   toggleTheme() {
@@ -422,6 +563,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
     const target = result.url || result.route;
     if (!target) {
       if (result.type === 'action' && result.icon === 'notifications') this.toggleNotifications();
+      return;
+    }
+    if (!this.access.canSeePage(target)) {
+      this.router.navigate(['/access-denied'], { queryParams: { returnUrl: target } });
       return;
     }
     const query = this.searchQuery().trim();
@@ -484,6 +629,19 @@ export class LayoutComponent implements OnInit, OnDestroy {
     const url = this.router.url;
     const page = this.navGroups.flatMap(g => g.items).find(item => url.startsWith(item.path));
     this.currentPage.set(page ?? null);
+    this.currentGroupKey.set(this.navGroups.find(group => group.items.some(item => url.startsWith(item.path)))?.groupKey ?? null);
+  }
+
+  trackNavGroup(_index: number, group: NavGroupView) {
+    return group.groupKey;
+  }
+
+  trackNavItem(_index: number, item: NavItemView) {
+    return item.path;
+  }
+
+  trackDropdownSection(_index: number, section: DropdownSectionView) {
+    return section.key;
   }
 
   private bindSearch() {
@@ -512,7 +670,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
   private performGlobalSearch(term: string) {
     return forkJoin([
       this.http.get<ApiResponse<GlobalSearchResult[]>>(`/api/search?q=${encodeURIComponent(term)}`).pipe(
-        map(res => res.data ?? []),
+        map(res => (res.data ?? []).filter(item => {
+          const target = item.url || item.route;
+          return !target || this.access.canSeePage(target);
+        })),
         catchError(() => of([] as GlobalSearchResult[]))
       ),
       of(this.quickActions(term))
@@ -531,7 +692,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
         { type: 'action', title: this.ui('الخطط والاشتراكات', 'Plans and subscriptions'), subtitle: this.ui('إدارة الباقات', 'Manage billing plans'), icon: 'credit_card', url: '/admin/plans-subscriptions' }
       );
     }
-    return term ? actions.filter(a => this.matchesTerm(term, a.title, a.subtitle)) : actions;
+    const visible = actions.filter(action => !action.url || this.access.canSeePage(action.url));
+    return term ? visible.filter(a => this.matchesTerm(term, a.title, a.subtitle)) : visible;
   }
 
   private matchesTerm(term: string, ...values: unknown[]) {

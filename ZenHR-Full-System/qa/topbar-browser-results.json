@@ -1,0 +1,245 @@
+{
+  "generatedAt": "2026-05-16T13:41:04.964Z",
+  "status": "PASS",
+  "performance": {
+    "status": "PASS",
+    "requestedDurationMs": 1000,
+    "minTicks": 10,
+    "maxExpectedPollingRequests": 3,
+    "state": {
+      "done": true,
+      "ticks": 13,
+      "errors": [],
+      "startedAt": 1778938872892,
+      "endedAt": 1778938873898
+    },
+    "taskDurationDelta": 0.15947100000000003,
+    "networkDuringStress": 0,
+    "dom": {
+      "route": "http://127.0.0.1:5079/#/app/shifts",
+      "bodyLength": 2121,
+      "navGroups": 7,
+      "dropdownVisible": false,
+      "noHorizontalOverflow": true
+    },
+    "screenshot": "qa/topbar-performance-screenshots/topbar-stress-final.png"
+  },
+  "menuOrder": {
+    "hr": {
+      "status": "PASS",
+      "expectedGroups": [
+        "الموظفين",
+        "الحضور والإجازات",
+        "التوظيف",
+        "الرواتب",
+        "الامتثال والأصول",
+        "الأداء والتحليلات",
+        "الإدارة"
+      ],
+      "actualGroups": [
+        "الموظفين",
+        "الحضور والإجازات",
+        "التوظيف",
+        "الرواتب",
+        "الامتثال والأصول",
+        "الأداء والتحليلات",
+        "الإدارة"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "الموظفين",
+          "sections": []
+        },
+        {
+          "title": "الحضور والإجازات",
+          "sections": []
+        },
+        {
+          "title": "التوظيف",
+          "sections": []
+        },
+        {
+          "title": "الرواتب",
+          "sections": []
+        },
+        {
+          "title": "الامتثال والأصول",
+          "sections": []
+        },
+        {
+          "title": "الأداء والتحليلات",
+          "sections": []
+        },
+        {
+          "title": "الإدارة",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-hr.png"
+    },
+    "payroll": {
+      "status": "PASS",
+      "expectedGroups": [
+        "الرواتب",
+        "البيانات المساندة"
+      ],
+      "actualGroups": [
+        "الرواتب",
+        "البيانات المساندة"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "الرواتب",
+          "sections": []
+        },
+        {
+          "title": "البيانات المساندة",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-payroll.png"
+    },
+    "manager": {
+      "status": "PASS",
+      "expectedGroups": [
+        "My Team",
+        "Approvals",
+        "Performance",
+        "Tools"
+      ],
+      "actualGroups": [
+        "My Team",
+        "Approvals",
+        "Performance",
+        "Tools"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "My Team",
+          "sections": []
+        },
+        {
+          "title": "Approvals",
+          "sections": []
+        },
+        {
+          "title": "Performance",
+          "sections": []
+        },
+        {
+          "title": "Tools",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-manager.png"
+    },
+    "employee": {
+      "status": "PASS",
+      "expectedGroups": [
+        "My Attendance & Leave",
+        "My Salary",
+        "My Profile",
+        "Notifications"
+      ],
+      "actualGroups": [
+        "My Attendance & Leave",
+        "My Salary",
+        "My Profile",
+        "Notifications"
+      ],
+      "orderMatches": true,
+      "dropdowns": [
+        {
+          "title": "My Attendance & Leave",
+          "sections": []
+        },
+        {
+          "title": "My Salary",
+          "sections": []
+        },
+        {
+          "title": "My Profile",
+          "sections": []
+        },
+        {
+          "title": "Notifications",
+          "sections": []
+        }
+      ],
+      "screenshot": "qa/topbar-performance-screenshots/menu-employee.png"
+    }
+  },
+  "routeSpotChecks": {
+    "/app/dashboard": {
+      "status": "PASS",
+      "dom": {
+        "route": "http://127.0.0.1:5079/#/app/dashboard",
+        "bodyLength": 1999,
+        "navGroups": 7,
+        "accessDenied": false,
+        "noHorizontalOverflow": true
+      },
+      "consoleErrorsAdded": 0,
+      "api500sAdded": 0,
+      "screenshot": "qa/topbar-performance-screenshots/route-app-dashboard.png"
+    },
+    "/app/shifts": {
+      "status": "PASS",
+      "dom": {
+        "route": "http://127.0.0.1:5079/#/app/shifts",
+        "bodyLength": 2121,
+        "navGroups": 7,
+        "accessDenied": false,
+        "noHorizontalOverflow": true
+      },
+      "consoleErrorsAdded": 0,
+      "api500sAdded": 0,
+      "screenshot": "qa/topbar-performance-screenshots/route-app-shifts.png"
+    },
+    "/app/attendance": {
+      "status": "PASS",
+      "dom": {
+        "route": "http://127.0.0.1:5079/#/app/attendance",
+        "bodyLength": 977,
+        "navGroups": 7,
+        "accessDenied": false,
+        "noHorizontalOverflow": true
+      },
+      "consoleErrorsAdded": 0,
+      "api500sAdded": 0,
+      "screenshot": "qa/topbar-performance-screenshots/route-app-attendance.png"
+    },
+    "/app/notifications": {
+      "status": "PASS",
+      "dom": {
+        "route": "http://127.0.0.1:5079/#/app/notifications",
+        "bodyLength": 4337,
+        "navGroups": 7,
+        "accessDenied": false,
+        "noHorizontalOverflow": true
+      },
+      "consoleErrorsAdded": 0,
+      "api500sAdded": 0,
+      "screenshot": "qa/topbar-performance-screenshots/route-app-notifications.png"
+    },
+    "/app/settings": {
+      "status": "PASS",
+      "dom": {
+        "route": "http://127.0.0.1:5079/#/app/settings",
+        "bodyLength": 1337,
+        "navGroups": 7,
+        "accessDenied": false,
+        "noHorizontalOverflow": true
+      },
+      "consoleErrorsAdded": 0,
+      "api500sAdded": 0,
+      "screenshot": "qa/topbar-performance-screenshots/route-app-settings.png"
+    }
+  },
+  "consoleErrors": [],
+  "api500s": [],
+  "errors": []
+}

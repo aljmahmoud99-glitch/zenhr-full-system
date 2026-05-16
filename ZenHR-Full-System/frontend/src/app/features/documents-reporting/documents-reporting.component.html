@@ -150,7 +150,8 @@
     <section *ngIf="activeTab === 'exports'" class="panel">
       <div class="panel-head">
         <h2>{{ t('مركز التصدير', 'Export Center') }}</h2>
-        <button type="button" class="primary small" (click)="openDrawer('export')">{{ t('تصدير جديد', 'New Export') }}</button>
+        <span class="export-unavailable" *ngIf="!exportCreationSupported">{{ t('إنشاء تصدير جديد غير متاح لهذه البيانات حالياً', 'New export creation is unavailable for this dataset') }}</span>
+        <button type="button" class="primary small" *ngIf="exportCreationSupported" (click)="openDrawer('export')">{{ t('تصدير جديد', 'New Export') }}</button>
       </div>
       <div class="table">
         <div class="row header"><span>{{ t('النوع', 'Type') }}</span><span>{{ t('الصيغة', 'Format') }}</span><span>{{ t('الحالة', 'Status') }}</span></div>

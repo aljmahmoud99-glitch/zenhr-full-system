@@ -1,0 +1,415 @@
+{
+  "generatedAt": "2026-05-15T16:42:50.437Z",
+  "status": "PARTIAL",
+  "scannedTargets": [
+    "frontend/src/app",
+    "frontend/src/assets",
+    "artifacts/api-server/src",
+    "migrations"
+  ],
+  "totalFindings": 529,
+  "touchedImportantFindings": 0,
+  "displayMitigation": "I18nService.cleanArabicText is applied to translation lookups and attendance/local layout rendering; source cleanup remains incremental for older files.",
+  "topFindings": [
+    {
+      "file": "frontend/src/app/core/services/i18n.service.ts",
+      "line": 82,
+      "sample": "if (!value || !/[طظØÙÃÂï]/.test(value)) return value;"
+    },
+    {
+      "file": "frontend/src/app/core/services/i18n.service.ts",
+      "line": 118,
+      "sample": "if (!/[\\u0600-\\u06ff]/.test(repaired) || /�/.test(repaired)) return null;"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 254,
+      "sample": "// Public logo serving â€” no auth required (company logos are safe to display)"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 256,
+      "sample": "// Serve other uploaded files â€” auth required"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 505,
+      "sample": "// GET /api/auth/context â€” tenant scope for the current user (company name + employee org context)"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 600,
+      "sample": "// Helpers â€” when scope is empty, every \"in scope\" filter must short-circuit to false"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 631,
+      "sample": "// Compliance â€” scoped employees only"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 749,
+      "sample": "nameAr: dept?.nameAr ?? \"ط؛ظٹط± ظ…ط­ط¯ط¯\","
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 922,
+      "sample": "// â”€â”€â”€ Chart: My payslip trend â€” last 6 (employee only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 952,
+      "sample": "// â”€â”€â”€ Chart: Payroll monthly trend â€” last 6 runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 997,
+      "sample": "// â”€â”€â”€ Chart: Activity by module â€” last 30 days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1060,
+      "sample": "return path.join(' â€؛ ');"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1434,
+      "sample": "hire:                { en: \"Hired\",                   ar: \"طھط¹ظٹظٹظ†\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1435,
+      "sample": "probation_start:     { en: \"Probation Started\",       ar: \"ط¨ط¯ط، ط§ظ„طھط¬ط±ط¨ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1436,
+      "sample": "probation_complete:  { en: \"Probation Completed\",     ar: \"ط§ط¬طھظٹط§ط² ط§ظ„طھط¬ط±ط¨ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1437,
+      "sample": "probation_fail:      { en: \"Probation Failed\",        ar: \"ظپط´ظ„ ط§ظ„طھط¬ط±ط¨ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1438,
+      "sample": "transfer:            { en: \"Transfer\",                ar: \"ظ†ظ‚ظ„\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1439,
+      "sample": "promotion:           { en: \"Promotion\",               ar: \"طھط±ظ‚ظٹط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1441,
+      "sample": "salary_change:       { en: \"Salary Change\",           ar: \"طھط¹ط¯ظٹظ„ ط§ظ„ط±ط§طھط¨\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1442,
+      "sample": "suspension:          { en: \"Suspension\",              ar: \"ط¥ظٹظ‚ط§ظپ\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1443,
+      "sample": "suspension_lift:     { en: \"Suspension Lifted\",       ar: \"ط±ظپط¹ ط§ظ„ط¥ظٹظ‚ط§ظپ\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1444,
+      "sample": "termination:         { en: \"Termination\",             ar: \"ط¥ظ†ظ‡ط§ط، ط®ط¯ظ…ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1445,
+      "sample": "resignation:         { en: \"Resignation\",             ar: \"ط§ط³طھظ‚ط§ظ„ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1446,
+      "sample": "leave_of_absence:    { en: \"Leave of Absence\",        ar: \"ط¥ط¬ط§ط²ط© ط¨ط¯ظˆظ† ط±ط§طھط¨\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1447,
+      "sample": "return_from_leave:   { en: \"Returned from Leave\",     ar: \"ط¹ظˆط¯ط© ظ…ظ† ط§ظ„ط¥ط¬ط§ط²ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1448,
+      "sample": "warning_issued:      { en: \"Warning Issued\",          ar: \"ط¥ظ†ط°ط§ط±\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1449,
+      "sample": "document_expired:    { en: \"Document Expired\",        ar: \"ظˆط«ظٹظ‚ط© ظ…ظ†طھظ‡ظٹط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1450,
+      "sample": "contract_renewal:    { en: \"Contract Renewal\",        ar: \"طھط¬ط¯ظٹط¯ ط¹ظ‚ط¯\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1506,
+      "sample": "// GET /api/employee-actions/types â€” dropdown labels"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1689,
+      "sample": "titleAr: `ط·ظ„ط¨ ط¥ط¬ط±ط§ط، ظ…ظˆط¸ظپ: ${actionLabelAr2}`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1691,
+      "sample": "messageAr: `ط·ظ„ط¨ ط¥ط¬ط±ط§ط، \"${actionLabelAr2}\" ظ„ظ„ظ…ظˆط¸ظپ #${employeeId} ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط©.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1710,
+      "sample": "// POST /api/employee-actions/:id/approve â€” apply side effects and mark applied"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1824,
+      "sample": "titleAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط¥ط¬ط±ط§ط،: ${approvedLabelAr}`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1826,
+      "sample": "messageAr: `طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط¥ط¬ط±ط§ط، \"${approvedLabelAr}\" ط§ظ„ط®ط§طµ ط¨ظƒ.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1838,
+      "sample": "// POST /api/employee-actions/:id/reject â€” mark rejected, no side effects"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1867,
+      "sample": "titleAr: `طھظ… ط±ظپط¶ ط¥ط¬ط±ط§ط،: ${rejLabelAr}`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1869,
+      "sample": "messageAr: `طھظ… ط±ظپط¶ ط¥ط¬ط±ط§ط، \"${rejLabelAr}\" ط§ظ„ط®ط§طµ ط¨ظƒ.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1883,
+      "sample": "// GET /api/org-nodes â€” flat list for current company"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1896,
+      "sample": "// GET /api/org-nodes/flat â€” alias for flat list"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1909,
+      "sample": "// GET /api/org-nodes/tree â€” nested tree structure (built in-memory from flat list)"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1935,
+      "sample": "// GET /api/org-nodes/:id/descendants â€” all descendant node IDs"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1945,
+      "sample": "// POST /api/org-nodes â€” create node [hradmin only]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1959,
+      "sample": "// PUT /api/org-nodes/:id â€” update node [hradmin only]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 1976,
+      "sample": "// DELETE /api/org-nodes/:id â€” soft delete [hradmin only] â€” BLOCK if has employees or children"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2005,
+      "sample": "// GET /api/permissions/my â€” full permission map for current user"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2015,
+      "sample": "// GET /api/permissions/check?screen=&action= â€” single permission check"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2312,
+      "sample": "id: r.id, type: \"payroll_run\", titleAr: `ظ…ط³ظٹط± ط§ظ„ط±ظˆط§طھط¨ ${r.run_month}/${r.run_year}`, titleEn: `Payroll ${r.run_month}/${r.run_year}`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2820,
+      "sample": "titleAr: \"ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¬ط¯ظٹط¯\","
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2822,
+      "sample": "messageAr: `ظ‚ط¯ظ‘ظ… ${empName} ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ظ…ظ† ${dateRange}.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2871,
+      "sample": "titleAr: \"ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ط¨ط§ظ†طھط¸ط§ط± ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©\","
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2873,
+      "sample": "messageAr: `ظˆط§ظپظ‚ ط§ظ„ظ…ط¯ظٹط± ط¹ظ„ظ‰ ط·ظ„ط¨ ط¥ط¬ط§ط²ط© ظ…ظ† ${fmtDateRange(lr.startDate, lr.endDate)}. ظٹط­طھط§ط¬ ط¥ظ„ظ‰ ظ…ظˆط§ظپظ‚ط© ط§ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2958,
+      "sample": "titleAr: \"طھظ… ط±ظپط¶ ط·ظ„ط¨ ط§ظ„ط¥ط¬ط§ط²ط©\","
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 2960,
+      "sample": "messageAr: `طھظ… ط±ظپط¶ ط·ظ„ط¨ ط¥ط¬ط§ط²طھظƒ ظ…ظ† ${fmtDateRange(updated.startDate, updated.endDate)}.`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 3590,
+      "sample": "titleAr: \"طھظ… ظ†ط´ط± ظƒط´ظپ ط§ظ„ط±ط§طھط¨\","
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 3592,
+      "sample": "messageAr: `ظƒط´ظپ ط±ط§طھط¨ ${existing.runYear}/${String(existing.runMonth).padStart(2,\"0\")} ط¬ط§ظ‡ط². طµط§ظپظٹ ط§ظ„ط±ط§طھط¨: ${netAmt} ط¯.ط£`,"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 3832,
+      "sample": "return -1; // sentinel â€” resolved below"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4091,
+      "sample": "// Duplicate check â€” return 409 instead of letting DB throw a 500"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4319,
+      "sample": "// GET /api/salary-components â€” full compensation policy catalog with isReferenced flag [hr/payroll only]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4362,
+      "sample": "// POST /api/salary-components â€” create component [hradmin]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4385,
+      "sample": "// Validate defaultValue â€” earnings must not be negative"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4419,
+      "sample": "// PUT /api/salary-components/:id â€” update component [hradmin]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4442,
+      "sample": "// Validate defaultValue â€” earnings must not be negative"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4474,
+      "sample": "// DELETE /api/salary-components/:id â€” soft delete; blocked if any active employee assignments [hradmin]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4507,
+      "sample": "// PUT /api/employees/:id/salary-components/:ecId â€” update assignment override [hradmin]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4541,
+      "sample": "// DELETE /api/employees/:id/salary-components/:ecId â€” end-date assignment (effective_to = today) [hradmin]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4574,
+      "sample": "// GET /api/salary/preview/:employeeId â€” calculate current month salary (no DB write)"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4707,
+      "sample": "// GET /api/salary/config â€” salary calculation configuration"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 4983,
+      "sample": "// GET /api/documents â€” role-scoped list with JOIN"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5001,
+      "sample": "// hradmin, payrolladmin, superadmin â€” filter by company"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5014,
+      "sample": "// POST /api/documents â€” create document record [role guard + field mapping]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5067,
+      "sample": "// PATCH /api/documents/:id â€” update document [role guard + ownership]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5119,
+      "sample": "// DELETE /api/documents/:id â€” soft delete [role guard + ownership]"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5518,
+      "sample": "{ key: \"currency_code\",                       value: \"JOD\",     category: \"general\",       description: \"Currency code\",                                                           descriptionAr: \"ط±ظ…ط² ط§ظ„ط¹ظ…ظ„ط©\" },"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5519,
+      "sample": "{ key: \"company_name_ar\",                     value: \"ط´ط±ظƒط© ط²ظٹظ† ط§ظ„ط£ط±ط¯ظ†\", category: \"general\", description: \"Company name in Arabic\",                                              descriptionAr: \"ط§ط³ظ… ط§ظ„ط´ط"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5520,
+      "sample": "{ key: \"company_name_en\",                     value: \"ZenJO Company\", category: \"general\",   description: \"Company name in English\",                                             descriptionAr: \"ط§ط³ظ… ط§ظ„ط´ط±ظƒط© ط¨ط§ظ„ط"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5521,
+      "sample": "{ key: \"working_hours_per_day\",               value: \"8\",       category: \"attendance\",     description: \"Working hours per day\",                                                   descriptionAr: \"ط³ط§ط¹ط§طھ ط§ظ„ط¹ظ…ظ„ ظپ"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5522,
+      "sample": "{ key: \"working_days_per_week\",               value: \"5\",       category: \"attendance\",     description: \"Working days per week (1â€“7)\",                                             descriptionAr: \"ط£ظٹط§ظ… ط§ظ„ط¹ظ…ظ„ ظپ"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5523,
+      "sample": "{ key: \"enable_geofencing\",                   value: \"false\",   category: \"attendance\",     description: \"Enable geofencing for clock-in\",                                          descriptionAr: \"طھظپط¹ظٹظ„ طھط­ط¯ظٹط¯ ط§"
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5524,
+      "sample": "{ key: \"enable_face_recognition\",             value: \"false\",   category: \"attendance\",     description: \"Enable face recognition\",                                                 descriptionAr: \"طھظپط¹ظٹظ„ ط§ظ„طھط¹ط±ظپ "
+    },
+    {
+      "file": "artifacts/api-server/src/index.ts",
+      "line": 5525,
+      "sample": "{ key: \"overtime_rate_weekday\",               value: \"1.5\",     category: \"payroll\",        description: \"Overtime rate on weekdays (multiplier, e.g. 1.5)\",                        descriptionAr: \"ظ…ط¹ط¯ظ„ ط§ظ„ط¹ظ…ظ„ ط§ظ„"
+    }
+  ]
+}

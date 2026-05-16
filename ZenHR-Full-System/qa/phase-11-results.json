@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-05-15T01:21:16.912Z",
+  "backend": "http://127.0.0.1:3001",
+  "status": "NO-GO",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-15T01:21:17.013Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T01:21:17.013Z\",\"version\":\"1.0.0\"}",
+    "headers": {
+      "access-control-allow-credentials": "true",
+      "connection": "keep-alive",
+      "content-length": "77",
+      "content-type": "application/json; charset=utf-8",
+      "cross-origin-resource-policy": "same-site",
+      "date": "Fri, 15 May 2026 01:21:17 GMT",
+      "etag": "W/\"4d-oTxk0vCFvnxUz6E7wlrhxinkERg\"",
+      "keep-alive": "timeout=5",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(self)",
+      "referrer-policy": "no-referrer",
+      "vary": "Origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-request-id": "a7c3400a-f709-409e-8044-c0bc8f51dfe5"
+    }
+  },
+  "readiness": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "ready",
+      "version": "1.0.0",
+      "checks": {
+        "database": {
+          "ok": true
+        },
+        "queue": {
+          "ok": true,
+          "message": "memory adapter"
+        },
+        "environment": {
+          "ok": true
+        }
+      }
+    },
+    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true,\"message\":\"memory adapter\"},\"environment\":{\"ok\":true}}}",
+    "headers": {
+      "access-control-allow-credentials": "true",
+      "connection": "keep-alive",
+      "content-length": "143",
+      "content-type": "application/json; charset=utf-8",
+      "cross-origin-resource-policy": "same-site",
+      "date": "Fri, 15 May 2026 01:21:17 GMT",
+      "etag": "W/\"8f-iihoaobm2Q1zuyZYIYjcXKvbAUg\"",
+      "keep-alive": "timeout=5",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(self)",
+      "referrer-policy": "no-referrer",
+      "vary": "Origin",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-request-id": "172b5975-f499-4b8f-821b-e9b112ce4ed9"
+    }
+  },
+  "redis": {
+    "runtimeStatus": 200,
+    "runtimeMode": "memory",
+    "memoryFallbackReady": true,
+    "redisCliAvailable": false,
+    "redisLiveValidated": false,
+    "queueDedupe": true,
+    "queueCompleted": true,
+    "downloadReady": true,
+    "limitation": "Redis server/CLI is not installed locally; memory fallback and Redis-ready code paths were validated, but live Redis persistence/restart validation was not possible.",
+    "passed": true
+  },
+  "docker": {
+    "filesPresent": true,
+    "redisServiceConfigured": true,
+    "dockerAvailable": false,
+    "dockerBuildRunValidated": false,
+    "limitation": "Docker CLI is not installed locally; container build/run validation is a Phase 11 blocker.",
+    "passed": false
+  },
+  "migration": {
+    "runnerPresent": true,
+    "dryRunStatus": 0,
+    "migrationCount": 15,
+    "hasChecksums": true,
+    "status": "GO",
+    "passed": true
+  },
+  "storage": {
+    "endpointStatus": 200,
+    "adapter": "local",
+    "localWorks": true,
+    "s3AdapterSourcePresent": true,
+    "signedDownloadReady": true,
+    "limitation": "S3 adapter structure exists, but no S3 credentials/client were configured for live object-store validation.",
+    "passed": true
+  },
+  "observability": {
+    "metricsStatus": 200,
+    "metricsMode": "memory",
+    "environmentStatus": 200,
+    "requestIdPropagated": true,
+    "structuredLogs": true,
+    "vendorConfigured": false,
+    "limitation": "OpenTelemetry/Sentry vendor sinks are prepared conceptually through structured events and correlation IDs, but no external vendor DSN/exporter is configured locally.",
+    "passed": true
+  },
+  "disasterRecovery": {
+    "backupDryRun": true,
+    "restoreDryRun": true,
+    "uploadsDryRun": true,
+    "docsPresent": true,
+    "limitation": "Backup/restore commands were dry-run locally; no destructive restore was applied.",
+    "passed": true
+  },
+  "security": {
+    "headers": {
+      "noPoweredBy": true,
+      "nosniff": true,
+      "frameDeny": true,
+      "referrerPolicy": true
+    },
+    "noSecretsInEnvEndpoint": true,
+    "noCriticalStackLeak": true,
+    "passed": true
+  },
+  "regression": {
+    "cleanup-sprint-2-results": "GO",
+    "cleanup-sprint-3-results": "GO",
+    "cleanup-sprint-5-results": "GO",
+    "cleanup-sprint-6-results": "GO",
+    "cleanup-sprint-7-results": "GO",
+    "cleanup-sprint-8-results": "GO",
+    "phase-9-results": "GO",
+    "phase-10-results": "GO",
+    "passed": true
+  },
+  "errors": []
+}

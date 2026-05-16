@@ -222,12 +222,33 @@
           </div>
         </section>
 
-        <section class="add-fly-panel" *ngIf="addFlyOpenFor">
-          <strong>{{ lang.t('إضافة عنصر جديد', 'Add new item') }}</strong>
-          <div class="form-grid">
-            <input [(ngModel)]="addFlyForm.code" [placeholder]="lang.t('الكود', 'Code')" />
-            <input [(ngModel)]="addFlyForm.nameAr" [placeholder]="lang.t('الاسم العربي', 'Arabic name')" dir="rtl" />
-            <input [(ngModel)]="addFlyForm.nameEn" [placeholder]="lang.t('الاسم الإنجليزي', 'English name')" dir="ltr" />
+        <section class="add-fly-panel master-create-modal" *ngIf="addFlyOpenFor" role="dialog" aria-modal="true">
+          <div class="master-create-head">
+            <div>
+              <strong>{{ addFlyTitle(addFlyOpenFor) }}</strong>
+              <p>{{ lang.t('سيتم حفظ مسودة الملف الوظيفي أثناء إضافة العنصر وتحديده تلقائياً.', 'The job profile draft remains intact while the new item is created and selected automatically.') }}</p>
+            </div>
+            <button type="button" class="icon-action" (click)="closeAddFly()"><span class="material-icons">close</span></button>
+          </div>
+          <div class="master-create-fields">
+            <label>
+              <span>{{ lang.t('الكود', 'Code') }}</span>
+              <input [(ngModel)]="addFlyForm.code" [placeholder]="lang.t('مثال: JP-01', 'Example: JP-01')" />
+            </label>
+            <label>
+              <span>{{ lang.t('الاسم العربي', 'Arabic name') }}</span>
+              <input [(ngModel)]="addFlyForm.nameAr" [placeholder]="lang.t('الاسم العربي', 'Arabic name')" dir="rtl" />
+            </label>
+            <label>
+              <span>{{ lang.t('الاسم الإنجليزي', 'English name') }}</span>
+              <input [(ngModel)]="addFlyForm.nameEn" [placeholder]="lang.t('English name', 'English name')" dir="ltr" />
+            </label>
+          </div>
+          <div class="modal-error" *ngIf="addFlyError">{{ addFlyError }}</div>
+          <div class="master-create-actions">
+            <button type="button" class="ghost-action" (click)="closeAddFly()" [disabled]="addFlySaving">
+              {{ lang.t('إلغاء', 'Cancel') }}
+            </button>
             <button type="button" class="primary-action compact" (click)="addOnTheFly(addFlyOpenFor)" [disabled]="addFlySaving">
               {{ addFlySaving ? lang.t('جار الإضافة...', 'Adding...') : lang.t('إضافة وتحديد', 'Add and select') }}
             </button>

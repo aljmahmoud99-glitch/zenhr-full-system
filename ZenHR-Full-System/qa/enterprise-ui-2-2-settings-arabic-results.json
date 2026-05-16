@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-05-15T17:55:30.181Z",
+  "status": "PASS",
+  "hasSettings": true,
+  "hasCategoryArabic": true,
+  "hasMojibake": false,
+  "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالإدارة\nchevron_right\nالإعدادات\nsearch\nCtrl K\nالجمعة، 15\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n12\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالإدارة\nالإعدادات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nتهيئة النظام\nالإعدادات\n\nإدارة إعدادات الحضور والرواتب والامتثال من مصدر واحد\n\nsave\nحفظ التغييرات\ndomain\nالإعدادات العامة\n3 حقل\nschedule\nالحضور والدوام\n4 حقل\npayments\nالرواتب وضريبة الدخل\n7 حقل\ngroups\nالموارد البشرية\n2 حقل\nevent_available\nسياسات الإجازات\n2 حقل\nverified_user\nالامتثال\n11 حقل\nnotifications\nالإشعارات\n2 حقل\npalette\nالهوية البصرية\n4 حقل\nالرواتب وضريبة الدخل\n\nالتغييرات هنا تنعكس مباشرة على سلوك النظام\n\nمعدل العمل الإضافي في أيام العمل\novertime_rate_weekday\nمعدل العمل الإضافي في نهاية الأسبوع\novertime_rate_weekend\nالإعفاء السنوي من ضريبة الدخل\nincome_tax_exempt_annual\nنسبة اشتراك الموظف في الضمان\nssc_employee_rate\nنسبة اشتراك صاحب العمل في الضمان\nssc_employer_ra",
+  "screenshot": "qa/enterprise-ui-2-2-screenshots/settings-arabic.png"
+}

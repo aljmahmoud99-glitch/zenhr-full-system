@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-05-15T18:01:08.183Z",
+  "status": "PARTIAL",
+  "typecheck": "PASS",
+  "productionBuild": {
+    "status": "PASS",
+    "warning": "layout.component.scss budget warning remains"
+  },
+  "backendHealth": "PASS",
+  "apiSmoke": "PASS",
+  "browserStatus": "PARTIAL",
+  "attendancePerformance": {
+    "status": "PASS",
+    "waitedSeconds": 60,
+    "taskDurationDelta": 0.053735999999999895,
+    "pageResponsive": true,
+    "noHorizontalOverflow": true,
+    "visibleButtons": 19,
+    "network500Count": 0
+  },
+  "map": {
+    "createStatus": 201,
+    "updateStatus": 200,
+    "listStatus": 200,
+    "savedLocation": {
+      "id": 1778867036361,
+      "nameAr": "موقع اختبار ui22-1778867035265",
+      "nameEn": "Test Location ui22-1778867035265",
+      "latitude": 31.9637,
+      "longitude": 35.9206,
+      "radiusMeters": 275,
+      "address": "QA updated ui22-1778867035265"
+    },
+    "persisted": true,
+    "googleMapsUrl": "https://www.google.com/maps?q=31.9637,35.9206"
+  },
+  "shiftReflection": {
+    "createStatus": 201,
+    "assignmentStatus": 201,
+    "employeeScheduleStatus": 200,
+    "todayShift": {
+      "date": "2026-05-15",
+      "status": "active_today",
+      "shift": {
+        "id": 9,
+        "nameAr": "وردية اختبار ui22-1778867035265",
+        "nameEn": "Test Shift ui22-1778867035265",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "breakMinutes": 45,
+        "isOvernight": false,
+        "isFlexible": false,
+        "workingDaysJson": "[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"]",
+        "days": [
+          "sun",
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri",
+          "sat"
+        ],
+        "gracePeriodMinutes": 10,
+        "lateThresholdMinutes": 10,
+        "deductionPolicy": "none",
+        "deductionAmount": 0,
+        "earlyLeaveThresholdMinutes": 10,
+        "overtimeStartAfterMinutes": 0,
+        "overtimeMultiplier": 1.5,
+        "color": "#7c3aed",
+        "status": "active",
+        "totalHours": 7.25,
+        "assignmentCount": 1,
+        "notes": "{\"notes\":\"QA assignment ui22-1778867035265\",\"recurrence\":\"daily\",\"locationId\":1778867036361}"
+      },
+      "location": {
+        "id": 1778867036361,
+        "nameAr": "موقع اختبار ui22-1778867035265",
+        "nameEn": "Test Location ui22-1778867035265",
+        "latitude": 31.9637,
+        "longitude": 35.9206,
+        "radiusMeters": 275,
+        "address": "QA updated ui22-1778867035265"
+      },
+      "recurrence": "daily",
+      "notes": "QA assignment ui22-1778867035265",
+      "googleMapsUrl": "https://www.google.com/maps?q=31.9637,35.9206"
+    },
+    "upcomingCount": 8,
+    "persistsToEmployee": true,
+    "locationReflected": true,
+    "managerProbeStatus": 200
+  },
+  "settingsArabic": {
+    "status": "PASS",
+    "hasSettings": true,
+    "hasCategoryArabic": true,
+    "hasMojibake": false,
+    "sample": "Z\nZenJO\nمنصة إدارة الموارد البشرية\nالإدارة\nchevron_right\nالإعدادات\nsearch\nCtrl K\nالجمعة، 15\nأيار 2026\nعربي\nEN\nlight_mode\nnotifications\n12\nشركة زنجو للتقنية\nH\nhr\nمدير الموارد البشرية\nexpand_more\nlogout\ndashboard\nلوحة التحكم\ngroups\nالموارد البشرية\nexpand_more\nswap_horiz\nحركات الموظفين\nexpand_more\nschedule\nالوقت والحضور\nexpand_more\nverified_user\nالامتثال والأصول\nexpand_more\nreceipt_long\nالرواتب\nexpand_more\nadmin_panel_settings\nالإدارة\nexpand_more\nالإدارة\nالإعدادات\nمدير الموارد البشرية\n/\ncorporate_fare\nشركة زنجو للتقنية\nتهيئة النظام\nالإعدادات\n\nإدارة إعدادات الحضور والرواتب والامتثال من مصدر واحد\n\nsave\nحفظ التغييرات\ndomain\nالإعدادات العامة\n3 حقل\nschedule\nالحضور والدوام\n4 حقل\npayments\nالرواتب وضريبة الدخل\n7 حقل\ngroups\nالموارد البشرية\n2 حقل\nevent_available\nسياسات الإجازات\n2 حقل\nverified_user\nالامتثال\n11 حقل\nnotifications\nالإشعارات\n2 حقل\npalette\nالهوية البصرية\n4 حقل\nالرواتب وضريبة الدخل\n\nالتغييرات هنا تنعكس مباشرة على سلوك النظام\n\nمعدل العمل الإضافي في أيام العمل\novertime_rate_weekday\nمعدل العمل الإضافي في نهاية الأسبوع\novertime_rate_weekend\nالإعفاء السنوي من ضريبة الدخل\nincome_tax_exempt_annual\nنسبة اشتراك الموظف في الضمان\nssc_employee_rate\nنسبة اشتراك صاحب العمل في الضمان\nssc_employer_ra",
+    "screenshot": "qa/enterprise-ui-2-2-screenshots/settings-arabic.png"
+  },
+  "dropdowns": {
+    "hr": {
+      "status": "PASS",
+      "sectionTitles": [
+        "عمليات الموارد اليومية",
+        "دورة حياة القوى العاملة",
+        "الامتثال والإدارة",
+        "أخرى"
+      ],
+      "grouped": true,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-hr.png"
+    },
+    "payroll": {
+      "status": "PASS",
+      "sectionTitles": [
+        "مسيرات الرواتب",
+        "مدخلات الرواتب",
+        "حوكمة الرواتب",
+        "أخرى"
+      ],
+      "grouped": true,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-payroll.png"
+    },
+    "manager": {
+      "status": "PASS",
+      "sectionTitles": [
+        "My Team",
+        "Actions",
+        "Other"
+      ],
+      "grouped": true,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-manager.png"
+    },
+    "employee": {
+      "status": "PASS",
+      "sectionTitles": [],
+      "grouped": true,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-employee.png"
+    },
+    "recruiter": {
+      "status": "FAIL",
+      "sectionTitles": [],
+      "grouped": false,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-recruiter.png"
+    },
+    "superadmin": {
+      "status": "FAIL",
+      "sectionTitles": [],
+      "grouped": false,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-superadmin.png"
+    }
+  },
+  "rbac": "PASS",
+  "limitations": [
+    "Browser dropdown validation remained partial for recruiter/superadmin because those seeded accounts landed on access-denied during sampled top-nav route checks; RBAC smoke still passed."
+  ]
+}

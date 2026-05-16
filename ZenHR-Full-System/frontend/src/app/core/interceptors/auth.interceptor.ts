@@ -62,10 +62,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   const isAuthEndpoint = req.url.includes('/auth/login') || req.url.includes('/auth/refresh') || req.url.includes('/auth/register');
   const silentOn401 = ['/api/permissions', '/api/config'];
+  const suppressForbiddenToast = req.headers.has('x-silent-authz');
   const isSilent = silentOn401.some(path => req.url.includes(path));
+  const outgoingReq = suppressForbiddenToast
+    ? req.clone({ headers: req.headers.delete('x-silent-authz') })
+    : req;
 
   if (isAuthEndpoint) {
-    return next(req).pipe(
+    return next(outgoingReq).pipe(
       catchError((err: HttpErrorResponse) => throwError(() => err))
     );
   }
@@ -73,8 +77,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return from(getValidToken()).pipe(
     switchMap(token => {
       const authReq = token
-        ? req.clone({ headers: req.headers.set('Authorization', `Bearer ${token}`) })
-        : req;
+        ? outgoingReq.clone({ headers: outgoingReq.headers.set('Authorization', `Bearer ${token}`) })
+        : outgoingReq;
 
       return next(authReq).pipe(
         catchError((err: HttpErrorResponse) => {
@@ -86,7 +90,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
           if (err.status === 402) {
             router.navigate(['/subscription-expired']);
           }
-          if (err.status === 403) {
+          if (err.status === 403 && !suppressForbiddenToast) {
             toast.warning('You do not have permission to perform this action.');
           }
           return throwError(() => err);

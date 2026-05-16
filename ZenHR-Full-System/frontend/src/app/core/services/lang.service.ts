@@ -24,6 +24,6 @@ export class LangService {
   }
 
   t(ar: string, en: string): string {
-    return this.i18n.currentLang === 'ar' ? ar : en;
+    return this.i18n.currentLang === 'ar' ? this.i18n.cleanArabicText(ar) : en;
   }
 }

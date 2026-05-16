@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-05-15T17:43:55.266Z",
+  "status": "PASS",
+  "createStatus": 201,
+  "assignmentStatus": 201,
+  "employeeScheduleStatus": 200,
+  "todayShift": {
+    "date": "2026-05-15",
+    "status": "active_today",
+    "shift": {
+      "id": 9,
+      "nameAr": "وردية اختبار ui22-1778867035265",
+      "nameEn": "Test Shift ui22-1778867035265",
+      "startTime": "09:00",
+      "endTime": "17:00",
+      "breakMinutes": 45,
+      "isOvernight": false,
+      "isFlexible": false,
+      "workingDaysJson": "[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"]",
+      "days": [
+        "sun",
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat"
+      ],
+      "gracePeriodMinutes": 10,
+      "lateThresholdMinutes": 10,
+      "deductionPolicy": "none",
+      "deductionAmount": 0,
+      "earlyLeaveThresholdMinutes": 10,
+      "overtimeStartAfterMinutes": 0,
+      "overtimeMultiplier": 1.5,
+      "color": "#7c3aed",
+      "status": "active",
+      "totalHours": 7.25,
+      "assignmentCount": 1,
+      "notes": "{\"notes\":\"QA assignment ui22-1778867035265\",\"recurrence\":\"daily\",\"locationId\":1778867036361}"
+    },
+    "location": {
+      "id": 1778867036361,
+      "nameAr": "موقع اختبار ui22-1778867035265",
+      "nameEn": "Test Location ui22-1778867035265",
+      "latitude": 31.9637,
+      "longitude": 35.9206,
+      "radiusMeters": 275,
+      "address": "QA updated ui22-1778867035265"
+    },
+    "recurrence": "daily",
+    "notes": "QA assignment ui22-1778867035265",
+    "googleMapsUrl": "https://www.google.com/maps?q=31.9637,35.9206"
+  },
+  "upcomingCount": 8,
+  "persistsToEmployee": true,
+  "locationReflected": true,
+  "managerProbeStatus": 200
+}

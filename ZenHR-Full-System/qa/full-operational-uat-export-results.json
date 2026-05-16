@@ -1,0 +1,270 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "status": "GO",
+  "exports": {
+    "datasets": {
+      "employees": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.csv\"",
+          "size": 2712,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.xlsx\"",
+          "size": 9092,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-employees-2026-05-15.pdf\"",
+          "size": 3606,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "attendance": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.csv\"",
+          "size": 2045,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.xlsx\"",
+          "size": 7982,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-attendance-2026-05-15.pdf\"",
+          "size": 2198,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "payroll": {
+        "csv": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.csv\"",
+          "size": 18962,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.xlsx\"",
+          "size": 18220,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "payroll",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-payroll-2026-05-15.pdf\"",
+          "size": 7002,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "recruitment": {
+        "csv": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.csv\"",
+          "size": 3582,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.xlsx\"",
+          "size": 9200,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "recruiter",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-recruitment-2026-05-15.pdf\"",
+          "size": 4132,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "evaluations": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.csv\"",
+          "size": 205,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.xlsx\"",
+          "size": 7505,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-evaluations-2026-05-15.pdf\"",
+          "size": 825,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "workflows": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.csv\"",
+          "size": 1328,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.xlsx\"",
+          "size": 7833,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-workflows-2026-05-15.pdf\"",
+          "size": 1908,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "reports": {
+        "csv": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "text/csv; charset=utf-8",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.csv\"",
+          "size": 674,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.xlsx\"",
+          "size": 7943,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 200,
+          "contentType": "application/pdf",
+          "disposition": "attachment; filename=\"zenjo-reports-2026-05-15.pdf\"",
+          "size": 1338,
+          "downloadable": true,
+          "cleanCsvHeader": true,
+          "supported": true
+        }
+      },
+      "documents": {
+        "csv": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        },
+        "xlsx": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        },
+        "pdf": {
+          "role": "hr",
+          "status": 404,
+          "contentType": "application/json; charset=utf-8",
+          "disposition": "",
+          "size": 54,
+          "downloadable": false,
+          "cleanCsvHeader": true,
+          "supported": false
+        }
+      }
+    },
+    "denied": {
+      "employeePayrollStatus": 403,
+      "managerPayrollStatus": 403,
+      "recruiterPayrollStatus": 403
+    },
+    "passed": true
+  }
+}

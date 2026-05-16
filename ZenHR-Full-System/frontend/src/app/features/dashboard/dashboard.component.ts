@@ -284,8 +284,8 @@ export class DashboardComponent implements OnInit {
       { labelAr: 'طلب عمل إضافي', labelEn: 'Request overtime', icon: 'more_time', route: '/app/overtime' },
       { labelAr: 'طلب سلفة', labelEn: 'Request advance', icon: 'payments', route: '/app/advances' },
       { labelAr: 'عرض قسيمة الراتب', labelEn: 'View payslip', icon: 'receipt_long', route: '/app/payroll/slips' },
-      { labelAr: 'عرض الوثائق', labelEn: 'View documents', icon: 'folder_open', route: '/app/documents-reporting' }
-    ];
+      { labelAr: 'عرض الوثائق', labelEn: 'View documents', icon: 'folder_open', route: '/app/documents' }
+    ].filter(action => this.access.canSeePage(action.route));
   });
 
   readonly attendanceDonutGradient = computed(() => {
@@ -643,7 +643,7 @@ export class DashboardComponent implements OnInit {
       requests: '/app/leave-management',
       leave: '/app/leave-management',
       payslip: '/app/payroll/slips',
-      compliance: '/app/documents-reporting',
+      compliance: this.access.canSeePage('/app/documents-reporting') ? '/app/documents-reporting' : '/app/documents',
       assets: '/app/assets'
     };
 

@@ -6,7 +6,7 @@
       <p class="z-body">{{ t('سجّل المخالفات وادِر التحقيق والقرار النهائي ضمن مساحة متابعة واحدة.', 'Track violations, investigations, and final actions from one organized workspace.') }}</p>
     </div>
 
-    <div class="header-actions" *ngIf="activeView === 'list'">
+    <div class="header-actions" *ngIf="activeView === 'list' && isHR">
       <button class="z-btn-secondary" type="button" (click)="openSettings()">
         <span class="material-icons">settings</span>
         {{ t('أنواع المخالفات', 'Violation Types') }}
@@ -339,7 +339,7 @@
         </div>
         <div class="alert" [class.alert-success]="!saveErr" [class.alert-error]="saveErr" *ngIf="saveMsg">{{ saveMsg }}</div>
         <div class="form-actions">
-          <button class="z-btn-primary" type="button" (click)="saveInvestigation()" [disabled]="saving">
+        <button class="z-btn-primary" type="button" *ngIf="isHR" (click)="saveInvestigation()" [disabled]="saving">
             {{ saving ? t('جارٍ الحفظ...', 'Saving...') : t('حفظ التحقيق', 'Save Investigation') }}
           </button>
         </div>
@@ -372,7 +372,7 @@
         </div>
         <div class="alert" [class.alert-success]="!saveErr" [class.alert-error]="saveErr" *ngIf="saveMsg">{{ saveMsg }}</div>
         <div class="form-actions">
-          <button class="z-btn-primary" type="button" (click)="saveDecision()" [disabled]="saving || ['closed','cancelled'].includes(detail.status)">
+          <button class="z-btn-primary" type="button" *ngIf="isHR" (click)="saveDecision()" [disabled]="saving || ['closed','cancelled'].includes(detail.status)">
             {{ t('اعتماد القرار', 'Apply Decision') }}
           </button>
         </div>
@@ -387,7 +387,7 @@
           <h2 class="z-heading">{{ t('أنواع المخالفات', 'Violation Types') }}</h2>
           <p class="z-small">{{ t(allViolations().length + ' نوع متاح', allViolations().length + ' types available') }}</p>
         </div>
-        <button class="z-btn-primary" type="button" (click)="showAddViolation = !showAddViolation">
+        <button class="z-btn-primary" type="button" *ngIf="isHR" (click)="showAddViolation = !showAddViolation">
           <span class="material-icons">add</span>
           {{ t('إضافة نوع', 'Add Type') }}
         </button>
@@ -444,7 +444,7 @@
               </td>
               <td>
                 <div class="inline-actions">
-                  <button class="icon-btn" type="button" *ngIf="editingViolationId !== violation.id" (click)="startEditViolation(violation)">
+                  <button class="icon-btn" type="button" *ngIf="isHR && editingViolationId !== violation.id" (click)="startEditViolation(violation)">
                     <span class="material-icons">edit</span>
                   </button>
                   <button class="icon-btn primary" type="button" *ngIf="editingViolationId === violation.id" (click)="saveViolation(violation.id)">
@@ -453,7 +453,7 @@
                   <button class="icon-btn" type="button" *ngIf="editingViolationId === violation.id" (click)="editingViolationId = null">
                     <span class="material-icons">close</span>
                   </button>
-                  <button class="icon-btn" type="button" (click)="toggleViolation(violation.id)">
+                  <button class="icon-btn" type="button" *ngIf="isHR" (click)="toggleViolation(violation.id)">
                     <span class="material-icons">{{ violation.isActive ? 'toggle_on' : 'toggle_off' }}</span>
                   </button>
                 </div>

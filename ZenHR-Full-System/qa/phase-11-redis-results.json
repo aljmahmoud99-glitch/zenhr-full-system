@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-05-15T01:21:16.912Z",
+  "status": "GO",
+  "runtimeStatus": 200,
+  "runtimeMode": "memory",
+  "memoryFallbackReady": true,
+  "redisCliAvailable": false,
+  "redisLiveValidated": false,
+  "queueDedupe": true,
+  "queueCompleted": true,
+  "downloadReady": true,
+  "limitation": "Redis server/CLI is not installed locally; memory fallback and Redis-ready code paths were validated, but live Redis persistence/restart validation was not possible.",
+  "passed": true
+}

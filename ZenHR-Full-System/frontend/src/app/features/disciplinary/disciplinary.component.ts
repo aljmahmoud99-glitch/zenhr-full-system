@@ -216,6 +216,10 @@ export class DisciplinaryComponent implements OnInit {
     return this.auth.lang;
   }
 
+  get isHR() {
+    return this.auth.currentUser()?.role === 'hradmin';
+  }
+
   get hasActiveFilters() {
     return !!(this.filterSearch || this.filterStatus || this.filterViolation || this.filterDate);
   }

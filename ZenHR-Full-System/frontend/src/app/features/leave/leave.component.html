@@ -113,7 +113,7 @@
       <label class="filter-field" *ngIf="!isEmployeeSelfService">
         <span class="field-label">{{ t('اسم الموظف', 'Employee') }}</span>
         <select class="z-input modern-select" [(ngModel)]="filter.employeeId" (ngModelChange)="applyFilters()">
-          <option value="">{{ t('�� ��������', 'All employees') }}</option>
+          <option value="">{{ t('?? ????????', 'All employees') }}</option>
           <option *ngFor="let employee of employeeOptions()" [value]="employee.employeeId">
             {{ employeeName(employee) }}{{ employee.employeeCode ? ' - ' + employee.employeeCode : '' }}
           </option>
@@ -123,7 +123,7 @@
       <label class="filter-field">
         <span class="field-label">{{ t('نوع الإجازة', 'Leave type') }}</span>
         <select class="z-input modern-select" [ngModel]="filter.leaveTypeCodes[0] || ''" (ngModelChange)="setSingleLeaveType($event)">
-          <option value="">{{ t('�� ����� ��������', 'All leave types') }}</option>
+          <option value="">{{ t('?? ????? ????????', 'All leave types') }}</option>
           <option *ngFor="let type of leaveTypes()" [value]="type.code">{{ lang === 'ar' ? type.nameAr : type.nameEn }}</option>
         </select>
       </label>
@@ -131,7 +131,7 @@
       <label class="filter-field">
         <span class="field-label">{{ t('الحالة', 'Status') }}</span>
         <select class="z-input modern-select" [ngModel]="filter.statusList[0] || ''" (ngModelChange)="setSingleStatus($event)">
-          <option value="">{{ t('�� �������', 'All statuses') }}</option>
+          <option value="">{{ t('?? ???????', 'All statuses') }}</option>
           <option value="pending">{{ t('قيد الانتظار', 'Pending') }}</option>
           <option value="manager_approved">{{ t('موافقة المدير', 'Manager approved') }}</option>
           <option value="approved">{{ t('موافق عليه', 'Approved') }}</option>
@@ -161,7 +161,7 @@
 
     <div class="filter-chips" *ngIf="hasActiveLeaveFilters">
       <span class="chip" *ngIf="filter.search">{{ t('بحث:', 'Search:') }} {{ filter.search }}</span>
-      <span class="chip" *ngIf="filter.employeeId">{{ t('����:', 'Employee:') }} {{ filter.employeeId }}</span>
+      <span class="chip" *ngIf="filter.employeeId">{{ t('??????:', 'Employee:') }} {{ filter.employeeId }}</span>
       <span class="chip" *ngIf="filter.employeeSearch">{{ t('موظف:', 'Employee:') }} {{ filter.employeeSearch }}</span>
       <span class="chip" *ngFor="let s of filter.statusList">{{ statusLabel(s) }}</span>
       <span class="chip" *ngFor="let c of filter.leaveTypeCodes">{{ c }}</span>

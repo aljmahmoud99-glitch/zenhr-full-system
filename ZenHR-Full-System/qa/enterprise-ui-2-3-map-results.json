@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-05-15T23:12:00.000Z",
+  "status": "PASS",
+  "scope": "attendance Google Maps external-open stress",
+  "evidence": {
+    "route": "/app/attendance",
+    "frontendPort": 5045,
+    "browser": "Chrome CDP production build",
+    "openedMaps": "window.open was intercepted during the test and Google Maps actions used _blank with noopener,noreferrer",
+    "routeChangedAfterOpen": false,
+    "consoleErrors": 0,
+    "api500s": 0,
+    "pageResponsive": true
+  },
+  "fixValidated": [
+    "Google Maps actions use window.open(url, '_blank', 'noopener,noreferrer')",
+    "double-click guard prevents rapid repeated opens",
+    "no SPA navigation to external Google URLs",
+    "dark-mode location cards no longer render white action strips"
+  ],
+  "remainingLimitations": []
+}

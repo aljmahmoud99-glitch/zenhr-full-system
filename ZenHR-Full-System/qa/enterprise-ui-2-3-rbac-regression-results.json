@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-05-15T23:08:28.212Z",
+  "status": "PASS",
+  "source": "qa/rbac-navigation-security-smoke.cjs",
+  "checks": {
+    "managerDisciplinaryCreate": false,
+    "managerDisciplinaryUpdate": false,
+    "managerDisciplinaryView": false,
+    "employeeEmployeesView": false,
+    "employeeReportsView": false,
+    "payrollRecruitmentView": false,
+    "payrollComplianceView": false,
+    "managerDisciplinaryListStatus": 403,
+    "managerDisciplinaryCreateStatus": 403,
+    "hrDisciplinaryListStatus": 200,
+    "recruiterPayrollRunsStatus": 403,
+    "employeePayrollPolicyStatus": 403
+  },
+  "notes": [
+    "RBAC/navigation smoke remained PASS after the 2.3 UI changes.",
+    "Existing INFO note retained: employee self-view of own disciplinary cases remains backend-allowed for compatibility while navigation is hidden/denied."
+  ]
+}

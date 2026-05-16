@@ -13,6 +13,17 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
@@ -30,7 +41,9 @@ services:
       TRUST_PROXY: "true"
       UPLOADS_DIR: /app/uploads
       EXPORTS_DIR: /app/exports
-      RUNTIME_STORE_ADAPTER: memory
+      RUNTIME_STORE_ADAPTER: redis
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_ADAPTER: local
     volumes:
       - uploads-data:/app/uploads
       - exports-data:/app/exports
@@ -48,5 +61,6 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   uploads-data:
   exports-data:

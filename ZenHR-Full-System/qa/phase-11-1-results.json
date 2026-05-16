@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-05-15T11:58:51.937Z",
+  "backend": "http://127.0.0.1:3001",
+  "status": "PASS",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "contentType": "application/json; charset=utf-8",
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-15T11:58:52.080Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T11:58:52.080Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "role": "hr",
+      "status": 200,
+      "employeeId": 2,
+      "companyId": 1,
+      "ok": true
+    },
+    "payroll": {
+      "role": "payroll",
+      "status": 200,
+      "employeeId": 3,
+      "companyId": 1,
+      "ok": true
+    },
+    "manager": {
+      "role": "manager",
+      "status": 200,
+      "employeeId": 7,
+      "companyId": 1,
+      "ok": true
+    },
+    "employee": {
+      "role": "employee",
+      "status": 200,
+      "employeeId": 8,
+      "companyId": 1,
+      "ok": true
+    },
+    "recruiter": {
+      "role": "recruiter",
+      "status": 200,
+      "employeeId": 9,
+      "companyId": 1,
+      "ok": true
+    },
+    "admin": {
+      "role": "admin",
+      "status": 200,
+      "employeeId": 1,
+      "companyId": 1,
+      "ok": true
+    }
+  },
+  "ids": {
+    "managerId": 7,
+    "employeeId": 8,
+    "hrEmployeeId": 2,
+    "directReportId": 31,
+    "directReportCreated": false
+  },
+  "profileAccess": {
+    "managerOwnStatus": 200,
+    "managerDirectReportStatus": 200,
+    "managerUnrelatedStatus": 404,
+    "managerUnrelatedForbidden": true,
+    "managerUnrelatedLeakedName": false,
+    "hrCompanyEmployeeStatus": 200,
+    "employeeOwnStatus": 200,
+    "employeeOtherStatus": 404,
+    "employeeOtherForbidden": true,
+    "payrollReadStatus": 200,
+    "recruiterReadStatus": 404,
+    "recruiterForbidden": true
+  },
+  "relatedScope": {
+    "unrelatedQualificationsStatus": 404,
+    "unrelatedDocumentsStatus": 404,
+    "unrelatedLeaveBalancesStatus": 404,
+    "unrelatedEnterpriseLeaveBalanceStatus": 200,
+    "unrelatedAttendanceQueryStatus": 200,
+    "unrelatedEnterpriseLeaveBalanceRows": 72,
+    "unrelatedAttendanceRows": 0,
+    "enterpriseBalanceContainsUnrelated": false,
+    "attendanceContainsUnrelated": false,
+    "qualificationsBlocked": true,
+    "documentsBlocked": true,
+    "leaveBalancesBlocked": true,
+    "enterpriseLeaveBalanceBlocked": true,
+    "attendanceBlockedOrScopedEmpty": true
+  },
+  "regression": {
+    "healthOk": true,
+    "loginsOk": true,
+    "hrProfileStillWorks": true,
+    "payrollProfileReadUnchanged": true,
+    "employeeOwnStillWorks": true,
+    "managerDirectStillWorks": true
+  },
+  "issues": []
+}

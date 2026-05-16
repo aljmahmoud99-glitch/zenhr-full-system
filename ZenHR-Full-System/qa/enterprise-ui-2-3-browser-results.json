@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-05-15T23:38:00.000Z",
+  "status": "PARTIAL",
+  "backendHealth": "PASS",
+  "productionBuild": "PASS_WITH_WARNING",
+  "typecheck": "PASS",
+  "mapOpenStress": "PASS",
+  "arabicSampling": "PASS",
+  "darkModeSampling": "PASS",
+  "documentExportVisibility": "PASS",
+  "dropdownValidation": "PARTIAL",
+  "mobileTopbar": "FAIL",
+  "evidence": {
+    "map": "Chrome CDP production-build map-open slice passed on /app/attendance; no route change, console errors, or API 500s.",
+    "arabic": "Chrome CDP Arabic sampling passed on settings, attendance, notifications, approvals, and payroll routes.",
+    "documents": "Documents export creation action is no longer visible for unsupported dataset.",
+    "dropdowns": "HR, payroll, manager, and employee dropdowns passed; recruiter and superadmin validation incomplete/failed.",
+    "mobile": "Mobile employee slice captured a blank page in CDP; no console errors were reported, but this is not acceptable GO evidence."
+  },
+  "consoleErrors": 0,
+  "api500s": 0,
+  "screenshotsDir": "qa/enterprise-ui-2-3-screenshots",
+  "finalDecision": "PARTIAL"
+}

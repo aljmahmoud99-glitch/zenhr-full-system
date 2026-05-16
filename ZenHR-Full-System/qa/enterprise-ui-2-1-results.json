@@ -1,0 +1,209 @@
+{
+  "generatedAt": "2026-05-15T16:41:36.372Z",
+  "backend": "http://127.0.0.1:3001",
+  "tag": "ui21-1778863296371",
+  "status": "PASS",
+  "health": {
+    "status": 200,
+    "ok": true,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-15T16:41:36.560Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T16:41:36.560Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "map": {
+    "createStatus": 201,
+    "listStatus": 200,
+    "savedLocation": {
+      "id": 1778863297174,
+      "nameAr": "موقع اختبار ui21-1778863296371",
+      "nameEn": "Test Location ui21-1778863296371",
+      "latitude": 31.9537,
+      "longitude": 35.9106,
+      "radiusMeters": 250,
+      "address": "QA ui21-1778863296371"
+    },
+    "persisted": true,
+    "googleMapsUrl": "https://www.google.com/maps?q=31.9537,35.9106"
+  },
+  "shifts": {
+    "createStatus": 201,
+    "shift": {
+      "id": 8,
+      "code": "UI21-1778863296371",
+      "nameAr": "وردية اختبار ui21-1778863296371",
+      "nameEn": "Test Shift ui21-1778863296371",
+      "startTime": "09:00",
+      "endTime": "17:00",
+      "breakMinutes": 45,
+      "isOvernight": false,
+      "isFlexible": false,
+      "workingDaysJson": "[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"]",
+      "days": [
+        "sun",
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat"
+      ],
+      "gracePeriodMinutes": 10,
+      "lateThresholdMinutes": 10,
+      "deductionPolicy": "none",
+      "deductionAmount": 0,
+      "earlyLeaveThresholdMinutes": 10,
+      "overtimeStartAfterMinutes": 30,
+      "overtimeMultiplier": 1.5,
+      "color": "#1d4ed8",
+      "status": "active",
+      "totalHours": 7.25,
+      "assignmentCount": 0,
+      "notes": ""
+    },
+    "assignmentStatus": 201,
+    "employeeScheduleStatus": 200,
+    "todayShift": {
+      "date": "2026-05-15",
+      "status": "active_today",
+      "shift": {
+        "id": 8,
+        "nameAr": "وردية اختبار ui21-1778863296371",
+        "nameEn": "Test Shift ui21-1778863296371",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "breakMinutes": 45,
+        "isOvernight": false,
+        "isFlexible": false,
+        "workingDaysJson": "[\"sun\",\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\"]",
+        "days": [
+          "sun",
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri",
+          "sat"
+        ],
+        "gracePeriodMinutes": 10,
+        "lateThresholdMinutes": 10,
+        "deductionPolicy": "none",
+        "deductionAmount": 0,
+        "earlyLeaveThresholdMinutes": 10,
+        "overtimeStartAfterMinutes": 0,
+        "overtimeMultiplier": 1.5,
+        "color": "#1d4ed8",
+        "status": "active",
+        "totalHours": 7.25,
+        "assignmentCount": 1,
+        "notes": "{\"notes\":\"QA assignment ui21-1778863296371\",\"recurrence\":\"daily\",\"locationId\":1778863297174}"
+      },
+      "location": {
+        "id": 1778863297174,
+        "nameAr": "موقع اختبار ui21-1778863296371",
+        "nameEn": "Test Location ui21-1778863296371",
+        "latitude": 31.9537,
+        "longitude": 35.9106,
+        "radiusMeters": 250,
+        "address": "QA ui21-1778863296371"
+      },
+      "recurrence": "daily",
+      "notes": "QA assignment ui21-1778863296371",
+      "googleMapsUrl": "https://www.google.com/maps?q=31.9537,35.9106"
+    },
+    "upcomingCount": 8,
+    "persistsToEmployee": true,
+    "locationReflected": true,
+    "managerProbeStatus": 200
+  },
+  "jobProfile": {
+    "responsibilityGroupStatus": 201,
+    "skillStatus": 201,
+    "createsSelectableMasterData": true,
+    "responsibilityGroupId": 15,
+    "skillId": 10
+  },
+  "rbac": {
+    "employeeCannotCreateShift": true,
+    "recruiterCannotAssignShift": true,
+    "employeeShiftCreateStatus": 403,
+    "recruiterShiftAssignStatus": 403
+  },
+  "issues": []
+}

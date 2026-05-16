@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-05-15T17:55:30.181Z",
+  "status": "FAIL",
+  "roles": {
+    "hr": {
+      "status": "PASS",
+      "sectionTitles": [
+        "عمليات الموارد اليومية",
+        "دورة حياة القوى العاملة",
+        "الامتثال والإدارة",
+        "أخرى"
+      ],
+      "grouped": true,
+      "hiddenForbiddenSignals": true,
+      "overflow": false,
+      "screenshot": "qa/enterprise-ui-2-2-screenshots/dropdown-hr.png"
+    },
+    "payroll": {
+      "status": "FAIL",
+      "screenshot": null
+    },
+    "manager": {
+      "status": "FAIL",
+      "screenshot": null
+    },
+    "employee": {
+      "status": "FAIL",
+      "screenshot": null
+    },
+    "recruiter": {
+      "status": "FAIL",
+      "screenshot": null
+    },
+    "superadmin": {
+      "status": "FAIL",
+      "screenshot": null
+    }
+  }
+}

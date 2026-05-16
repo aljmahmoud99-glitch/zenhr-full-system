@@ -1,23 +1,23 @@
 {
-  "generatedAt": "2026-05-13T22:51:58.546Z",
+  "generatedAt": "2026-05-14T13:01:08.519Z",
   "attendancePayrollImpact": {
     "classification": "CONFIRMED WORKING",
-    "correctionRequestId": 23,
+    "correctionRequestId": 31,
     "processStatus": 200,
-    "createdViolations": 0,
+    "createdViolations": 1,
     "previewStatus": 200,
-    "previewAttendanceImpactDeduction": "26.500",
+    "previewAttendanceImpactDeduction": "39.750",
     "runId": 15,
     "calculateStatus": 200,
-    "payslipId": 206,
-    "snapshotAttendanceImpactDeduction": "26.500",
+    "payslipId": 363,
+    "snapshotAttendanceImpactDeduction": "39.750",
     "conclusion": "Approved attendance impacts are consumed by preview/run/payslip snapshot once."
   },
   "performancePromotion": {
     "classification": "CONFIRMED WORKING",
     "createStatus": 201,
-    "recommendationId": "11",
-    "workflowId": "12",
+    "recommendationId": "13",
+    "workflowId": "14",
     "approvals": [
       {
         "status": 200,
@@ -29,27 +29,25 @@
         "workflowStatus": "approved",
         "businessEffect": {
           "applied": true,
-          "employeeActionId": 19
+          "employeeActionId": 25
         }
       }
     ],
     "retryApproveStatus": 409,
-    "beforeSalary": 995,
-    "afterSalary": 1014,
-    "payrollPreviewBasicSalary": "1014.000",
+    "beforeSalary": 1033,
+    "afterSalary": 1052,
+    "payrollPreviewBasicSalary": "1052.000",
     "employeeActionLinked": false,
     "conclusion": "Approved recommendation updates employee salary, payroll preview, and rejects duplicate approval."
   },
   "legacyVsEnterpriseLeave": {
-    "classification": "CONFIRMED WORKING",
-    "legacyCreateStatus": 201,
-    "legacyPayrollCompatible": false,
-    "legacyWarning": "Legacy leave type was kept for compatibility and is ignored by enterprise payroll deductions unless mapped to an enterprise leave type.",
-    "legacyApproveStatus": 200,
+    "classification": "PARTIAL",
+    "legacyCreateStatus": 400,
+    "legacyApproveStatus": 0,
     "enterpriseTypeId": 2,
-    "enterpriseCreateStatus": 409,
+    "enterpriseCreateStatus": 201,
     "payrollPreviewStatus": 200,
-    "leaveDeduction": "65.424",
-    "conclusion": "Legacy unmapped leave is explicitly flagged as payroll-ignored; enterprise leave remains canonical payroll source."
+    "leaveDeduction": "101.808",
+    "conclusion": "Leave guardrail needs more verification."
   }
 }

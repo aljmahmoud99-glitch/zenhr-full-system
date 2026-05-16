@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T03:40:25.117Z",
+  "generatedAt": "2026-05-15T11:22:31.957Z",
   "backend": "http://localhost:3001",
   "status": "GO",
   "health": {
@@ -7,7 +7,7 @@
     "ok": true,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-14T03:40:25.183Z",
+      "timestamp": "2026-05-15T11:22:32.154Z",
       "version": "1.0.0"
     }
   },
@@ -52,7 +52,7 @@
   "approvals": {
     "hr": {
       "pendingStatus": 200,
-      "total": 75,
+      "total": 113,
       "domains": [
         "attendance_correction",
         "employee_action",
@@ -63,14 +63,14 @@
         "recruitment"
       ],
       "sample": {
-        "id": "attendance_correction:27",
+        "id": "attendance_correction:36",
         "domain": "attendance_correction",
-        "entityId": 27,
+        "entityId": 36,
         "title": "Attendance correction",
         "employeeName": "Layla Haddad",
         "requester": "employee",
         "status": "pending",
-        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "submittedAt": "2026-05-15T11:22:32.950Z",
         "currentStep": "manager",
         "availableActions": [
           "approve",
@@ -83,20 +83,20 @@
     },
     "payroll": {
       "pendingStatus": 200,
-      "total": 18,
+      "total": 26,
       "domains": [
         "payroll_adjustment",
         "recruitment"
       ],
       "sample": {
-        "id": "payroll_adjustment:19",
+        "id": "payroll_adjustment:33",
         "domain": "payroll_adjustment",
-        "entityId": 19,
+        "entityId": 33,
         "title": "Unified approval smoke",
         "employeeName": "Layla Haddad",
         "requester": "hr",
         "status": "pending",
-        "submittedAt": "2026-05-14T03:32:51.056Z",
+        "submittedAt": "2026-05-15T01:11:21.818Z",
         "currentStep": "payrolladmin",
         "availableActions": [
           "approve",
@@ -109,21 +109,22 @@
     },
     "manager": {
       "pendingStatus": 200,
-      "total": 10,
+      "total": 18,
       "domains": [
         "attendance_correction",
+        "payroll_adjustment",
         "leave",
         "recruitment"
       ],
       "sample": {
-        "id": "attendance_correction:27",
+        "id": "attendance_correction:36",
         "domain": "attendance_correction",
-        "entityId": 27,
+        "entityId": 36,
         "title": "Attendance correction",
         "employeeName": "Layla Haddad",
         "requester": "employee",
         "status": "pending",
-        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "submittedAt": "2026-05-15T11:22:32.950Z",
         "currentStep": "manager",
         "availableActions": [
           "approve",
@@ -147,7 +148,7 @@
     },
     "admin": {
       "pendingStatus": 200,
-      "total": 83,
+      "total": 121,
       "domains": [
         "attendance_correction",
         "employee_action",
@@ -158,14 +159,14 @@
         "recruitment"
       ],
       "sample": {
-        "id": "attendance_correction:27",
+        "id": "attendance_correction:36",
         "domain": "attendance_correction",
-        "entityId": 27,
+        "entityId": 36,
         "title": "Attendance correction",
         "employeeName": "Layla Haddad",
         "requester": "employee",
         "status": "pending",
-        "submittedAt": "2026-05-14T03:40:25.483Z",
+        "submittedAt": "2026-05-15T11:22:32.950Z",
         "currentStep": "manager",
         "availableActions": [
           "approve",
@@ -178,14 +179,14 @@
     },
     "seededProjectionRecords": {
       "employeeActionStatus": 201,
-      "employeeActionId": 22,
+      "employeeActionId": 30,
       "attendanceCorrectionStatus": 201,
-      "attendanceCorrectionId": 27
+      "attendanceCorrectionId": 36
     },
     "actionSmoke": {
       "typeStatus": 200,
       "createStatus": 201,
-      "createdId": "20",
+      "createdId": "35",
       "appearedInUnifiedInbox": true,
       "actionStatus": 200,
       "resultingStatus": "pending",
@@ -224,7 +225,7 @@
       201
     ],
     "dedupeCheck": {
-      "phaseDTestRowsInLatestPage": 5,
+      "phaseDTestRowsInLatestPage": 3,
       "note": "Duplicate prevention is enforced for unread rows with same recipient/type/entity."
     },
     "readStatus": 200,

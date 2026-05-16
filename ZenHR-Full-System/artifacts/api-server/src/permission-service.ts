@@ -92,6 +92,8 @@ export async function getPermissionMap(req: Request & { user: EnrichedUser }): P
     }
   }
 
+  applyGovernanceDenyList(role, screens);
+
   const result: PermissionMap = { screens, dataScope: broadestScope };
   cache.set(req, result);
   return result;
@@ -218,13 +220,12 @@ function legacyCheck(role: string, screen: string, action: string): boolean {
     return true;
   }
 
-  const managerScreens = ["employees", "leave", "overtime", "attendance", "disciplinary", "documents", "assets", "forms"];
+  const managerScreens = ["employees", "leave", "overtime", "attendance", "documents", "assets", "forms"];
   if (role === "manager") {
     if (!managerScreens.includes(screen)) return false;
     if (screen === "employees" || screen === "documents" || screen === "assets" || screen === "forms") return action === "view";
     if (screen === "leave" || screen === "overtime") return action === "view" || action === "approve";
     if (screen === "attendance") return action === "view";
-    if (screen === "disciplinary") return action === "view" || action === "create" || action === "update";
     return false;
   }
 
@@ -236,4 +237,23 @@ function legacyCheck(role: string, screen: string, action: string): boolean {
   }
 
   return false;
+}
+
+function applyGovernanceDenyList(role: string, screens: Record<string, Record<string, boolean>>) {
+  if (role === "manager" && screens["disciplinary"]) {
+    delete screens["disciplinary"];
+  }
+  if (role === "employee") {
+    for (const screen of ["disciplinary", "employees", "settings", "users", "compliance", "reports"]) {
+      delete screens[screen];
+    }
+    if (screens["payroll"]) {
+      screens["payroll"] = { view: screens["payroll"]!["view"] === true };
+    }
+  }
+  if (role === "payrolladmin") {
+    for (const screen of ["recruitment", "disciplinary", "compliance"]) {
+      delete screens[screen];
+    }
+  }
 }

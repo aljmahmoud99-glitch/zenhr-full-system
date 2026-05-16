@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-05-15T23:30:00.000Z",
+  "status": "PARTIAL",
+  "scope": "role-prioritized top navigation grouping",
+  "roles": {
+    "hr": {
+      "status": "PASS",
+      "validatedGroups": ["Workforce", "Payroll", "Recruitment", "Documents & Compliance", "Reports & Analytics", "Settings"],
+      "notes": "Browser dropdown opened and grouped sections were visible; no horizontal overflow."
+    },
+    "payroll": {
+      "status": "PASS",
+      "validatedGroups": ["Payroll Operations", "Payroll Policies", "Payroll Reports"],
+      "notes": "Browser dropdown opened after harness reload fix; no API 500s."
+    },
+    "manager": {
+      "status": "PASS",
+      "validatedGroups": ["Team", "Approvals", "Attendance", "Performance"],
+      "notes": "Browser dropdown opened and manager-only role surfaces remained filtered."
+    },
+    "employee": {
+      "status": "PASS",
+      "validatedGroups": ["My Work", "Attendance", "Leave", "Documents", "Payslips", "Notifications"],
+      "notes": "Browser dropdown opened and admin/payroll governance surfaces remained hidden."
+    },
+    "recruiter": {
+      "status": "FAIL",
+      "expectedGroups": ["Recruitment", "Candidates", "Hiring Pipeline"],
+      "actual": "Recruiter landed on an allowed notifications route and the top nav showed the recruiter ecosystem, but CDP did not open the grouped dropdown section; no API 500s or console errors were recorded.",
+      "recommendedFix": "Investigate recruiter dropdown hover/click opening behavior separately without weakening RBAC."
+    },
+    "superadmin": {
+      "status": "FAIL",
+      "expectedGroups": ["Platform", "Companies", "Plans & Modules", "System Settings"],
+      "actual": "Superadmin route validation did not complete grouped dropdown inspection in CDP. This remains incomplete browser evidence, not a GO result.",
+      "recommendedFix": "Validate whether superadmin uses a separate admin shell or should expose the same grouped topbar pattern."
+    }
+  },
+  "visualChangesValidated": [
+    "Dropdown width reduced to compact enterprise range",
+    "Group spacing and item density tightened",
+    "Role priority groups implemented in layout dropdown rules"
+  ]
+}

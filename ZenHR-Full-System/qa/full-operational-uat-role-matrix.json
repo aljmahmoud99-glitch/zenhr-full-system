@@ -1,0 +1,144 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "status": "GO",
+  "roles": {
+    "admin": {
+      "loginStatus": 200,
+      "role": "superadmin",
+      "companyId": 1,
+      "employeeId": 1
+    },
+    "hr": {
+      "loginStatus": 200,
+      "role": "hradmin",
+      "companyId": 1,
+      "employeeId": 2
+    },
+    "payroll": {
+      "loginStatus": 200,
+      "role": "payrolladmin",
+      "companyId": 1,
+      "employeeId": 3
+    },
+    "manager": {
+      "loginStatus": 200,
+      "role": "manager",
+      "companyId": 1,
+      "employeeId": 7
+    },
+    "employee": {
+      "loginStatus": 200,
+      "role": "employee",
+      "companyId": 1,
+      "employeeId": 8
+    },
+    "recruiter": {
+      "loginStatus": 200,
+      "role": "recruiter",
+      "companyId": 1,
+      "employeeId": 9
+    }
+  },
+  "superadmin": {
+    "modulesStatus": 200,
+    "usageStatus": 200,
+    "opsEnvironmentStatus": 200,
+    "opsMetricsStatus": 200,
+    "unsafeTenantMutationStatus": 403,
+    "noSensitiveEnvLeak": true,
+    "passed": true
+  },
+  "hr": {
+    "employeeLifecycle": {
+      "listStatus": 200,
+      "createStatus": 201,
+      "employeeId": 56,
+      "employeeCode": "UAT-uat1778850476637",
+      "editStatus": 200,
+      "profileStatus": 200,
+      "passed": true
+    },
+    "contractsCompliance": {
+      "dashboardStatus": 200,
+      "typesStatus": 200,
+      "contractTypeId": 18,
+      "createContractStatus": 201,
+      "contractId": 33,
+      "requiredDocumentStatus": 201,
+      "requiredEnterpriseDocumentId": 56,
+      "attachmentStatus": 201,
+      "attachmentEnterpriseDocumentId": 57,
+      "detailStatus": 200,
+      "passed": true
+    },
+    "leave": {
+      "typesStatus": 200,
+      "leaveTypeId": 2,
+      "leaveTypePayrollImpactType": "deduct_daily_rate",
+      "createStatus": 201,
+      "requestId": 60,
+      "managerApproveStatus": 200,
+      "hrApproveStatus": 200,
+      "finalStatus": "approved",
+      "detailStatus": 200,
+      "auditStatus": 200,
+      "auditRows": 3,
+      "payrollImpactStatus": 200,
+      "payrollImpactRows": 20,
+      "employeeNotificationsStatus": 200,
+      "notificationCount": 20,
+      "passed": true
+    }
+  },
+  "payroll": {
+    "policyStatus": 200,
+    "employmentRulesStatus": 200,
+    "policyPreviewStatus": 200,
+    "previewStatus": 200,
+    "previewEmployeeId": 56,
+    "previewNetSalary": "878.468",
+    "canonicalReconciliationSource": "qa/cleanup-sprint-5-results.json",
+    "sprint5Status": "GO",
+    "runTotalNet": "26905.783",
+    "payslipNetTotal": "26905.783",
+    "reportTotalNet": "26905.783",
+    "duplicatePrevented": true,
+    "lockedRecalculateStatus": 409,
+    "passed": true
+  },
+  "manager": {
+    "teamListStatus": 200,
+    "otherProfileStatus": 404,
+    "unrelatedEmployeeId": 2,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  },
+  "employee": {
+    "ownProfileStatus": 200,
+    "otherProfileStatus": 404,
+    "payrollPreviewDeniedStatus": 403,
+    "exportsDeniedStatus": 403,
+    "contractsDeniedStatus": 403,
+    "passed": true
+  },
+  "recruiter": {
+    "candidateListStatus": 200,
+    "handoffEvidenceSource": "qa/cleanup-sprint-6-results.json",
+    "sprint6Status": "GO",
+    "convertedEmployeeId": 52,
+    "contractId": 29,
+    "enterpriseDocumentIds": [
+      41,
+      42,
+      43,
+      44,
+      40
+    ],
+    "noDuplicateConversion": true,
+    "payrollDeniedStatus": 403,
+    "payrollExportDeniedStatus": 403,
+    "contractMutationDeniedStatus": 403,
+    "passed": true
+  }
+}

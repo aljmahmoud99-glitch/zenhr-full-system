@@ -64,6 +64,8 @@ import {
   sanitizedEnvironmentSummary,
   validateEnvironment,
 } from "./production-readiness.js";
+import { createRuntimeStore } from "./runtime-adapters.js";
+import { createStorageAdapter } from "./storage-adapters.js";
 
 const environmentReport = validateEnvironment(process.env);
 if (!environmentReport.ok && environmentReport.production) {
@@ -97,8 +99,6 @@ app.use(cors({
 app.use(express.json({ limit: process.env["JSON_BODY_LIMIT"] || "1mb" }));
 
 type OperationalMetric = { count: number; totalMs: number; maxMs: number; errors: number };
-const operationalMetrics: Record<string, OperationalMetric> = {};
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const moduleAccessCache = new Map<string, { enabled: boolean; checkedAt: number }>();
 const MODULE_CACHE_MS = 30_000;
 
@@ -114,6 +114,8 @@ function routeBucket(req: express.Request) {
 function safeLog(details: Record<string, unknown>) {
   console.log(JSON.stringify({ service: "zenjo-api", ...details }));
 }
+
+const runtimeStore = createRuntimeStore(environmentReport.adapter, process.env["REDIS_URL"], safeLog);
 
 safeLog({
   event: environmentReport.ok ? "environment_validation_passed" : "environment_validation_warning",
@@ -137,12 +139,9 @@ app.use((req, res, next) => {
     const durationMs = Date.now() - started;
     const user = (req as Partial<AuthReq>).user;
     const key = metricKey(req);
-    const metric = operationalMetrics[key] || { count: 0, totalMs: 0, maxMs: 0, errors: 0 };
-    metric.count += 1;
-    metric.totalMs += durationMs;
-    metric.maxMs = Math.max(metric.maxMs, durationMs);
-    if (res.statusCode >= 500) metric.errors += 1;
-    operationalMetrics[key] = metric;
+    void runtimeStore.recordMetric(key, durationMs, res.statusCode >= 500).catch((error) => {
+      safeLog({ level: "error", event: "metric_record_failed", error: (error as Error).message });
+    });
     safeLog({
       level: res.statusCode >= 500 ? "error" : "info",
       event: "http_request",
@@ -159,20 +158,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (["/api/healthz", "/api/readiness", "/api/version"].includes(req.path)) return next();
   const bucket = routeBucket(req);
   if (!bucket) return next();
   const key = `${bucket.name}:${req.ip}:${(req as Partial<AuthReq>).user?.userId ?? "anon"}`;
-  const now = Date.now();
-  const current = rateBuckets.get(key);
-  const entry = current && current.resetAt > now ? current : { count: 0, resetAt: now + bucket.windowMs };
-  entry.count += 1;
-  rateBuckets.set(key, entry);
+  const entry = await runtimeStore.rateLimit(key, bucket.limit, bucket.windowMs);
   res.setHeader("x-rate-limit-limit", String(bucket.limit));
-  res.setHeader("x-rate-limit-remaining", String(Math.max(0, bucket.limit - entry.count)));
-  res.setHeader("retry-after", String(Math.ceil(Math.max(0, entry.resetAt - now) / 1000)));
-  if (entry.count > bucket.limit) {
+  res.setHeader("x-rate-limit-remaining", String(entry.remaining));
+  res.setHeader("retry-after", String(Math.ceil(Math.max(0, entry.resetAt - Date.now()) / 1000)));
+  if (!entry.allowed) {
     res.status(429).json({ success: false, message: "Too many requests. Please retry shortly.", requestId: (req as any).requestId });
     return;
   }
@@ -214,6 +209,7 @@ app.use(async (req, res, next) => {
 // â”€â”€â”€ File upload (multer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const UPLOADS_DIR = environmentReport.paths.uploadsDir;
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const storageAdapter = createStorageAdapter(process.env, UPLOADS_DIR);
 
 const docStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -297,7 +293,20 @@ registerLeaveNotificationsRoutes(app, auth);
 async function canAccessEmployeeScoped(user: AuthReq["user"], employeeId: number, mode: "read" | "mutate" = "read") {
   if (!Number.isFinite(employeeId) || employeeId <= 0) return false;
   const { rows } = await pool.query(
-    `SELECT id, direct_manager_id FROM employees WHERE id=$1 AND company_id=$2 AND COALESCE(is_deleted,false)=false LIMIT 1`,
+    `SELECT e.id,
+            e.direct_manager_id,
+            COALESCE(array_agg(DISTINCT u.role) FILTER (WHERE u.id IS NOT NULL), ARRAY[]::varchar[]) AS user_roles
+       FROM employees e
+       LEFT JOIN users u
+         ON u.employee_id = e.id
+        AND u.company_id = e.company_id
+        AND COALESCE(u.is_deleted,false) = false
+        AND COALESCE(u.is_active,true) = true
+      WHERE e.id=$1
+        AND e.company_id=$2
+        AND COALESCE(e.is_deleted,false)=false
+      GROUP BY e.id, e.direct_manager_id
+      LIMIT 1`,
     [employeeId, user.companyId],
   );
   const emp = rows[0];
@@ -305,7 +314,13 @@ async function canAccessEmployeeScoped(user: AuthReq["user"], employeeId: number
   if (user.role === "superadmin") return mode === "read";
   if (user.role === "hradmin") return true;
   if (user.role === "payrolladmin") return mode === "read";
-  if (user.role === "manager") return mode === "read" && Number(emp.direct_manager_id) === Number(user.employeeId);
+  if (user.role === "manager") {
+    if (mode !== "read") return false;
+    if (Number(employeeId) === Number(user.employeeId)) return true;
+    if (Number(emp.direct_manager_id) !== Number(user.employeeId)) return false;
+    const targetRoles = Array.isArray(emp.user_roles) ? emp.user_roles.map((role: string) => String(role).toLowerCase()) : [];
+    return targetRoles.every((role: string) => role === "employee");
+  }
   if (user.role === "employee") return mode === "read" && Number(employeeId) === Number(user.employeeId);
   return false;
 }
@@ -322,7 +337,7 @@ app.get("/api/version", (_req, res) => {
 app.get("/api/readiness", async (_req, res) => {
   const checks: Record<string, { ok: boolean; message?: string }> = {
     database: { ok: false },
-    queue: { ok: true, message: `${environmentReport.adapter} adapter` },
+    queue: { ok: false, message: `${runtimeStore.mode} adapter` },
     environment: { ok: environmentReport.ok, message: environmentReport.ok ? undefined : "environment has validation issues" },
   };
   try {
@@ -331,6 +346,7 @@ app.get("/api/readiness", async (_req, res) => {
   } catch (e: any) {
     checks.database = { ok: false, message: IS_PRODUCTION ? "database check failed" : e?.message };
   }
+  checks.queue = await runtimeStore.ready();
   const ok = Object.values(checks).every(check => check.ok);
   res.status(ok ? 200 : 503).json({ status: ok ? "ready" : "not_ready", version: SERVICE_VERSION, checks });
 });
@@ -343,6 +359,34 @@ app.get("/api/ops/environment", auth, async (req, res) => {
     return;
   }
   res.json({ success: true, data: sanitizedEnvironmentSummary(environmentReport) });
+});
+
+app.get("/api/ops/runtime-store", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+  const ready = await runtimeStore.ready();
+  res.status(ready.ok ? 200 : 503).json({ success: ready.ok, data: { mode: runtimeStore.mode, ...ready, queue: exportQueueStats() } });
+});
+
+app.get("/api/ops/storage", auth, async (req, res) => {
+  const user = (req as AuthReq).user;
+  if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+  res.json({
+    success: true,
+    data: {
+      adapter: storageAdapter.mode,
+      uploadsDir: storageAdapter.mode === "local" ? UPLOADS_DIR : undefined,
+      s3Ready: storageAdapter.mode === "s3",
+      companyKeyIsolation: true,
+      signedDownloadReady: true,
+    },
+  });
 });
 
 app.get("/api/tenant/modules/status", auth, async (req, res) => {
@@ -6537,8 +6581,9 @@ app.post("/api/attendance/locations", auth, async (req, res) => {
     res.status(403).json({ success: false, message: "Forbidden" }); return;
   }
   const locations = await readAttendanceLocations(user.companyId);
+  const incomingId = Number(req.body.id);
   const record: AttendanceWorkLocation = {
-    id: Date.now(),
+    id: Number.isFinite(incomingId) && incomingId > 0 ? incomingId : Date.now(),
     nameAr: req.body.nameAr || null,
     nameEn: req.body.nameEn || null,
     latitude: Number(req.body.latitude),
@@ -6549,9 +6594,12 @@ app.post("/api/attendance/locations", auth, async (req, res) => {
   if (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude)) {
     res.status(400).json({ success: false, message: "latitude and longitude are required" }); return;
   }
-  const next = [...locations, record];
+  const existingIndex = locations.findIndex((location) => Number(location.id) === Number(record.id));
+  const next = existingIndex >= 0
+    ? locations.map((location, index) => index === existingIndex ? record : location)
+    : [...locations, record];
   await writeAttendanceLocations(user.companyId, user.userId, next);
-  res.status(201).json({ success: true, data: record });
+  res.status(existingIndex >= 0 ? 200 : 201).json({ success: true, data: record });
 });
 
 app.delete("/api/attendance/locations/:id", auth, async (req, res) => {
@@ -9492,41 +9540,357 @@ app.post("/api/public-holidays/generate-recurring", auth, async (req, res) => {
   res.json({ success: true, message: "Recurring holidays generated", data: { year: req.body.year, count: 4 } });
 });
 
-// â”€â”€â”€ Shifts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const shiftsStore: any[] = [
-  { id: 1, nameAr: "ط§ظ„ظˆط±ط¯ظٹط© ط§ظ„طµط¨ط§ط­ظٹط©", nameEn: "Morning Shift", startTime: "08:00", endTime: "16:00", days: ["sun","mon","tue","wed","thu"] },
-  { id: 2, nameAr: "ط§ظ„ظˆط±ط¯ظٹط© ط§ظ„ظ…ط³ط§ط¦ظٹط©", nameEn: "Evening Shift", startTime: "14:00", endTime: "22:00", days: ["sun","mon","tue","wed","thu"] },
-  { id: 3, nameAr: "ظˆط±ط¯ظٹط© ط§ظ„ظ„ظٹظ„", nameEn: "Night Shift", startTime: "22:00", endTime: "06:00", days: ["sun","mon","tue","wed","thu"] },
+// Shifts: compatibility endpoints backed by the canonical attendance shift tables.
+const SHIFT_TEMPLATES = [
+  { id: "morning", nameAr: "الوردية الصباحية", nameEn: "Morning Shift", startTime: "08:00", endTime: "16:00", breakMinutes: 60, isOvernight: false, isFlexible: false, workingDaysJson: JSON.stringify(["sun", "mon", "tue", "wed", "thu"]), gracePeriodMinutes: 10, lateThresholdMinutes: 30, overtimeStartAfterMinutes: 30, overtimeMultiplier: 1.5, color: "#059669" },
+  { id: "evening", nameAr: "الوردية المسائية", nameEn: "Evening Shift", startTime: "14:00", endTime: "22:00", breakMinutes: 45, isOvernight: false, isFlexible: false, workingDaysJson: JSON.stringify(["sun", "mon", "tue", "wed", "thu"]), gracePeriodMinutes: 10, lateThresholdMinutes: 30, overtimeStartAfterMinutes: 30, overtimeMultiplier: 1.5, color: "#7c3aed" },
+  { id: "night", nameAr: "وردية الليل", nameEn: "Night Shift", startTime: "22:00", endTime: "06:00", breakMinutes: 60, isOvernight: true, isFlexible: false, workingDaysJson: JSON.stringify(["sun", "mon", "tue", "wed", "thu"]), gracePeriodMinutes: 15, lateThresholdMinutes: 30, overtimeStartAfterMinutes: 30, overtimeMultiplier: 1.75, color: "#0f172a" },
 ];
-const shiftTemplatesStore: any[] = shiftsStore.slice();
-const shiftAssignmentsStore: any[] = [];
-const shiftExceptionsStore: any[] = [];
-let shiftIdSeq = shiftsStore.length + 1;
 
-app.get("/api/shifts", auth, async (_req, res) => {
-  res.json({ success: true, data: shiftsStore });
+function parseShiftDays(value: any): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string") {
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; }
+  }
+  return [];
+}
+
+function shiftColorFromId(id: number) {
+  const colors = ["#1d4ed8", "#7c3aed", "#059669", "#d97706", "#dc2626", "#0891b2", "#0f172a", "#be185d"];
+  return colors[Math.abs(Number(id || 0)) % colors.length];
+}
+
+function mapShiftPattern(row: any) {
+  const days = parseShiftDays(row.weekly_days_json ?? row.weeklyDaysJson);
+  const start = String(row.start_time ?? row.startTime ?? "09:00").slice(0, 5);
+  const end = String(row.end_time ?? row.endTime ?? "17:00").slice(0, 5);
+  const shiftType = row.shift_type ?? row.shiftType ?? "fixed";
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let endMins = (eh || 0) * 60 + (em || 0);
+  const startMins = (sh || 0) * 60 + (sm || 0);
+  const isOvernight = shiftType === "overnight" || endMins <= startMins;
+  if (isOvernight) endMins += 1440;
+  const breakMinutes = Number(row.break_minutes ?? row.breakMinutes ?? 0);
+  return {
+    id: Number(row.id),
+    code: row.code,
+    nameAr: row.name_ar ?? row.nameAr,
+    nameEn: row.name_en ?? row.nameEn,
+    startTime: start,
+    endTime: end,
+    breakMinutes,
+    isOvernight,
+    isFlexible: shiftType === "flexible",
+    workingDaysJson: JSON.stringify(days),
+    days,
+    gracePeriodMinutes: Number(row.grace_in_minutes ?? row.gracePeriodMinutes ?? 0),
+    lateThresholdMinutes: Number(row.grace_in_minutes ?? row.lateThresholdMinutes ?? 0),
+    deductionPolicy: "none",
+    deductionAmount: 0,
+    earlyLeaveThresholdMinutes: Number(row.grace_out_minutes ?? row.earlyLeaveThresholdMinutes ?? 0),
+    overtimeStartAfterMinutes: Number(row.overtime_after_minutes ?? row.overtimeStartAfterMinutes ?? 0),
+    overtimeMultiplier: Number(row.overtime_multiplier ?? row.overtimeMultiplier ?? 1.5),
+    color: row.color ?? shiftColorFromId(Number(row.id)),
+    status: row.is_active === false ? "inactive" : "active",
+    totalHours: Math.max(0, (endMins - startMins - breakMinutes) / 60),
+    assignmentCount: Number(row.assignment_count ?? 0),
+    notes: row.notes ?? "",
+  };
+}
+
+function readScheduleMeta(notes: string | null | undefined) {
+  if (!notes) return { notes: "", recurrence: "weekly", locationId: null as number | null };
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === "object") {
+      return {
+        notes: String(parsed.notes ?? ""),
+        recurrence: String(parsed.recurrence ?? "weekly"),
+        locationId: parsed.locationId == null ? null : Number(parsed.locationId),
+      };
+    }
+  } catch {}
+  return { notes: notes || "", recurrence: "weekly", locationId: null as number | null };
+}
+
+function writeScheduleMeta(notes: string | null | undefined, recurrence: string | null | undefined, locationId: any) {
+  return JSON.stringify({
+    notes: notes || "",
+    recurrence: ["daily", "weekly", "monthly"].includes(String(recurrence)) ? String(recurrence) : "weekly",
+    locationId: locationId == null || locationId === "" ? null : Number(locationId),
+  });
+}
+
+function dateOnly(value: Date | string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function dayKey(value: Date) {
+  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][value.getDay()];
+}
+
+function scheduleAppliesToDate(schedule: any, date: Date, pattern: any) {
+  const target = dateOnly(date);
+  const from = dateOnly(schedule.effective_from ?? schedule.effectiveFrom ?? schedule.schedule_date ?? target);
+  const to = schedule.effective_to ? dateOnly(schedule.effective_to) : null;
+  if (target < from || (to && target > to)) return false;
+  const meta = readScheduleMeta(schedule.notes);
+  if (meta.recurrence === "daily") return true;
+  if (meta.recurrence === "monthly") return target.slice(8, 10) === from.slice(8, 10);
+  const days = parseShiftDays(pattern.weekly_days_json ?? pattern.workingDaysJson);
+  return !days.length || days.includes(dayKey(date));
+}
+
+function scheduleLocation(locations: AttendanceWorkLocation[], notes: string | null | undefined) {
+  const meta = readScheduleMeta(notes);
+  return locations.find(location => Number(location.id) === Number(meta.locationId)) ?? null;
+}
+
+app.get("/api/shifts", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rows } = await pool.query(
+      `SELECT p.*, COUNT(s.id)::int AS assignment_count
+       FROM attendance_shift_patterns p
+       LEFT JOIN attendance_schedules s ON s.shift_pattern_id=p.id AND s.company_id=p.company_id AND s.is_deleted=false
+       WHERE p.company_id=$1 AND p.is_deleted=false
+       GROUP BY p.id
+       ORDER BY p.created_at DESC, p.id DESC`,
+      [user.companyId]
+    );
+    res.json({ success: true, data: rows.map(mapShiftPattern) });
+  } catch (e: any) {
+    console.error("[GET /api/shifts]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
 });
 
 app.post("/api/shifts", auth, async (req, res) => {
-  const record = { id: shiftIdSeq++, ...req.body };
-  shiftsStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const code = String(req.body.code || req.body.nameEn || req.body.nameAr || `SHIFT-${Date.now()}`).trim().replace(/\s+/g, "-").slice(0, 48).toUpperCase();
+    const shiftType = req.body.isFlexible ? "flexible" : (req.body.isOvernight ? "overnight" : "fixed");
+    const days = parseShiftDays(req.body.workingDaysJson ?? req.body.weeklyDays ?? req.body.days);
+    const { rows } = await pool.query(
+      `INSERT INTO attendance_shift_patterns
+       (company_id, code, name_ar, name_en, shift_type, start_time, end_time, break_minutes, grace_in_minutes, grace_out_minutes, weekly_days_json, overtime_after_minutes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$13)
+       RETURNING *`,
+      [user.companyId, code, req.body.nameAr, req.body.nameEn || req.body.nameAr, shiftType, req.body.startTime || "09:00", req.body.endTime || "17:00", Number(req.body.breakMinutes || 0), Number(req.body.gracePeriodMinutes || 0), Number(req.body.earlyLeaveThresholdMinutes || 0), JSON.stringify(days.length ? days : ["sun", "mon", "tue", "wed", "thu"]), Number(req.body.overtimeStartAfterMinutes || 0), user.userId]
+    );
+    res.status(201).json({ success: true, data: mapShiftPattern(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/shifts]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.put("/api/shifts/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const id = Number(req.params.id);
+    const existing = await pool.query(`SELECT id FROM attendance_shift_patterns WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+    if (!existing.rows[0]) return res.status(404).json({ success: false, message: "Shift not found" });
+    const shiftType = req.body.isFlexible ? "flexible" : (req.body.isOvernight ? "overnight" : "fixed");
+    const days = parseShiftDays(req.body.workingDaysJson ?? req.body.weeklyDays ?? req.body.days);
+    const { rows } = await pool.query(
+      `UPDATE attendance_shift_patterns SET
+       name_ar=$1, name_en=$2, shift_type=$3, start_time=$4, end_time=$5, break_minutes=$6,
+       grace_in_minutes=$7, grace_out_minutes=$8, weekly_days_json=$9::jsonb, overtime_after_minutes=$10,
+       updated_by=$11, updated_at=NOW()
+       WHERE id=$12 AND company_id=$13 AND is_deleted=false
+       RETURNING *`,
+      [req.body.nameAr, req.body.nameEn || req.body.nameAr, shiftType, req.body.startTime || "09:00", req.body.endTime || "17:00", Number(req.body.breakMinutes || 0), Number(req.body.gracePeriodMinutes || 0), Number(req.body.earlyLeaveThresholdMinutes || 0), JSON.stringify(days.length ? days : ["sun", "mon", "tue", "wed", "thu"]), Number(req.body.overtimeStartAfterMinutes || 0), user.userId, id, user.companyId]
+    );
+    res.json({ success: true, data: mapShiftPattern(rows[0]) });
+  } catch (e: any) {
+    console.error("[PUT /api/shifts/:id]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
 });
 
 app.get("/api/shifts/templates", auth, async (_req, res) => {
-  res.json({ success: true, data: shiftTemplatesStore });
+  res.json({ success: true, data: SHIFT_TEMPLATES });
 });
 
-app.get("/api/shifts/assignments", auth, async (_req, res) => {
-  res.json({ success: true, data: shiftAssignmentsStore });
+app.get("/api/shifts/assignments", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const params: any[] = [user.companyId];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND s.employee_id=$${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND (s.employee_id IN (SELECT id FROM employees WHERE company_id=$1 AND direct_manager_id=$${params.push(user.employeeId ?? -1)} AND is_deleted=false) OR s.employee_id=$${params.length})`;
+    const { rows } = await pool.query(
+      `SELECT s.*, p.name_ar AS shift_name_ar, p.name_en AS shift_name_en, p.weekly_days_json, p.start_time, p.end_time,
+              CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+              CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+              e.employee_code, d.name_ar AS department_name_ar, d.name_en AS department_name_en
+       FROM attendance_schedules s
+       JOIN attendance_shift_patterns p ON p.id=s.shift_pattern_id AND p.company_id=s.company_id
+       LEFT JOIN employees e ON e.id=s.employee_id AND e.company_id=s.company_id
+       LEFT JOIN departments d ON d.id=s.department_id AND d.company_id=s.company_id
+       WHERE s.company_id=$1 AND s.is_deleted=false${scope}
+       ORDER BY s.effective_from DESC, s.id DESC
+       LIMIT 200`,
+      params
+    );
+    res.json({ success: true, data: rows.map(row => ({ ...camelAts(row), ...readScheduleMeta(row.notes), shiftNameAr: row.shift_name_ar, shiftNameEn: row.shift_name_en, employeeNameAr: row.employee_name_ar, employeeNameEn: row.employee_name_en, employeeCode: row.employee_code, departmentNameAr: row.department_name_ar, departmentNameEn: row.department_name_en, shiftColor: shiftColorFromId(Number(row.shift_pattern_id)), startDate: row.effective_from, endDate: row.effective_to })) });
+  } catch (e: any) {
+    console.error("[GET /api/shifts/assignments]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
 });
 
 app.post("/api/shifts/assignments", auth, async (req, res) => {
-  const record = { id: Date.now(), ...req.body };
-  shiftAssignmentsStore.push(record);
-  res.status(201).json({ success: true, data: record });
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const patternId = Number(req.body.shiftId || req.body.shiftPatternId);
+    const pattern = await pool.query(`SELECT id FROM attendance_shift_patterns WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [patternId, user.companyId]);
+    if (!pattern.rows[0]) return res.status(400).json({ success: false, message: "Invalid shift pattern" });
+    const employeeId = toInt(req.body.employeeId);
+    const departmentId = toInt(req.body.departmentId);
+    if (!employeeId && !departmentId) return res.status(400).json({ success: false, message: "Employee or department is required" });
+    if (employeeId) {
+      const emp = await pool.query(`SELECT id FROM employees WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [employeeId, user.companyId]);
+      if (!emp.rows[0]) return res.status(403).json({ success: false, message: "Invalid employee scope" });
+    }
+    if (departmentId) {
+      const dept = await pool.query(`SELECT id FROM departments WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [departmentId, user.companyId]);
+      if (!dept.rows[0]) return res.status(403).json({ success: false, message: "Invalid department scope" });
+    }
+    const effectiveFrom = req.body.startDate || req.body.effectiveFrom || new Date().toISOString().slice(0, 10);
+    const { rows } = await pool.query(
+      `INSERT INTO attendance_schedules (company_id, employee_id, department_id, shift_pattern_id, schedule_date, effective_from, effective_to, source, notes, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+       RETURNING *`,
+      [user.companyId, employeeId, departmentId, patternId, req.body.scheduleDate || null, effectiveFrom, req.body.endDate || req.body.effectiveTo || null, employeeId ? "employee" : "department", writeScheduleMeta(req.body.notes, req.body.recurrence, req.body.locationId), user.userId]
+    );
+    res.status(201).json({ success: true, data: camelAts(rows[0]) });
+  } catch (e: any) {
+    console.error("[POST /api/shifts/assignments]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
 });
 
+app.delete("/api/shifts/assignments/:id", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["hradmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const { rowCount } = await pool.query(`UPDATE attendance_schedules SET is_deleted=true, updated_by=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3 AND is_deleted=false`, [user.userId, Number(req.params.id), user.companyId]);
+    if (!rowCount) return res.status(404).json({ success: false, message: "Assignment not found" });
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("[DELETE /api/shifts/assignments/:id]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/shifts/my-schedule", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!["employee", "manager", "hradmin", "payrolladmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const targetEmployeeId = Number(req.query.employeeId || user.employeeId || 0);
+    if (!targetEmployeeId) return res.status(400).json({ success: false, message: "Employee context is required" });
+    const emp = await pool.query(`SELECT id, department_id, direct_manager_id FROM employees WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [targetEmployeeId, user.companyId]);
+    if (!emp.rows[0]) return res.status(404).json({ success: false, message: "Employee not found" });
+    if (user.role === "employee" && Number(user.employeeId) !== targetEmployeeId) return res.status(403).json({ success: false, message: "Forbidden" });
+    if (user.role === "manager" && Number(user.employeeId) !== targetEmployeeId && Number(emp.rows[0].direct_manager_id) !== Number(user.employeeId)) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const from = String(req.query.from || new Date().toISOString().slice(0, 10));
+    const toDate = new Date(from);
+    toDate.setDate(toDate.getDate() + Math.min(60, Math.max(1, Number(req.query.days || 30))));
+    const to = toDate.toISOString().slice(0, 10);
+    const locations = await readAttendanceLocations(user.companyId);
+    const { rows } = await pool.query(
+      `SELECT s.*, p.name_ar, p.name_en, p.start_time, p.end_time, p.break_minutes, p.weekly_days_json, p.shift_type, p.grace_in_minutes, p.grace_out_minutes
+       FROM attendance_schedules s
+       JOIN attendance_shift_patterns p ON p.id=s.shift_pattern_id AND p.company_id=s.company_id AND p.is_deleted=false
+       WHERE s.company_id=$1 AND s.is_deleted=false
+         AND (s.employee_id=$2 OR (s.department_id=$3 AND s.source='department'))
+         AND s.effective_from <= $4
+         AND (s.effective_to IS NULL OR s.effective_to >= $5)
+       ORDER BY s.employee_id NULLS LAST, s.effective_from DESC, s.id DESC`,
+      [user.companyId, targetEmployeeId, emp.rows[0].department_id, to, from]
+    );
+    const days: any[] = [];
+    for (let i = 0; i <= Math.min(60, Math.max(1, Number(req.query.days || 30))); i++) {
+      const d = new Date(from);
+      d.setDate(d.getDate() + i);
+      const schedule = rows.find(row => scheduleAppliesToDate(row, d, row));
+      if (!schedule) continue;
+      const shift = mapShiftPattern({ ...schedule, id: schedule.shift_pattern_id, name_ar: schedule.name_ar, name_en: schedule.name_en, assignment_count: 1 });
+      const location = scheduleLocation(locations, schedule.notes);
+      days.push({
+        date: dateOnly(d),
+        status: dateOnly(d) === new Date().toISOString().slice(0, 10) ? "active_today" : "scheduled",
+        shift,
+        location,
+        recurrence: readScheduleMeta(schedule.notes).recurrence,
+        notes: readScheduleMeta(schedule.notes).notes,
+        googleMapsUrl: location ? `https://www.google.com/maps?q=${location.latitude},${location.longitude}` : null,
+      });
+    }
+    res.json({ success: true, data: { todayShift: days.find(day => day.date === new Date().toISOString().slice(0, 10)) ?? null, upcoming: days, total: days.length } });
+  } catch (e: any) {
+    console.error("[GET /api/shifts/my-schedule]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+app.get("/api/shifts/schedule", auth, async (req, res) => {
+  try {
+    const user = (req as AuthReq).user;
+    if (!canReadBundleA(user)) return res.status(403).json({ success: false, message: "Forbidden" });
+    const weekStart = String(req.query.weekStart || new Date().toISOString().slice(0, 10));
+    const start = new Date(weekStart);
+    const end = new Date(start); end.setDate(end.getDate() + 6);
+    const params: any[] = [user.companyId, weekStart, end.toISOString().slice(0, 10)];
+    let scope = "";
+    if (user.role === "employee") scope = ` AND e.id=$${params.push(user.employeeId ?? -1)}`;
+    if (user.role === "manager") scope = ` AND (e.direct_manager_id=$${params.push(user.employeeId ?? -1)} OR e.id=$${params.length})`;
+    const { rows } = await pool.query(
+      `SELECT e.id AS employee_id, e.employee_code, CONCAT_WS(' ', e.first_name_ar, e.middle_name_ar, e.last_name_ar) AS employee_name_ar,
+              CONCAT_WS(' ', e.first_name_en, e.middle_name_en, e.last_name_en) AS employee_name_en,
+              d.name_ar AS department_name_ar, s.*, p.name_ar, p.name_en, p.start_time, p.end_time, p.break_minutes, p.weekly_days_json, p.shift_type
+       FROM employees e
+       LEFT JOIN departments d ON d.id=e.department_id AND d.company_id=e.company_id
+       LEFT JOIN attendance_schedules s ON s.company_id=e.company_id AND s.is_deleted=false
+        AND (s.employee_id=e.id OR (s.department_id=e.department_id AND s.source='department'))
+        AND s.effective_from <= $3 AND (s.effective_to IS NULL OR s.effective_to >= $2)
+       LEFT JOIN attendance_shift_patterns p ON p.id=s.shift_pattern_id AND p.company_id=e.company_id AND p.is_deleted=false
+       WHERE e.company_id=$1 AND e.is_deleted=false AND e.employment_status='active'${scope}
+       ORDER BY e.employee_code, s.employee_id NULLS LAST, s.effective_from DESC`,
+      params
+    );
+    const grouped = new Map<number, any>();
+    for (const row of rows) {
+      if (!grouped.has(Number(row.employee_id))) {
+        grouped.set(Number(row.employee_id), { employeeId: row.employee_id, nameAr: row.employee_name_ar, nameEn: row.employee_name_en, department: row.department_name_ar, days: Array(7).fill(null), schedules: [] });
+      }
+      if (row.shift_pattern_id) grouped.get(Number(row.employee_id)).schedules.push(row);
+    }
+    for (const row of grouped.values()) {
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        const schedule = row.schedules.find((item: any) => scheduleAppliesToDate(item, d, item));
+        row.days[i] = schedule ? { shiftNameAr: schedule.name_ar, shiftNameEn: schedule.name_en, color: shiftColorFromId(Number(schedule.shift_pattern_id)), source: schedule.source, date: dateOnly(d) } : null;
+      }
+      delete row.schedules;
+    }
+    res.json({ success: true, data: Array.from(grouped.values()) });
+  } catch (e: any) {
+    console.error("[GET /api/shifts/schedule]", e);
+    res.status(bundleAStatus(e)).json({ success: false, message: bundleAMessage(e) });
+  }
+});
+
+const shiftExceptionsStore: any[] = [];
 app.get("/api/shifts/exceptions", auth, async (_req, res) => {
   res.json({ success: true, data: shiftExceptionsStore });
 });
@@ -11216,7 +11580,6 @@ app.post("/api/admin/companies", auth, async (req, res) => {
       manager: [
         { screens: ["employees"], actions: ["view"], scope: "department" },
         { screens: ["leave","overtime","attendance"], actions: ["view","approve"], scope: "department" },
-        { screens: ["disciplinary"], actions: ["view","create","update"], scope: "department" },
         { screens: ["documents","assets","forms"], actions: ["view"], scope: "department" },
       ],
       employee: [
@@ -20601,7 +20964,7 @@ async function buildProductionExport(user: any, dataset: BundleDExportDataset, f
 function exportQueueStats() {
   const byStatus: Record<string, number> = {};
   for (const job of exportJobs.values()) byStatus[job.status] = (byStatus[job.status] || 0) + 1;
-  return { size: exportJobs.size, activeKeys: activeExportKeys.size, byStatus };
+  return { mode: runtimeStore.mode, size: exportJobs.size, activeKeys: activeExportKeys.size, byStatus };
 }
 
 function sanitizeJob(job: ExportJob) {
@@ -20609,13 +20972,48 @@ function sanitizeJob(job: ExportJob) {
   return safe;
 }
 
+function serializeJob(job: ExportJob) {
+  return { ...sanitizeJob(job), bufferBase64: job.buffer ? job.buffer.toString("base64") : undefined };
+}
+
+function hydrateJob(value: any): ExportJob | null {
+  if (!value?.id) return null;
+  const { bufferBase64, ...job } = value;
+  return { ...job, buffer: bufferBase64 ? Buffer.from(bufferBase64, "base64") : undefined } as ExportJob;
+}
+
+async function persistExportJob(job: ExportJob) {
+  await runtimeStore.setJson(`export-job:${job.id}`, serializeJob(job), Math.ceil(EXPORT_JOB_RETENTION_MS / 1000));
+  if (["queued", "running"].includes(job.status)) await runtimeStore.setJson(`export-active:${job.key}`, job.id, Math.ceil(EXPORT_JOB_RETENTION_MS / 1000));
+  else await runtimeStore.delete(`export-active:${job.key}`);
+}
+
+async function loadExportJob(id: string) {
+  const local = exportJobs.get(id);
+  if (local) return local;
+  const persisted = hydrateJob(await runtimeStore.getJson(`export-job:${id}`));
+  if (persisted) exportJobs.set(persisted.id, persisted);
+  return persisted;
+}
+
+async function loadActiveExportJob(key: string) {
+  const localId = activeExportKeys.get(key);
+  const local = localId ? await loadExportJob(localId) : null;
+  if (local) return local;
+  const persistedId = await runtimeStore.getJson<string>(`export-active:${key}`);
+  const persisted = persistedId ? await loadExportJob(persistedId) : null;
+  if (persisted) activeExportKeys.set(key, persisted.id);
+  return persisted;
+}
+
 async function runExportJob(id: string) {
-  const job = exportJobs.get(id);
+  const job = await loadExportJob(id);
   if (!job || job.status === "running" || job.status === "completed") return;
   job.status = "running";
   job.attempts += 1;
   job.startedAt = new Date().toISOString();
   job.updatedAt = job.startedAt;
+  await persistExportJob(job);
   const started = Date.now();
   try {
     const built = await buildProductionExport({
@@ -20632,6 +21030,7 @@ async function runExportJob(id: string) {
     job.completedAt = new Date().toISOString();
     job.durationMs = Date.now() - started;
     job.updatedAt = job.completedAt;
+    await persistExportJob(job);
     safeLog({ level: "info", event: "export_job_completed", requestId: job.requestId, jobId: job.id, dataset: job.dataset, format: job.format, userId: job.userId, companyId: job.companyId, durationMs: job.durationMs, size: job.size });
   } catch (e: any) {
     job.status = "failed";
@@ -20639,9 +21038,11 @@ async function runExportJob(id: string) {
     job.updatedAt = job.failedAt;
     job.durationMs = Date.now() - started;
     job.error = IS_PRODUCTION ? "Export generation failed" : (e?.stack || e?.message || String(e));
+    await persistExportJob(job);
     safeLog({ level: "error", event: "export_job_failed", requestId: job.requestId, jobId: job.id, dataset: job.dataset, format: job.format, userId: job.userId, companyId: job.companyId, durationMs: job.durationMs, error: job.error });
   } finally {
     activeExportKeys.delete(job.key);
+    await runtimeStore.delete(`export-active:${job.key}`);
     setTimeout(() => exportJobs.delete(id), EXPORT_JOB_RETENTION_MS).unref?.();
   }
 }
@@ -20679,8 +21080,7 @@ app.post("/api/production/exports/:dataset/jobs", auth, async (req, res) => {
     if (!allowedExportFormat(format)) return res.status(400).json({ success: false, message: "format must be csv, xlsx, or pdf" });
     if (!bundleDCanExport(user, dataset)) return res.status(403).json({ success: false, message: "Forbidden" });
     const key = `${user.companyId}:${user.userId}:${dataset}:${format}`;
-    const existingId = activeExportKeys.get(key);
-    const existing = existingId ? exportJobs.get(existingId) : null;
+    const existing = await loadActiveExportJob(key);
     if (existing && ["queued", "running"].includes(existing.status)) {
       res.status(202).json({ success: true, data: sanitizeJob(existing), deduped: true });
       return;
@@ -20702,6 +21102,7 @@ app.post("/api/production/exports/:dataset/jobs", auth, async (req, res) => {
     };
     exportJobs.set(job.id, job);
     activeExportKeys.set(key, job.id);
+    await persistExportJob(job);
     safeLog({ level: "info", event: "export_job_queued", requestId: job.requestId, jobId: job.id, dataset, format, userId: user.userId, companyId: user.companyId });
     setImmediate(() => runExportJob(job.id));
     res.status(202).json({ success: true, data: sanitizeJob(job) });
@@ -20713,27 +21114,28 @@ app.post("/api/production/exports/:dataset/jobs", auth, async (req, res) => {
 
 app.get("/api/production/exports/jobs/:id", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  const job = exportJobs.get(String(req.params["id"] || ""));
+  const job = await loadExportJob(String(req.params["id"] || ""));
   if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
   res.json({ success: true, data: sanitizeJob(job) });
 });
 
 app.post("/api/production/exports/jobs/:id/retry", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  const job = exportJobs.get(String(req.params["id"] || ""));
+  const job = await loadExportJob(String(req.params["id"] || ""));
   if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
   if (job.status !== "failed") return res.status(409).json({ success: false, message: "Only failed jobs can be retried" });
   job.status = "queued";
   job.error = undefined;
   job.updatedAt = new Date().toISOString();
   activeExportKeys.set(job.key, job.id);
+  await persistExportJob(job);
   setImmediate(() => runExportJob(job.id));
   res.status(202).json({ success: true, data: sanitizeJob(job) });
 });
 
 app.get("/api/production/exports/jobs/:id/download", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  const job = exportJobs.get(String(req.params["id"] || ""));
+  const job = await loadExportJob(String(req.params["id"] || ""));
   if (!job || job.companyId !== user.companyId || job.userId !== user.userId) return res.status(404).json({ success: false, message: "Export job not found" });
   if (job.status !== "completed" || !job.buffer || !job.contentType || !job.fileName) return res.status(409).json({ success: false, message: "Export job is not ready" });
   res.setHeader("Content-Type", job.contentType);
@@ -20745,7 +21147,8 @@ app.get("/api/production/exports/jobs/:id/download", auth, async (req, res) => {
 app.get("/api/ops/metrics", auth, async (req, res) => {
   const user = (req as AuthReq).user;
   if (!["hradmin", "payrolladmin", "superadmin"].includes(user.role)) return res.status(403).json({ success: false, message: "Forbidden" });
-  const routes = Object.entries(operationalMetrics).map(([key, m]) => ({
+  const metrics = await runtimeStore.metrics();
+  const routes = Object.entries(metrics).map(([key, m]) => ({
     route: key,
     count: m.count,
     errors: m.errors,

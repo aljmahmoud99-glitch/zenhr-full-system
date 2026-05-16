@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-05-15T13:07:56.636Z",
+  "status": "GO",
+  "workflows": {
+    "approvalsNotifications": {
+      "pendingHrStatus": 200,
+      "pendingDomains": [
+        "compliance_contract",
+        "payroll_adjustment",
+        "attendance_correction",
+        "employee_action",
+        "leave",
+        "performance",
+        "recruitment"
+      ],
+      "historyHrStatus": 200,
+      "pendingManagerStatus": 200,
+      "employeeDeniedStatus": 403,
+      "notificationListStatus": 200,
+      "notificationId": 475,
+      "readStatus": 200,
+      "unreadStatus": 200,
+      "foreignReadStatus": 200,
+      "passed": true
+    },
+    "crossDomain": {
+      "leavePayroll": {
+        "source": "Direct leave request plus payroll preview; Sprint 3/Sprint 5 regression evidence",
+        "directLeavePassed": true,
+        "payrollPassed": true
+      },
+      "attendancePayroll": {
+        "source": "qa/cleanup-sprint-5-results.json and Sprint 8 regression",
+        "status": "CONFIRMED_WORKING_BY_REGRESSION"
+      },
+      "recruitmentContractDocuments": {
+        "source": "qa/cleanup-sprint-6-results.json",
+        "status": "CONFIRMED_WORKING",
+        "employeeId": 52,
+        "contractId": 29,
+        "enterpriseDocumentIds": [
+          41,
+          42,
+          43,
+          44,
+          40
+        ]
+      },
+      "performanceEmployeeActionPayroll": {
+        "source": "Cleanup Sprint 1/5/8 regression artifacts",
+        "status": "CONFIRMED_BY_REGRESSION"
+      },
+      "payrollAdjustmentPayroll": {
+        "source": "qa/cleanup-sprint-5-results.json",
+        "status": "CONFIRMED_WORKING"
+      }
+    }
+  },
+  "leave": {
+    "typesStatus": 200,
+    "leaveTypeId": 2,
+    "leaveTypePayrollImpactType": "deduct_daily_rate",
+    "createStatus": 201,
+    "requestId": 60,
+    "managerApproveStatus": 200,
+    "hrApproveStatus": 200,
+    "finalStatus": "approved",
+    "detailStatus": 200,
+    "auditStatus": 200,
+    "auditRows": 3,
+    "payrollImpactStatus": 200,
+    "payrollImpactRows": 20,
+    "employeeNotificationsStatus": 200,
+    "notificationCount": 20,
+    "passed": true
+  },
+  "approvalsNotifications": {
+    "pendingHrStatus": 200,
+    "pendingDomains": [
+      "compliance_contract",
+      "payroll_adjustment",
+      "attendance_correction",
+      "employee_action",
+      "leave",
+      "performance",
+      "recruitment"
+    ],
+    "historyHrStatus": 200,
+    "pendingManagerStatus": 200,
+    "employeeDeniedStatus": 403,
+    "notificationListStatus": 200,
+    "notificationId": 475,
+    "readStatus": 200,
+    "unreadStatus": 200,
+    "foreignReadStatus": 200,
+    "passed": true
+  }
+}

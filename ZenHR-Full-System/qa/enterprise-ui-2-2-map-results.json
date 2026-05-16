@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-05-15T17:43:55.266Z",
+  "status": "PASS",
+  "createStatus": 201,
+  "updateStatus": 200,
+  "listStatus": 200,
+  "savedLocation": {
+    "id": 1778867036361,
+    "nameAr": "موقع اختبار ui22-1778867035265",
+    "nameEn": "Test Location ui22-1778867035265",
+    "latitude": 31.9637,
+    "longitude": 35.9206,
+    "radiusMeters": 275,
+    "address": "QA updated ui22-1778867035265"
+  },
+  "persisted": true,
+  "googleMapsUrl": "https://www.google.com/maps?q=31.9637,35.9206"
+}

@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-05-16T13:40:10.000Z",
+  "status": "PASS",
+  "note": "Persisted shift API smoke was executed externally before browser validation.",
+  "shiftId": 10,
+  "assignmentId": "7",
+  "employeeId": 8,
+  "locationId": 1778628714681,
+  "browser": {
+    "status": "PASS",
+    "panelExists": true,
+    "text": "جدولي وورديتي\n\nيعرض الجدول المعتمد من الموارد البشرية مع موقع الحضور ونطاقه.\n\nنشطة اليوم\n2026-05-16 · يومي\n????? ?????? 1778938449745\n09:00 - 17:00\nlocation_on\nموقع اختبار البصمة\n10000m\nفتح خرائط Google\n2026-05-16\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nنشطة اليوم\n2026-05-17\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-18\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-19\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة\n2026-05-20\n????? ?????? 1778938449745\n09:00 - 17:00\nيومي\nموقع اختبار البصمة · 10000m\nمجدولة",
+    "hasMapsButton": true,
+    "noHorizontalOverflow": true,
+    "screenshot": "qa/enterprise-ui-2-5-screenshots/employee-shift-reflection.png"
+  }
+}

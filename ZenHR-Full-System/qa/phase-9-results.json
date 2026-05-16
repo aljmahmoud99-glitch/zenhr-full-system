@@ -1,38 +1,30 @@
 {
-  "generatedAt": "2026-05-14T18:41:11.241Z",
+  "generatedAt": "2026-05-15T01:19:40.953Z",
   "backend": "http://localhost:3001",
   "status": "GO",
-  "validationGates": {
-    "typecheck": "PASS",
-    "angularDevelopmentBuild": "PASS",
-    "angularProductionBuild": "PASS",
-    "backendHealth": "PASS",
-    "apiSmoke": "PASS",
-    "browserUat": "PASS"
-  },
   "health": {
     "status": 200,
     "ok": true,
     "contentType": "application/json; charset=utf-8",
     "disposition": "",
-    "requestId": "aa2d87a4-91ac-4050-8c28-a0be95bc9de3",
+    "requestId": "15bdccab-ec2a-4197-a1bc-f37b9df56c7b",
     "rateRemaining": "",
     "size": 77,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-14T18:41:11.430Z",
+      "timestamp": "2026-05-15T01:19:41.076Z",
       "version": "1.0.0"
     },
-    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-14T18:41:11.430Z\",\"version\":\"1.0.0\"}"
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-15T01:19:41.076Z\",\"version\":\"1.0.0\"}"
   },
   "readiness": {
     "status": 200,
     "ok": true,
     "contentType": "application/json; charset=utf-8",
     "disposition": "",
-    "requestId": "64a39b17-dd97-4884-91d5-e00077db73f7",
+    "requestId": "1923e337-d850-43a6-be49-c68df7e2a608",
     "rateRemaining": "",
-    "size": 90,
+    "size": 143,
     "body": {
       "status": "ready",
       "version": "1.0.0",
@@ -41,18 +33,22 @@
           "ok": true
         },
         "queue": {
+          "ok": true,
+          "message": "memory adapter"
+        },
+        "environment": {
           "ok": true
         }
       }
     },
-    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true}}}"
+    "text": "{\"status\":\"ready\",\"version\":\"1.0.0\",\"checks\":{\"database\":{\"ok\":true},\"queue\":{\"ok\":true,\"message\":\"memory adapter\"},\"environment\":{\"ok\":true}}}"
   },
   "version": {
     "status": 200,
     "ok": true,
     "contentType": "application/json; charset=utf-8",
     "disposition": "",
-    "requestId": "214e7f12-905a-4e02-b7c7-ac5212528c94",
+    "requestId": "721a8a5a-a996-4d30-9a1e-dd019a13dced",
     "rateRemaining": "",
     "size": 90,
     "body": {
@@ -104,8 +100,8 @@
     }
   },
   "logging": {
-    "requestId": "phase9-1778784071669",
-    "responseRequestId": "phase9-1778784071669",
+    "requestId": "phase9-1778807981357",
+    "responseRequestId": "phase9-1778807981357",
     "structuredLogFound": true,
     "passwordLeaked": false,
     "passed": true
@@ -113,15 +109,16 @@
   "queue": {
     "firstJobStatus": 202,
     "secondJobStatus": 202,
-    "firstJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
-    "secondJobId": "31e4fc1f-7f71-4a50-91b8-9ec914387a54",
+    "firstJobId": "701bf259-bea7-48cb-9c4a-405bdd778923",
+    "secondJobId": "701bf259-bea7-48cb-9c4a-405bdd778923",
     "deduped": true,
     "finalStatus": "completed",
     "attempts": 1,
     "downloadStatus": 200,
-    "downloadSize": 15818,
+    "downloadSize": 17446,
     "metricsStatus": 200,
     "queueMetrics": {
+      "mode": "memory",
       "size": 1,
       "activeKeys": 0,
       "byStatus": {
@@ -134,13 +131,13 @@
     "syncCsv": {
       "status": 200,
       "contentType": "text/csv; charset=utf-8",
-      "size": 14659,
+      "size": 17510,
       "downloadable": true
     },
     "syncXlsx": {
       "status": 200,
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "size": 15818,
+      "size": 17447,
       "downloadable": true
     },
     "syncPdf": {
@@ -152,7 +149,7 @@
     "asyncDownload": {
       "status": 200,
       "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "size": 15818,
+      "size": 17446,
       "downloadable": true
     },
     "passed": true

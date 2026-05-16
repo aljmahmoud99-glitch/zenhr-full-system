@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-05-14T13:01:33.019Z",
+  "generatedAt": "2026-05-15T11:22:38.305Z",
   "status": "GO",
   "payroll": {
     "beforePreviewStatus": 200,
     "afterPreviewStatus": 200,
     "beforeLeaveDeduction": "0.000",
-    "afterLeaveDeduction": "35.064",
+    "afterLeaveDeduction": "33.936",
     "leaveImpactInPolicySnapshot": {
       "days": 1,
       "hours": 8,
-      "amount": 35.064
+      "amount": 33.936
     },
     "enterpriseUnpaidLeaveIsPayrollSource": true
   }

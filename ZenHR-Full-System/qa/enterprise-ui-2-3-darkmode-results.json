@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-05-15T23:09:00.000Z",
+  "status": "PASS",
+  "scope": "targeted dark-mode field and surface sampling",
+  "sampledRoutes": [
+    "/app/settings",
+    "/app/attendance",
+    "/app/notifications",
+    "/app/approvals",
+    "/app/payroll/runs",
+    "/app/documents-reporting"
+  ],
+  "evidence": {
+    "browser": "Chrome CDP production build",
+    "darkInputContrast": "PASS",
+    "dropdownContrast": "PASS",
+    "attendanceLocationCardContrast": "PASS",
+    "consoleErrors": 0,
+    "api500s": 0
+  },
+  "remainingLimitations": []
+}

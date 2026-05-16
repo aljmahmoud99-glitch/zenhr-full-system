@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-05-14T17:18:51.487Z",
+  "generatedAt": "2026-05-15T11:56:56.414Z",
   "status": "GO",
   "notifications": {
     "createStatus": 201,
-    "hrNotificationId": 430,
+    "hrNotificationId": 484,
     "employeeReadForeignStatus": 200,
     "employeeOwnNotificationIds": [
+      475,
+      463,
+      450,
+      439,
       420,
       412,
       407,
       402,
       397,
-      393,
-      381,
-      377,
-      373,
-      369
+      393
     ],
     "employeeUnreadStatus": 200,
     "legacyNotificationsStatus": 200,

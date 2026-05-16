@@ -31,13 +31,13 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/employees/:id': ['hradmin', 'payrolladmin', 'manager', 'employee'],
   '/app/job-descriptions': ['hradmin'],
   '/app/hr-master-data': ['hradmin'],
-  '/app/recruitment': ['hradmin', 'manager', 'payrolladmin', 'recruiter'],
-  '/app/performance-workflows': ['hradmin', 'manager', 'employee', 'payrolladmin'],
-  '/app/documents-reporting': ['hradmin', 'manager', 'employee', 'payrolladmin', 'recruiter'],
+  '/app/recruitment': ['hradmin', 'manager', 'recruiter'],
+  '/app/performance-workflows': ['hradmin', 'manager'],
+  '/app/documents-reporting': ['hradmin', 'payrolladmin', 'recruiter'],
 
   '/app/pre-employment': ['hradmin'],
   '/app/pre-employment/evaluation/:employeeId': ['hradmin'],
-  '/app/disciplinary': ['hradmin', 'manager'],
+  '/app/disciplinary': ['hradmin'],
   '/app/resignations': ['hradmin', 'manager', 'payrolladmin'],
   '/app/clearance': ['hradmin'],
 
@@ -51,19 +51,19 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/holidays': ['hradmin', 'payrolladmin', 'manager', 'employee'],
 
   '/app/compliance': ['hradmin'],
-  '/app/compliance-contracts': ['hradmin', 'superadmin'],
+  '/app/compliance-contracts': ['hradmin'],
   '/app/documents': ['hradmin', 'employee', 'manager', 'payrolladmin', 'superadmin'],
   '/app/assets': ['hradmin', 'manager', 'employee', 'payrolladmin', 'superadmin'],
 
   '/app/advances': ['hradmin', 'payrolladmin', 'employee'],
-  '/app/payroll-attendance': ['hradmin', 'payrolladmin', 'manager', 'employee'],
+  '/app/payroll-attendance': ['hradmin', 'payrolladmin'],
   '/app/payroll/runs': ['hradmin', 'payrolladmin'],
   '/app/payroll/slips': ['hradmin', 'payrolladmin', 'employee'],
   '/app/payroll/salary-components': ['hradmin', 'payrolladmin'],
   '/app/payroll-policies': ['hradmin', 'payrolladmin'],
   '/app/salary-components': ['hradmin', 'payrolladmin'],
 
-  '/app/forms': ['hradmin', 'payrolladmin', 'manager', 'employee'],
+  '/app/forms': ['hradmin', 'manager', 'employee', 'recruiter'],
   '/app/reports': ['hradmin', 'payrolladmin'],
   '/app/users': ['hradmin'],
   '/app/settings': ['hradmin'],
@@ -71,10 +71,10 @@ export const SCREEN_ACCESS: Record<string, string[]> = {
   '/app/roles': ['hradmin'],
   '/app/user-roles': ['hradmin'],
 
-  '/app/employee-actions/career-movements': ['hradmin', 'manager', 'payrolladmin'],
+  '/app/employee-actions/career-movements': ['hradmin', 'payrolladmin'],
   '/app/employee-actions/salary-changes': ['hradmin', 'payrolladmin'],
-  '/app/employee-actions/status-changes': ['hradmin', 'manager', 'payrolladmin'],
-  '/app/workflows': ['hradmin', 'manager', 'payrolladmin'],
+  '/app/employee-actions/status-changes': ['hradmin', 'payrolladmin'],
+  '/app/workflows': ['hradmin', 'payrolladmin'],
 };
 
 export interface NavItem {
@@ -114,59 +114,41 @@ const PLATFORM_NAV: NavGroup[] = [
 
 const HRADMIN_NAV: NavGroup[] = [
   {
-    groupKey: 'hr-core',
-    labelAr: 'الموارد البشرية',
-    labelEn: 'HR Core',
+    groupKey: 'employees',
+    labelAr: 'الموظفين',
+    labelEn: 'Employees',
     icon: 'groups',
     items: [
-      { labelAr: 'البيانات الرئيسية للموارد البشرية', labelEn: 'HR Master Data', icon: 'database', path: '/app/hr-master-data', roles: ['hradmin'] },
-      { labelAr: 'الملفات الوظيفية', labelEn: 'Job Profiles', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
       { labelAr: 'الموظفون', labelEn: 'Employees', icon: 'groups', path: '/app/employees' },
-      { labelAr: 'التوظيف والتعيين', labelEn: 'Recruitment & Hiring', icon: 'person_search', path: '/app/recruitment', roles: ['hradmin'] },
-      { labelAr: 'الأداء وسير العمل', labelEn: 'Performance & Workflows', icon: 'query_stats', path: '/app/performance-workflows', roles: ['hradmin'] },
-      { labelAr: 'الوثائق والتقارير', labelEn: 'Documents & Reporting', icon: 'folder_managed', path: '/app/documents-reporting', roles: ['hradmin'] },
-      { labelAr: 'ما قبل التوظيف', labelEn: 'Pre-Employment', icon: 'person_add', path: '/app/pre-employment' },
-      { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
-      { labelAr: 'الاستقالات', labelEn: 'Resignations', icon: 'logout', path: '/app/resignations' },
-      { labelAr: 'براءة الذمة', labelEn: 'Clearance', icon: 'fact_check', path: '/app/clearance' }
-    ]
-  },
-  {
-    groupKey: 'emp-actions',
-    labelAr: 'حركات الموظفين',
-    labelEn: 'Employee Actions',
-    icon: 'swap_horiz',
-    items: [
+      { labelAr: 'الملفات الوظيفية', labelEn: 'Job Profiles', icon: 'work_history', path: '/app/job-descriptions', roles: ['hradmin'] },
+      { labelAr: 'البيانات الرئيسية للموارد البشرية', labelEn: 'HR Master Data', icon: 'database', path: '/app/hr-master-data', roles: ['hradmin'] },
       { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
-      { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'payments', path: '/app/employee-actions/salary-changes' },
-      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
-      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' }
+      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' }
     ]
   },
   {
-    groupKey: 'time-attendance',
-    labelAr: 'الوقت والحضور',
-    labelEn: 'Time & Attendance',
+    groupKey: 'attendance-leave',
+    labelAr: 'الحضور والإجازات',
+    labelEn: 'Attendance & Leave',
     icon: 'schedule',
     items: [
-      { labelAr: 'الورديات', labelEn: 'Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'الحضور والانصراف', labelEn: 'Attendance', icon: 'fact_check', path: '/app/attendance' },
       { labelAr: 'إدارة الإجازات', labelEn: 'Leave Management', icon: 'event_available', path: '/app/leave-management', roles: ['hradmin'] },
-      { labelAr: 'مركز الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications', roles: ['hradmin'] },
+      { labelAr: 'الورديات', labelEn: 'Shifts', icon: 'schedule', path: '/app/shifts' },
       { labelAr: 'العمل الإضافي', labelEn: 'Overtime', icon: 'more_time', path: '/app/overtime' },
-      { labelAr: 'العطل الرسمية', labelEn: 'Holidays', icon: 'today', path: '/app/holidays' }
+      { labelAr: 'العطل الرسمية', labelEn: 'Holidays', icon: 'today', path: '/app/holidays' },
+      { labelAr: 'مركز الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications', roles: ['hradmin'] }
     ]
   },
   {
-    groupKey: 'compliance-assets',
-    labelAr: 'الامتثال والأصول',
-    labelEn: 'Compliance & Assets',
-    icon: 'verified_user',
+    groupKey: 'recruitment',
+    labelAr: 'التوظيف',
+    labelEn: 'Recruitment',
+    icon: 'person_search',
     items: [
-      { labelAr: 'الامتثال', labelEn: 'Compliance', icon: 'verified_user', path: '/app/compliance' },
-      { labelAr: 'العقود والامتثال', labelEn: 'Contracts & Compliance', icon: 'contract', path: '/app/compliance-contracts', roles: ['hradmin', 'superadmin'] },
-      { labelAr: 'الوثائق والتقارير', labelEn: 'Documents & Reporting', icon: 'folder_managed', path: '/app/documents-reporting' },
-      { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' }
+      { labelAr: 'التوظيف والتعيين', labelEn: 'Recruitment & Hiring', icon: 'person_search', path: '/app/recruitment', roles: ['hradmin'] },
+      { labelAr: 'ما قبل التوظيف', labelEn: 'Pre-Employment', icon: 'person_add', path: '/app/pre-employment' },
+      { labelAr: 'طلبات التوظيف', labelEn: 'Hiring Requests', icon: 'assignment', path: '/app/recruitment', roles: ['hradmin'] }
     ]
   },
   {
@@ -175,11 +157,38 @@ const HRADMIN_NAV: NavGroup[] = [
     labelEn: 'Payroll',
     icon: 'receipt_long',
     items: [
-      { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
       { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'عمليات الرواتب', labelEn: 'Payroll Operations', icon: 'rule', path: '/app/payroll-attendance' },
-      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
-      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' }
+      { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'price_change', path: '/app/employee-actions/salary-changes' },
+      { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
+      { labelAr: 'أثر الإجازات على الرواتب', labelEn: 'Leave Payroll Impact', icon: 'event_available', path: '/app/leave-management' },
+      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
+      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' }
+    ]
+  },
+  {
+    groupKey: 'compliance-assets',
+    labelAr: 'الامتثال والأصول',
+    labelEn: 'Compliance & Assets',
+    icon: 'verified_user',
+    items: [
+      { labelAr: 'العقود والامتثال', labelEn: 'Contracts & Compliance', icon: 'contract', path: '/app/compliance-contracts', roles: ['hradmin', 'superadmin'] },
+      { labelAr: 'الوثائق والتقارير', labelEn: 'Documents & Reporting', icon: 'folder_managed', path: '/app/documents-reporting' },
+      { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' },
+      { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
+      { labelAr: 'الاستقالات', labelEn: 'Resignations', icon: 'logout', path: '/app/resignations' },
+      { labelAr: 'براءة الذمة', labelEn: 'Clearance', icon: 'fact_check', path: '/app/clearance' }
+    ]
+  },
+  {
+    groupKey: 'performance-analytics',
+    labelAr: 'الأداء والتحليلات',
+    labelEn: 'Performance & Analytics',
+    icon: 'query_stats',
+    items: [
+      { labelAr: 'الأداء وسير العمل', labelEn: 'Performance & Workflows', icon: 'query_stats', path: '/app/performance-workflows', roles: ['hradmin'] },
+      { labelAr: 'تقييمات الفريق', labelEn: 'Team Performance', icon: 'reviews', path: '/app/performance-workflows', roles: ['hradmin'] },
+      { labelAr: 'التقارير والتحليلات', labelEn: 'Reports & Analytics', icon: 'analytics', path: '/app/reports' }
     ]
   },
   {
@@ -192,7 +201,8 @@ const HRADMIN_NAV: NavGroup[] = [
       { labelAr: 'الأدوار والصلاحيات', labelEn: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/app/roles' },
       { labelAr: 'تعيين الأدوار', labelEn: 'User Role Assignment', icon: 'assignment_ind', path: '/app/user-roles' },
       { labelAr: 'المستخدمون', labelEn: 'Users', icon: 'manage_accounts', path: '/app/users' },
-      { labelAr: 'الإعدادات', labelEn: 'Settings', icon: 'settings', path: '/app/settings' }
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
+      { labelAr: 'الإعدادات العامة', labelEn: 'General Settings', icon: 'settings', path: '/app/settings' }
     ]
   }
 ];
@@ -204,17 +214,13 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     labelEn: 'Payroll',
     icon: 'receipt_long',
     items: [
-      { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
-      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
       { labelAr: 'عمليات الرواتب', labelEn: 'Payroll Operations', icon: 'rule', path: '/app/payroll-attendance' },
-      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
-      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
-      { labelAr: 'أثر الإجازات على الرواتب', labelEn: 'Leave Payroll Impact', icon: 'event_available', path: '/app/leave-management' },
-      { labelAr: 'مركز الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
-      { labelAr: 'إدارة السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
-      { labelAr: 'مراجعة عروض التوظيف', labelEn: 'Offer Review', icon: 'local_offer', path: '/app/recruitment' },
+      { labelAr: 'مسيرات الرواتب', labelEn: 'Payroll Runs', icon: 'receipt_long', path: '/app/payroll/runs' },
       { labelAr: 'تعديلات الرواتب', labelEn: 'Salary Changes', icon: 'price_change', path: '/app/employee-actions/salary-changes' },
-      { labelAr: 'توصيات الأداء والزيادات', labelEn: 'Performance Recommendations', icon: 'trending_up', path: '/app/performance-workflows' }
+      { labelAr: 'السلف', labelEn: 'Salary Advances', icon: 'payments', path: '/app/advances' },
+      { labelAr: 'أثر الإجازات على الرواتب', labelEn: 'Leave Payroll Impact', icon: 'event_available', path: '/app/leave-management' },
+      { labelAr: 'مكونات الراتب', labelEn: 'Salary Components', icon: 'tune', path: '/app/salary-components' },
+      { labelAr: 'سياسات احتساب الرواتب', labelEn: 'Payroll Policies', icon: 'policy', path: '/app/payroll-policies' },
     ]
   },
   {
@@ -224,40 +230,43 @@ const PAYROLLADMIN_NAV: NavGroup[] = [
     icon: 'storage',
     items: [
       { labelAr: 'الموظفون', labelEn: 'Employees (Read)', icon: 'groups', path: '/app/employees' },
-      { labelAr: 'وثائق وتقارير الفريق', labelEn: 'Team Documents & Reports', icon: 'folder_managed', path: '/app/documents-reporting' },
       { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' },
+      { labelAr: 'وثائق وتقارير الفريق', labelEn: 'Team Documents & Reports', icon: 'folder_managed', path: '/app/documents-reporting' },
     ]
   }
 ];
 
 const MANAGER_NAV: NavGroup[] = [
   {
-    groupKey: 'team-mgmt',
-    labelAr: 'إدارة الفريق',
-    labelEn: 'Team Management',
+    groupKey: 'my-team',
+    labelAr: 'فريقي',
+    labelEn: 'My Team',
     icon: 'groups',
     items: [
       { labelAr: 'فريقي', labelEn: 'My Team', icon: 'groups', path: '/app/employees' },
-      { labelAr: 'طلبات التوظيف', labelEn: 'Hiring Requests', icon: 'person_search', path: '/app/recruitment' },
-      { labelAr: 'تقييمات الفريق', labelEn: 'Team Performance', icon: 'query_stats', path: '/app/performance-workflows' },
-      { labelAr: 'التأديب', labelEn: 'Disciplinary', icon: 'gavel', path: '/app/disciplinary' },
-      { labelAr: 'الحركات الوظيفية', labelEn: 'Career Movements', icon: 'swap_horiz', path: '/app/employee-actions/career-movements' },
-      { labelAr: 'حالة التوظيف', labelEn: 'Employment Status', icon: 'person_off', path: '/app/employee-actions/status-changes' },
-      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' }
+      { labelAr: 'حضور الفريق', labelEn: 'Team Attendance', icon: 'fact_check', path: '/app/attendance' },
+      { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_available', path: '/app/leave-management' },
+      { labelAr: 'العمل الإضافي للفريق', labelEn: 'Team Overtime', icon: 'more_time', path: '/app/overtime' },
+      { labelAr: 'ورديات الفريق', labelEn: 'Team Shifts', icon: 'schedule', path: '/app/shifts' }
     ]
   },
   {
-    groupKey: 'time-attendance',
-    labelAr: 'الوقت والحضور',
-    labelEn: 'Time & Attendance',
-    icon: 'schedule',
+    groupKey: 'approvals',
+    labelAr: 'الموافقات',
+    labelEn: 'Approvals',
+    icon: 'approval',
     items: [
-      { labelAr: 'ورديات الفريق', labelEn: 'Team Shifts', icon: 'schedule', path: '/app/shifts' },
-      { labelAr: 'حضور الفريق', labelEn: 'Team Attendance', icon: 'fact_check', path: '/app/attendance' },
-      { labelAr: 'إجازات الفريق', labelEn: 'Team Leave', icon: 'event_available', path: '/app/leave-management' },
-      { labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
-      { labelAr: 'العمل الإضافي للفريق', labelEn: 'Team Overtime', icon: 'more_time', path: '/app/overtime' },
-      { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' }
+      { labelAr: 'الاعتمادات', labelEn: 'Approvals', icon: 'approval', path: '/app/approvals' },
+      { labelAr: 'طلبات التوظيف', labelEn: 'Hiring Requests', icon: 'person_search', path: '/app/recruitment' }
+    ]
+  },
+  {
+    groupKey: 'performance',
+    labelAr: 'الأداء',
+    labelEn: 'Performance',
+    icon: 'query_stats',
+    items: [
+      { labelAr: 'تقييمات الفريق', labelEn: 'Team Performance', icon: 'query_stats', path: '/app/performance-workflows' }
     ]
   },
   {
@@ -266,29 +275,53 @@ const MANAGER_NAV: NavGroup[] = [
     labelEn: 'Tools',
     icon: 'build',
     items: [
-      { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' },
+      { labelAr: 'الإشعارات', labelEn: 'Notifications', icon: 'notifications', path: '/app/notifications' },
+      { labelAr: 'الأصول', labelEn: 'Assets', icon: 'inventory_2', path: '/app/assets' }
     ]
   }
 ];
 
 const EMPLOYEE_NAV: NavGroup[] = [
   {
-    groupKey: 'self-service',
-    labelAr: 'الخدمة الذاتية',
-    labelEn: 'Self Service',
-    icon: 'person',
+    groupKey: 'my-attendance-leave',
+    labelAr: 'حضوري وإجازاتي',
+    labelEn: 'My Attendance & Leave',
+    icon: 'fact_check',
     items: [
       { labelAr: 'حضوري', labelEn: 'My Attendance', icon: 'fact_check', path: '/app/attendance' },
       { labelAr: 'مركز إجازاتي', labelEn: 'My Leave Center', icon: 'event_available', path: '/app/leave-management' },
-      { labelAr: 'إشعاراتي', labelEn: 'My Notifications', icon: 'notifications', path: '/app/notifications' },
       { labelAr: 'ساعاتي الإضافية', labelEn: 'My Overtime', icon: 'more_time', path: '/app/overtime' },
-      { labelAr: 'سلفي', labelEn: 'My Advances', icon: 'payments', path: '/app/advances' },
-      { labelAr: 'تعديلات راتبي', labelEn: 'My Payroll Operations', icon: 'price_change', path: '/app/payroll-attendance' },
-      { labelAr: 'تقييماتي', labelEn: 'My Performance', icon: 'query_stats', path: '/app/performance-workflows' },
+      { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' }
+    ]
+  },
+  {
+    groupKey: 'my-salary',
+    labelAr: 'راتبي',
+    labelEn: 'My Salary',
+    icon: 'receipt_long',
+    items: [
       { labelAr: 'مسير راتبي', labelEn: 'My Payslips', icon: 'receipt_long', path: '/app/payroll/slips' },
-      { labelAr: 'نماذجي وتقاريري', labelEn: 'My Forms & Reports', icon: 'folder_managed', path: '/app/documents-reporting' },
-      { labelAr: 'أصولي', labelEn: 'My Assets', icon: 'inventory_2', path: '/app/assets' },
-      { labelAr: 'العطل الرسمية', labelEn: 'Public Holidays', icon: 'today', path: '/app/holidays' },
+      { labelAr: 'سلفي', labelEn: 'My Advances', icon: 'payments', path: '/app/advances' }
+    ]
+  },
+  {
+    groupKey: 'my-profile',
+    labelAr: 'ملفي',
+    labelEn: 'My Profile',
+    icon: 'person',
+    items: [
+      { labelAr: 'نماذجي', labelEn: 'My Forms', icon: 'dynamic_form', path: '/app/forms' },
+      { labelAr: 'وثائقي', labelEn: 'My Documents', icon: 'folder_managed', path: '/app/documents' },
+      { labelAr: 'أصولي', labelEn: 'My Assets', icon: 'inventory_2', path: '/app/assets' }
+    ]
+  },
+  {
+    groupKey: 'notifications',
+    labelAr: 'الإشعارات',
+    labelEn: 'Notifications',
+    icon: 'notifications',
+    items: [
+      { labelAr: 'إشعاراتي', labelEn: 'My Notifications', icon: 'notifications', path: '/app/notifications' }
     ]
   }
 ];
@@ -348,7 +381,7 @@ export const ACTION_ACCESS: Record<string, string[]> = {
   'advance:create:tenant': ['hradmin'],
 
   'disciplinary:create': ['hradmin'],
-  'disciplinary:view': ['hradmin', 'manager'],
+  'disciplinary:view': ['hradmin'],
 
   'user:create:hradmin': ['superadmin'],
   'user:create:payrolladmin': ['superadmin'],
@@ -414,7 +447,7 @@ export class RoleAccessService {
       .subscribe(res => {
         this._fetching = false;
         if (res?.success && res.data) {
-          this._permissionMap.next(res.data);
+          this._permissionMap.next(this.applyGovernanceDenyList(res.data));
         }
         // On failure: _permissionMap stays null → canDoSync() falls back to _legacyCheck()
       });
@@ -431,11 +464,19 @@ export class RoleAccessService {
   }
 
   canSeePage(page: string): boolean {
-    return (SCREEN_ACCESS[page] ?? []).includes(this.role);
+    return this.rolesForPath(page).includes(this.role);
   }
 
   getNavGroups(): NavGroup[] {
-    return NAV_MAP[this.role] ?? [];
+    const groups = NAV_MAP[this.role] ?? [];
+    return groups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item =>
+          (!item.roles || item.roles.includes(this.role)) && this.canSeePage(item.path)
+        )
+      }))
+      .filter(group => group.items.length > 0);
   }
 
   canDoAction(action: string): boolean {
@@ -559,13 +600,12 @@ export class RoleAccessService {
       return true;
     }
 
-    const managerScreens = ['employees', 'leave', 'overtime', 'attendance', 'disciplinary', 'documents', 'assets', 'forms'];
+    const managerScreens = ['employees', 'leave', 'overtime', 'attendance', 'documents', 'assets', 'forms'];
     if (role === 'manager') {
       if (!managerScreens.includes(screen)) return false;
       if (['employees', 'documents', 'assets', 'forms'].includes(screen)) return action === 'view';
       if (screen === 'leave' || screen === 'overtime') return action === 'view' || action === 'approve';
       if (screen === 'attendance') return action === 'view';
-      if (screen === 'disciplinary') return action === 'view' || action === 'create' || action === 'update';
       return false;
     }
 
@@ -577,5 +617,42 @@ export class RoleAccessService {
     }
 
     return false;
+  }
+
+  private applyGovernanceDenyList(map: PermissionMap): PermissionMap {
+    const next: PermissionMap = {
+      ...map,
+      screens: Object.fromEntries(Object.entries(map.screens || {}).map(([screen, actions]) => [screen, { ...actions }]))
+    };
+    if (this.role === 'manager') {
+      delete next.screens['disciplinary'];
+      delete next.screens['employee-actions'];
+    }
+    if (this.role === 'employee') {
+      for (const screen of ['disciplinary', 'employees', 'settings', 'users', 'compliance', 'reports']) {
+        delete next.screens[screen];
+      }
+      if (next.screens['payroll']) next.screens['payroll'] = { view: next.screens['payroll']?.['view'] === true };
+    }
+    if (this.role === 'payrolladmin') {
+      for (const screen of ['recruitment', 'disciplinary', 'compliance']) {
+        delete next.screens[screen];
+      }
+    }
+    return next;
+  }
+
+  private rolesForPath(path: string): string[] {
+    if (SCREEN_ACCESS[path]) return SCREEN_ACCESS[path];
+    const match = Object.entries(SCREEN_ACCESS).find(([pattern]) => {
+      if (!pattern.includes(':')) return false;
+      const regexSource = pattern
+        .split('/')
+        .map(segment => segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('/');
+      const regex = new RegExp(`^${regexSource}$`);
+      return regex.test(path);
+    });
+    return match?.[1] ?? [];
   }
 }

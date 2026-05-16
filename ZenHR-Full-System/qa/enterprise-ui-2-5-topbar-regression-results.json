@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-05-16T13:41:04.964Z",
+  "status": "PASS",
+  "source": "qa/topbar-performance-menu-order.cjs",
+  "scope": "short regression smoke after Prompt 2.5 changes",
+  "note": "Full five-minute topbar stability was already validated in Prompt 2.4 GO. This pass verifies 2.5 did not reintroduce obvious topbar CPU/API/overflow regression.",
+  "requestedDurationMs": 1000,
+  "state": {
+    "done": true,
+    "ticks": 13,
+    "errors": [],
+    "startedAt": 1778938872892,
+    "endedAt": 1778938873898
+  },
+  "networkDuringStress": 0,
+  "dom": {
+    "route": "http://127.0.0.1:5079/#/app/shifts",
+    "bodyLength": 2121,
+    "navGroups": 7,
+    "dropdownVisible": false,
+    "noHorizontalOverflow": true
+  },
+  "screenshot": "qa/topbar-performance-screenshots/topbar-stress-final.png",
+  "errors": []
+}

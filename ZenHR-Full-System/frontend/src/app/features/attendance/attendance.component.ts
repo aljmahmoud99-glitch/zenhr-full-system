@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoleAccessService } from '../../core/services/role-access.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { ToastService } from '../../core/services/toast.service';
 import { SkeletonCardComponent } from '../../shared/components/skeleton/skeleton-card.component';
 import { SkeletonKpiCardsComponent } from '../../shared/components/skeleton/skeleton-kpi-cards.component';
@@ -83,6 +84,15 @@ interface TrustedDeviceRow {
   lastUsedAt?: string;
 }
 
+interface EmployeeScheduleDay {
+  date: string;
+  status: string;
+  shift: any;
+  location?: WorkLocationRow | null;
+  recurrence?: string;
+  googleMapsUrl?: string | null;
+}
+
 @Component({
   selector: 'app-attendance',
   standalone: true,
@@ -106,6 +116,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   mapRecords = signal<AttendanceRecordRow[]>([]);
   workLocations = signal<WorkLocationRow[]>([]);
   trustedDevices = signal<TrustedDeviceRow[]>([]);
+  mySchedule = signal<{ todayShift: EmployeeScheduleDay | null; upcoming: EmployeeScheduleDay[]; total: number } | null>(null);
+  editingLocationId = signal<number | null>(null);
 
   loading = signal(false);
   logLoading = signal(false);
@@ -113,6 +125,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   mapLoading = signal(false);
   clockLoading = signal(false);
   locationSaving = signal(false);
+  mapDragging = signal(false);
+  openingMapKey = signal<string | null>(null);
   requestSubmitting = signal(false);
   enrollingDevice = signal(false);
   devicesLoading = signal(false);
@@ -134,6 +148,9 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   rejectDialogError = signal('');
 
   private clockTimer: any;
+  private readonly textCache = new Map<string, string>();
+  private mapPointerFrame: number | null = null;
+  private lastMapOpenAt = 0;
 
   logFilter = {
     search: '',
@@ -208,7 +225,11 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     ];
   });
 
-  constructor(public auth: AuthService, private access: RoleAccessService, private api: ApiService, private toast: ToastService) {}
+  readonly todayShift = computed(() => this.mySchedule()?.todayShift ?? null);
+  readonly upcomingSchedulePreview = computed(() => (this.mySchedule()?.upcoming ?? []).slice(0, 5));
+  readonly primaryScheduleShift = computed(() => this.todayShift() ?? this.upcomingSchedulePreview()[0] ?? null);
+
+  constructor(public auth: AuthService, private access: RoleAccessService, private api: ApiService, private toast: ToastService, private i18n: I18nService) {}
 
   get lang() {
     return this.auth.lang;
@@ -239,12 +260,13 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.clockTimer = setInterval(() => this.now.set(new Date()), 1000);
+    this.clockTimer = setInterval(() => this.now.set(new Date()), 30000);
     this.loadDashboard();
     this.loadSummary();
     this.loadTodayRecord();
     this.loadLog();
     this.loadRequests();
+    this.loadMySchedule();
     if (this.isHrOrManager) {
       this.loadMap();
     }
@@ -255,10 +277,14 @@ export class AttendanceComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     if (this.clockTimer) clearInterval(this.clockTimer);
+    if (this.mapPointerFrame != null) cancelAnimationFrame(this.mapPointerFrame);
   }
 
   t(ar: string, en: string) {
     if (this.lang !== 'ar') return en;
+    const key = `${this.lang}|${en}|${ar}`;
+    const cached = this.textCache.get(key);
+    if (cached != null) return cached;
     const cleanArabic: Record<string, string> = {
       'Status': 'الحالة',
       'Clock in': 'الحضور',
@@ -291,7 +317,30 @@ export class AttendanceComponent implements OnInit, OnDestroy {
       'Failed to save work location.': 'تعذر حفظ موقع العمل.',
       'Location deleted.': 'تم حذف الموقع.'
     };
-    return cleanArabic[en] || ar;
+    const result = this.i18n.cleanArabicText(cleanArabic[en] || ar);
+    if (this.textCache.size > 1500) this.textCache.clear();
+    this.textCache.set(key, result);
+    return result;
+  }
+
+  loadMySchedule() {
+    this.api.get<any>('/api/shifts/my-schedule?days=14').subscribe({
+      next: response => this.mySchedule.set(response.data || null),
+      error: () => this.mySchedule.set(null)
+    });
+  }
+
+  scheduleStatusLabel(status: string) {
+    if (status === 'active_today') return this.t('نشطة اليوم', 'Active today');
+    if (status === 'completed') return this.t('مكتملة', 'Completed');
+    if (status === 'missed') return this.t('غائب / فائتة', 'Missed / absent');
+    return this.t('مجدولة', 'Scheduled');
+  }
+
+  recurrenceLabel(recurrence?: string | null) {
+    if (recurrence === 'daily') return this.t('يومي', 'Daily');
+    if (recurrence === 'monthly') return this.t('شهري', 'Monthly');
+    return this.t('أسبوعي', 'Weekly');
   }
 
   setView(view: AttendanceView) {
@@ -808,23 +857,78 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     this.rejectDialogOpen.set(true);
   }
 
-  openLocationModal() {
+  openLocationModal(location?: WorkLocationRow) {
+    this.editingLocationId.set(location?.id ?? null);
+    this.locationForm = location
+      ? {
+          nameAr: location.nameAr || '',
+          nameEn: location.nameEn || '',
+          latitude: Number(location.latitude),
+          longitude: Number(location.longitude),
+          radiusMeters: Number(location.radiusMeters || 200),
+          address: location.address || ''
+        }
+      : {
+          nameAr: '',
+          nameEn: '',
+          latitude: 31.95,
+          longitude: 35.93,
+          radiusMeters: 200,
+          address: ''
+        };
     this.showLocationModal.set(true);
     this.error.set('');
   }
 
   pickLocationFromMap(event: MouseEvent) {
+    if ((event.target as HTMLElement).closest('button,a')) return;
+    this.updateLocationFromPointer(event.currentTarget as HTMLElement, event.clientX, event.clientY);
+  }
+
+  startMapDrag(event: PointerEvent) {
+    if ((event.target as HTMLElement).closest('button,a')) return;
     const target = event.currentTarget as HTMLElement;
+    this.mapDragging.set(true);
+    target.setPointerCapture?.(event.pointerId);
+    this.updateLocationFromPointer(target, event.clientX, event.clientY);
+  }
+
+  dragMapMarker(event: PointerEvent) {
+    if (!this.mapDragging()) return;
+    const target = event.currentTarget as HTMLElement;
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    if (this.mapPointerFrame != null) return;
+    this.mapPointerFrame = requestAnimationFrame(() => {
+      this.mapPointerFrame = null;
+      this.updateLocationFromPointer(target, clientX, clientY);
+    });
+  }
+
+  endMapDrag(event: PointerEvent) {
+    this.mapDragging.set(false);
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+  }
+
+  nudgeMapMarker(deltaLat: number, deltaLng: number) {
+    this.locationForm.latitude = Number((Number(this.locationForm.latitude) + deltaLat).toFixed(6));
+    this.locationForm.longitude = Number((Number(this.locationForm.longitude) + deltaLng).toFixed(6));
+    this.syncLocationAddressHint();
+  }
+
+  private updateLocationFromPointer(target: HTMLElement, clientX: number, clientY: number) {
     const rect = target.getBoundingClientRect();
-    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
     this.locationForm.latitude = Number((31.95 + (0.5 - y) * 0.18).toFixed(6));
     this.locationForm.longitude = Number((35.93 + (x - 0.5) * 0.24).toFixed(6));
+    this.syncLocationAddressHint();
   }
 
   useDefaultLocation() {
     this.locationForm.latitude = 31.95;
     this.locationForm.longitude = 35.93;
+    this.syncLocationAddressHint();
   }
 
   markerX() {
@@ -835,12 +939,23 @@ export class AttendanceComponent implements OnInit, OnDestroy {
     return Math.min(95, Math.max(5, 50 - ((Number(this.locationForm.latitude) - 31.95) / 0.18) * 100));
   }
 
+  radiusDiameterPercent() {
+    const radius = Math.max(50, Number(this.locationForm.radiusMeters || 0));
+    return Math.min(90, Math.max(10, radius / 15));
+  }
+
   useBrowserLocationForPicker() {
     this.getBrowserLocation().then(coords => {
       this.locationForm.latitude = coords.latitude;
       this.locationForm.longitude = coords.longitude;
+      this.syncLocationAddressHint();
       this.locationStatus.set(this.t('تم تحديد موقعك الحالي.', 'Current location selected.'));
     }).catch(message => this.locationStatus.set(message));
+  }
+
+  syncLocationAddressHint() {
+    if (this.locationForm.address?.trim()) return;
+    this.locationForm.address = this.t('موقع محدد من الخريطة', 'Map selected location');
   }
 
   private getBrowserLocation(): Promise<{ latitude: number; longitude: number }> {
@@ -881,10 +996,12 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   saveLocation() {
     if (this.locationSaving()) return;
     this.locationSaving.set(true);
-    this.api.post<any>('/api/attendance/locations', this.locationForm).subscribe({
+    const payload = { ...this.locationForm, id: this.editingLocationId() };
+    this.api.post<any>('/api/attendance/locations', payload).subscribe({
       next: () => {
         this.locationSaving.set(false);
         this.showLocationModal.set(false);
+        this.editingLocationId.set(null);
         this.toast.success(this.t('تم حفظ موقع العمل.', 'Work location saved.'));
         this.loadMap();
       },
@@ -1067,7 +1184,23 @@ export class AttendanceComponent implements OnInit, OnDestroy {
   }
 
   mapsUrl(lat?: number, lng?: number) {
-    return `https://www.google.com/maps?q=${lat},${lng}`;
+    return `https://www.google.com/maps?q=${encodeURIComponent(String(lat ?? ''))},${encodeURIComponent(String(lng ?? ''))}`;
+  }
+
+  openExternalMap(lat?: number, lng?: number, key = 'map') {
+    this.openExternalMapUrl(this.mapsUrl(lat, lng), key);
+  }
+
+  openExternalMapUrl(url?: string | null, key = 'map') {
+    if (!url || this.openingMapKey()) return;
+    const now = Date.now();
+    if (now - this.lastMapOpenAt < 1200) return;
+    this.lastMapOpenAt = now;
+    this.openingMapKey.set(key);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => {
+      if (this.openingMapKey() === key) this.openingMapKey.set(null);
+    }, 1200);
   }
 
   isRequestActionLoading(id: number) {

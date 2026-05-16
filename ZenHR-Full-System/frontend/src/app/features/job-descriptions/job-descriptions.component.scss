@@ -490,6 +490,107 @@ label.invalid textarea {
   margin-top: 12px;
 }
 
+.master-create-modal {
+  position: fixed;
+  z-index: 1200;
+  left: 50%;
+  top: 50%;
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--z-border);
+  border-radius: 16px;
+  background: var(--z-surface);
+  color: var(--z-text-primary);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+}
+
+.master-create-modal::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: -100vh -100vw;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(2px);
+}
+
+.master-create-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+
+  strong {
+    display: block;
+    font-size: 1.05rem;
+    line-height: 1.35;
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: var(--z-text-secondary);
+    font-size: 0.86rem;
+  }
+}
+
+.master-create-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.master-create-fields label {
+  min-width: 0;
+}
+
+.master-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--z-border);
+}
+
+.modal-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(220, 38, 38, 0.24);
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--z-danger);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--z-border);
+  border-radius: 8px;
+  background: var(--z-surface);
+  color: var(--z-text-primary);
+  cursor: pointer;
+}
+
+@media (min-width: 620px) {
+  .master-create-fields {
+    grid-template-columns: 0.8fr 1fr;
+  }
+
+  .master-create-fields label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .profile-title-block {
   code {
     display: inline-flex;

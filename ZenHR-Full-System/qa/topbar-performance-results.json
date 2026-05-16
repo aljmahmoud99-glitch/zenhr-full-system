@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-05-16T13:41:04.964Z",
+  "status": "PASS",
+  "requestedDurationMs": 1000,
+  "minTicks": 10,
+  "maxExpectedPollingRequests": 3,
+  "state": {
+    "done": true,
+    "ticks": 13,
+    "errors": [],
+    "startedAt": 1778938872892,
+    "endedAt": 1778938873898
+  },
+  "taskDurationDelta": 0.15947100000000003,
+  "networkDuringStress": 0,
+  "dom": {
+    "route": "http://127.0.0.1:5079/#/app/shifts",
+    "bodyLength": 2121,
+    "navGroups": 7,
+    "dropdownVisible": false,
+    "noHorizontalOverflow": true
+  },
+  "screenshot": "qa/topbar-performance-screenshots/topbar-stress-final.png"
+}

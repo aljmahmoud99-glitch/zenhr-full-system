@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-05-15T01:21:18.014Z",
+  "status": "GO",
+  "dryRun": true,
+  "statusOnly": false,
+  "migrationCount": 15,
+  "planned": [
+    {
+      "name": "admin-v2.sql",
+      "checksum": "716cbcce57a3388a4ae1fb3e5b19eb5fb37684f9be99dd913100a6da835104cf"
+    },
+    {
+      "name": "bundle-a-payroll-attendance.sql",
+      "checksum": "4552ef0815b75b49e968196eb6f5866cb3a392951a655c5dd14321f26e03e494"
+    },
+    {
+      "name": "bundle-b-performance-workflows.sql",
+      "checksum": "900955dc322b81172bc60586d97379db20e2c0a67c483bf85b0a5da80bf3e750"
+    },
+    {
+      "name": "bundle-c-documents-reporting.sql",
+      "checksum": "0274b7acaa6809a2c2e08caa7694d2b53bf09caa4581631b250a57ebc8cb4cb8"
+    },
+    {
+      "name": "cleanup-sprint-2-notification-preferences.sql",
+      "checksum": "67ea148fb90d3d727afab9bd38875f9e74b882a5d47bbf42a194ded97eb30fda"
+    },
+    {
+      "name": "fix-database.sql",
+      "checksum": "b6c7c86ce50cf1e6995e7117072e44760e83fe8a7d4a7f36725b89df9dfdebb9"
+    },
+    {
+      "name": "full-enterprise-process-v1.sql",
+      "checksum": "1eeb6ef0e65e514bcc9d94397150540f0be70f17d2dd7d2cf2540f6fb9fa2171"
+    },
+    {
+      "name": "phase-1-hr-master-data.sql",
+      "checksum": "219c22bbe47d4bbe24121af3ca071ca3430f382277dae5e1710bbc54c254093f"
+    },
+    {
+      "name": "phase-1-payroll-policy-engine.sql",
+      "checksum": "20a69bf40147b0ce1808407a111ef03a6630b8f21f2c1f42ecc277cb374d47a7"
+    },
+    {
+      "name": "phase-2-dynamic-job-profiles.sql",
+      "checksum": "c5f18c1675da14e3fef8b0103bf80c223b8044a76dbc417e9c556b15ab77164d"
+    },
+    {
+      "name": "phase-3-recruitment-hiring.sql",
+      "checksum": "70fc114750aa01ef99f2e786f74c76708486b69ee1e079ffeab9d4e5fdee3f99"
+    },
+    {
+      "name": "phase-b-compliance-contracts.sql",
+      "checksum": "b019d803ea6fa5b86014419cadd4e6c952e9153917c7e8afdf9eb18ab71c3b6b"
+    },
+    {
+      "name": "phase-c-biometric-geofenced-attendance.sql",
+      "checksum": "3617550038332106e4a5ac436dd0f241df5527100a638c5d89ef50fe63996181"
+    },
+    {
+      "name": "phase-d-leave-notifications.sql",
+      "checksum": "d7a566d96cbd43d4e3a740c242c672062911b1d1d796a81bced45871ec7f700d"
+    },
+    {
+      "name": "system-admin-v1.sql",
+      "checksum": "3fcd9073f2440d77cbdb1ff5364cb6d910611ba067b5b5668d3de61858be02ea"
+    }
+  ],
+  "applied": [],
+  "skipped": [],
+  "errors": [],
+  "limitation": "DATABASE_URL not set; dry-run ordering/checksum validation only."
+}
