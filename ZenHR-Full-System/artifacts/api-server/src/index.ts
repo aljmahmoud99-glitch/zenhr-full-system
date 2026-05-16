@@ -2846,11 +2846,26 @@ app.get("/api/leave/requests/:id", auth, async (req, res) => {
 app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (user.role !== "manager" && user.role !== "hradmin") {
+    if (!["manager", "hradmin", "superadmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Only managers or HR administrators can approve leave requests" }); return;
     }
     const requestId = parseInt(req.params["id"]!);
-    const [lr] = await db.select().from(leaveRequestsTable).where(eq(leaveRequestsTable.id, requestId));
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      res.status(404).json({ success: false, message: "Leave request not found" }); return;
+    }
+    const [scoped] = await db.select({
+      request: leaveRequestsTable,
+      directManagerId: employeesTable.directManagerId,
+    })
+      .from(leaveRequestsTable)
+      .innerJoin(employeesTable, eq(leaveRequestsTable.employeeId, employeesTable.id))
+      .where(and(
+        eq(leaveRequestsTable.id, requestId),
+        eq(leaveRequestsTable.isDeleted, false),
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+      ));
+    const lr = scoped?.request;
     if (!lr) { res.status(404).json({ success: false, message: "Leave request not found" }); return; }
 
     if (user.role === "manager") {
@@ -2858,12 +2873,11 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
       if (lr.status !== "pending") {
         res.status(400).json({ success: false, message: "Only pending requests can be approved by a manager" }); return;
       }
-      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
-      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
-        .where(and(eq(employeesTable.id, lr.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
-      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return; }
+      if (Number(scoped.directManagerId) !== Number(user.employeeId)) {
+        res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return;
+      }
       const [updated] = await db.update(leaveRequestsTable).set({ status: "manager_approved" })
-        .where(eq(leaveRequestsTable.id, requestId)).returning();
+        .where(and(eq(leaveRequestsTable.id, requestId), eq(leaveRequestsTable.isDeleted, false))).returning();
       await notifyRole(user.companyId, "hradmin", {
         companyId: user.companyId, actorUserId: user.userId,
         entityType: "leave_request", entityId: requestId,
@@ -2883,7 +2897,7 @@ app.post("/api/leave/requests/:id/approve", auth, async (req, res) => {
     }
     const [updated] = await db.update(leaveRequestsTable).set({
       status: "approved", approvedById: user.userId, approvedAt: new Date(),
-    }).where(eq(leaveRequestsTable.id, requestId)).returning();
+    }).where(and(eq(leaveRequestsTable.id, requestId), eq(leaveRequestsTable.isDeleted, false))).returning();
 
     // â”€â”€ Balance update (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {

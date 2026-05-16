@@ -9,7 +9,7 @@ type AuthReq = express.Request & {
 type AuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => void;
 
 const LEAVE_MUTATION_ROLES = new Set(["hradmin", "superadmin"]);
-const LEAVE_REVIEW_ROLES = new Set(["hradmin", "manager"]);
+const LEAVE_REVIEW_ROLES = new Set(["hradmin", "manager", "superadmin"]);
 const NOTIFICATION_ADMIN_ROLES = new Set(["hradmin", "superadmin"]);
 
 function toCamel(row: Record<string, any>): Record<string, any> {
@@ -56,6 +56,17 @@ async function managerCanAccessEmployee(user: AuthReq["user"], employeeId: numbe
   if (user.role !== "manager") return false;
   if (!user.employeeId) return false;
   if (user.employeeId === employeeId) return true;
+  const { rows } = await pool.query(
+    `SELECT id FROM employees
+     WHERE id=$1 AND company_id=$2 AND is_deleted=false AND direct_manager_id=$3
+     LIMIT 1`,
+    [employeeId, user.companyId, user.employeeId],
+  );
+  return rows.length > 0;
+}
+
+async function managerCanApproveEmployee(user: AuthReq["user"], employeeId: number): Promise<boolean> {
+  if (user.role !== "manager" || !user.employeeId) return false;
   const { rows } = await pool.query(
     `SELECT id FROM employees
      WHERE id=$1 AND company_id=$2 AND is_deleted=false AND direct_manager_id=$3
@@ -540,7 +551,7 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
       const { rows } = await pool.query(`SELECT * FROM leave_requests WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
       const request = rows[0];
       if (!request) { res.status(404).json({ success: false, message: "Not found" }); return; }
-      if (user.role === "manager" && !(await managerCanAccessEmployee(user, request.employee_id))) {
+      if (user.role === "manager" && !(await managerCanApproveEmployee(user, request.employee_id))) {
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
       const step = await pendingApproverFor(user.companyId, id);
