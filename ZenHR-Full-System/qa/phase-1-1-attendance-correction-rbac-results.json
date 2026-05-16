@@ -1,0 +1,258 @@
+{
+  "generatedAt": "2026-05-16T21:43:40.144Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-16T21:43:40.212Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-16T21:43:40.212Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "hrEmployeeCount": 32,
+    "managerEmployeeCount": 1,
+    "managerEmployeeId": 7,
+    "employeeEmployeeId": 8,
+    "directReportId": 2,
+    "unrelatedEmployeeId": 37
+  },
+  "tests": {
+    "employeeOwnViaMe": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 47,
+          "employeeId": 8,
+          "requestType": "time_correction",
+          "requestDate": "2026-05-16",
+          "requestedClockIn": "2026-05-16T06:30:00.000Z",
+          "requestedClockOut": "2026-05-16T14:30:00.000Z",
+          "reason": "Phase 1.1 attendance correction RBAC employee-own-me 1778967820581",
+          "status": "pending",
+          "managerApproval": "pending",
+          "hrApproval": "pending",
+          "managerNotes": null,
+          "hrNotes": null,
+          "createdAt": "2026-05-16T21:43:40.603Z"
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":47,\"employeeId\":8,\"requestType\":\"time_correction\",\"requestDate\":\"2026-05-16\",\"requestedClockIn\":\"2026-05-16T06:30:00.000Z\",\"requestedClockOut\":\"2026-05-16T14:30:00.000Z\",\"reason\":\"Phase 1.1 attendance correction RBAC employee-own-me 1778967820581\",\"status\":\"pending\",\"managerApproval\":\"pending\",\"hrApproval\":\"pending\",\"managerNotes\":null,\"hrNotes\":null,\"createdAt\":\"2026-05-16T21:43:40.603Z\"}}"
+    },
+    "employeeOtherViaGeneric": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerDirectReport": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 48,
+          "employeeId": 2,
+          "requestType": "time_correction",
+          "requestDate": "2026-05-16",
+          "requestedClockIn": "2026-05-16T06:30:00.000Z",
+          "requestedClockOut": "2026-05-16T14:30:00.000Z",
+          "reason": "Phase 1.1 attendance correction RBAC manager-direct-report 1778967820642",
+          "status": "pending",
+          "managerApproval": "pending",
+          "hrApproval": "pending",
+          "managerNotes": null,
+          "hrNotes": null,
+          "createdAt": "2026-05-16T21:43:40.650Z"
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":48,\"employeeId\":2,\"requestType\":\"time_correction\",\"requestDate\":\"2026-05-16\",\"requestedClockIn\":\"2026-05-16T06:30:00.000Z\",\"requestedClockOut\":\"2026-05-16T14:30:00.000Z\",\"reason\":\"Phase 1.1 attendance correction RBAC manager-direct-report 1778967820642\",\"status\":\"pending\",\"managerApproval\":\"pending\",\"hrApproval\":\"pending\",\"managerNotes\":null,\"hrNotes\":null,\"createdAt\":\"2026-05-16T21:43:40.650Z\"}}"
+    },
+    "managerUnrelated": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "hrSameCompany": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 49,
+          "employeeId": 8,
+          "requestType": "time_correction",
+          "requestDate": "2026-05-16",
+          "requestedClockIn": "2026-05-16T06:30:00.000Z",
+          "requestedClockOut": "2026-05-16T14:30:00.000Z",
+          "reason": "Phase 1.1 attendance correction RBAC hr-same-company 1778967820660",
+          "status": "pending",
+          "managerApproval": "pending",
+          "hrApproval": "pending",
+          "managerNotes": null,
+          "hrNotes": null,
+          "createdAt": "2026-05-16T21:43:40.667Z"
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":49,\"employeeId\":8,\"requestType\":\"time_correction\",\"requestDate\":\"2026-05-16\",\"requestedClockIn\":\"2026-05-16T06:30:00.000Z\",\"requestedClockOut\":\"2026-05-16T14:30:00.000Z\",\"reason\":\"Phase 1.1 attendance correction RBAC hr-same-company 1778967820660\",\"status\":\"pending\",\"managerApproval\":\"pending\",\"hrApproval\":\"pending\",\"managerNotes\":null,\"hrNotes\":null,\"createdAt\":\"2026-05-16T21:43:40.667Z\"}}"
+    },
+    "superadminSameCompany": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 50,
+          "employeeId": 8,
+          "requestType": "time_correction",
+          "requestDate": "2026-05-16",
+          "requestedClockIn": "2026-05-16T06:30:00.000Z",
+          "requestedClockOut": "2026-05-16T14:30:00.000Z",
+          "reason": "Phase 1.1 attendance correction RBAC superadmin-same-company 1778967820672",
+          "status": "pending",
+          "managerApproval": "pending",
+          "hrApproval": "pending",
+          "managerNotes": null,
+          "hrNotes": null,
+          "createdAt": "2026-05-16T21:43:40.679Z"
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":50,\"employeeId\":8,\"requestType\":\"time_correction\",\"requestDate\":\"2026-05-16\",\"requestedClockIn\":\"2026-05-16T06:30:00.000Z\",\"requestedClockOut\":\"2026-05-16T14:30:00.000Z\",\"reason\":\"Phase 1.1 attendance correction RBAC superadmin-same-company 1778967820672\",\"status\":\"pending\",\"managerApproval\":\"pending\",\"hrApproval\":\"pending\",\"managerNotes\":null,\"hrNotes\":null,\"createdAt\":\"2026-05-16T21:43:40.679Z\"}}"
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "missingEmployeeId": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Valid employeeId is required"
+      },
+      "text": "{\"success\":false,\"message\":\"Valid employeeId is required\"}"
+    },
+    "invalidEmployeeId": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Valid employeeId is required"
+      },
+      "text": "{\"success\":false,\"message\":\"Valid employeeId is required\"}"
+    },
+    "nonexistentEmployeeId": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Employee not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Employee not found\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "employeeOwnViaMe": true,
+    "employeeOtherViaGeneric": true,
+    "managerDirectReport": true,
+    "managerUnrelated": true,
+    "hrSameCompany": true,
+    "superadminSameCompany": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true,
+    "missingEmployeeId": true,
+    "invalidEmployeeId": true,
+    "nonexistentEmployeeId": true
+  }
+}

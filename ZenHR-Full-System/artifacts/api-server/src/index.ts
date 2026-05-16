@@ -12458,6 +12458,40 @@ function buildCorrectionRow(c: any, emp?: any) {
   };
 }
 
+async function resolveAttendanceCorrectionCreateTarget(user: AuthReq["user"], rawEmployeeId: unknown) {
+  const employeeId = Number(rawEmployeeId);
+  if (!Number.isInteger(employeeId) || employeeId <= 0) {
+    return { ok: false as const, status: 400, message: "Valid employeeId is required" };
+  }
+  if (!["employee", "manager", "hradmin", "superadmin"].includes(user.role)) {
+    return { ok: false as const, status: 403, message: "Forbidden" };
+  }
+  const { rows } = await pool.query(
+    `SELECT id, company_id, direct_manager_id
+       FROM employees
+      WHERE id=$1
+        AND company_id=$2
+        AND COALESCE(is_deleted,false)=false
+      LIMIT 1`,
+    [employeeId, user.companyId],
+  );
+  const employee = rows[0];
+  if (!employee) {
+    return { ok: false as const, status: 404, message: "Employee not found" };
+  }
+  if (user.role === "employee" && Number(employee.id) !== Number(user.employeeId)) {
+    return { ok: false as const, status: 403, message: "Forbidden" };
+  }
+  if (user.role === "manager") {
+    const isSelf = Number(employee.id) === Number(user.employeeId);
+    const isDirectReport = Number(employee.direct_manager_id) === Number(user.employeeId);
+    if (!isSelf && !isDirectReport) {
+      return { ok: false as const, status: 403, message: "Forbidden" };
+    }
+  }
+  return { ok: true as const, employeeId: Number(employee.id) };
+}
+
 app.get("/api/attendance/me/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
@@ -12554,8 +12588,9 @@ app.post("/api/attendance/requests", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const { employeeId, requestType, requestDate, requestedClockIn, requestedClockOut, reason } = req.body;
-    const targetEmpId = employeeId ?? user.employeeId;
-    if (!targetEmpId) { res.status(400).json({ success: false, message: "employeeId is required" }); return; }
+    const target = await resolveAttendanceCorrectionCreateTarget(user, employeeId);
+    if (!target.ok) { res.status(target.status).json({ success: false, message: target.message }); return; }
+    const targetEmpId = target.employeeId;
     if (!requestDate) { res.status(400).json({ success: false, message: "requestDate is required" }); return; }
     if (!requestedClockIn && !requestedClockOut) { res.status(400).json({ success: false, message: "At least one requested time is required" }); return; }
     if (!reason?.trim()) { res.status(400).json({ success: false, message: "reason is required" }); return; }
