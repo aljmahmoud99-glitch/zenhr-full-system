@@ -1,0 +1,364 @@
+{
+  "generatedAt": "2026-05-16T22:13:51.194Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-16T22:13:51.281Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-16T22:13:51.281Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "hrEmployeeCount": 32,
+    "managerEmployeeCount": 1,
+    "managerEmployeeId": 7,
+    "employeeEmployeeId": 8,
+    "directReportId": 2,
+    "unrelatedEmployeeId": 37,
+    "crossCompanyOvertimeId": 16,
+    "deletedOvertimeId": 17
+  },
+  "setup": {
+    "hrRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 18,
+          "employeeId": 8,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation hr-same-company 1778969631615",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.627Z",
+          "updatedAt": "2026-05-16T22:13:51.627Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":18,\"employeeId\":8,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation hr-same-company 1778969631615\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.627Z\",\"updatedAt\":\"2026-05-16T22:13:51.627Z\",\"isDeleted\":false}}"
+    },
+    "managerDirectRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 19,
+          "employeeId": 2,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation manager-direct-report 1778969631647",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.654Z",
+          "updatedAt": "2026-05-16T22:13:51.654Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":19,\"employeeId\":2,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation manager-direct-report 1778969631647\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.654Z\",\"updatedAt\":\"2026-05-16T22:13:51.654Z\",\"isDeleted\":false}}"
+    },
+    "managerUnrelatedRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 20,
+          "employeeId": 37,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation manager-unrelated 1778969631663",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.668Z",
+          "updatedAt": "2026-05-16T22:13:51.668Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":20,\"employeeId\":37,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation manager-unrelated 1778969631663\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.668Z\",\"updatedAt\":\"2026-05-16T22:13:51.668Z\",\"isDeleted\":false}}"
+    },
+    "employeeForbiddenRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 21,
+          "employeeId": 8,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation employee-forbidden 1778969631673",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.678Z",
+          "updatedAt": "2026-05-16T22:13:51.678Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":21,\"employeeId\":8,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation employee-forbidden 1778969631673\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.678Z\",\"updatedAt\":\"2026-05-16T22:13:51.678Z\",\"isDeleted\":false}}"
+    },
+    "payrollForbiddenRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 22,
+          "employeeId": 8,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation payroll-forbidden 1778969631685",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.689Z",
+          "updatedAt": "2026-05-16T22:13:51.689Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":22,\"employeeId\":8,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation payroll-forbidden 1778969631685\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.689Z\",\"updatedAt\":\"2026-05-16T22:13:51.689Z\",\"isDeleted\":false}}"
+    },
+    "recruiterForbiddenRequest": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 23,
+          "employeeId": 8,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation recruiter-forbidden 1778969631695",
+          "status": "pending",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.699Z",
+          "updatedAt": "2026-05-16T22:13:51.699Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":23,\"employeeId\":8,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation recruiter-forbidden 1778969631695\",\"status\":\"pending\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.699Z\",\"updatedAt\":\"2026-05-16T22:13:51.699Z\",\"isDeleted\":false}}"
+    }
+  },
+  "tests": {
+    "hrSameCompanyApprove": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 18,
+          "employeeId": 8,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation hr-same-company 1778969631615",
+          "status": "approved",
+          "managerApprovedById": null,
+          "managerApprovedAt": null,
+          "hrApprovedById": 2,
+          "hrApprovedAt": "2026-05-16T22:13:51.709Z",
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.627Z",
+          "updatedAt": "2026-05-16T22:13:51.710Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":18,\"employeeId\":8,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation hr-same-company 1778969631615\",\"status\":\"approved\",\"managerApprovedById\":null,\"managerApprovedAt\":null,\"hrApprovedById\":2,\"hrApprovedAt\":\"2026-05-16T22:13:51.709Z\",\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.627Z\",\"updatedAt\":\"2026-05-16T22:13:51.710Z\",\"isDeleted\":false}}"
+    },
+    "managerDirectReportApprove": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 19,
+          "employeeId": 2,
+          "date": "2026-05-16",
+          "hours": "1.00",
+          "reason": "Phase 1.3 overtime tenant isolation manager-direct-report 1778969631647",
+          "status": "manager_approved",
+          "managerApprovedById": 6,
+          "managerApprovedAt": "2026-05-16T22:13:51.720Z",
+          "hrApprovedById": null,
+          "hrApprovedAt": null,
+          "rejectionReason": null,
+          "linkedPayslipId": null,
+          "createdAt": "2026-05-16T22:13:51.654Z",
+          "updatedAt": "2026-05-16T22:13:51.720Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":19,\"employeeId\":2,\"date\":\"2026-05-16\",\"hours\":\"1.00\",\"reason\":\"Phase 1.3 overtime tenant isolation manager-direct-report 1778969631647\",\"status\":\"manager_approved\",\"managerApprovedById\":6,\"managerApprovedAt\":\"2026-05-16T22:13:51.720Z\",\"hrApprovedById\":null,\"hrApprovedAt\":null,\"rejectionReason\":null,\"linkedPayslipId\":null,\"createdAt\":\"2026-05-16T22:13:51.654Z\",\"updatedAt\":\"2026-05-16T22:13:51.720Z\",\"isDeleted\":false}}"
+    },
+    "managerUnrelatedApprove": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Not authorized to approve this employee's request"
+      },
+      "text": "{\"success\":false,\"message\":\"Not authorized to approve this employee's request\"}"
+    },
+    "employeeForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Only managers or HR administrators can approve overtime requests"
+      },
+      "text": "{\"success\":false,\"message\":\"Only managers or HR administrators can approve overtime requests\"}"
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Only managers or HR administrators can approve overtime requests"
+      },
+      "text": "{\"success\":false,\"message\":\"Only managers or HR administrators can approve overtime requests\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Only managers or HR administrators can approve overtime requests"
+      },
+      "text": "{\"success\":false,\"message\":\"Only managers or HR administrators can approve overtime requests\"}"
+    },
+    "crossCompanyApprove": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Overtime request not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Overtime request not found\"}"
+    },
+    "deletedApprove": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Overtime request not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Overtime request not found\"}"
+    },
+    "randomId": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Overtime request not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Overtime request not found\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "hrSameCompanyApprove": true,
+    "crossCompanyApprove404": true,
+    "managerDirectReportApprove": true,
+    "managerUnrelatedForbidden": true,
+    "employeeForbidden": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true,
+    "deletedApprove404": true,
+    "randomId404": true
+  }
+}

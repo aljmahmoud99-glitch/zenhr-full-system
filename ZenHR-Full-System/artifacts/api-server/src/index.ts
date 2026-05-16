@@ -7168,21 +7168,49 @@ app.post("/api/overtime", auth, async (req, res) => {
 async function handleOvertimeApprove(req: any, res: any) {
   try {
     const user = (req as AuthReq).user;
-    if (user.role !== "manager" && user.role !== "hradmin") {
+    if (!["manager", "hradmin", "superadmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Only managers or HR administrators can approve overtime requests" }); return;
     }
     const requestId = parseInt(req.params["id"]!);
-    const [ot] = await db.select().from(overtimeRequestsTable).where(eq(overtimeRequestsTable.id, requestId));
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      res.status(404).json({ success: false, message: "Overtime request not found" }); return;
+    }
+    const [ot] = await db.select({
+      id: overtimeRequestsTable.id,
+      employeeId: overtimeRequestsTable.employeeId,
+      date: overtimeRequestsTable.date,
+      hours: overtimeRequestsTable.hours,
+      reason: overtimeRequestsTable.reason,
+      status: overtimeRequestsTable.status,
+      managerApprovedById: overtimeRequestsTable.managerApprovedById,
+      managerApprovedAt: overtimeRequestsTable.managerApprovedAt,
+      hrApprovedById: overtimeRequestsTable.hrApprovedById,
+      hrApprovedAt: overtimeRequestsTable.hrApprovedAt,
+      rejectionReason: overtimeRequestsTable.rejectionReason,
+      linkedPayslipId: overtimeRequestsTable.linkedPayslipId,
+      createdAt: overtimeRequestsTable.createdAt,
+      updatedAt: overtimeRequestsTable.updatedAt,
+      employeeCompanyId: employeesTable.companyId,
+      directManagerId: employeesTable.directManagerId,
+      employeeDeleted: employeesTable.isDeleted,
+    })
+      .from(overtimeRequestsTable)
+      .innerJoin(employeesTable, eq(overtimeRequestsTable.employeeId, employeesTable.id))
+      .where(and(
+        eq(overtimeRequestsTable.id, requestId),
+        eq(overtimeRequestsTable.isDeleted, false),
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+      ));
     if (!ot) { res.status(404).json({ success: false, message: "Overtime request not found" }); return; }
 
     if (user.role === "manager") {
       if (ot.status !== "pending") {
         res.status(400).json({ success: false, message: "Only pending requests can be approved by a manager" }); return;
       }
-      const scopeConds = await getEmployeeScopeConditions(req as AuthReq);
-      const [emp] = await db.select({ id: employeesTable.id }).from(employeesTable)
-        .where(and(eq(employeesTable.id, ot.employeeId), eq(employeesTable.isDeleted, false), ...scopeConds));
-      if (!emp) { res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return; }
+      if (Number(ot.directManagerId) !== Number(user.employeeId)) {
+        res.status(403).json({ success: false, message: "Not authorized to approve this employee's request" }); return;
+      }
       const [updated] = await db.update(overtimeRequestsTable).set({ status: "manager_approved", managerApprovedById: user.userId, managerApprovedAt: new Date() })
         .where(eq(overtimeRequestsTable.id, requestId)).returning();
       await notifyRole(user.companyId, "hradmin", {

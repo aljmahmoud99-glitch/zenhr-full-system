@@ -1,23 +1,23 @@
 {
-  "generatedAt": "2026-05-14T13:01:08.519Z",
+  "generatedAt": "2026-05-16T22:14:01.211Z",
   "attendancePayrollImpact": {
-    "classification": "CONFIRMED WORKING",
-    "correctionRequestId": 31,
+    "classification": "PARTIAL",
+    "correctionRequestId": 52,
     "processStatus": 200,
-    "createdViolations": 1,
+    "createdViolations": 0,
     "previewStatus": 200,
-    "previewAttendanceImpactDeduction": "39.750",
+    "previewAttendanceImpactDeduction": "0.000",
     "runId": 15,
     "calculateStatus": 200,
-    "payslipId": 363,
-    "snapshotAttendanceImpactDeduction": "39.750",
-    "conclusion": "Approved attendance impacts are consumed by preview/run/payslip snapshot once."
+    "payslipId": 753,
+    "snapshotAttendanceImpactDeduction": "0.000",
+    "conclusion": "Attendance violations exist, but payroll reflection is still incomplete."
   },
   "performancePromotion": {
     "classification": "CONFIRMED WORKING",
     "createStatus": 201,
-    "recommendationId": "13",
-    "workflowId": "14",
+    "recommendationId": "14",
+    "workflowId": "15",
     "approvals": [
       {
         "status": 200,
@@ -29,14 +29,14 @@
         "workflowStatus": "approved",
         "businessEffect": {
           "applied": true,
-          "employeeActionId": 25
+          "employeeActionId": 31
         }
       }
     ],
     "retryApproveStatus": 409,
-    "beforeSalary": 1033,
-    "afterSalary": 1052,
-    "payrollPreviewBasicSalary": "1052.000",
+    "beforeSalary": 1052,
+    "afterSalary": 1071,
+    "payrollPreviewBasicSalary": "1071.000",
     "employeeActionLinked": false,
     "conclusion": "Approved recommendation updates employee salary, payroll preview, and rejects duplicate approval."
   },
@@ -45,9 +45,9 @@
     "legacyCreateStatus": 400,
     "legacyApproveStatus": 0,
     "enterpriseTypeId": 2,
-    "enterpriseCreateStatus": 201,
+    "enterpriseCreateStatus": 409,
     "payrollPreviewStatus": 200,
-    "leaveDeduction": "101.808",
+    "leaveDeduction": "103.656",
     "conclusion": "Leave guardrail needs more verification."
   }
 }

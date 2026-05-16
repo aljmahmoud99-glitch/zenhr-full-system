@@ -1,6 +1,6 @@
 # Cleanup Fix Sprint 1 Report
 
-Generated: 2026-05-14T13:01:08.519Z
+Generated: 2026-05-16T22:14:01.211Z
 
 Status: **PARTIAL**
 
@@ -10,9 +10,9 @@ Status: **PARTIAL**
 |---|---|---|
 | performancePromotion | CONFIRMED WORKING | Approved recommendation updates employee salary, payroll preview, and rejects duplicate approval. |
 | attendanceCorrection | CONFIRMED WORKING | Correction is an audited manual exception and not biometric proof. |
-| attendancePayrollImpact | CONFIRMED WORKING | Approved attendance impacts are consumed by preview/run/payslip snapshot once. |
+| attendancePayrollImpact | PARTIAL | Attendance violations exist, but payroll reflection is still incomplete. |
 | legacyVsEnterpriseLeave | PARTIAL | Leave guardrail needs more verification. |
-| recruitmentConversion | CONFIRMED WORKING | Conversion creates employee/user plus draft contract/checklist handoff and is idempotent. |
+| recruitmentConversion | PARTIAL | Conversion still creates only a partial downstream handoff. |
 | employeeSelfServiceSecurity | CONFIRMED WORKING | No sampled employee data leak or forbidden payroll access remained. |
 | superadminPolicy | DOCUMENTED | Observed and documented; no new superadmin privileges were added in this cleanup sprint. |
 
