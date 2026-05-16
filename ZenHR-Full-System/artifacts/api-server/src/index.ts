@@ -3638,20 +3638,45 @@ app.post("/api/payroll/runs/:id/publish", auth, async (req, res) => {
 app.get("/api/payroll/slips", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    if (!["hradmin", "payrolladmin"].includes(user.role)) {
+    if (!["hradmin", "payrolladmin", "employee"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const { employeeId, year, month } = req.query as Record<string, string>;
-    const conditions: any[] = [];
-    if (employeeId) conditions.push(eq(payslipsTable.employeeId, parseInt(employeeId)));
+    const conditions: any[] = [
+      eq(employeesTable.companyId, user.companyId),
+      eq(payrollRunsTable.companyId, user.companyId),
+      eq(payrollRunsTable.isDeleted, false),
+    ];
+    if (user.role === "employee") {
+      if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
+      conditions.push(eq(payslipsTable.employeeId, user.employeeId));
+      conditions.push(eq(payrollRunsTable.status, "published"));
+      if (employeeId && parseInt(employeeId) !== user.employeeId) {
+        res.json({ success: true, data: [] }); return;
+      }
+    } else if (employeeId) {
+      const parsedEmployeeId = parseInt(employeeId);
+      if (!Number.isInteger(parsedEmployeeId) || parsedEmployeeId <= 0) {
+        res.status(400).json({ success: false, message: "Invalid employeeId" }); return;
+      }
+      conditions.push(eq(payslipsTable.employeeId, parsedEmployeeId));
+    }
     if (year) conditions.push(eq(payslipsTable.runYear, parseInt(year)));
     if (month) conditions.push(eq(payslipsTable.runMonth, parseInt(month)));
-    const slips = conditions.length > 0
-      ? await db.select().from(payslipsTable).where(and(...conditions)).orderBy(desc(payslipsTable.createdAt))
-      : await db.select().from(payslipsTable).orderBy(desc(payslipsTable.createdAt));
+    const scoped = await db.select({ id: payslipsTable.id })
+      .from(payslipsTable)
+      .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+      .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+      .where(and(...conditions))
+      .orderBy(desc(payslipsTable.createdAt));
+    const slipIds = scoped.map(row => row.id);
+    const slips = slipIds.length
+      ? await db.select().from(payslipsTable).where(inArray(payslipsTable.id, slipIds)).orderBy(desc(payslipsTable.createdAt))
+      : [];
     const enriched = await enrichPayslips(slips, db);
     res.json({ success: true, data: enriched });
   } catch (e) {
+    console.error("[/api/payroll/slips]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -3726,21 +3751,31 @@ app.get("/api/payroll/slips/my/summary", auth, async (req, res) => {
 app.get("/api/payroll/slips/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
+    if (!["hradmin", "payrolladmin", "employee"].includes(user.role)) {
+      res.status(403).json({ success: false, error: "Forbidden" }); return;
+    }
     const idVal = parseInt(req.params["id"]!);
     if (isNaN(idVal)) { res.status(400).json({ success: false, error: "Invalid slip ID" }); return; }
-    const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, idVal));
-    if (!slip) { res.status(404).json({ success: false, error: "Not found" }); return; }
+    const conditions: any[] = [
+      eq(payslipsTable.id, idVal),
+      eq(employeesTable.companyId, user.companyId),
+      eq(payrollRunsTable.companyId, user.companyId),
+      eq(payrollRunsTable.isDeleted, false),
+    ];
     // Employees may only view their own slips from published runs
     if (user.role === "employee") {
-      if (slip.employeeId !== user.employeeId) {
-        res.status(403).json({ success: false, error: "Forbidden" }); return;
-      }
-      const [run] = await db.select({ status: payrollRunsTable.status })
-        .from(payrollRunsTable).where(eq(payrollRunsTable.id, slip.payrollRunId));
-      if (!run || run.status !== "published") {
-        res.status(404).json({ success: false, error: "Not found" }); return;
-      }
+      if (!user.employeeId) { res.status(404).json({ success: false, error: "Not found" }); return; }
+      conditions.push(eq(payslipsTable.employeeId, user.employeeId));
+      conditions.push(eq(payrollRunsTable.status, "published"));
     }
+    const [scoped] = await db.select({ id: payslipsTable.id })
+      .from(payslipsTable)
+      .innerJoin(employeesTable, eq(payslipsTable.employeeId, employeesTable.id))
+      .innerJoin(payrollRunsTable, eq(payslipsTable.payrollRunId, payrollRunsTable.id))
+      .where(and(...conditions));
+    if (!scoped) { res.status(404).json({ success: false, error: "Not found" }); return; }
+    const [slip] = await db.select().from(payslipsTable).where(eq(payslipsTable.id, idVal));
+    if (!slip) { res.status(404).json({ success: false, error: "Not found" }); return; }
     const [enriched] = await enrichPayslips([slip], db);
     res.json({ success: true, data: enriched });
   } catch (e) {
