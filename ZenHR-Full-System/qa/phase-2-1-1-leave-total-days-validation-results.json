@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-05-17T03:36:00.807Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "routes": [
+    "POST /api/leave/requests",
+    "POST /api/leave/management/requests",
+    "POST /api/leave/requests/:id/approve",
+    "POST /api/leave/management/requests/:id/approve"
+  ],
+  "validationRules": {
+    "totalDays": "finite positive number > 0 and <= 365",
+    "rejected": [
+      "0",
+      "negative",
+      "NaN/non-numeric",
+      "Infinity",
+      "extremely large values"
+    ],
+    "approvalGuard": "approval rejects persisted leave_requests with invalid total_days before balance mutation"
+  },
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T03:36:00.851Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:36:00.851Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "employeeId": 8,
+    "leaveTypeId": 8,
+    "invalidLegacyId": 146
+  },
+  "balance": {
+    "beforeInvalidCreates": {
+      "usedDays": 0,
+      "pendingDays": 0
+    },
+    "afterInvalidCreates": {
+      "usedDays": 0,
+      "pendingDays": 0
+    },
+    "beforeInvalidApproval": {
+      "usedDays": 0,
+      "pendingDays": 0
+    },
+    "afterInvalidApproval": {
+      "usedDays": 0,
+      "pendingDays": 0
+    }
+  },
+  "tests": {
+    "validPositive": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 145,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2197-12-24T21:00:00.000Z",
+          "endDate": "2197-12-24T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase 2.1.1 totalDays validation 1778988960806-44567",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:36:01.237Z",
+          "updatedAt": "2026-05-17T03:36:01.237Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":145,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2197-12-24T21:00:00.000Z\",\"endDate\":\"2197-12-24T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.1 totalDays validation 1778988960806-44567\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:36:01.237Z\",\"updatedAt\":\"2026-05-17T03:36:01.237Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8"
+    },
+    "zeroTotalDays": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "totalDays must be a positive number"
+      },
+      "text": "{\"success\":false,\"message\":\"totalDays must be a positive number\"}"
+    },
+    "negativeTotalDays": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "totalDays must be a positive number"
+      },
+      "text": "{\"success\":false,\"message\":\"totalDays must be a positive number\"}"
+    },
+    "nonNumericTotalDays": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "totalDays must be a positive number"
+      },
+      "text": "{\"success\":false,\"message\":\"totalDays must be a positive number\"}"
+    },
+    "infinityTotalDays": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "totalDays must be a positive number"
+      },
+      "text": "{\"success\":false,\"message\":\"totalDays must be a positive number\"}"
+    },
+    "extremelyLargeTotalDays": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "totalDays must not exceed 365"
+      },
+      "text": "{\"success\":false,\"message\":\"totalDays must not exceed 365\"}"
+    },
+    "invalidLegacyApprove": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Leave request has invalid totalDays and cannot be approved"
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request has invalid totalDays and cannot be approved\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "validPositiveTotalDaysCreated": true,
+    "zeroTotalDaysRejected": true,
+    "negativeTotalDaysRejected": true,
+    "nonNumericTotalDaysRejected": true,
+    "infinityTotalDaysRejected": true,
+    "extremelyLargeTotalDaysRejected": true,
+    "invalidLegacyApprovalBlocked": true,
+    "leaveBalanceDoesNotIncreaseAfterInvalidCreates": true,
+    "leaveBalanceDoesNotIncreaseAfterInvalidApproval": true
+  }
+}

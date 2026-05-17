@@ -11,6 +11,7 @@ type AuthMiddleware = (req: express.Request, res: express.Response, next: expres
 const LEAVE_MUTATION_ROLES = new Set(["hradmin", "superadmin"]);
 const LEAVE_REVIEW_ROLES = new Set(["hradmin", "manager", "superadmin"]);
 const NOTIFICATION_ADMIN_ROLES = new Set(["hradmin", "superadmin"]);
+const MAX_LEAVE_TOTAL_DAYS = 365;
 
 function toCamel(row: Record<string, any>): Record<string, any> {
   const out: Record<string, any> = {};
@@ -99,21 +100,42 @@ function dateOnly(value: unknown): string {
   return String(value || "").slice(0, 10);
 }
 
-function computeRequestedDuration(body: any): { days: number; hours: number; unit: string } {
+function parseFinitePositiveNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string" && !/^\d+(\.\d+)?$/.test(value.trim())) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function validateLeaveTotalDays(days: unknown): { ok: true; days: number } | { ok: false; message: string } {
+  const parsed = parseFinitePositiveNumber(days);
+  if (parsed === null) return { ok: false, message: "totalDays must be a positive number" };
+  if (parsed > MAX_LEAVE_TOTAL_DAYS) return { ok: false, message: `totalDays must not exceed ${MAX_LEAVE_TOTAL_DAYS}` };
+  return { ok: true, days: parsed };
+}
+
+function computeRequestedDuration(body: any): { ok: true; days: number; hours: number; unit: string } | { ok: false; message: string } {
   const unit = String(body.durationUnit || body.duration_unit || "day");
   if (unit === "hour") {
-    const hours = Number(body.totalHours ?? body.total_hours ?? body.requestedHours ?? 0);
-    return { days: Math.max(hours / 8, 0.125), hours: Math.max(hours, 1), unit };
+    const hours = parseFinitePositiveNumber(body.totalHours ?? body.total_hours ?? body.requestedHours);
+    if (hours === null) return { ok: false, message: "totalHours must be a positive number" };
+    const days = hours / 8;
+    const validation = validateLeaveTotalDays(days);
+    if (!validation.ok) return validation;
+    return { ok: true, days: validation.days, hours, unit };
   }
-  if (unit === "half_day") return { days: 0.5, hours: 4, unit };
+  if (unit === "half_day") return { ok: true, days: 0.5, hours: 4, unit };
   if (body.totalDays != null) {
-    const days = Number(body.totalDays);
-    return { days: Math.max(days, 0.5), hours: Math.max(days, 0.5) * 8, unit };
+    const validation = validateLeaveTotalDays(body.totalDays);
+    if (!validation.ok) return validation;
+    return { ok: true, days: validation.days, hours: validation.days * 8, unit };
   }
   const start = new Date(String(body.startDate));
   const end = new Date(String(body.endDate));
-  const diff = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
-  return { days: diff, hours: diff * 8, unit };
+  const diff = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  const validation = validateLeaveTotalDays(diff);
+  if (!validation.ok) return validation;
+  return { ok: true, days: validation.days, hours: validation.days * 8, unit };
 }
 
 async function hasLeaveConflict(companyId: number, employeeId: number, startDate: string, endDate: string, excludeId?: number) {
@@ -471,6 +493,7 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
       const conflict = await hasLeaveConflict(user.companyId, employeeId, startDate, endDate);
       if (conflict) { res.status(409).json({ success: false, message: "Leave request conflicts with an existing request", data: toCamel(conflict) }); return; }
       const duration = computeRequestedDuration(req.body);
+      if (!duration.ok) { res.status(400).json({ success: false, message: duration.message }); return; }
       const { rows } = await pool.query(
         `INSERT INTO leave_requests
           (company_id, employee_id, leave_type, start_date, end_date, total_days, total_hours, duration_unit,
@@ -554,6 +577,10 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
       if (user.role === "manager" && !(await managerCanApproveEmployee(user, request.employee_id))) {
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
+      const storedDays = validateLeaveTotalDays(request.total_days);
+      if (!storedDays.ok) {
+        res.status(400).json({ success: false, message: "Leave request has invalid totalDays and cannot be approved" }); return;
+      }
       const step = await pendingApproverFor(user.companyId, id);
       if (!step) { res.status(409).json({ success: false, message: "No pending approval step" }); return; }
       if (user.role === "manager" && step.approver_role !== "manager") { res.status(403).json({ success: false, message: "Manager cannot approve this step" }); return; }
@@ -570,8 +597,8 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
       await insertLeaveAudit(user.companyId, id, user.userId, "approved_step", request, updated, req.body.notes || null);
       if (newStatus === "approved") {
         const type = await leaveTypeForCompany(user.companyId, Number(request.leave_type));
-        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), -Number(request.total_days || 0), "pending");
-        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), Number(request.total_days || 0), "approved");
+        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), -storedDays.days, "pending");
+        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), storedDays.days, "approved");
         await createLeavePayrollImpact(user.companyId, updated, type);
         await notifyEmployee(request.employee_id, user.companyId, {
           companyId: user.companyId, actorUserId: user.userId, entityType: "leave_request", entityId: id,
