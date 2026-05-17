@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-17T03:36:00.807Z",
+  "generatedAt": "2026-05-17T03:49:21.852Z",
   "status": "GO",
   "backend": "http://127.0.0.1:3001",
   "routes": [
@@ -23,10 +23,10 @@
     "status": 200,
     "body": {
       "status": "healthy",
-      "timestamp": "2026-05-17T03:36:00.851Z",
+      "timestamp": "2026-05-17T03:49:21.890Z",
       "version": "1.0.0"
     },
-    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:36:00.851Z\",\"version\":\"1.0.0\"}"
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:49:21.890Z\",\"version\":\"1.0.0\"}"
   },
   "logins": {
     "hr": {
@@ -58,7 +58,7 @@
     "companyId": 1,
     "employeeId": 8,
     "leaveTypeId": 8,
-    "invalidLegacyId": 146
+    "invalidLegacyId": 164
   },
   "balance": {
     "beforeInvalidCreates": {
@@ -84,19 +84,19 @@
       "body": {
         "success": true,
         "data": {
-          "id": 145,
+          "id": 163,
           "employeeId": 8,
           "leaveType": "8",
-          "startDate": "2197-12-24T21:00:00.000Z",
-          "endDate": "2197-12-24T21:00:00.000Z",
+          "startDate": "2200-03-05T21:00:00.000Z",
+          "endDate": "2200-03-05T21:00:00.000Z",
           "totalDays": "1.00",
-          "reason": "Phase 2.1.1 totalDays validation 1778988960806-44567",
+          "reason": "Phase 2.1.1 totalDays validation 1778989761852-97290",
           "status": "pending",
           "approvedById": null,
           "approvedAt": null,
           "rejectionReason": null,
-          "createdAt": "2026-05-17T03:36:01.237Z",
-          "updatedAt": "2026-05-17T03:36:01.237Z",
+          "createdAt": "2026-05-17T03:49:22.265Z",
+          "updatedAt": "2026-05-17T03:49:22.265Z",
           "isDeleted": false,
           "companyId": 1,
           "durationUnit": "day",
@@ -113,7 +113,7 @@
           "updatedBy": 2
         }
       },
-      "text": "{\"success\":true,\"data\":{\"id\":145,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2197-12-24T21:00:00.000Z\",\"endDate\":\"2197-12-24T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.1 totalDays validation 1778988960806-44567\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:36:01.237Z\",\"updatedAt\":\"2026-05-17T03:36:01.237Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8"
+      "text": "{\"success\":true,\"data\":{\"id\":163,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2200-03-05T21:00:00.000Z\",\"endDate\":\"2200-03-05T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.1 totalDays validation 1778989761852-97290\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:49:22.265Z\",\"updatedAt\":\"2026-05-17T03:49:22.265Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8"
     },
     "zeroTotalDays": {
       "status": 400,

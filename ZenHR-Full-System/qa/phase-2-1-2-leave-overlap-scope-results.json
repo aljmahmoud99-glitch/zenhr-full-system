@@ -1,0 +1,483 @@
+{
+  "generatedAt": "2026-05-17T03:48:50.044Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "route": "POST /api/leave/requests -> POST /api/leave/management/requests",
+  "overlapLogic": "inclusive date overlap blocks pending, approved, and manager_approved; rejected, cancelled, and deleted requests do not block",
+  "scopeRules": {
+    "employee": "self only",
+    "manager": "self or direct reports only",
+    "hradmin": "same-company employees",
+    "superadmin": "same-company employees",
+    "payrolladmin": "forbidden",
+    "recruiter": "forbidden"
+  },
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T03:48:50.092Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:48:50.092Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "leaveTypeId": 8,
+    "employeeEmployeeId": 8,
+    "managerEmployeeId": 7,
+    "directReportId": 2,
+    "unrelatedEmployeeId": 37,
+    "foreignEmployeeId": 10,
+    "deletedEmployeeId": 60
+  },
+  "setup": {
+    "basePending": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 157,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-05-02T21:00:00.000Z",
+          "endDate": "2222-05-06T21:00:00.000Z",
+          "totalDays": "5.00",
+          "reason": "Phase 2.1.2 base-pending 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:50.947Z",
+          "updatedAt": "2026-05-17T03:48:50.947Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "40.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":157,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-05-02T21:00:00.000Z\",\"endDate\":\"2222-05-06T21:00:00.000Z\",\"totalDays\":\"5.00\",\"reason\":\"Phase 2.1.2 base-pending 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:50.947Z\",\"updatedAt\":\"2026-05-17T03:48:50.947Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"40.00\",\"c"
+    },
+    "rejectedHistoricalId": 159,
+    "deletedHistoricalId": 161
+  },
+  "tests": {
+    "employeeSelfCreate": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 154,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-04-03T21:00:00.000Z",
+          "endDate": "2222-04-03T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase 2.1.2 employee-self 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:50.684Z",
+          "updatedAt": "2026-05-17T03:48:50.684Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 7,
+          "updatedBy": 7
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":154,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-04-03T21:00:00.000Z\",\"endDate\":\"2222-04-03T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.2 employee-self 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:50.684Z\",\"updatedAt\":\"2026-05-17T03:48:50.684Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8.00\",\"c"
+    },
+    "employeeOtherCreate": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerDirectCreate": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 155,
+          "employeeId": 2,
+          "leaveType": "8",
+          "startDate": "2222-04-07T21:00:00.000Z",
+          "endDate": "2222-04-07T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase 2.1.2 manager-direct 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:50.779Z",
+          "updatedAt": "2026-05-17T03:48:50.779Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 6,
+          "updatedBy": 6
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":155,\"employeeId\":2,\"leaveType\":\"8\",\"startDate\":\"2222-04-07T21:00:00.000Z\",\"endDate\":\"2222-04-07T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.2 manager-direct 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:50.779Z\",\"updatedAt\":\"2026-05-17T03:48:50.779Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8.00\",\""
+    },
+    "managerUnrelatedCreate": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "hrSameCompanyCreate": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 156,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-04-11T21:00:00.000Z",
+          "endDate": "2222-04-11T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase 2.1.2 hr-same-company 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:50.843Z",
+          "updatedAt": "2026-05-17T03:48:50.843Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":156,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-04-11T21:00:00.000Z\",\"endDate\":\"2222-04-11T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.2 hr-same-company 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:50.843Z\",\"updatedAt\":\"2026-05-17T03:48:50.843Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"8.00\","
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "crossCompanyEmployee": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "deletedEmployee": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "exactOverlap": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request conflicts with an existing request",
+        "data": {
+          "id": 157,
+          "status": "pending"
+        }
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request conflicts with an existing request\",\"data\":{\"id\":157,\"status\":\"pending\"}}"
+    },
+    "partialOverlap": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request conflicts with an existing request",
+        "data": {
+          "id": 157,
+          "status": "pending"
+        }
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request conflicts with an existing request\",\"data\":{\"id\":157,\"status\":\"pending\"}}"
+    },
+    "containedOverlap": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request conflicts with an existing request",
+        "data": {
+          "id": 157,
+          "status": "pending"
+        }
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request conflicts with an existing request\",\"data\":{\"id\":157,\"status\":\"pending\"}}"
+    },
+    "adjacentTouchingOverlap": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request conflicts with an existing request",
+        "data": {
+          "id": 157,
+          "status": "pending"
+        }
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request conflicts with an existing request\",\"data\":{\"id\":157,\"status\":\"pending\"}}"
+    },
+    "nonOverlapping": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 158,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-05-07T21:00:00.000Z",
+          "endDate": "2222-05-08T21:00:00.000Z",
+          "totalDays": "2.00",
+          "reason": "Phase 2.1.2 non-overlapping 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:51.025Z",
+          "updatedAt": "2026-05-17T03:48:51.025Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "16.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":158,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-05-07T21:00:00.000Z\",\"endDate\":\"2222-05-08T21:00:00.000Z\",\"totalDays\":\"2.00\",\"reason\":\"Phase 2.1.2 non-overlapping 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:51.025Z\",\"updatedAt\":\"2026-05-17T03:48:51.025Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalHours\":\"16.00\""
+    },
+    "rejectedHistoricalDoesNotBlock": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 160,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-06-21T21:00:00.000Z",
+          "endDate": "2222-06-23T21:00:00.000Z",
+          "totalDays": "3.00",
+          "reason": "Phase 2.1.2 rejected-history-not-blocking 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:51.054Z",
+          "updatedAt": "2026-05-17T03:48:51.054Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "24.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":160,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-06-21T21:00:00.000Z\",\"endDate\":\"2222-06-23T21:00:00.000Z\",\"totalDays\":\"3.00\",\"reason\":\"Phase 2.1.2 rejected-history-not-blocking 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:51.054Z\",\"updatedAt\":\"2026-05-17T03:48:51.054Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"total"
+    },
+    "deletedHistoricalDoesNotBlock": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 162,
+          "employeeId": 8,
+          "leaveType": "8",
+          "startDate": "2222-07-01T21:00:00.000Z",
+          "endDate": "2222-07-03T21:00:00.000Z",
+          "totalDays": "3.00",
+          "reason": "Phase 2.1.2 deleted-history-not-blocking 1778989730043-93850",
+          "status": "pending",
+          "approvedById": null,
+          "approvedAt": null,
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T03:48:51.077Z",
+          "updatedAt": "2026-05-17T03:48:51.077Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "24.00",
+          "currentApprovalStep": "manager",
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":162,\"employeeId\":8,\"leaveType\":\"8\",\"startDate\":\"2222-07-01T21:00:00.000Z\",\"endDate\":\"2222-07-03T21:00:00.000Z\",\"totalDays\":\"3.00\",\"reason\":\"Phase 2.1.2 deleted-history-not-blocking 1778989730043-93850\",\"status\":\"pending\",\"approvedById\":null,\"approvedAt\":null,\"rejectionReason\":null,\"createdAt\":\"2026-05-17T03:48:51.077Z\",\"updatedAt\":\"2026-05-17T03:48:51.077Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":null,\"totalH"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "employeeSelfCreateSucceeds": true,
+    "employeeOtherForbidden": true,
+    "managerDirectReportCreateSucceeds": true,
+    "managerUnrelatedForbidden": true,
+    "hrSameCompanyCreateSucceeds": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true,
+    "crossCompanyEmployee404": true,
+    "deletedEmployee404": true,
+    "exactOverlapRejected": true,
+    "partialOverlapRejected": true,
+    "containedOverlapRejected": true,
+    "adjacentTouchingOverlapRejected": true,
+    "rejectedHistoricalDoesNotBlock": true,
+    "deletedHistoricalDoesNotBlock": true,
+    "nonOverlappingSucceeds": true
+  }
+}

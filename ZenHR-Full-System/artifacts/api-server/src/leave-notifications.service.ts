@@ -477,11 +477,16 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
     try {
       const user = (req as AuthReq).user;
       if (user.role === "recruiter" || user.role === "payrolladmin") { res.status(403).json({ success: false, message: "Forbidden" }); return; }
+      if (user.role === "employee" && req.body.employeeId != null && intParam(req.body.employeeId) !== user.employeeId) {
+        res.status(403).json({ success: false, message: "Forbidden" }); return;
+      }
       const employeeId = user.role === "employee" ? user.employeeId : intParam(req.body.employeeId);
       const leaveTypeId = intParam(req.body.leaveTypeId || req.body.leaveType);
       if (!employeeId || !leaveTypeId || !req.body.startDate || !req.body.endDate) {
         res.status(400).json({ success: false, message: "employeeId, leaveTypeId, startDate, and endDate are required" }); return;
       }
+      const targetEmployee = await employeeBelongsToCompany(user.companyId, employeeId);
+      if (!targetEmployee) { res.status(404).json({ success: false, message: "Not found" }); return; }
       if (!(await ensureEmployeeScope(user, employeeId, user.role !== "employee"))) {
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
