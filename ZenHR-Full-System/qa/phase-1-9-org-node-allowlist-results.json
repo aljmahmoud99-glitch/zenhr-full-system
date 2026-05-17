@@ -1,0 +1,288 @@
+{
+  "generatedAt": "2026-05-17T03:16:57.408Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "route": "PUT /api/org-nodes/:id",
+  "allowlist": [
+    "nameEn",
+    "nameAr",
+    "parentId",
+    "managerEmployeeId",
+    "managerId",
+    "code",
+    "sortOrder",
+    "isActive"
+  ],
+  "protectedFields": [
+    "companyId",
+    "isDeleted",
+    "createdAt"
+  ],
+  "protectedFieldPolicy": "400 Bad Request when protected/internal org node fields are present; unknown non-table fields are ignored",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T03:16:57.459Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:16:57.459Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "managerEmployeeId": 7,
+    "parentId": 23,
+    "targetId": 24,
+    "protectedTargetId": 25,
+    "softDeletedId": 26,
+    "crossCompanyId": 27
+  },
+  "before": {
+    "target": {
+      "id": 24,
+      "company_id": 1,
+      "parent_id": null,
+      "node_type": "department",
+      "name_ar": "اختبار",
+      "name_en": "P19 Target 1778987817407-6216",
+      "code": "P19T817685",
+      "manager_employee_id": null,
+      "is_active": true,
+      "sort_order": 20,
+      "created_at": "2026-05-17T03:16:57.686Z",
+      "updated_at": "2026-05-17T03:16:57.686Z",
+      "is_deleted": false
+    },
+    "protectedAttempt": {
+      "id": 25,
+      "company_id": 1,
+      "parent_id": null,
+      "node_type": "department",
+      "name_ar": "اختبار",
+      "name_en": "P19 Protected 1778987817407-6216",
+      "code": "P19X817686",
+      "manager_employee_id": null,
+      "is_active": true,
+      "sort_order": 30,
+      "created_at": "2026-05-17T03:16:57.686Z",
+      "updated_at": "2026-05-17T03:16:57.686Z",
+      "is_deleted": false
+    }
+  },
+  "after": {
+    "allowedUpdate": {
+      "id": 24,
+      "company_id": 1,
+      "parent_id": 23,
+      "node_type": "department",
+      "name_ar": "تحديث 1778987817407-6216",
+      "name_en": "P19 Updated 1778987817407-6216",
+      "code": "P19U817691",
+      "manager_employee_id": 7,
+      "is_active": false,
+      "sort_order": 88,
+      "created_at": "2026-05-17T03:16:57.686Z",
+      "updated_at": "2026-05-17T03:16:57.698Z",
+      "is_deleted": false
+    },
+    "protectedAttempt": {
+      "id": 25,
+      "company_id": 1,
+      "parent_id": null,
+      "node_type": "department",
+      "name_ar": "اختبار",
+      "name_en": "P19 Protected 1778987817407-6216",
+      "code": "P19X817686",
+      "manager_employee_id": null,
+      "is_active": true,
+      "sort_order": 30,
+      "created_at": "2026-05-17T03:16:57.686Z",
+      "updated_at": "2026-05-17T03:16:57.686Z",
+      "is_deleted": false
+    }
+  },
+  "tests": {
+    "hrAllowedUpdate": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 24,
+          "companyId": 1,
+          "parentId": 23,
+          "nodeType": "department",
+          "nameAr": "تحديث 1778987817407-6216",
+          "nameEn": "P19 Updated 1778987817407-6216",
+          "code": "P19U817691",
+          "managerEmployeeId": 7,
+          "isActive": false,
+          "sortOrder": 88,
+          "createdAt": "2026-05-17T03:16:57.686Z",
+          "updatedAt": "2026-05-17T03:16:57.698Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":24,\"companyId\":1,\"parentId\":23,\"nodeType\":\"department\",\"nameAr\":\"تحديث 1778987817407-6216\",\"nameEn\":\"P19 Updated 1778987817407-6216\",\"code\":\"P19U817691\",\"managerEmployeeId\":7,\"isActive\":false,\"sortOrder\":88,\"createdAt\":\"2026-05-17T03:16:57.686Z\",\"updatedAt\":\"2026-05-17T03:16:57.698Z\",\"isDeleted\":false}}"
+    },
+    "protectedUpdate": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Protected org node fields cannot be updated through this route",
+        "fields": [
+          "companyId",
+          "isDeleted",
+          "createdAt"
+        ]
+      },
+      "text": "{\"success\":false,\"message\":\"Protected org node fields cannot be updated through this route\",\"fields\":[\"companyId\",\"isDeleted\",\"createdAt\"]}"
+    },
+    "crossCompanyUpdate": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "softDeletedUpdate": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "randomUpdate": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "employeeForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "hrAllowedUpdate": true,
+    "allowedFieldsPersisted": true,
+    "protectedUpdateRejected": true,
+    "protectedFieldsRemainUnchanged": true,
+    "crossCompany404": true,
+    "softDeleted404": true,
+    "randomId404": true,
+    "employeeForbidden": true,
+    "managerForbidden": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true,
+    "hierarchyParentUpdateWorks": true
+  }
+}

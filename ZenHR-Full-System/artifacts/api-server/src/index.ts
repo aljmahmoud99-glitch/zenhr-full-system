@@ -442,6 +442,54 @@ function safeEmployeePatch(body: Record<string, any>): { update: Record<string, 
 }
 
 // â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const ORG_NODE_UPDATE_ALLOWED_FIELDS = new Set([
+  "nameEn",
+  "nameAr",
+  "parentId",
+  "managerEmployeeId",
+  "managerId",
+  "code",
+  "sortOrder",
+  "isActive",
+]);
+
+const ORG_NODE_UPDATE_PROTECTED_FIELDS = new Set([
+  "id",
+  "companyId",
+  "company_id",
+  "isDeleted",
+  "is_deleted",
+  "createdAt",
+  "created_at",
+  "updatedAt",
+  "updated_at",
+  "createdBy",
+  "created_by",
+  "updatedBy",
+  "updated_by",
+  "nodeType",
+  "node_type",
+  "workflowStatus",
+  "approvalStatus",
+  "tenantId",
+  "tenant_id",
+]);
+
+function safeOrgNodeUpdate(body: Record<string, any>): { update: Record<string, any>; forbidden: string[] } {
+  const forbidden = Object.keys(body || {}).filter(key => ORG_NODE_UPDATE_PROTECTED_FIELDS.has(key));
+  const update: Record<string, any> = {};
+  for (const [key, value] of Object.entries(body || {})) {
+    if (!ORG_NODE_UPDATE_ALLOWED_FIELDS.has(key)) continue;
+    if (key === "managerId") update.managerEmployeeId = value == null ? null : Number(value);
+    else if (key === "parentId") update.parentId = value == null ? null : Number(value);
+    else if (key === "managerEmployeeId") update.managerEmployeeId = value == null ? null : Number(value);
+    else if (key === "sortOrder") update.sortOrder = Number(value);
+    else update[key] = value;
+  }
+  if (Object.keys(update).length > 0) update.updatedAt = new Date();
+  return { update, forbidden };
+}
+
 app.get("/api/healthz", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString(), version: SERVICE_VERSION });
 });
@@ -2099,12 +2147,47 @@ app.put("/api/org-nodes/:id", auth, async (req, res) => {
     if (!["hradmin", "superadmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
-    const [node] = await db.update(orgNodesTable).set(req.body).where(
-      and(eq(orgNodesTable.id, parseInt(req.params["id"]!)), eq(orgNodesTable.companyId, user.companyId))
+    const nodeId = parseInt(req.params["id"]!);
+    if (!Number.isInteger(nodeId) || nodeId <= 0) {
+      res.status(404).json({ success: false, message: "Not found" }); return;
+    }
+    const [existing] = await db.select({ id: orgNodesTable.id })
+      .from(orgNodesTable)
+      .where(and(eq(orgNodesTable.id, nodeId), eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)))
+      .limit(1);
+    if (!existing) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+    const { update, forbidden } = safeOrgNodeUpdate(req.body || {});
+    if (forbidden.length > 0) {
+      res.status(400).json({ success: false, message: "Protected org node fields cannot be updated through this route", fields: forbidden }); return;
+    }
+    if (update.parentId != null) {
+      if (Number(update.parentId) === nodeId) {
+        res.status(400).json({ success: false, message: "Org node cannot be its own parent" }); return;
+      }
+      const [parent] = await db.select({ id: orgNodesTable.id })
+        .from(orgNodesTable)
+        .where(and(eq(orgNodesTable.id, Number(update.parentId)), eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false)))
+        .limit(1);
+      if (!parent) { res.status(400).json({ success: false, message: "Parent org node is not available in this company" }); return; }
+    }
+    if (update.managerEmployeeId != null) {
+      const [manager] = await db.select({ id: employeesTable.id })
+        .from(employeesTable)
+        .where(and(eq(employeesTable.id, Number(update.managerEmployeeId)), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+        .limit(1);
+      if (!manager) { res.status(400).json({ success: false, message: "Manager employee is not available in this company" }); return; }
+    }
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ success: false, message: "No editable org node fields provided" }); return;
+    }
+    const [node] = await db.update(orgNodesTable).set(update).where(
+      and(eq(orgNodesTable.id, nodeId), eq(orgNodesTable.companyId, user.companyId), eq(orgNodesTable.isDeleted, false))
     ).returning();
     if (!node) { res.status(404).json({ success: false, message: "Not found" }); return; }
     res.json({ success: true, data: node });
   } catch (e) {
+    console.error("[PUT /api/org-nodes/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
