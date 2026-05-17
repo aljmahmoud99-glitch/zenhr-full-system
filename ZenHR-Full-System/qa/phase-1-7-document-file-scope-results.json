@@ -1,0 +1,612 @@
+{
+  "generatedAt": "2026-05-17T03:00:16.102Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "policyDecision": {
+    "manager": "direct-report employee-scoped documents/files only; company-wide/null-employee files are blocked",
+    "payrolladmin": "blocked for generic document/file download and document export unless a separate payroll-domain endpoint grants access",
+    "recruiter": "blocked for generic document/file download and document export unless a separate recruitment-domain endpoint grants access",
+    "superadmin": "same-company document/file access only using the authenticated tenant context"
+  },
+  "routes": [
+    "GET /api/files/:id/download",
+    "GET /api/documents/export"
+  ],
+  "health": {
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T03:00:16.188Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:00:16.188Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "managerEmployeeId": 7,
+    "employeeEmployeeId": 8,
+    "directReportId": 2,
+    "unrelatedEmployeeId": 37,
+    "documentTypeId": 1,
+    "fileIds": {
+      "own": "22",
+      "direct": "23",
+      "unrelated": "24",
+      "companyWide": "25",
+      "deleted": "26",
+      "crossCompany": "27"
+    }
+  },
+  "setup": {
+    "directDocument": {
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": true,
+        "data": {
+          "id": 21,
+          "companyId": 1,
+          "employeeId": 2,
+          "documentTypeId": 1,
+          "documentNumber": "P17-DIRECT-1778986816101-60217",
+          "issuedAt": "2099-01-01",
+          "expiresAt": "2099-12-31",
+          "issuedBy": "Phase 1.7 QA",
+          "fileUrl": "/api/files/23/download",
+          "fileName": "P17-DIRECT-1778986816101-60217.txt",
+          "notes": "Phase 1.7 document scope P17-DIRECT-1778986816101-60217",
+          "createdAt": "2026-05-17T03:00:16.588Z",
+          "updatedAt": "2026-05-17T03:00:16.588Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":21,\"companyId\":1,\"employeeId\":2,\"documentTypeId\":1,\"documentNumber\":\"P17-DIRECT-1778986816101-60217\",\"issuedAt\":\"2099-01-01\",\"expiresAt\":\"2099-12-31\",\"issuedBy\":\"Phase 1.7 QA\",\"fileUrl\":\"/api/files/23/download\",\"fileName\":\"P17-DIRECT-1778986816101-60217.txt\",\"notes\":\"Phase 1.7 document scope P17-DIRECT-1778986816101-60217\",\"createdAt\":\"2026-05-17T03:00:16.588Z\",\"updatedAt\":\"2026-05-17T03:00:16.588Z\",\"isDeleted\":false}}"
+    },
+    "unrelatedDocument": {
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": true,
+        "data": {
+          "id": 22,
+          "companyId": 1,
+          "employeeId": 37,
+          "documentTypeId": 1,
+          "documentNumber": "P17-UNRELATED-1778986816101-60217",
+          "issuedAt": "2099-01-01",
+          "expiresAt": "2099-12-31",
+          "issuedBy": "Phase 1.7 QA",
+          "fileUrl": "/api/files/24/download",
+          "fileName": "P17-UNRELATED-1778986816101-60217.txt",
+          "notes": "Phase 1.7 document scope P17-UNRELATED-1778986816101-60217",
+          "createdAt": "2026-05-17T03:00:16.603Z",
+          "updatedAt": "2026-05-17T03:00:16.603Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":22,\"companyId\":1,\"employeeId\":37,\"documentTypeId\":1,\"documentNumber\":\"P17-UNRELATED-1778986816101-60217\",\"issuedAt\":\"2099-01-01\",\"expiresAt\":\"2099-12-31\",\"issuedBy\":\"Phase 1.7 QA\",\"fileUrl\":\"/api/files/24/download\",\"fileName\":\"P17-UNRELATED-1778986816101-60217.txt\",\"notes\":\"Phase 1.7 document scope P17-UNRELATED-1778986816101-60217\",\"createdAt\":\"2026-05-17T03:00:16.603Z\",\"updatedAt\":\"2026-05-17T03:00:16.603Z\",\"isDeleted\":false}}"
+    },
+    "ownDocument": {
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": true,
+        "data": {
+          "id": 23,
+          "companyId": 1,
+          "employeeId": 8,
+          "documentTypeId": 1,
+          "documentNumber": "P17-OWN-1778986816101-60217",
+          "issuedAt": "2099-01-01",
+          "expiresAt": "2099-12-31",
+          "issuedBy": "Phase 1.7 QA",
+          "fileUrl": "/api/files/22/download",
+          "fileName": "P17-OWN-1778986816101-60217.txt",
+          "notes": "Phase 1.7 document scope P17-OWN-1778986816101-60217",
+          "createdAt": "2026-05-17T03:00:16.610Z",
+          "updatedAt": "2026-05-17T03:00:16.610Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":23,\"companyId\":1,\"employeeId\":8,\"documentTypeId\":1,\"documentNumber\":\"P17-OWN-1778986816101-60217\",\"issuedAt\":\"2099-01-01\",\"expiresAt\":\"2099-12-31\",\"issuedBy\":\"Phase 1.7 QA\",\"fileUrl\":\"/api/files/22/download\",\"fileName\":\"P17-OWN-1778986816101-60217.txt\",\"notes\":\"Phase 1.7 document scope P17-OWN-1778986816101-60217\",\"createdAt\":\"2026-05-17T03:00:16.610Z\",\"updatedAt\":\"2026-05-17T03:00:16.610Z\",\"isDeleted\":false}}"
+    }
+  },
+  "tests": {
+    "hrDownloadSameCompany": {
+      "status": 200,
+      "contentType": "text/plain; charset=UTF-8",
+      "body": null,
+      "text": "phase-1-7 phase-1-7-own-1778986816101-60217.txt\n"
+    },
+    "hrExport": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 23,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "P17-OWN-1778986816101-60217",
+            "issuedAt": "2099-01-01",
+            "expiresAt": "2099-12-31",
+            "issuedBy": "Phase 1.7 QA",
+            "fileUrl": "/api/files/22/download",
+            "fileName": "P17-OWN-1778986816101-60217.txt",
+            "notes": "Phase 1.7 document scope P17-OWN-1778986816101-60217",
+            "createdAt": "2026-05-17T03:00:16.610Z",
+            "updatedAt": "2026-05-17T03:00:16.610Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2099-01-01",
+            "expiryDate": "2099-12-31",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 22,
+            "companyId": 1,
+            "employeeId": 37,
+            "documentTypeId": 1,
+            "documentNumber": "P17-UNRELATED-1778986816101-60217",
+            "issuedAt": "2099-01-01",
+            "expiresAt": "2099-12-31",
+            "issuedBy": "Phase 1.7 QA",
+            "fileUrl": "/api/files/24/download",
+            "fileName": "P17-UNRELATED-1778986816101-60217.txt",
+            "notes": "Phase 1.7 document scope P17-UNRELATED-1778986816101-60217",
+            "createdAt": "2026-05-17T03:00:16.603Z",
+            "updatedAt": "2026-05-17T03:00:16.603Z",
+            "isDeleted": false,
+            "employeeCode": "CLN-11790441",
+            "employeeNameAr": "مرشح تحقق 1778711790441",
+            "employeeNameEn": "Cleanup Candidate 1778711790441",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2099-01-01",
+            "expiryDate": "2099-12-31",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 21,
+            "companyId": 1,
+            "employeeId": 2,
+            "documentTypeId": 1,
+            "documentNumber": "P17-DIRECT-1778986816101-60217",
+            "issuedAt": "2099-01-01",
+            "expiresAt": "2099-12-31",
+            "issuedBy": "Phase 1.7 QA",
+            "fileUrl": "/api/files/23/download",
+            "fileName": "P17-DIRECT-1778986816101-60217.txt",
+            "notes": "Phase 1.7 document scope P17-DIRECT-1778986816101-60217",
+            "createdAt": "2026-05-17T03:00:16.588Z",
+            "updatedAt": "2026-05-17T03:00:16.588Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2099-01-01",
+            "expiryDate": "2099-12-31",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 20,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "LEG-1778710610546",
+            "issuedAt": "2884-01-01",
+            "expiresAt": "2884-01-20",
+            "issuedBy": "Verification",
+            "fileUrl": "/verification/legacy.txt",
+            "fileName": "legacy-verification.txt",
+            "notes": "System-wide verification legacy document",
+            "createdAt": "2026-05-13T22:16:50.549Z",
+            "updatedAt": "2026-05-13T22:16:50.549Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2884-01-01",
+            "expiryDate": "2884-01-20",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 19,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "LEG-1778710579668",
+            "issuedAt": "2782-11-01",
+            "expiresAt": "2782-11-20",
+            "issuedBy": "Verification",
+            "fileUrl": "/verification/legacy.txt",
+            "fileName": "legacy-verification.txt",
+            "notes": "System-wide verification legacy document",
+            "createdAt": "2026-05-13T22:16:19.677Z",
+            "updatedAt": "2026-05-13T22:16:19.677Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2782-11-01",
+            "expiryDate": "2782-11-20",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          }
+        ]
+      },
+      "text": "{\"success\":true,\"data\":[{\"id\":23,\"companyId\":1,\"employeeId\":8,\"documentTypeId\":1,\"documentNumber\":\"P17-OWN-1778986816101-60217\",\"issuedAt\":\"2099-01-01\",\"expiresAt\":\"2099-12-31\",\"issuedBy\":\"Phase 1.7 QA\",\"fileUrl\":\"/api/files/22/download\",\"fileName\":\"P17-OWN-1778986816101-60217.txt\",\"notes\":\"Phase 1.7 document scope P17-OWN-1778986816101-60217\",\"createdAt\":\"2026-05-17T03:00:16.610Z\",\"updatedAt\":\"2026-05-17T03:00:16.610Z\",\"isDeleted\":false,\"employeeCode\":\"EMP-0005\",\"employeeNameAr\":\"Layla Haddad\","
+    },
+    "employeeDownloadOwn": {
+      "status": 200,
+      "contentType": "text/plain; charset=UTF-8",
+      "body": null,
+      "text": "phase-1-7 phase-1-7-own-1778986816101-60217.txt\n"
+    },
+    "employeeDownloadOther": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerDownloadDirect": {
+      "status": 200,
+      "contentType": "text/plain; charset=UTF-8",
+      "body": null,
+      "text": "phase-1-7 phase-1-7-direct-1778986816101-60217.txt\n"
+    },
+    "managerDownloadUnrelated": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerDownloadCompanyWide": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "managerExport": {
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": true,
+        "data": [
+          {
+            "id": 23,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "P17-OWN-1778986816101-60217",
+            "issuedAt": "2099-01-01",
+            "expiresAt": "2099-12-31",
+            "issuedBy": "Phase 1.7 QA",
+            "fileUrl": "/api/files/22/download",
+            "fileName": "P17-OWN-1778986816101-60217.txt",
+            "notes": "Phase 1.7 document scope P17-OWN-1778986816101-60217",
+            "createdAt": "2026-05-17T03:00:16.610Z",
+            "updatedAt": "2026-05-17T03:00:16.610Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2099-01-01",
+            "expiryDate": "2099-12-31",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 21,
+            "companyId": 1,
+            "employeeId": 2,
+            "documentTypeId": 1,
+            "documentNumber": "P17-DIRECT-1778986816101-60217",
+            "issuedAt": "2099-01-01",
+            "expiresAt": "2099-12-31",
+            "issuedBy": "Phase 1.7 QA",
+            "fileUrl": "/api/files/23/download",
+            "fileName": "P17-DIRECT-1778986816101-60217.txt",
+            "notes": "Phase 1.7 document scope P17-DIRECT-1778986816101-60217",
+            "createdAt": "2026-05-17T03:00:16.588Z",
+            "updatedAt": "2026-05-17T03:00:16.588Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0002",
+            "employeeNameAr": "سارة محمود",
+            "employeeNameEn": "Sara Mahmoud",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2099-01-01",
+            "expiryDate": "2099-12-31",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 20,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "LEG-1778710610546",
+            "issuedAt": "2884-01-01",
+            "expiresAt": "2884-01-20",
+            "issuedBy": "Verification",
+            "fileUrl": "/verification/legacy.txt",
+            "fileName": "legacy-verification.txt",
+            "notes": "System-wide verification legacy document",
+            "createdAt": "2026-05-13T22:16:50.549Z",
+            "updatedAt": "2026-05-13T22:16:50.549Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2884-01-01",
+            "expiryDate": "2884-01-20",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          },
+          {
+            "id": 19,
+            "companyId": 1,
+            "employeeId": 8,
+            "documentTypeId": 1,
+            "documentNumber": "LEG-1778710579668",
+            "issuedAt": "2782-11-01",
+            "expiresAt": "2782-11-20",
+            "issuedBy": "Verification",
+            "fileUrl": "/verification/legacy.txt",
+            "fileName": "legacy-verification.txt",
+            "notes": "System-wide verification legacy document",
+            "createdAt": "2026-05-13T22:16:19.677Z",
+            "updatedAt": "2026-05-13T22:16:19.677Z",
+            "isDeleted": false,
+            "employeeCode": "EMP-0005",
+            "employeeNameAr": "Layla Haddad",
+            "employeeNameEn": "Layla Haddad",
+            "documentTypeNameAr": "الهوية الوطنية",
+            "documentTypeNameEn": "National ID",
+            "documentTypeCategory": "identity",
+            "requiresExpiry": false,
+            "alertDaysBefore": 30,
+            "issuedDate": "2782-11-01",
+            "expiryDate": "2782-11-20",
+            "status": "valid",
+            "complianceRelated": true,
+            "linkedModule": "employee_profile"
+          }
+        ]
+      },
+      "text": "{\"success\":true,\"data\":[{\"id\":23,\"companyId\":1,\"employeeId\":8,\"documentTypeId\":1,\"documentNumber\":\"P17-OWN-1778986816101-60217\",\"issuedAt\":\"2099-01-01\",\"expiresAt\":\"2099-12-31\",\"issuedBy\":\"Phase 1.7 QA\",\"fileUrl\":\"/api/files/22/download\",\"fileName\":\"P17-OWN-1778986816101-60217.txt\",\"notes\":\"Phase 1.7 document scope P17-OWN-1778986816101-60217\",\"createdAt\":\"2026-05-17T03:00:16.610Z\",\"updatedAt\":\"2026-05-17T03:00:16.610Z\",\"isDeleted\":false,\"employeeCode\":\"EMP-0005\",\"employeeNameAr\":\"Layla Haddad\","
+    },
+    "payrollDownload": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "payrollExport": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterDownload": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterExport": {
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "crossCompanyDownload": {
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "File not found"
+      },
+      "text": "{\"success\":false,\"message\":\"File not found\"}"
+    },
+    "deletedDownload": {
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "File not found"
+      },
+      "text": "{\"success\":false,\"message\":\"File not found\"}"
+    },
+    "randomDownload": {
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "success": false,
+        "message": "File not found"
+      },
+      "text": "{\"success\":false,\"message\":\"File not found\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "exportEvidence": {
+    "directDocNumber": "P17-DIRECT-1778986816101-60217",
+    "unrelatedDocNumber": "P17-UNRELATED-1778986816101-60217",
+    "ownDocNumber": "P17-OWN-1778986816101-60217",
+    "managerExportContainsDirect": true,
+    "managerExportContainsUnrelated": false,
+    "managerExportCount": 4,
+    "hrExportContainsDirect": true,
+    "hrExportContainsUnrelated": true,
+    "hrExportCount": 5
+  },
+  "assertions": {
+    "health": true,
+    "setupDocumentsCreated": true,
+    "hrDownloadSameCompany": true,
+    "hrExportSameCompany": true,
+    "employeeDownloadOwn": true,
+    "employeeDownloadOtherBlocked": true,
+    "managerDownloadDirect": true,
+    "managerDownloadUnrelatedBlocked": true,
+    "managerCompanyWideBlocked": true,
+    "payrollDownloadBlocked": true,
+    "payrollExportBlocked": true,
+    "recruiterDownloadBlocked": true,
+    "recruiterExportBlocked": true,
+    "crossCompany404": true,
+    "softDeleted404": true,
+    "randomId404": true,
+    "managerExportDirectOnly": true
+  }
+}

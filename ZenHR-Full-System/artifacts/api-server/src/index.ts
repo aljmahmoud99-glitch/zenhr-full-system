@@ -258,23 +258,10 @@ app.use("/uploads", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const storageKey = path.basename(req.path);
-    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE storage_key = $1 AND is_deleted = false LIMIT 1`, [storageKey]);
+    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE storage_key = $1 AND company_id = $2 AND is_deleted = false LIMIT 1`, [storageKey, user.companyId]);
     const file = rows[0];
     if (!file) { res.status(404).json({ success: false, message: "File not found" }); return; }
-    if (file.company_id !== user.companyId || user.role === "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
-    if (user.role === "hradmin") {
-      // HR has company-scoped access to uploaded employee files.
-    } else if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    } else if (user.role === "manager" && file.employee_id) {
-      const scope = await getEmployeeScopeConditions(req as AuthReq);
-      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
-      if (!team.some(e => Number(e.id) === Number(file.employee_id))) {
-        res.status(403).json({ success: false, message: "Forbidden" }); return;
-      }
-    } else if (user.role !== "employee" && user.role !== "manager") {
+    if (!(await canAccessDocumentFile(user, file.employee_id))) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const absolute = safeStoragePath(file.storage_key);
@@ -322,6 +309,30 @@ async function canAccessEmployeeScoped(user: AuthReq["user"], employeeId: number
     return targetRoles.every((role: string) => role === "employee");
   }
   if (user.role === "employee") return mode === "read" && Number(employeeId) === Number(user.employeeId);
+  return false;
+}
+
+async function managerDirectReportIds(user: AuthReq["user"]): Promise<number[]> {
+  if (user.role !== "manager" || !user.employeeId) return [];
+  const { rows } = await pool.query(
+    `SELECT id FROM employees
+     WHERE company_id=$1
+       AND COALESCE(is_deleted,false)=false
+       AND direct_manager_id=$2`,
+    [user.companyId, user.employeeId],
+  );
+  return rows.map(row => Number(row.id)).filter(id => Number.isFinite(id));
+}
+
+async function canAccessDocumentFile(user: AuthReq["user"], employeeId: unknown): Promise<boolean> {
+  if (user.role === "hradmin" || user.role === "superadmin") return true;
+  const targetEmployeeId = Number(employeeId);
+  if (!Number.isFinite(targetEmployeeId) || targetEmployeeId <= 0) return false;
+  if (user.role === "employee") return Number(user.employeeId) === targetEmployeeId;
+  if (user.role === "manager") {
+    const ids = await managerDirectReportIds(user);
+    return ids.includes(targetEmployeeId);
+  }
   return false;
 }
 
@@ -6624,12 +6635,18 @@ app.get("/api/documents/expiring", auth, async (req, res) => {
 app.get("/api/documents/export", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
-    const conditions: any[] = [eq(documentsTable.isDeleted, false)];
+    const conditions: any[] = [eq(documentsTable.isDeleted, false), eq(documentsTable.companyId, user.companyId)];
     if (user.role === "employee") {
       if (!user.employeeId) { res.json({ success: true, data: [] }); return; }
       conditions.push(eq(documentsTable.employeeId, user.employeeId));
+    } else if (user.role === "manager") {
+      const ids = await managerDirectReportIds(user);
+      if (ids.length === 0) { res.json({ success: true, data: [] }); return; }
+      conditions.push(inArray(documentsTable.employeeId, ids));
+    } else if (user.role === "hradmin" || user.role === "superadmin") {
+      // HR/admin export is company-scoped above.
     } else {
-      conditions.push(eq(documentsTable.companyId, user.companyId));
+      res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const docs = await fetchDocumentsJoined(conditions);
     res.json({ success: true, data: docs });
@@ -6681,26 +6698,11 @@ app.get("/api/files/:id/download", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const id = parseIntParam(req.params.id);
-    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE id = $1 AND is_deleted = false`, [id]);
+    if (!id || id <= 0) { res.status(404).json({ success: false, message: "File not found" }); return; }
+    const { rows } = await pool.query(`SELECT * FROM file_objects WHERE id = $1 AND company_id = $2 AND is_deleted = false`, [id, user.companyId]);
     const file = rows[0];
     if (!file) { res.status(404).json({ success: false, message: "File not found" }); return; }
-    if (file.company_id !== user.companyId && user.role !== "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    }
-    if (user.role === "superadmin") {
-      res.status(403).json({ success: false, message: "Forbidden: platform admin cannot access private company files" }); return;
-    }
-    if (user.role === "hradmin") {
-      // HR has company-scoped document access.
-    } else if (user.role === "employee" && Number(file.employee_id) !== Number(user.employeeId)) {
-      res.status(403).json({ success: false, message: "Forbidden" }); return;
-    } else if (user.role === "manager" && file.employee_id) {
-      const scope = await getEmployeeScopeConditions(req as AuthReq);
-      const team = await db.select({ id: employeesTable.id }).from(employeesTable).where(and(...scope, eq(employeesTable.isDeleted, false)));
-      if (!team.some(e => Number(e.id) === Number(file.employee_id))) {
-        res.status(403).json({ success: false, message: "Forbidden" }); return;
-      }
-    } else if (user.role !== "employee" && user.role !== "manager") {
+    if (!(await canAccessDocumentFile(user, file.employee_id))) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
     const absolute = safeStoragePath(file.storage_key);
