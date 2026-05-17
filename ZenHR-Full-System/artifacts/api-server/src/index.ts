@@ -336,6 +336,111 @@ async function canAccessDocumentFile(user: AuthReq["user"], employeeId: unknown)
   return false;
 }
 
+const EMPLOYEE_PATCH_ALLOWED_FIELDS = new Set([
+  "firstNameEn",
+  "lastNameEn",
+  "firstNameAr",
+  "lastNameAr",
+  "middleNameEn",
+  "middleNameAr",
+  "personalPhone",
+  "workPhone",
+  "phone",
+  "personalEmail",
+  "addressAr",
+  "address",
+  "city",
+  "nationality",
+  "religion",
+  "maritalStatus",
+  "numberOfDependents",
+  "dateOfBirth",
+  "birthDate",
+  "gender",
+  "emergencyContactName",
+  "emergencyContactPhone",
+  "emergencyContactRelation",
+  "passportNumber",
+  "passportExpiry",
+  "workPermitNumber",
+  "workPermitExpiry",
+  "residencyNumber",
+  "residencyExpiry",
+  "profilePhoto",
+  "profileImage",
+  "notes",
+]);
+
+const EMPLOYEE_PATCH_PROTECTED_FIELDS = new Set([
+  "id",
+  "companyId",
+  "company_id",
+  "isDeleted",
+  "is_deleted",
+  "employeeCode",
+  "employee_code",
+  "employmentStatus",
+  "employment_status",
+  "directManagerId",
+  "direct_manager_id",
+  "userId",
+  "user_id",
+  "role",
+  "password",
+  "basicSalary",
+  "baseSalary",
+  "salary",
+  "housingAllowance",
+  "transportAllowance",
+  "mobileAllowance",
+  "mealAllowance",
+  "otherAllowances",
+  "sscNumber",
+  "sscEnrollmentDate",
+  "isSSCExempt",
+  "incomeTaxNumber",
+  "taxExemptionAmount",
+  "bankName",
+  "bankAccountNumber",
+  "iban",
+  "departmentId",
+  "orgNodeId",
+  "jobTitleId",
+  "jobDescriptionId",
+  "employmentType",
+  "hireDate",
+  "probationEndDate",
+  "contractType",
+  "contractEndDate",
+  "terminationDate",
+  "terminationReason",
+  "createdAt",
+  "updatedAt",
+  "createdBy",
+  "updatedBy",
+  "created_by",
+  "updated_by",
+  "leaveBalance",
+  "leaveBalances",
+  "approvalStatus",
+  "workflowStatus",
+]);
+
+function safeEmployeePatch(body: Record<string, any>): { update: Record<string, any>; forbidden: string[] } {
+  const forbidden = Object.keys(body || {}).filter(key => EMPLOYEE_PATCH_PROTECTED_FIELDS.has(key));
+  const update: Record<string, any> = {};
+  for (const [key, value] of Object.entries(body || {})) {
+    if (!EMPLOYEE_PATCH_ALLOWED_FIELDS.has(key)) continue;
+    if (key === "phone") update.personalPhone = value;
+    else if (key === "address") update.addressAr = value;
+    else if (key === "birthDate") update.dateOfBirth = value;
+    else if (key === "profileImage") update.profilePhoto = value;
+    else update[key] = value;
+  }
+  if (Object.keys(update).length > 0) update.updatedAt = new Date();
+  return { update, forbidden };
+}
+
 // â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/healthz", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString(), version: SERVICE_VERSION });
@@ -1303,13 +1408,33 @@ app.patch("/api/employees/:id", auth, async (req, res) => {
   try {
     const user = (req as AuthReq).user;
     const empId = parseInt(req.params["id"]!);
-    if (!(await canAccessEmployeeScoped(user, empId, "mutate"))) {
+    if (!Number.isInteger(empId) || empId <= 0) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
+    if (!["hradmin", "superadmin"].includes(user.role)) {
       res.status(403).json({ success: false, message: "Forbidden" }); return;
     }
-    const [emp] = await db.update(employeesTable).set({ ...req.body, companyId: user.companyId }).where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId))).returning();
+    const [existing] = await db.select({ id: employeesTable.id })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Employee not found" }); return;
+    }
+    const { update, forbidden } = safeEmployeePatch(req.body || {});
+    if (forbidden.length > 0) {
+      res.status(400).json({ success: false, message: "Protected employee fields cannot be updated through this route", fields: forbidden }); return;
+    }
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ success: false, message: "No editable employee fields provided" }); return;
+    }
+    const [emp] = await db.update(employeesTable).set(update)
+      .where(and(eq(employeesTable.id, empId), eq(employeesTable.companyId, user.companyId), eq(employeesTable.isDeleted, false)))
+      .returning();
     if (!emp) { res.status(404).json({ success: false, message: "Employee not found" }); return; }
     res.json({ success: true, data: emp });
   } catch (e) {
+    console.error("[PATCH /api/employees/:id]", e);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

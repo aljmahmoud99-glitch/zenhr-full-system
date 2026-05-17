@@ -1,0 +1,289 @@
+{
+  "generatedAt": "2026-05-17T03:08:14.406Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "route": "PATCH /api/employees/:id",
+  "allowlist": [
+    "firstNameEn",
+    "lastNameEn",
+    "firstNameAr",
+    "lastNameAr",
+    "middleNameEn",
+    "middleNameAr",
+    "personalPhone",
+    "workPhone",
+    "phone",
+    "personalEmail",
+    "addressAr",
+    "address",
+    "city",
+    "nationality",
+    "religion",
+    "maritalStatus",
+    "numberOfDependents",
+    "dateOfBirth",
+    "birthDate",
+    "gender",
+    "emergencyContactName",
+    "emergencyContactPhone",
+    "emergencyContactRelation",
+    "passportNumber",
+    "passportExpiry",
+    "workPermitNumber",
+    "workPermitExpiry",
+    "residencyNumber",
+    "residencyExpiry",
+    "profilePhoto",
+    "profileImage",
+    "notes"
+  ],
+  "protectedFields": [
+    "isDeleted",
+    "companyId",
+    "employmentStatus",
+    "directManagerId",
+    "employeeCode"
+  ],
+  "protectedFieldPolicy": "400 Bad Request when protected/internal fields are present; unknown non-table fields are ignored",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T03:08:14.455Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T03:08:14.455Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "targetId": 8,
+    "employeeEmployeeId": 8,
+    "crossCompanyEmployeeId": 10,
+    "softDeletedEmployeeId": 58
+  },
+  "before": {
+    "target": {
+      "id": 8,
+      "company_id": 1,
+      "employee_code": "EMP-0005",
+      "employment_status": "active",
+      "direct_manager_id": 7,
+      "is_deleted": false,
+      "personal_phone": null,
+      "personal_email": null,
+      "notes": null
+    },
+    "protectedAttempt": {
+      "id": 8,
+      "company_id": 1,
+      "employee_code": "EMP-0005",
+      "employment_status": "active",
+      "direct_manager_id": 7,
+      "is_deleted": false,
+      "personal_phone": "P18-294762",
+      "personal_email": "phase18-1778987294406-15390@example.test",
+      "notes": "Phase 1.8 allowed update 1778987294406-15390"
+    }
+  },
+  "after": {
+    "allowedPatch": {
+      "id": 8,
+      "company_id": 1,
+      "employee_code": "EMP-0005",
+      "employment_status": "active",
+      "direct_manager_id": 7,
+      "is_deleted": false,
+      "personal_phone": "P18-294762",
+      "personal_email": "phase18-1778987294406-15390@example.test",
+      "notes": "Phase 1.8 allowed update 1778987294406-15390"
+    },
+    "protectedAttempt": {
+      "id": 8,
+      "company_id": 1,
+      "employee_code": "EMP-0005",
+      "employment_status": "active",
+      "direct_manager_id": 7,
+      "is_deleted": false,
+      "personal_phone": "P18-294762",
+      "personal_email": "phase18-1778987294406-15390@example.test",
+      "notes": "Phase 1.8 allowed update 1778987294406-15390"
+    }
+  },
+  "tests": {
+    "hrAllowedPatch": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 8,
+          "companyId": 1,
+          "employeeCode": "EMP-0005",
+          "firstNameAr": "Layla",
+          "middleNameAr": null,
+          "lastNameAr": "Haddad",
+          "firstNameEn": "Layla",
+          "middleNameEn": null,
+          "lastNameEn": "Haddad",
+          "gender": "female",
+          "dateOfBirth": "1992-03-10",
+          "nationalId": "9212345678",
+          "nationality": "أردني",
+          "religion": null,
+          "maritalStatus": null,
+          "numberOfDependents": 0,
+          "personalEmail": "phase18-1778987294406-15390@example.test",
+          "workEmail": "layla@zenjo.jo",
+          "personalPhone": "P18-294762",
+          "workPhone": null,
+          "emergencyContactName": null,
+          "emergencyContactPhone": null,
+          "emergencyContactRelation": null,
+          "addressAr": null,
+          "city": null,
+          "departmentId": 7,
+          "orgNodeId": null,
+          "jobTitleId": 10,
+          "jobDescriptionId": null,
+          "directManagerId": 7,
+          "employmentType": "fulltime",
+          "hireDate": "2022-01-10",
+          "probationEndDate": null,
+          "contractType": "permanent",
+          "contractEndDate": null,
+          "employmentStatus": "active",
+          "terminationDate": null,
+          "terminationReason": null,
+          "basicSalary": "1071.000",
+          "housingAllowance": "150.000",
+          "transportAllowance": "50.000",
+          "mobileAllowance": "0.000",
+          "mealAllowance": "0.000",
+          "otherAllowances": "0.000",
+          "sscNumber": null,
+          "sscEnrollmentDate": null,
+          "isSSCExempt": false,
+          "incomeTaxNumber": null,
+          "taxExemptionAmount": "0.000",
+          "bankName": "Arab Bank",
+          "bankAccountNumber": null,
+          "iban": "JO94ARAB0210000000000345678901",
+          "passportNumber": null,
+          "passportExpiry": null,
+          "workPermitNumber": null,
+          "workPermitExpiry": null,
+          "residencyNumber": null,
+          "residencyExpiry": null,
+          "profilePhoto": null,
+          "notes": "Phase 1.8 allowed update 1778987294406-15390",
+          "createdAt": "2026-04-06T16:26:13.307Z",
+          "updatedAt": "2026-05-17T03:08:14.766Z",
+          "isDeleted": false
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":8,\"companyId\":1,\"employeeCode\":\"EMP-0005\",\"firstNameAr\":\"Layla\",\"middleNameAr\":null,\"lastNameAr\":\"Haddad\",\"firstNameEn\":\"Layla\",\"middleNameEn\":null,\"lastNameEn\":\"Haddad\",\"gender\":\"female\",\"dateOfBirth\":\"1992-03-10\",\"nationalId\":\"9212345678\",\"nationality\":\"أردني\",\"religion\":null,\"maritalStatus\":null,\"numberOfDependents\":0,\"personalEmail\":\"phase18-1778987294406-15390@example.test\",\"workEmail\":\"layla@zenjo.jo\",\"personalPhone\":\"P18-294762\",\"workPhone\":null,\"emergencyCont"
+    },
+    "protectedPatch": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "message": "Protected employee fields cannot be updated through this route",
+        "fields": [
+          "isDeleted",
+          "companyId",
+          "employmentStatus",
+          "directManagerId",
+          "employeeCode"
+        ]
+      },
+      "text": "{\"success\":false,\"message\":\"Protected employee fields cannot be updated through this route\",\"fields\":[\"isDeleted\",\"companyId\",\"employmentStatus\",\"directManagerId\",\"employeeCode\"]}"
+    },
+    "employeeSelfServicePatch": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "crossCompanyPatch": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Employee not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Employee not found\"}"
+    },
+    "softDeletedPatch": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Employee not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Employee not found\"}"
+    },
+    "randomPatch": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Employee not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Employee not found\"}"
+    }
+  },
+  "skipped": [
+    {
+      "test": "employeeSelfServiceAllowedFieldsPersist",
+      "reason": "Employee PATCH self-service is not supported by the existing route policy"
+    }
+  ],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "hrAllowedPatch": true,
+    "allowedFieldsPersisted": true,
+    "employeeSelfServiceBehaviorPreserved": true,
+    "protectedPatchRejected": true,
+    "protectedFieldsRemainUnchanged": true,
+    "crossCompany404": true,
+    "softDeleted404": true,
+    "randomId404": true
+  }
+}
