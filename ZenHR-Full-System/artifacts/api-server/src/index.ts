@@ -8000,6 +8000,19 @@ app.put("/api/disciplinary/:id/acknowledge", auth, async (req, res) => {
 //
 // Status set that counts as terminal (no transitions out):
 const RESIGNATION_TERMINAL = new Set(["completed", "rejected", "withdrawn"]);
+const RESIGNATION_APPROVAL_ROLES = new Set(["hradmin", "manager", "superadmin"]);
+
+function resignationStepRole(step: number): string {
+  return ({ 1: "hradmin", 2: "manager", 3: "hradmin" } as Record<number, string>)[step] ?? "hradmin";
+}
+
+function canActOnScopedResignation(user: AuthReq["user"], step: number, directManagerId: number | null): boolean {
+  if (user.role === "hradmin" || user.role === "superadmin") return true;
+  if (user.role !== "manager") return false;
+  return resignationStepRole(step) === "manager"
+    && !!user.employeeId
+    && Number(directManagerId) === Number(user.employeeId);
+}
 
 // Build joined resignation list row shape from a raw DB row + joined data
 async function buildResignationRow(r: any, userId: number, userRole: string, userEmpId: number | null) {
@@ -8394,23 +8407,34 @@ app.post("/api/resignations", auth, async (req, res) => {
 // PUT /api/resignations/:id/approve â€” approve current step
 app.put("/api/resignations/:id/approve", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+  if (!RESIGNATION_APPROVAL_ROLES.has(user.role)) {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
   try {
-    const [r] = await db.select().from(resignationsTable).where(and(
-      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
-    )).limit(1);
+    const [scoped] = await db.select({
+      resignation: resignationsTable,
+      directManagerId: employeesTable.directManagerId,
+    })
+      .from(resignationsTable)
+      .innerJoin(employeesTable, eq(resignationsTable.employeeId, employeesTable.id))
+      .where(and(
+        eq(resignationsTable.id, id),
+        eq(resignationsTable.companyId, user.companyId),
+        eq(resignationsTable.isDeleted, false),
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+      ))
+      .limit(1);
+    const r = scoped?.resignation;
     if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
     if (RESIGNATION_TERMINAL.has(r.status)) return res.status(409).json({ success: false, message: "Resignation is already in a terminal state" });
 
     const step = r.currentApprovalStep ?? 1;
-    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
     const stepStatusMap: Record<number, string> = { 1: "hr_approved", 2: "manager_approved", 3: "active_notice" };
-    if (user.role !== stepRoleMap[step]) {
-      return res.status(403).json({ success: false, message: `This step requires role: ${stepRoleMap[step]}` });
+    if (!canActOnScopedResignation(user, step, scoped.directManagerId)) {
+      return res.status(403).json({ success: false, message: `This step requires role: ${resignationStepRole(step)}` });
     }
 
     const newStatus = stepStatusMap[step];
@@ -8420,14 +8444,18 @@ app.put("/api/resignations/:id/approve", auth, async (req, res) => {
       status: newStatus,
       currentApprovalStep: nextStep,
       updatedAt: new Date(),
-    }).where(eq(resignationsTable.id, id));
+    }).where(and(eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)));
 
     await db.update(resignationApprovalsTable).set({
       decision: "approved",
       approverUserId: user.id,
       notes: req.body.notes ?? null,
       decidedAt: new Date(),
-    }).where(and(eq(resignationApprovalsTable.resignationId, id), eq(resignationApprovalsTable.approvalStep, step)));
+    }).where(and(
+      eq(resignationApprovalsTable.companyId, user.companyId),
+      eq(resignationApprovalsTable.resignationId, id),
+      eq(resignationApprovalsTable.approvalStep, step),
+    ));
 
     await db.insert(activityLogsTable).values({
       type: "resignation_approved",
@@ -8458,15 +8486,27 @@ app.put("/api/resignations/:id/approve", auth, async (req, res) => {
 // PUT /api/resignations/:id/reject â€” reject at current step
 app.put("/api/resignations/:id/reject", auth, async (req, res) => {
   const user = (req as AuthReq).user;
-  if (!["hradmin", "manager", "payrolladmin"].includes(user.role)) {
+  if (!RESIGNATION_APPROVAL_ROLES.has(user.role)) {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid id" });
   try {
-    const [r] = await db.select().from(resignationsTable).where(and(
-      eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)
-    )).limit(1);
+    const [scoped] = await db.select({
+      resignation: resignationsTable,
+      directManagerId: employeesTable.directManagerId,
+    })
+      .from(resignationsTable)
+      .innerJoin(employeesTable, eq(resignationsTable.employeeId, employeesTable.id))
+      .where(and(
+        eq(resignationsTable.id, id),
+        eq(resignationsTable.companyId, user.companyId),
+        eq(resignationsTable.isDeleted, false),
+        eq(employeesTable.companyId, user.companyId),
+        eq(employeesTable.isDeleted, false),
+      ))
+      .limit(1);
+    const r = scoped?.resignation;
     if (!r) return res.status(404).json({ success: false, message: "Resignation not found" });
     if (RESIGNATION_TERMINAL.has(r.status)) return res.status(409).json({ success: false, message: "Resignation is already in a terminal state" });
 
@@ -8474,18 +8514,22 @@ app.put("/api/resignations/:id/reject", auth, async (req, res) => {
     if (!notes) return res.status(400).json({ success: false, message: "Rejection reason (notes) is required" });
 
     const step = r.currentApprovalStep ?? 1;
-    const stepRoleMap: Record<number, string> = { 1: "hradmin", 2: "manager", 3: "payrolladmin" };
-    if (user.role !== stepRoleMap[step]) {
-      return res.status(403).json({ success: false, message: `This step requires role: ${stepRoleMap[step]}` });
+    if (!canActOnScopedResignation(user, step, scoped.directManagerId)) {
+      return res.status(403).json({ success: false, message: `This step requires role: ${resignationStepRole(step)}` });
     }
 
-    await db.update(resignationsTable).set({ status: "rejected", currentApprovalStep: null, updatedAt: new Date() }).where(eq(resignationsTable.id, id));
+    await db.update(resignationsTable).set({ status: "rejected", currentApprovalStep: null, updatedAt: new Date() })
+      .where(and(eq(resignationsTable.id, id), eq(resignationsTable.companyId, user.companyId), eq(resignationsTable.isDeleted, false)));
     await db.update(resignationApprovalsTable).set({
       decision: "rejected",
       approverUserId: user.id,
       notes,
       decidedAt: new Date(),
-    }).where(and(eq(resignationApprovalsTable.resignationId, id), eq(resignationApprovalsTable.approvalStep, step)));
+    }).where(and(
+      eq(resignationApprovalsTable.companyId, user.companyId),
+      eq(resignationApprovalsTable.resignationId, id),
+      eq(resignationApprovalsTable.approvalStep, step),
+    ));
 
     await db.insert(activityLogsTable).values({
       type: "resignation_rejected",

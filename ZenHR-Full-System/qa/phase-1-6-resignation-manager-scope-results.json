@@ -1,0 +1,238 @@
+{
+  "generatedAt": "2026-05-17T02:36:51.812Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "route": "PUT /api/resignations/:id/approve",
+  "relatedRoute": "PUT /api/resignations/:id/reject",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T02:36:51.876Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T02:36:51.876Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "hrUserId": 2,
+    "managerEmployeeId": 7,
+    "employeeEmployeeId": 8,
+    "directReportId": 2,
+    "unrelatedEmployeeId": 37
+  },
+  "tests": {
+    "managerDirectApprove": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 3,
+          "status": "manager_approved",
+          "currentApprovalStep": 3
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":3,\"status\":\"manager_approved\",\"currentApprovalStep\":3}}"
+    },
+    "managerUnrelatedApprove": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This step requires role: manager"
+      },
+      "text": "{\"success\":false,\"message\":\"This step requires role: manager\"}"
+    },
+    "managerUnrelatedReject": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "This step requires role: manager"
+      },
+      "text": "{\"success\":false,\"message\":\"This step requires role: manager\"}"
+    },
+    "hrApprove": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 6,
+          "status": "hr_approved",
+          "currentApprovalStep": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":6,\"status\":\"hr_approved\",\"currentApprovalStep\":2}}"
+    },
+    "superadminApprove": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 7,
+          "status": "hr_approved",
+          "currentApprovalStep": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":7,\"status\":\"hr_approved\",\"currentApprovalStep\":2}}"
+    },
+    "employeeForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "crossCompany": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Resignation not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Resignation not found\"}"
+    },
+    "deleted": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Resignation not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Resignation not found\"}"
+    },
+    "random": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Resignation not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Resignation not found\"}"
+    },
+    "alreadyRejected": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Resignation is already in a terminal state"
+      },
+      "text": "{\"success\":false,\"message\":\"Resignation is already in a terminal state\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "fixtureIds": {
+    "managerDirectApprove": 3,
+    "managerUnrelatedApprove": 4,
+    "managerUnrelatedReject": 5,
+    "hrApprove": 6,
+    "superadminApprove": 7,
+    "employeeForbidden": 8,
+    "payrollForbidden": 9,
+    "recruiterForbidden": 10,
+    "deleted": 11,
+    "alreadyRejected": 12,
+    "crossCompany": 13
+  },
+  "assertions": {
+    "health": true,
+    "managerDirectApprove": true,
+    "managerUnrelatedApproveBlocked": true,
+    "managerUnrelatedRejectBlocked": true,
+    "hrApprove": true,
+    "crossCompanyBlocked": true,
+    "superadminApprove": true,
+    "employeeForbidden": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true,
+    "deletedBlocked": true,
+    "randomId404": true,
+    "alreadyRejectedGuard": true
+  }
+}
