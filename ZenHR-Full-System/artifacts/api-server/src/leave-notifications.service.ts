@@ -87,8 +87,8 @@ async function ensureEmployeeScope(user: AuthReq["user"], employeeId: number, fo
   return false;
 }
 
-async function leaveTypeForCompany(companyId: number, leaveTypeId: number) {
-  const { rows } = await pool.query(
+async function leaveTypeForCompany(companyId: number, leaveTypeId: number, db: Pick<typeof pool, "query"> = pool) {
+  const { rows } = await db.query(
     `SELECT * FROM enterprise_leave_types
      WHERE id=$1 AND company_id=$2 AND is_deleted=false AND is_active=true`,
     [leaveTypeId, companyId],
@@ -160,8 +160,8 @@ async function hasLeaveConflict(companyId: number, employeeId: number, startDate
   return rows[0] || null;
 }
 
-async function insertLeaveAudit(companyId: number, leaveRequestId: number | null, actorUserId: number, action: string, beforeJson: any, afterJson: any, notes?: string | null) {
-  await pool.query(
+async function insertLeaveAudit(companyId: number, leaveRequestId: number | null, actorUserId: number, action: string, beforeJson: any, afterJson: any, notes?: string | null, db: Pick<typeof pool, "query"> = pool) {
+  await db.query(
     `INSERT INTO leave_request_audit_logs
       (company_id, leave_request_id, actor_user_id, action, before_json, after_json, notes)
      VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)`,
@@ -185,9 +185,9 @@ async function seedApprovalSteps(companyId: number, leaveRequestId: number, requ
   return steps;
 }
 
-async function refreshBalanceForRequest(companyId: number, employeeId: number, leaveTypeId: number, days: number, status: string) {
+async function refreshBalanceForRequest(companyId: number, employeeId: number, leaveTypeId: number, days: number, status: string, db: Pick<typeof pool, "query"> = pool) {
   const year = new Date().getFullYear();
-  const policy = await pool.query(
+  const policy = await db.query(
     `SELECT * FROM leave_accrual_policies
      WHERE company_id=$1 AND leave_type_id=$2 AND is_deleted=false AND is_active=true
      ORDER BY id DESC LIMIT 1`,
@@ -195,7 +195,7 @@ async function refreshBalanceForRequest(companyId: number, employeeId: number, l
   );
   const entitlementDays = Number(policy.rows[0]?.entitlement_days ?? 0);
   const carried = Number(policy.rows[0]?.carry_forward_max_days ?? 0);
-  await pool.query(
+  await db.query(
     `INSERT INTO leave_balances (employee_id, leave_policy_id, year, entitled_days, carried_forward_days, used_days, pending_days)
      SELECT $1, COALESCE(lp.id, 0), $3, $4, $5, 0, 0
      FROM leave_policies lp
@@ -206,7 +206,7 @@ async function refreshBalanceForRequest(companyId: number, employeeId: number, l
   ).catch(() => undefined);
 
   const column = status === "approved" ? "used_days" : "pending_days";
-  await pool.query(
+  await db.query(
     `UPDATE leave_balances lb
      SET ${column} = GREATEST(0, COALESCE(${column},0) + $1), updated_at=NOW()
      FROM leave_policies lp
@@ -216,9 +216,49 @@ async function refreshBalanceForRequest(companyId: number, employeeId: number, l
   ).catch(() => undefined);
 }
 
-async function createLeavePayrollImpact(companyId: number, request: any, type: any) {
+async function refreshApprovalBalanceForRequest(companyId: number, employeeId: number, leaveTypeId: number, days: number, status: string, db: Pick<typeof pool, "query">) {
+  const year = new Date().getFullYear();
+  const policy = await db.query(
+    `SELECT * FROM leave_accrual_policies
+     WHERE company_id=$1 AND leave_type_id=$2 AND is_deleted=false AND is_active=true
+     ORDER BY id DESC LIMIT 1`,
+    [companyId, leaveTypeId],
+  );
+  const entitlementDays = Number(policy.rows[0]?.entitlement_days ?? 0);
+  const carried = Number(policy.rows[0]?.carry_forward_max_days ?? 0);
+  await db.query(
+    `INSERT INTO leave_balances (employee_id, leave_policy_id, year, entitled_days, carried_forward_days, used_days, pending_days)
+     SELECT $1, COALESCE(lp.id, 0), $3, $4, $5, 0, 0
+     FROM leave_policies lp
+     WHERE lp.company_id=$2 AND lp.leave_type=(SELECT code FROM enterprise_leave_types WHERE id=$6 AND company_id=$2)
+     LIMIT 1
+     ON CONFLICT DO NOTHING`,
+    [employeeId, companyId, year, entitlementDays, carried, leaveTypeId],
+  ).catch(() => undefined);
+
+  const column = status === "approved" ? "used_days" : "pending_days";
+  const { rows } = await db.query(
+    `SELECT lb.id
+       FROM leave_balances lb
+       JOIN leave_policies lp ON lb.leave_policy_id=lp.id
+      WHERE lb.employee_id=$1 AND lb.year=$2 AND lp.company_id=$3
+        AND lp.leave_type=(SELECT code FROM enterprise_leave_types WHERE id=$4 AND company_id=$3)
+      ORDER BY lb.id
+      LIMIT 1
+      FOR UPDATE`,
+    [employeeId, year, companyId, leaveTypeId],
+  );
+  const balanceId = rows[0]?.id;
+  if (!balanceId) return;
+  await db.query(
+    `UPDATE leave_balances SET ${column}=GREATEST(0, COALESCE(${column},0) + $1), updated_at=NOW() WHERE id=$2`,
+    [days, balanceId],
+  );
+}
+
+async function createLeavePayrollImpact(companyId: number, request: any, type: any, db: Pick<typeof pool, "query"> = pool) {
   if (!type?.affects_payroll || type.payroll_impact_type === "none") return null;
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `INSERT INTO leave_payroll_impacts
       (company_id, leave_request_id, employee_id, impact_type, days, hours, amount, status)
      VALUES ($1,$2,$3,'unpaid_leave_deduction',$4,$5,COALESCE($6,0),'pending')
@@ -236,11 +276,12 @@ async function createLeavePayrollImpact(companyId: number, request: any, type: a
   return rows[0] || null;
 }
 
-async function pendingApproverFor(companyId: number, leaveRequestId: number) {
-  const { rows } = await pool.query(
+async function pendingApproverFor(companyId: number, leaveRequestId: number, db: Pick<typeof pool, "query"> = pool, forUpdate = false) {
+  const { rows } = await db.query(
     `SELECT * FROM leave_request_approval_steps
      WHERE company_id=$1 AND leave_request_id=$2 AND decision='pending' AND is_deleted=false
-     ORDER BY step_order LIMIT 1`,
+     ORDER BY step_order LIMIT 1
+     ${forUpdate ? "FOR UPDATE" : ""}`,
     [companyId, leaveRequestId],
   );
   return rows[0] || null;
@@ -571,41 +612,50 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
   });
 
   app.post("/api/leave/management/requests/:id/approve", auth, async (req, res) => {
+    const client = await pool.connect();
+    let postCommitNotification: (() => Promise<void>) | null = null;
     try {
       const user = (req as AuthReq).user;
       if (!LEAVE_REVIEW_ROLES.has(user.role)) { res.status(403).json({ success: false, message: "Forbidden" }); return; }
       const id = intParam(req.params.id);
       if (!id) { res.status(400).json({ success: false, message: "Invalid id" }); return; }
-      const { rows } = await pool.query(`SELECT * FROM leave_requests WHERE id=$1 AND company_id=$2 AND is_deleted=false`, [id, user.companyId]);
+      await client.query("BEGIN");
+      const { rows } = await client.query(`SELECT * FROM leave_requests WHERE id=$1 AND company_id=$2 AND is_deleted=false FOR UPDATE`, [id, user.companyId]);
       const request = rows[0];
-      if (!request) { res.status(404).json({ success: false, message: "Not found" }); return; }
+      if (!request) { await client.query("ROLLBACK"); res.status(404).json({ success: false, message: "Not found" }); return; }
+      if (!["pending", "manager_approved"].includes(String(request.status))) {
+        await client.query("ROLLBACK");
+        res.status(409).json({ success: false, message: "Leave request is not pending approval" }); return;
+      }
       if (user.role === "manager" && !(await managerCanApproveEmployee(user, request.employee_id))) {
+        await client.query("ROLLBACK");
         res.status(403).json({ success: false, message: "Forbidden" }); return;
       }
       const storedDays = validateLeaveTotalDays(request.total_days);
       if (!storedDays.ok) {
+        await client.query("ROLLBACK");
         res.status(400).json({ success: false, message: "Leave request has invalid totalDays and cannot be approved" }); return;
       }
-      const step = await pendingApproverFor(user.companyId, id);
-      if (!step) { res.status(409).json({ success: false, message: "No pending approval step" }); return; }
-      if (user.role === "manager" && step.approver_role !== "manager") { res.status(403).json({ success: false, message: "Manager cannot approve this step" }); return; }
-      await pool.query(`UPDATE leave_request_approval_steps SET decision='approved', approver_user_id=$1, decided_at=NOW(), notes=$2, updated_at=NOW() WHERE id=$3`, [user.userId, req.body.notes || null, step.id]);
-      const next = await pendingApproverFor(user.companyId, id);
+      const step = await pendingApproverFor(user.companyId, id, client, true);
+      if (!step) { await client.query("ROLLBACK"); res.status(409).json({ success: false, message: "No pending approval step" }); return; }
+      if (user.role === "manager" && step.approver_role !== "manager") { await client.query("ROLLBACK"); res.status(403).json({ success: false, message: "Manager cannot approve this step" }); return; }
+      await client.query(`UPDATE leave_request_approval_steps SET decision='approved', approver_user_id=$1, decided_at=NOW(), notes=$2, updated_at=NOW() WHERE id=$3 AND decision='pending'`, [user.userId, req.body.notes || null, step.id]);
+      const next = await pendingApproverFor(user.companyId, id, client, true);
       const newStatus = next ? (next.approver_role === "hradmin" ? "manager_approved" : "pending") : "approved";
-      const { rows: updatedRows } = await pool.query(
+      const { rows: updatedRows } = await client.query(
         `UPDATE leave_requests SET status=$1::varchar, current_approval_step=$2::varchar, approved_by_id=CASE WHEN $1::varchar='approved' THEN $3 ELSE approved_by_id END,
           approved_at=CASE WHEN $1::varchar='approved' THEN NOW() ELSE approved_at END, updated_by=$3, updated_at=NOW()
-         WHERE id=$4 AND company_id=$5 RETURNING *`,
+         WHERE id=$4 AND company_id=$5 AND is_deleted=false RETURNING *`,
         [newStatus, next?.approver_role || null, user.userId, id, user.companyId],
       );
       const updated = updatedRows[0];
-      await insertLeaveAudit(user.companyId, id, user.userId, "approved_step", request, updated, req.body.notes || null);
+      await insertLeaveAudit(user.companyId, id, user.userId, "approved_step", request, updated, req.body.notes || null, client);
       if (newStatus === "approved") {
-        const type = await leaveTypeForCompany(user.companyId, Number(request.leave_type));
-        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), -storedDays.days, "pending");
-        await refreshBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), storedDays.days, "approved");
-        await createLeavePayrollImpact(user.companyId, updated, type);
-        await notifyEmployee(request.employee_id, user.companyId, {
+        const type = await leaveTypeForCompany(user.companyId, Number(request.leave_type), client);
+        await refreshApprovalBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), -storedDays.days, "pending", client);
+        await refreshApprovalBalanceForRequest(user.companyId, request.employee_id, Number(request.leave_type), storedDays.days, "approved", client);
+        await createLeavePayrollImpact(user.companyId, updated, type, client);
+        postCommitNotification = () => notifyEmployee(request.employee_id, user.companyId, {
           companyId: user.companyId, actorUserId: user.userId, entityType: "leave_request", entityId: id,
           notificationType: "leave_request_approved", titleAr: "تمت الموافقة على الإجازة", titleEn: "Leave approved",
           messageAr: `تمت الموافقة على طلب إجازتك من ${fmtDateRange(request.start_date, request.end_date)}.`,
@@ -613,7 +663,7 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
           priority: "high", actionUrl: notificationUrl(),
         });
       } else {
-        await notifyRole(user.companyId, String(next.approver_role), {
+        postCommitNotification = () => notifyRole(user.companyId, String(next.approver_role), {
           companyId: user.companyId, actorUserId: user.userId, entityType: "leave_request", entityId: id,
           notificationType: "leave_request_awaiting_approval", titleAr: "طلب إجازة بانتظار الاعتماد", titleEn: "Leave awaiting approval",
           messageAr: `طلب إجازة من ${fmtDateRange(request.start_date, request.end_date)} بانتظار المراجعة.`,
@@ -621,10 +671,15 @@ export function registerLeaveNotificationsRoutes(app: express.Express, auth: Aut
           priority: "normal", actionUrl: notificationUrl(),
         });
       }
+      await client.query("COMMIT");
+      if (postCommitNotification) await postCommitNotification();
       res.json({ success: true, data: toCamel(updated) });
     } catch (e) {
+      try { await client.query("ROLLBACK"); } catch {}
       console.error("[POST /api/leave/management/requests/:id/approve]", e);
       res.status(500).json({ success: false, message: "Internal server error" });
+    } finally {
+      client.release();
     }
   });
 

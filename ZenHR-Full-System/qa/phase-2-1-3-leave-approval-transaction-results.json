@@ -1,0 +1,279 @@
+{
+  "generatedAt": "2026-05-17T04:04:17.762Z",
+  "status": "GO",
+  "backend": "http://127.0.0.1:3001",
+  "route": "POST /api/leave/management/requests/:id/approve",
+  "compatibilityRoute": "POST /api/leave/requests/:id/approve forwards unchanged",
+  "transactionStrategy": "single PostgreSQL transaction on one pool client with BEGIN/COMMIT/ROLLBACK",
+  "concurrencyProtection": "SELECT leave_requests ... FOR UPDATE plus locked pending approval step before status/balance mutation",
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "timestamp": "2026-05-17T04:04:17.847Z",
+      "version": "1.0.0"
+    },
+    "text": "{\"status\":\"healthy\",\"timestamp\":\"2026-05-17T04:04:17.847Z\",\"version\":\"1.0.0\"}"
+  },
+  "logins": {
+    "hr": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "username": "hr",
+        "email": "hr@zenjo.jo",
+        "role": "hradmin",
+        "companyId": 1,
+        "employeeId": 2,
+        "mustChangePassword": false
+      }
+    },
+    "payroll": {
+      "status": 200,
+      "user": {
+        "id": 5,
+        "username": "payroll",
+        "email": "payroll@zenjo.jo",
+        "role": "payrolladmin",
+        "companyId": 1,
+        "employeeId": 3,
+        "mustChangePassword": false
+      }
+    },
+    "manager": {
+      "status": 200,
+      "user": {
+        "id": 6,
+        "username": "manager",
+        "email": "manager@zenjo.jo",
+        "role": "manager",
+        "companyId": 1,
+        "employeeId": 7,
+        "mustChangePassword": false
+      }
+    },
+    "employee": {
+      "status": 200,
+      "user": {
+        "id": 7,
+        "username": "employee",
+        "email": "employee@zenjo.jo",
+        "role": "employee",
+        "companyId": 1,
+        "employeeId": 8,
+        "mustChangePassword": false
+      }
+    },
+    "recruiter": {
+      "status": 200,
+      "user": {
+        "id": 8,
+        "username": "recruiter",
+        "email": "recruiter@zenjo.jo",
+        "role": "recruiter",
+        "companyId": 1,
+        "employeeId": 9,
+        "mustChangePassword": false
+      }
+    },
+    "admin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@zenjo.jo",
+        "role": "superadmin",
+        "companyId": 1,
+        "employeeId": 1,
+        "mustChangePassword": false
+      }
+    }
+  },
+  "fixtures": {
+    "companyId": 1,
+    "employeeId": 8,
+    "leaveTypeId": 2,
+    "leaveTypeCode": "UNPAID",
+    "policyId": 18,
+    "normalId": 181,
+    "concurrentId": 182,
+    "alreadyApprovedId": 183,
+    "deletedId": 184,
+    "managerUnrelatedId": 185,
+    "employeeForbiddenId": 186,
+    "payrollForbiddenId": 187,
+    "recruiterForbiddenId": 188,
+    "crossCompanyId": 189
+  },
+  "balance": {
+    "beforeConcurrent": {
+      "usedDays": 11,
+      "pendingDays": 0
+    },
+    "afterConcurrent": {
+      "usedDays": 13,
+      "pendingDays": 0
+    }
+  },
+  "tests": {
+    "normalApproval": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 181,
+          "employeeId": 8,
+          "leaveType": "2",
+          "startDate": "2245-12-16T21:00:00.000Z",
+          "endDate": "2245-12-16T21:00:00.000Z",
+          "totalDays": "1.00",
+          "reason": "Phase 2.1.3 approval transaction 1778990657760-34311",
+          "status": "approved",
+          "approvedById": 2,
+          "approvedAt": "2026-05-17T04:04:18.385Z",
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T04:04:18.308Z",
+          "updatedAt": "2026-05-17T04:04:18.385Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "8.00",
+          "currentApprovalStep": null,
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":181,\"employeeId\":8,\"leaveType\":\"2\",\"startDate\":\"2245-12-16T21:00:00.000Z\",\"endDate\":\"2245-12-16T21:00:00.000Z\",\"totalDays\":\"1.00\",\"reason\":\"Phase 2.1.3 approval transaction 1778990657760-34311\",\"status\":\"approved\",\"approvedById\":2,\"approvedAt\":\"2026-05-17T04:04:18.385Z\",\"rejectionReason\":null,\"createdAt\":\"2026-05-17T04:04:18.308Z\",\"updatedAt\":\"2026-05-17T04:04:18.385Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":"
+    },
+    "concurrentA": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "id": 182,
+          "employeeId": 8,
+          "leaveType": "2",
+          "startDate": "2245-12-20T21:00:00.000Z",
+          "endDate": "2245-12-21T21:00:00.000Z",
+          "totalDays": "2.00",
+          "reason": "Phase 2.1.3 approval transaction 1778990657760-34311",
+          "status": "approved",
+          "approvedById": 2,
+          "approvedAt": "2026-05-17T04:04:18.460Z",
+          "rejectionReason": null,
+          "createdAt": "2026-05-17T04:04:18.319Z",
+          "updatedAt": "2026-05-17T04:04:18.460Z",
+          "isDeleted": false,
+          "companyId": 1,
+          "durationUnit": "day",
+          "halfDayPart": null,
+          "startTime": null,
+          "endTime": null,
+          "totalHours": "16.00",
+          "currentApprovalStep": null,
+          "cancellationStatus": null,
+          "cancellationReason": null,
+          "payrollImpactType": "none",
+          "payrollImpactAmount": "0.000",
+          "createdBy": 2,
+          "updatedBy": 2
+        }
+      },
+      "text": "{\"success\":true,\"data\":{\"id\":182,\"employeeId\":8,\"leaveType\":\"2\",\"startDate\":\"2245-12-20T21:00:00.000Z\",\"endDate\":\"2245-12-21T21:00:00.000Z\",\"totalDays\":\"2.00\",\"reason\":\"Phase 2.1.3 approval transaction 1778990657760-34311\",\"status\":\"approved\",\"approvedById\":2,\"approvedAt\":\"2026-05-17T04:04:18.460Z\",\"rejectionReason\":null,\"createdAt\":\"2026-05-17T04:04:18.319Z\",\"updatedAt\":\"2026-05-17T04:04:18.460Z\",\"isDeleted\":false,\"companyId\":1,\"durationUnit\":\"day\",\"halfDayPart\":null,\"startTime\":null,\"endTime\":"
+    },
+    "concurrentB": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request is not pending approval"
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request is not pending approval\"}"
+    },
+    "crossCompany": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "deleted": {
+      "status": 404,
+      "body": {
+        "success": false,
+        "message": "Not found"
+      },
+      "text": "{\"success\":false,\"message\":\"Not found\"}"
+    },
+    "alreadyApproved": {
+      "status": 409,
+      "body": {
+        "success": false,
+        "message": "Leave request is not pending approval"
+      },
+      "text": "{\"success\":false,\"message\":\"Leave request is not pending approval\"}"
+    },
+    "managerUnrelated": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "employeeForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "payrollForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    },
+    "recruiterForbidden": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "message": "Forbidden"
+      },
+      "text": "{\"success\":false,\"message\":\"Forbidden\"}"
+    }
+  },
+  "skipped": [],
+  "errors": [],
+  "assertions": {
+    "health": true,
+    "normalApprovalSucceeds": true,
+    "concurrentOneSucceeds": true,
+    "concurrentDuplicateFailsSafely": true,
+    "balanceChangedExactlyOnce": true,
+    "crossCompanyBlocked": true,
+    "softDeletedBlocked": true,
+    "alreadyApprovedConflict": true,
+    "managerUnrelatedBlocked": true,
+    "employeeForbidden": true,
+    "payrollForbidden": true,
+    "recruiterForbidden": true
+  },
+  "evidence": {
+    "concurrentStatuses": [
+      200,
+      409
+    ],
+    "usedDelta": 2
+  }
+}
